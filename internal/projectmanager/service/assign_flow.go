@@ -573,6 +573,11 @@ func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string
 		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
 			return err
 		}
+		if t.PlanID() != "" && s.plans != nil {
+			if err := s.refreshBlockedOnForTaskState(txCtx, t); err != nil {
+				return err
+			}
+		}
 		// audit §5: record the block as a human-facing <prev>→blocked status change.
 		s.auditTaskBlocked(txCtx, t, prevStatus, reasonType, reason, actor)
 		// F6 §3: an input_required block needs a USER reply → emit a SECOND event in
@@ -935,6 +940,11 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		}
 		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
 			return err
+		}
+		if t.PlanID() != "" && s.plans != nil {
+			if err := s.refreshBlockedOnForTaskState(txCtx, t); err != nil {
+				return err
+			}
 		}
 		// audit §5: record the status transition (shared闸 for Discard/SetStatus/
 		// Complete/Reopen/Reset — every taskStateOp caller). No-op when status didn't move.

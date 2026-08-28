@@ -381,14 +381,17 @@ func (s *Server) editPlanTopologyHandler(w http.ResponseWriter, r *http.Request)
 // --- evolve_plan_generation -------------------------------------------------
 
 type evolvePlanGenerationReq struct {
-	AgentID            string                `json:"agent_id"`
-	PlanID             string                `json:"plan_id"`
-	ParentGenerationID string                `json:"parent_generation_id"`
-	BaseVersion        int                   `json:"base_version"`
-	IdempotencyKey     string                `json:"idempotency_key"`
-	Reason             string                `json:"reason"`
-	Evidence           string                `json:"evidence"`
-	Diff               pm.PlanGenerationDiff `json:"diff"`
+	AgentID             string                `json:"agent_id"`
+	PlanID              string                `json:"plan_id"`
+	ParentGenerationID  string                `json:"parent_generation_id"`
+	BaseVersion         int                   `json:"base_version"`
+	IdempotencyKey      string                `json:"idempotency_key"`
+	Reason              string                `json:"reason"`
+	Evidence            string                `json:"evidence"`
+	Diff                pm.PlanGenerationDiff `json:"diff"`
+	ResolveBlockEventID string                `json:"resolve_block_event_id"`
+	ResolutionKind      string                `json:"resolution_kind"`
+	ResolutionNote      string                `json:"resolution_note"`
 }
 
 func (s *Server) evolvePlanGenerationHandler(w http.ResponseWriter, r *http.Request) {
@@ -414,14 +417,17 @@ func (s *Server) evolvePlanGenerationHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	res, err := d.PMService.EvolvePlanGeneration(r.Context(), pmservice.EvolvePlanGenerationCommand{
-		PlanID:             pm.PlanID(req.PlanID),
-		ParentGenerationID: pm.PlanGenerationID(req.ParentGenerationID),
-		BaseVersion:        req.BaseVersion,
-		IdempotencyKey:     req.IdempotencyKey,
-		Reason:             req.Reason,
-		Evidence:           req.Evidence,
-		Creator:            pm.IdentityRef(agentActor(a)),
-		Diff:               req.Diff,
+		PlanID:              pm.PlanID(req.PlanID),
+		ParentGenerationID:  pm.PlanGenerationID(req.ParentGenerationID),
+		BaseVersion:         req.BaseVersion,
+		IdempotencyKey:      req.IdempotencyKey,
+		Reason:              req.Reason,
+		Evidence:            req.Evidence,
+		Creator:             pm.IdentityRef(agentActor(a)),
+		Diff:                req.Diff,
+		ResolveBlockEventID: req.ResolveBlockEventID,
+		ResolutionKind:      req.ResolutionKind,
+		ResolutionNote:      req.ResolutionNote,
 	})
 	if err != nil {
 		mapPlanToolError(w, err)
@@ -1026,6 +1032,7 @@ func planMap(p *pm.Plan) map[string]any {
 		"id": string(p.ID()), "project_id": string(p.ProjectID()), "name": p.Name(),
 		"description": p.Description(), "status": string(p.Status()),
 		"creator_ref": string(p.CreatorRef()), "conversation_id": p.ConversationID(),
+		"owner_ref":  "pm://plans/" + string(p.ID()),
 		"created_at": p.CreatedAt().Format(time.RFC3339Nano),
 		"updated_at": p.UpdatedAt().Format(time.RFC3339Nano),
 		"version":    p.Version(),

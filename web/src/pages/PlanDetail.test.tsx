@@ -2245,22 +2245,76 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(within(panel).getByTestId('plan-dag-evolution-active-revision')).toHaveTextContent('R2');
     expect(within(panel).getByTestId('plan-dag-evolution-generation-progress')).toHaveTextContent('1/3 done');
     expect(within(panel).getByTestId('plan-dag-evolution-diff')).toHaveTextContent('+1 tasks');
-    expect(within(panel).getByTestId('plan-dag-evolution-selected-reason')).toHaveTextContent('Reviewer rejected mobile acceptance');
-    expect(within(panel).getByTestId('plan-dag-evolution-selected-diff')).toHaveTextContent('+1 tasks');
-    expect(within(panel).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g1');
-    expect(within(panel).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g0');
+    expect(within(panel).queryByTestId('plan-dag-evolution-selected-detail')).not.toBeInTheDocument();
+    expect(screen.getByTestId('plan-dag-canvas')).toBeInTheDocument();
+
+    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-detail-open'));
+    let detail = await screen.findByTestId('plan-dag-evolution-selected-detail');
+    expect(within(detail).getByTestId('plan-dag-evolution-selected-reason')).toHaveTextContent('Reviewer rejected mobile acceptance');
+    expect(within(detail).getByTestId('plan-dag-evolution-selected-diff')).toHaveTextContent('+1 tasks');
+    expect(within(detail).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g1');
+    expect(within(detail).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g0');
+    fireEvent.click(within(detail).getByTestId('plan-dag-evolution-detail-close'));
 
     const node = screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n3"]') as HTMLElement;
     expect(within(node).getByTestId('plan-node-generation')).toHaveTextContent('R2');
 
     fireEvent.click(within(panel).getByTestId('plan-dag-evolution-revision-1'));
-    await waitFor(() => expect(within(panel).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g0'));
+    fireEvent.click(within(panel).getByTestId('plan-dag-evolution-detail-open'));
+    detail = await screen.findByTestId('plan-dag-evolution-selected-detail');
+    await waitFor(() => expect(within(detail).getByTestId('plan-dag-evolution-selected-generation-id')).toHaveTextContent('generation-g0'));
+    fireEvent.click(within(detail).getByTestId('plan-dag-evolution-detail-close'));
     expect(screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n3"]')).not.toBeInTheDocument();
     expect(screen.getAllByText('design schema at G0').length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
     const row = screen.getByTestId('plan-task-list').querySelector('[data-testid="plan-task-row"][data-task-id="n3"]') as HTMLElement;
     expect(within(row).getByTestId('plan-row-generation')).toHaveTextContent('R2');
+  });
+
+  it('keeps long PlanGeneration history in a compact horizontal strip without hiding DAG', async () => {
+    const generations = Array.from({ length: 8 }, (_, revision) => ({
+      id: `generation-g${revision}`,
+      plan_id: 'PL-1',
+      parent_generation_id: revision === 0 ? '' : `generation-g${revision - 1}`,
+      revision,
+      active: revision === 7,
+      reason: `generation reason ${revision}`,
+      evidence: `generation evidence ${revision}`,
+      creator_ref: 'user:owner',
+      diff: { node_decisions: [], tasks: [], edges: [] },
+      snapshot: {
+        plan_id: 'PL-1', plan_version: revision + 1, active_generation_id: `generation-g${revision}`,
+        tasks: [{ task_id: 'n1', node_id: 'node-1', title: 'stable task', assignee_ref: 'agent:dev', status: 'open' }],
+        edges: [], dispatch_records: [],
+      },
+      snapshot_progress: { done: 0, total: 0 },
+      idempotency_key: `generation-${revision}`,
+      dispatched_task_ids: [],
+      created_at: `2026-06-${String(revision + 1).padStart(2, '0')}T01:00:00Z`,
+    }));
+    mockPlan({
+      active_generation_id: 'generation-g7',
+      nodes: [{ task_id: 'n1', title: 'stable task', assignee_ref: 'agent:dev', task_status: 'open', node_status: 'ready', depends_on: [] }],
+      generation_read: {
+        plan_id: 'PL-1', active_generation_id: 'generation-g7', plan_version: 8, generations,
+        nodes: [{ task_id: 'n1', node_id: 'node-1', generation_id: 'generation-g0', revision: 0, present_in_active: true }],
+      },
+    });
+    server.use(
+      http.get('/api/projects/proj-a/plans/PL-1/graph', () => HttpResponse.json({ has_graph: false })),
+      http.get('/api/projects/proj-a/plans/PL-1/stages', () => HttpResponse.json({ stages: [] })),
+    );
+
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+
+    const panel = await screen.findByTestId('plan-dag-evolution');
+    expect(within(panel).queryByTestId('plan-dag-evolution-page-label')).not.toBeInTheDocument();
+    expect(screen.getByTestId('plan-dag-canvas')).toBeInTheDocument();
+    expect(within(panel).queryByTestId('plan-dag-evolution-selected-detail')).not.toBeInTheDocument();
+    expect(within(panel).getByTestId('plan-dag-evolution-revision-1')).toBeInTheDocument();
+    expect(within(panel).getByTestId('plan-dag-evolution-revision-8')).toBeInTheDocument();
   });
 
   it('renders an orchestration-graph history revision from its immutable snapshot', async () => {
@@ -2496,6 +2550,70 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
         tasks: [{ ref: 'verify', title: 'Verify fix', assignee_ref: 'agent:dev' }],
         edges: [{ from: 'verify', to: 'n3', kind: 'seq' }],
       },
+    });
+  });
+
+  it('Replace resolves the current blocked context inside one evolution request', async () => {
+    let body: Record<string, unknown> | null = null;
+    let evolutionCount = 0;
+    let standaloneResolveCount = 0;
+    mockPlan({
+      status: 'paused',
+      has_failed: false,
+      version: 12,
+      active_generation_id: 'generation-parent',
+      blocked_on: [{
+        event_id: 'n6',
+        task_id: 'n6',
+        wait_type: 'acceptance_verdict',
+        wait_keys: ['gate-review'],
+        trigger_condition: 'Acceptance gate is waiting for review',
+        waited_since: '2026-08-01T00:00:00Z',
+      }],
+    });
+    server.use(
+      http.post('/api/projects/proj-a/plans/PL-1/evolution', async ({ request }) => {
+        evolutionCount += 1;
+        body = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({
+          ok: true,
+          version: 13,
+          dispatched: [],
+          duplicate: false,
+          active_generation_id: 'generation-child',
+          generation: {},
+        });
+      }),
+      http.post('/api/projects/proj-a/plans/PL-1/block-events/:eventId/resolve', () => {
+        standaloneResolveCount += 1;
+        return HttpResponse.json({ ok: true });
+      }),
+    );
+
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-evolution-btn'));
+    expect(screen.getByTestId('plan-blocked-resolution-panel')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Replace' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Bypass' })).toBeVisible();
+    fireEvent.click(screen.getByTestId('plan-block-replace'));
+    fireEvent.change(screen.getByTestId('plan-block-resolution-note'), { target: { value: 'Replace blocked branch with verification node.' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-reason'), { target: { value: 'Gate replacement' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-evidence'), { target: { value: 'Reviewer requested replacement.' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-idempotency'), { target: { value: 'idem-ui-evo-replace' } });
+    fireEvent.change(screen.getByTestId('plan-evolution-diff'), {
+      target: { value: '{"node_decisions":[],"tasks":[{"ref":"verify","title":"Verify fix","assignee_ref":"agent:dev","detached":true}],"edges":[]}' },
+    });
+    await act(async () => fireEvent.click(screen.getByTestId('plan-evolution-submit')));
+
+    await waitFor(() => expect(evolutionCount).toBe(1));
+    expect(standaloneResolveCount).toBe(0);
+    expect(body).toMatchObject({
+      parent_generation_id: 'generation-parent',
+      base_version: 12,
+      idempotency_key: 'idem-ui-evo-replace',
+      resolve_block_event_id: 'n6',
+      resolution_kind: 'replace',
+      resolution_note: 'Replace blocked branch with verification node.',
     });
   });
 

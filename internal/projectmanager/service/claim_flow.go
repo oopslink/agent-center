@@ -136,6 +136,9 @@ func (s *Service) claimAssignmentPoolTask(ctx context.Context, taskID pm.TaskID,
 		if err != nil {
 			return err
 		}
+		if task.PlanID() != "" {
+			return pm.ErrTaskNotClaimable
+		}
 		pool, err := s.pools.FindByProject(txCtx, task.ProjectID())
 		if err != nil {
 			return err
@@ -207,6 +210,9 @@ func (s *Service) ReleasePoolTask(ctx context.Context, taskID pm.TaskID, actor p
 		task, err := s.tasks.FindByID(txCtx, taskID)
 		if err != nil {
 			return err
+		}
+		if task.PlanID() != "" {
+			return pm.ErrTaskNotClaimable
 		}
 		if task.Status() != pm.TaskOpen || task.Assignee() != actor {
 			return pm.ErrTaskNotClaimable
@@ -416,7 +422,7 @@ func (s *Service) listClaimableAssignmentPool(ctx context.Context, actor pm.Iden
 			if err != nil {
 				return nil, err
 			}
-			if !task.IsArchived() && task.Status() == pm.TaskOpen && task.Assignee() == "" {
+			if task.PlanID() == "" && !task.IsArchived() && task.Status() == pm.TaskOpen && task.Assignee() == "" {
 				out = append(out, ClaimableTask{Task: task, NodeStatus: pm.NodeDispatched})
 			}
 		}

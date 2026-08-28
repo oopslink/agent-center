@@ -270,6 +270,17 @@ type PlanRepository interface {
 	GetBlockedOn(ctx context.Context, planID PlanID, taskID TaskID) (BlockedOn, bool, error)
 	ListBlockedOn(ctx context.Context, planID PlanID) ([]BlockedOn, error)
 
+	// Progress control S2A: persisted ObservationVector plus named responsibility.
+	// Observation rows are append-friendly snapshots; Latest is used only to carry the
+	// suspect stability fence across reconcile cycles. Obligation/Incident writes dedup
+	// by their episode key so replay cannot create duplicate responsibilities.
+	SaveProgressObservation(ctx context.Context, v ObservationVector) error
+	LatestProgressObservation(ctx context.Context, planID PlanID, taskID TaskID) (ObservationVector, bool, error)
+	UpsertProgressObligation(ctx context.Context, o ProgressObligation) error
+	UpsertProgressIncident(ctx context.Context, i ProgressIncident) error
+	ListOpenProgressObligations(ctx context.Context, planID PlanID) ([]ProgressObligation, error)
+	ListOpenProgressIncidents(ctx context.Context, planID PlanID) ([]ProgressIncident, error)
+
 	// Generations are immutable topology snapshots produced by Evolution commits.
 	// SaveGeneration inserts once; replay goes through FindGenerationByIdempotencyKey.
 	// ActivateGeneration CAS-updates the Plan aggregate pointer + version in the same

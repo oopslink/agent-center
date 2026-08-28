@@ -59,6 +59,9 @@ func (s *Service) DeletePlan(ctx context.Context, planID pm.PlanID, actor pm.Ide
 			return err
 		}
 		for _, t := range tasks {
+			if err := s.removeTaskFromAssignmentPoolIfPresent(txCtx, t.ID()); err != nil {
+				return err
+			}
 			if err := t.ClearPlan(now); err != nil {
 				return err
 			}
@@ -95,7 +98,9 @@ func (s *Service) DeletePlan(ctx context.Context, planID pm.PlanID, actor pm.Ide
 }
 
 // ArchivePlan sets an orthogonal marker on a terminal Plan. It never rewrites Plan
-// lifecycle or Task lifecycle; done/discarded remains the durable outcome.
+// lifecycle or Task lifecycle; done/discarded remains the durable outcome. The actor
+// must be the Plan creator, a Project owner, or an active owner of the Project's
+// organization.
 func (s *Service) ArchivePlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
@@ -141,7 +146,8 @@ func (s *Service) ArchivePlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 
 // DiscardPlan permanently abandons a pending/running/paused Plan. Remaining
 // non-terminal member Tasks are finalized to discarded in the same transaction;
-// terminal Task history is preserved.
+// terminal Task history is preserved. The actor must be the Plan creator, a
+// Project owner, or an active owner of the Project's organization.
 func (s *Service) DiscardPlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
@@ -163,7 +169,7 @@ func (s *Service) DiscardPlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 			return err
 		}
 		for _, task := range tasks {
-			if pm.TaskIsDone(task.Status()) {
+			if pm.TaskIsDone(task.Status()) || pm.TaskIsFailed(task.Status()) {
 				continue
 			}
 			prev := task.Status()
@@ -176,6 +182,9 @@ func (s *Service) DiscardPlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 			s.auditTaskStatusChange(txCtx, task, prev, actor)
 		}
 		if err := s.plans.Update(txCtx, p); err != nil {
+			return err
+		}
+		if err := s.clearPlanBlockedOn(txCtx, p.ID()); err != nil {
 			return err
 		}
 		s.auditPlan(txCtx, p, pm.AuditPlanStopped, actor, map[string]any{"status": string(p.Status()), "discarded": true})

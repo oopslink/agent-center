@@ -152,10 +152,18 @@ func (s *Server) workerHeartbeatHandler(w http.ResponseWriter, r *http.Request) 
 	// v2.19.0: record the per-agent live executor snapshots (when the store is wired
 	// and the worker sent any). Best-effort + after the liveness write — a snapshot is
 	// transient view state, never a reason to fail the heartbeat.
-	if d.LiveState != nil && len(req.AgentConcurrencySnapshots) > 0 {
+	if len(req.AgentConcurrencySnapshots) > 0 {
 		now := time.Now()
 		for agentID, snap := range req.AgentConcurrencySnapshots {
-			d.LiveState.Put(agentID, snap, now)
+			if d.InsightObservations != nil {
+				if _, err := d.InsightObservations.Append(r.Context(), req.WorkerID, agentID, snap, now); err != nil {
+					mapDomainError(w, err)
+					return
+				}
+			}
+			if d.LiveState != nil {
+				d.LiveState.Put(agentID, snap, now)
+			}
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"worker_id": req.WorkerID})

@@ -102,6 +102,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		Reminder:            buildReminderService(a),
 		AgentSvc:            a.AgentService,
 		LiveState:           a.LiveState, // v2.19.0 concurrency snapshot reader
+		Insight:             a.InsightSvc,
 		EnvControl:          a.EnvControlSvc,
 		RuntimeFsDispatcher: a.RuntimeFsDispatcher,
 		FilesSvc:            buildFilesService(a),
@@ -528,6 +529,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		Reminder:            buildReminderService(a),
 		AgentSvc:            a.AgentService,
 		LiveState:           a.LiveState, // v2.19.0 concurrency snapshot reader
+		Insight:             a.InsightSvc,
 		EnvControl:          a.EnvControlSvc,
 		RuntimeFsDispatcher: a.RuntimeFsDispatcher,
 		FilesSvc:            filesSvc,
@@ -757,6 +759,13 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 	)
 	go activityEventGC.Run(activityEventGCCtx)
 
+	insightProjectorCancel := func() {}
+	if a.InsightSvc != nil {
+		insightProjectorCancel = a.InsightSvc.StartProjector(ctx, time.Second, func(err error) {
+			logger("webconsole insight projector: " + err.Error())
+		})
+	}
+
 	cleanup = func() error {
 		fanoutCancel()
 		pumpCancel()
@@ -766,6 +775,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		resolvedIssueCloserCancel()
 		controlEventGCCancel()
 		activityEventGCCancel()
+		insightProjectorCancel()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		_ = bus.Shutdown(shutCtx)

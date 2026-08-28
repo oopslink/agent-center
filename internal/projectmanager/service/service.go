@@ -19,6 +19,7 @@ import (
 	authz "github.com/oopslink/agent-center/internal/authorization"
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/concurrency"
+	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
@@ -105,6 +106,11 @@ const (
 	// failure transition, not a chat agent→agent reply loop. For a HUMAN creator NO
 	// event is emitted (the @mention in the conversation IS their notification).
 	EvtPlanCreatorFailureWake = "pm.plan.creator_failure_wake"
+	// EvtPlanOwnerBlockWake is emitted when a Plan node first materializes a durable
+	// blocked_on snapshot, or changes to a different wait descriptor. It is paired
+	// with a system @mention in the Plan conversation and lets WakeProjector directly
+	// wake an agent owner; human owners use the durable @mention as their notice.
+	EvtPlanOwnerBlockWake = "pm.plan.owner_block_wake"
 	// T456 (issue-21ba5b78/I30 — 租约到期不 reclaim，只 nudge). Emitted by the
 	// lease-checker (NudgeExpiredLeases) IN THE SAME TX as the lease renew + lease_nudge
 	// log when a running task's execution lease lapsed. The (production-registered)
@@ -214,6 +220,7 @@ type Service struct {
 	db           *sql.DB
 	projects     pm.ProjectRepository
 	members      pm.ProjectMemberRepository
+	orgMembers   identity.MemberRepository
 	issues       pm.IssueRepository
 	tasks        pm.TaskRepository
 	taskSubs     pm.TaskSubscriberRepository
@@ -353,9 +360,12 @@ var ErrNodeNotPaused = errors.New("projectmanager: plan node has no paused work 
 
 // Deps bundles the Service dependencies.
 type Deps struct {
-	DB           *sql.DB
-	Projects     pm.ProjectRepository
-	Members      pm.ProjectMemberRepository
+	DB       *sql.DB
+	Projects pm.ProjectRepository
+	Members  pm.ProjectMemberRepository
+	// OrgMembers is OPTIONAL for older tests. When wired, Plan lifecycle owner gates
+	// also accept an active owner of the Plan's organization.
+	OrgMembers   identity.MemberRepository
 	Issues       pm.IssueRepository
 	Tasks        pm.TaskRepository
 	TaskSubs     pm.TaskSubscriberRepository
@@ -454,7 +464,7 @@ func New(d Deps) *Service {
 		})
 	}
 	return &Service{
-		db: d.DB, projects: d.Projects, members: d.Members, issues: d.Issues,
+		db: d.DB, projects: d.Projects, members: d.Members, orgMembers: d.OrgMembers, issues: d.Issues,
 		tasks: d.Tasks, taskSubs: d.TaskSubs, issueSubs: d.IssueSubs,
 		codeRepoRefs: d.CodeRepoRefs, plans: d.Plans, outbox: d.Outbox, idgen: d.IDGen, clock: clk,
 		agentDir: d.AgentDir, codeRepoResolver: d.CodeRepoResolver, orgSeq: d.OrgSeq, planDispatcher: d.PlanDispatcher, findings: d.Findings,
@@ -681,6 +691,18 @@ type planCreatorFailureWakePayload struct {
 	MessageID      string `json:"message_id"`
 	PlanID         string `json:"plan_id"`
 	TaskID         string `json:"task_id"`
+	OrganizationID string `json:"organization_id"`
+}
+
+// planOwnerBlockWakePayload carries one durable Plan-node block notification.
+type planOwnerBlockWakePayload struct {
+	OwnerRef       string `json:"owner_ref"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	PlanID         string `json:"plan_id"`
+	TaskID         string `json:"task_id"`
+	WaitType       string `json:"wait_type"`
+	Reason         string `json:"reason"`
 	OrganizationID string `json:"organization_id"`
 }
 

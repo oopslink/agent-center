@@ -4,9 +4,14 @@
 |---|---|
 | 状态 | Frozen executable contract（S1 remediation） |
 | 日期 | 2026-08-20 |
-| 审计基线 | 候选提交 `9da26a8e`；执行前必须回读并记录实际 `origin/main` |
-| 范围 | AI Runtime Profile 删除线、Access Profile 产品删除线、独立 RAM Role、Team Role -> RAM Role、Access IA、迁移/回滚、A1-A16 截图验收 |
+| 审计基线 | `origin/main@7232c04df2bc902353107404d18b4bc3f5bd5712`（ADR-0059 canonical remediation 起点） |
+| 范围 | AI Runtime Profile 删除线、Access Profile 产品删除线、独立 RAM Role、Team Role 的 RAM Roles 属性、Access IA、迁移/回滚、A1-A16 截图验收 |
 | 配套矩阵 | `docs/design/features/2026-08-20-t1435-residual-matrix.md` |
+
+> **2026-08-23 产品口径修正（ADR-0059）**：旧 `Roles & mappings` /
+> `Team Role mappings` 产品口径作废。Access 只有 `RAM Roles` 与
+> `Subject access`；RAM Roles 是 Team Role 的可编辑属性，而不是独立的
+> “mapping” 产品。本文中的 `mapping` 仅指后端持久化/API 实现。
 
 ## 1. Profile 分域边界
 
@@ -61,9 +66,20 @@
 | `ram_role_keys` | template/create/update 的可移植 RAM Role 名称；只解析 `authorization_roles` |
 | `ram_role_ids` | mapping preview/PUT 的稳定 ID；只校验 active `authorization_roles` |
 
+### 2.3 产品语言边界
+
+| 用户看到的概念 | 用户操作 | 禁止文案 |
+|---|---|---|
+| RAM Role | 在 Access 中创建、编辑、查看版本、删除 | `Roles & mappings` |
+| Team Role 的 RAM Roles | 在 Team Role 详情/编辑中维护 RAM Roles 列表 | `Team Role mappings`、`Map role`、`Replace mapping` |
+| Used by Team Roles | RAM Role 详情中的只读引用 | 从 RAM Role 页面编辑 Team Role |
+
+`mapping`、mapping version 与 CAS replace 是实现层术语。产品层表达为：
+“这个 Team Role 拥有哪些 RAM Roles”。
+
 `ram_role_keys` 的 resolver 必须优先匹配同 org role，再匹配 system role；歧义、dangling、cross-org 或 revoked 均失败，不得 fallback 到 `access_profiles`。
 
-### 2.3 API 合同
+### 2.4 API 合同
 
 | API | 作用 | 鉴权 | 关键行为 |
 |---|---|---|---|
@@ -121,13 +137,14 @@
 - W3 drop 前再做一份相同格式终态快照并保留至兼容期结束；drop 后若必须回退，先恢复旧 schema + 快照，再部署旧二进制。禁止只执行 0132/0136 down，因为这会丢版本、mapping 关联或 W2 增量。
 - 每次回退后从数据库权威源回读 counts/checksums，并跑 explain/effective probes；日志中的 `ok` 不构成成功证据。
 
-## 4. Team RAM 生效合同
+## 4. Team Role 的 RAM Roles 生效合同
 
 - Team RAM 唯一消费者为 authorization effective service；team scope 只匹配本 Team。
 - project 以及 task/issue/plan/conversation 派生 scope 必须落在 `team_projects` 关联中；多 Project 时全部关联项目同时生效并完整出现在 preview。
 - 移除 mapping、member 或 project link 必须立即 fail closed。
 - direct binding (`authorization_role_assignments`) 与 Team RAM 求并集、互不覆盖；撤销一条来源不得抹掉另一条来源，explain 必须显示真实 source chain。
-- mapping replace 使用 CAS 全量 replace、写 previous/next role IDs/version/actor audit；不得 patch append。
+- 用户在 Team Role 中保存完整 RAM Roles 列表；后端使用 CAS 全量 replace，写 previous/next role IDs/version/actor audit，不得 patch append。
+- 唯一可写入口是 `Teams → Team → Roles → Team Role → RAM Roles`。Access 的 RAM Role 详情只读展示 `Used by Team Roles`。
 
 ## 5. Cache、Shadow、Audit
 
@@ -138,29 +155,39 @@
 | Audit | RAM Role create/version/revoke 与 direct grant/revoke、mapping replace 各写权威 audit；actor、subject/resource、previous/next 不得省略 |
 | Rollback | `legacy` 只回退 enforcement；数据回退必须按第 3.4 节快照与重放执行 |
 
-## 6. Access IA 与 A1-A16 截图矩阵
+## 6. Access / Team Role IA 与 A1-A16 截图矩阵
 
-Access 只有两个 tab：`Roles & mappings`（默认）与 `Subject access`。不存在 `Profiles` tab。RAM Role 的创建、编辑、历史与 revoke 均在 Roles & mappings 内完成，并始终使用 RAM Role 文案。
+Access 二级侧栏只有两个入口：`RAM Roles`（默认）与 `Subject access`。
+不存在 `Profiles`、`Roles & mappings` 或 `Team Role mappings` 入口，也不在
+Access 内容区重复渲染页内 tab。RAM Role 的创建、编辑、历史与 revoke 均在
+`RAM Roles` 页面完成。Team Role 的 RAM Roles 列表只在 Team Role 页面编辑。
 
 截图必须来自真实导航路径，保存到 `docs/releases/<version>-screenshots/access/` 并在报告内联引用。
+
+三张产品 canonical、尺寸/交互注释与确定性 PNG 生成方式位于
+`docs/design/assets/adr-0059/README.md`。下表是历史 A1-A16 场景索引；逐状态的
+前置、动作、可见结果、权威回读与 FAIL 条件统一冻结在
+`docs/acceptance/adr-0059/canonical-state-matrix.md`，后者覆盖 default/loading/
+forbidden/empty/search/filter/pagination/detail/create/edit/conflict/delete，以及
+Team Role member impact 与 Subject access source precedence。
 
 | ID | 页面/状态 | 必须可见 | 导航路径 | 建议文件名 |
 |---|---|---|---|---|
 | A1 | Access no permission | forbidden reason；写控件禁用 | member -> sidebar Access | `access-forbidden.png` |
 | A2 | Access loading | summary/table skeleton；无布局跳动 | admin -> Access，延迟 overview | `access-loading.png` |
-| A3 | Roles & mappings happy | RAM Role catalog、Team mappings、version、used-by | Access -> Roles & mappings | `access-ram-roles-mappings.png` |
-| A4 | mapping preview | members、+/- roles、全部 projects | edit mapping -> Preview | `access-mapping-preview.png` |
-| A5 | mapping saved | version +1、draft 清空、server 回读 | Preview -> Save | `access-mapping-saved.png` |
-| A6 | mapping conflict | inline 409；无部分写 | stale expected_version save | `access-mapping-conflict.png` |
+| A3 | RAM Roles happy | RAM Role catalog、version、used-by（只读） | Access -> RAM Roles | `access-ram-roles.png` |
+| A4 | Team Role RAM Roles preview | 当前/下一组 RAM Roles、受影响成员、全部 projects | Teams -> Team -> Roles -> Team Role -> edit RAM Roles | `team-role-ram-roles-preview.png` |
+| A5 | Team Role RAM Roles saved | version +1、编辑态清空、server 回读完整 RAM Roles 列表 | Team Role -> Save changes | `team-role-ram-roles-saved.png` |
+| A6 | Team Role RAM Roles conflict | inline 409 + Refresh；无部分写 | stale expected_version save | `team-role-ram-roles-conflict.png` |
 | A7 | Subject access chain | membership -> Team Role -> RAM Role -> scoped permissions | Subject access -> expand | `access-subject-chain.png` |
 | A8 | direct coexists | direct binding 与 Team RAM source 并存 | subject with both sources | `access-direct-coexist.png` |
 | A9 | batch grant preview | grantable/high risk/unauthorized/not applicable | Batch grant -> Preview | `access-grant-preview.png` |
 | A10 | derived revoke | not_applicable；禁止直接 revoke | Subject access -> revoke derived | `access-derived-revoke-blocked.png` |
 | A11 | direct revoke confirm | token 二阶段、revoked、audit 可查 | direct revoke -> Confirm | `access-direct-revoke-confirmed.png` |
-| A12 | RAM Role detail/history | current permissions、version history、risk；无 Profile 文案/tab | Roles & mappings -> RAM Role | `access-ram-role-detail.png` |
-| A13 | RAM Role create | create form、permission checklist、created role selected | Roles & mappings -> New RAM Role | `access-ram-role-created.png` |
+| A12 | RAM Role detail/history | current permissions、version history、risk、Used by Team Roles（只读）；无 Profile/mapping 文案 | RAM Roles -> RAM Role | `access-ram-role-detail.png` |
+| A13 | RAM Role create | create form、permission checklist、created role selected | RAM Roles -> New RAM Role | `access-ram-role-created.png` |
 | A14 | RAM Role version conflict | stale expected_version 409；无新版本 | RAM Role -> publish stale edit | `access-ram-role-version-conflict.png` |
-| A15 | Team detail mapping | RAM Role multi-select；save 后 `ram_role_keys` server 回读 | Team detail -> edit roles | `team-role-ram-builder.png` |
+| A15 | Team Role full editor | runtime properties + RAM Roles multi-select；save 后 server 回读；不出现 mapping 产品文案 | Teams -> Team -> Roles -> Team Role | `team-role-ram-roles.png` |
 | A16 | AI Runtime retired guard | export 无 retired fields；import retired fields 报错 | System -> AI Runtime -> Import | `ai-runtime-retired-guard.png` |
 
 ## 7. 定向验收

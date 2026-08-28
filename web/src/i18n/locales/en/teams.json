@@ -87,6 +87,7 @@
   "teamDetail": {
     "roles": {
       "edit": "Edit roles",
+      "open": "Open Team Roles",
       "title": "Edit role definitions",
       "subtitle": "Add, configure, or remove roles. Roles assigned to members cannot be removed or renamed.",
       "save": "Save roles",
@@ -99,6 +100,13 @@
       "confirmAccessApply": "Apply now",
       "invalid": "Every role needs a unique name.",
       "saveSuccess": "Role changes saved.",
+      "listTitle": "Team Roles",
+      "listHint": "Select a Team Role to inspect work and access configuration.",
+      "emptyTitle": "No Team Roles",
+      "emptyBody": "Add a Team Role before configuring work or access.",
+      "concurrency": "concurrency {{count}}",
+      "membersCount": "{{count}} members",
+      "ramRolesCount": "{{count}} RAM Roles",
       "deleteSuccess": "Role {{role}} deleted and members reassigned.",
       "deleteTitle": "Delete {{role}} role",
       "deleteImpact": "This affects {{members}} members and {{projects}} linked projects.",
@@ -108,7 +116,7 @@
       "deleteConfirm": "Delete role",
       "previewTitle": "Save preview",
       "affectedSummary": "{{roles}} changed roles · {{members}} affected members",
-      "effectiveHint": "Role config and RAM permission mapping take effect immediately for new permission checks; running work keeps any already-snapshotted runtime context until it restarts.",
+      "effectiveHint": "Role config and RAM Role changes take effect immediately for new permission checks; running work keeps any already-snapshotted runtime context until it restarts.",
       "diffEmpty": "No role changes.",
       "noAffectedMembers": "No currently enrolled members are affected."
     },
@@ -116,6 +124,7 @@
     "notFound": "team_not_found",
     "tabs": {
       "overview": "Overview",
+      "roles": "Roles",
       "members": "Members",
       "projects": "Linked projects",
       "memory": "Team Memory",

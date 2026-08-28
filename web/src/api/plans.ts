@@ -142,7 +142,22 @@ export interface Plan {
   node_count?: number;
   gate_verdicts?: GateVerdict[];
   continuations?: PlanContinuation[];
+  blocked_on?: PlanBlockedOn[];
   active_generation_id?: string;
+}
+
+export interface PlanBlockedOn {
+  event_id: string;
+  task_id: string;
+  node_id?: string;
+  wait_type: string;
+  wait_keys: string[];
+  trigger_condition: string;
+  waited_since: string;
+  deadline?: string;
+  on_timeout?: string;
+  last_probe_at?: string;
+  probe_count?: number;
 }
 
 export interface GateVerdict {
@@ -790,6 +805,9 @@ export interface CommitPlanEvolutionInput {
   evidence: string;
   idempotency_key: string;
   diff: PlanGenerationDiff;
+  resolve_block_event_id?: string;
+  resolution_kind?: 'replace' | 'bypass';
+  resolution_note?: string;
 }
 
 export interface PlanEvolutionCommitResponse {
@@ -893,6 +911,44 @@ export function useArchivePlan(projectId: string, planId: string) {
   return usePlanWrite<void, Plan>(projectId, planId, () =>
     api.post<Plan>(`${plansBase(projectId)}/${planId}/archive`),
   );
+}
+
+export interface BatchArchivePlansResult {
+  archived: string[];
+  failed: Array<{ planId: string; reason: string }>;
+}
+
+// Project Plans list bulk action. Archive remains one domain command per Plan:
+// this UI coordinator deliberately reuses the canonical endpoint so lifecycle,
+// membership and owner/creator guards cannot drift from the detail action.
+export function useBatchArchivePlans(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (planIds: string[]): Promise<BatchArchivePlansResult> => {
+      const settled = await Promise.allSettled(
+        planIds.map((planId) => api.post<Plan>(`${plansBase(projectId)}/${planId}/archive`)),
+      );
+      const result: BatchArchivePlansResult = { archived: [], failed: [] };
+      settled.forEach((entry, index) => {
+        const planId = planIds[index];
+        if (entry.status === 'fulfilled') result.archived.push(planId);
+        else result.failed.push({
+          planId,
+          reason: entry.reason instanceof Error ? entry.reason.message : String(entry.reason),
+        });
+      });
+      return result;
+    },
+    onSuccess: (result) => {
+      result.archived.forEach((planId) => {
+        void qc.invalidateQueries({ queryKey: qk.plan(planId) });
+      });
+      void qc.invalidateQueries({ queryKey: qk.plansByProject(projectId) });
+      void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
+      void qc.invalidateQueries({ queryKey: qk.unplannedTasksByProject(projectId) });
+      void qc.invalidateQueries({ queryKey: qk.assignmentPoolByProject(projectId) });
+    },
+  });
 }
 
 // #218 friendly error for the destructive 409s (running / already-archived).

@@ -780,6 +780,11 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 		generation = bumped.Generation
 	}
 
+	sessionID := claudestream.SessionUUIDGen(agentID, epochState.Epoch, generation)
+	if _, lerr := sessioninstance.AcquireInstance(home, sessionID, os.Getpid()); lerr != nil {
+		r.log("started agent=%s: write session.instance: %v (non-fatal)", agentID, lerr)
+	}
+
 	sess, err := r.cfg.Starter(ctx, SupervisorSessionConfig{
 		AgentID:             agentID,
 		HomeDir:             home,
@@ -801,17 +806,15 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 		OnExit:              func(exitErr error) { r.onExit(exitErr) },
 	})
 	if err != nil {
+		if relErr := sessioninstance.ReleaseInstance(home); relErr != nil {
+			r.log("start agent=%s: release pre-acquired session.instance after start failure: %v", agentID, relErr)
+		}
 		return fmt.Errorf("agent_controller: start session: %w", err)
 	}
 
 	r.mu.Lock()
 	r.state.Session = sess
 	r.mu.Unlock()
-
-	sessionID := claudestream.SessionUUIDGen(agentID, epochState.Epoch, generation)
-	if _, lerr := sessioninstance.AcquireInstance(home, sessionID, os.Getpid()); lerr != nil {
-		r.log("started agent=%s: write session.instance: %v (non-fatal)", agentID, lerr)
-	}
 
 	r.log("started agent=%s version=%d epoch=%d generation=%d fork=%v resume=%v home=%s", agentID, spec.Version, epochState.Epoch, generation, spec.ForkResume, spec.Resume, home)
 	r.reportControlLoaded(agentID, spec, controlLoadedInfo{

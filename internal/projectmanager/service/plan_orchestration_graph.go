@@ -335,10 +335,11 @@ func (s *Service) driveGraphDecisions(txCtx context.Context, p *pm.Plan, edges [
 		}
 		if stageID, _ := meta["stage_gate"].(string); stageID != "" {
 			// ADR-0055: a stage reject is not an engine loopback. The immutable
-			// verdict command must first append a new remediation generation and
-			// rewire the boundary. Seeing a raw reject outcome here therefore means
-			// an obsolete caller tried to use the retired reopen path.
-			return pm.ErrTaskReopenRetired
+			// verdict command owns append-remediation and boundary rewiring. If a
+			// reject verdict has been recorded but remediation is still awaiting
+			// owner action (for example recorded while paused), leave the condition
+			// unresolved and let progress control bind the plan-level obligation.
+			continue
 		}
 		// REJECT: only a loopback edge whose When matches this outcome fires a re-run
 		// (parity with legacy applyLoopbacks, which keyed on the matching loopback edge).
@@ -1052,12 +1053,17 @@ func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error 
 		// and carry the router-owned probe history (last_probe_at / probe_count) forward so
 		// the sweep never clobbers it. A wait_type CHANGE is a genuinely new wait —
 		// waited_since resets to now (above) and the stale probe history is dropped.
-		if prev, ok, gerr := s.plans.GetBlockedOn(txCtx, planID, n.TaskID); gerr != nil {
+		var prev pm.BlockedOn
+		var hadPrev bool
+		if got, ok, gerr := s.plans.GetBlockedOn(txCtx, planID, n.TaskID); gerr != nil {
 			return gerr
-		} else if ok && prev.WaitType == cls.waitType {
-			b.WaitedSince = prev.WaitedSince
-			b.LastProbeAt = prev.LastProbeAt
-			b.ProbeCount = prev.ProbeCount
+		} else if ok && got.WaitType == cls.waitType {
+			prev, hadPrev = got, true
+			b.WaitedSince = got.WaitedSince
+			b.LastProbeAt = got.LastProbeAt
+			b.ProbeCount = got.ProbeCount
+		} else if ok {
+			prev, hadPrev = got, true
 		}
 		// I103 §2: (re)ASSIGN the deadline + on_timeout action from the policy, measured
 		// from waited_since. Because waited_since is preserved for an unchanged wait, the
@@ -1069,6 +1075,94 @@ func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error 
 			b.OnTimeout = string(action)
 		}
 		if err := s.plans.UpsertBlockedOn(txCtx, b); err != nil {
+			return err
+		}
+		if err := s.notifyPlanOwnerOnBlockedNode(txCtx, p, b, prev, hadPrev); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) notifyPlanOwnerOnBlockedNode(ctx context.Context, p *pm.Plan, b pm.BlockedOn, prev pm.BlockedOn, hadPrev bool) error {
+	if p == nil || strings.TrimSpace(p.ConversationID()) == "" {
+		return nil
+	}
+	if b.WaitType == pm.WaitExecutorLiveness {
+		return nil
+	}
+	if hadPrev && prev.WaitType == b.WaitType && stringSlicesEqual(prev.WaitKeys, b.WaitKeys) && prev.TriggerCondition == b.TriggerCondition {
+		return nil
+	}
+	msgID := ""
+	if s.planDispatcher != nil {
+		ref := string(b.TaskID)
+		content := fmt.Sprintf("plan node %s is blocked (%s): %s", ref, b.WaitType, b.TriggerCondition)
+		id, err := s.planDispatcher.PostMention(ctx, p.ConversationID(), string(p.CreatorRef()), content)
+		if err != nil {
+			return err
+		}
+		msgID = id
+	}
+	orgID := ""
+	if s.projects != nil {
+		if proj, err := s.projects.FindByID(ctx, p.ProjectID()); err == nil && proj != nil {
+			orgID = proj.OrganizationID()
+		}
+	}
+	return s.emit(ctx, EvtPlanOwnerBlockWake,
+		refsJSON(map[string]string{"plan_id": string(p.ID()), "task_id": string(b.TaskID), "project_id": string(p.ProjectID())}),
+		planOwnerBlockWakePayload{
+			OwnerRef:       string(p.CreatorRef()),
+			ConversationID: p.ConversationID(),
+			MessageID:      msgID,
+			PlanID:         string(p.ID()),
+			TaskID:         string(b.TaskID),
+			WaitType:       string(b.WaitType),
+			Reason:         b.TriggerCondition,
+			OrganizationID: orgID,
+		})
+}
+
+func stringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (s *Service) refreshBlockedOnForTaskState(ctx context.Context, t *pm.Task) error {
+	if t == nil || t.PlanID() == "" || s.plans == nil {
+		return nil
+	}
+	if t.Status().IsTerminal() {
+		return s.plans.ClearBlockedOn(ctx, t.PlanID(), t.ID())
+	}
+	p, err := s.plans.FindByID(ctx, t.PlanID())
+	if err != nil {
+		return err
+	}
+	if p.Status() != pm.PlanRunning && p.Status() != pm.PlanPaused {
+		return nil
+	}
+	return s.materializeBlockedOn(ctx, p)
+}
+
+func (s *Service) clearPlanBlockedOn(ctx context.Context, planID pm.PlanID) error {
+	if s.plans == nil || planID == "" {
+		return nil
+	}
+	list, err := s.plans.ListBlockedOn(ctx, planID)
+	if err != nil {
+		return err
+	}
+	for _, b := range list {
+		if err := s.plans.ClearBlockedOn(ctx, planID, b.TaskID); err != nil {
 			return err
 		}
 	}
@@ -1102,6 +1196,9 @@ type blockedOnClass struct {
 // external_event is intentionally NOT derived here — no current graph state maps to
 // it (external_event subscription is a downstream I103 task); the enum reserves it.
 func (s *Service) classifyBlockedOn(ctx context.Context, p *pm.Plan, t *pm.Task, n pm.PlanNodeView, edges []pm.Dependency, hasOutcome map[pm.TaskID]bool, nodeStatusByID map[pm.TaskID]pm.NodeStatus) (blockedOnClass, bool, error) {
+	if t.Status().IsParked() {
+		return blockedOnClass{pm.WaitHumanDecision, []string{string(t.ID())}, "the plan owner resolves the blocked task"}, false, nil
+	}
 	switch n.NodeStatus {
 	case pm.NodeDone, pm.NodeFailed, pm.NodeSkipped:
 		return blockedOnClass{}, true, nil // settled — clear any snapshot.

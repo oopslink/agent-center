@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -54,7 +55,8 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 		return ErrPlansUnavailable
 	}
 	now := s.clock.Now()
-	return s.runInTx(ctx, func(txCtx context.Context) error {
+	var gateDiagnostics []PlanDiagnostic
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
 		p, err := s.plans.FindByID(txCtx, planID)
 		if err != nil {
 			return err
@@ -83,6 +85,7 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 			return err
 		}
 		if diagnostics := s.validateStageGateSpecs(txCtx, p, tasks); len(diagnostics) > 0 {
+			gateDiagnostics = append([]PlanDiagnostic(nil), diagnostics...)
 			return fmt.Errorf("%w: %s", pm.ErrMissingGateEvaluator, diagnostics[0].Code)
 		}
 		// (c)+(d): every task resolvable-assignee + same project.
@@ -137,6 +140,12 @@ func (s *Service) StartPlan(ctx context.Context, planID pm.PlanID, actor pm.Iden
 		s.auditPlan(txCtx, p, pm.AuditPlanStarted, actor, map[string]any{"status": string(p.Status())})
 		return nil
 	})
+	if errors.Is(err, pm.ErrMissingGateEvaluator) {
+		if oerr := s.persistMissingGateEvaluatorObligation(ctx, planID, gateDiagnostics); oerr != nil {
+			return oerr
+		}
+	}
+	return err
 }
 
 const (
@@ -546,7 +555,8 @@ func (s *Service) dispatchBuiltinPool(txCtx context.Context, p *pm.Plan) ([]pm.T
 }
 
 // PausePlan closes new dispatch while preserving the immutable execution history.
-// Only the Plan creator or a Project owner may change this control latch.
+// Only the Plan creator, a Project owner, or an active owner of the Project's
+// organization may change this control latch.
 func (s *Service) PausePlan(ctx context.Context, planID pm.PlanID, actor pm.IdentityRef) error {
 	if s.plans == nil {
 		return ErrPlansUnavailable
@@ -738,6 +748,12 @@ func (s *Service) ReconcileRunningPlans(ctx context.Context, errFn func(planID p
 		})
 		if rerr != nil && errFn != nil {
 			errFn(p.ID(), fmt.Errorf("route blocked_on timeouts: %w", rerr))
+		}
+		perr = s.runInTx(ctx, func(txCtx context.Context) error {
+			return s.ReconcilePlanProgress(txCtx, p.ID())
+		})
+		if perr != nil && errFn != nil {
+			errFn(p.ID(), fmt.Errorf("reconcile progress_control: %w", perr))
 		}
 	}
 	return firstErr

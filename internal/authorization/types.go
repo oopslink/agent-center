@@ -174,6 +174,7 @@ type Role struct {
 	ID          string    `json:"id"`
 	OrgID       string    `json:"org_id,omitempty"`
 	Kind        string    `json:"kind"`
+	Visibility  string    `json:"visibility"`
 	Name        string    `json:"name"`
 	Description string    `json:"description,omitempty"`
 	CreatedBy   string    `json:"created_by"`
@@ -218,11 +219,14 @@ type BatchOperation struct {
 	Role        RoleInput             `json:"role,omitempty"`
 	Permissions []RolePermissionInput `json:"permissions,omitempty"`
 	Assignment  AssignmentInput       `json:"assignment,omitempty"`
+	DirectGrant DirectGrantInput      `json:"direct_grant,omitempty"`
 	Revoke      RevokeInput           `json:"revoke,omitempty"`
 }
 
 type RoleInput struct {
 	ID          string `json:"id,omitempty"`
+	Kind        string `json:"kind,omitempty"`
+	Visibility  string `json:"visibility,omitempty"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 }
@@ -239,6 +243,14 @@ type AssignmentInput struct {
 	RoleID     string        `json:"role_id"`
 	Resource   ResourceScope `json:"resource"`
 	ExpiresAt  *time.Time    `json:"expires_at,omitempty"`
+}
+
+type DirectGrantInput struct {
+	ID            string        `json:"id,omitempty"`
+	SubjectRef    SubjectRef    `json:"subject_ref"`
+	PermissionKey PermissionKey `json:"permission_key"`
+	Resource      ResourceScope `json:"resource"`
+	ExpiresAt     *time.Time    `json:"expires_at,omitempty"`
 }
 
 type RevokeInput struct {

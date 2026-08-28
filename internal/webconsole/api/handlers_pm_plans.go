@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	authz "github.com/oopslink/agent-center/internal/authorization"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
@@ -203,6 +204,25 @@ func pmPlanDetailMap(detail *pmservice.PlanDetail) map[string]any {
 	if len(detail.Continuations) > 0 {
 		m["continuations"] = detail.Continuations
 	}
+	if len(detail.BlockedOn) > 0 {
+		blockedOn := make([]map[string]any, 0, len(detail.BlockedOn))
+		for _, b := range detail.BlockedOn {
+			blockedOn = append(blockedOn, map[string]any{
+				"event_id":          string(b.TaskID),
+				"task_id":           string(b.TaskID),
+				"node_id":           b.NodeID,
+				"wait_type":         string(b.WaitType),
+				"wait_keys":         b.WaitKeys,
+				"trigger_condition": b.TriggerCondition,
+				"waited_since":      b.WaitedSince.Format(time.RFC3339Nano),
+				"deadline":          rfc3339OrEmpty(b.Deadline),
+				"on_timeout":        b.OnTimeout,
+				"last_probe_at":     rfc3339OrEmpty(b.LastProbeAt),
+				"probe_count":       b.ProbeCount,
+			})
+		}
+		m["blocked_on"] = blockedOn
+	}
 	return m
 }
 
@@ -257,6 +277,8 @@ func mapPlanError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, pm.ErrPlanNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
+	case errors.Is(err, pmservice.ErrStageGateReopenForbidden):
+		writeError(w, http.StatusForbidden, "forbidden", err.Error())
 	case errors.Is(err, pm.ErrPlanRunning), errors.Is(err, pm.ErrPlanArchived),
 		errors.Is(err, pm.ErrPlanNotPending), errors.Is(err, pm.ErrPlanNotRunning),
 		errors.Is(err, pm.ErrPlanNotTerminal), errors.Is(err, pm.ErrPlanNotPaused),
@@ -825,12 +847,15 @@ type pmPlanGenerationDiffReq struct {
 }
 
 type pmPlanEvolutionReq struct {
-	ParentGenerationID string                   `json:"parent_generation_id"`
-	BaseVersion        int                      `json:"base_version"`
-	IdempotencyKey     string                   `json:"idempotency_key"`
-	Reason             string                   `json:"reason"`
-	Evidence           string                   `json:"evidence"`
-	Diff               *pmPlanGenerationDiffReq `json:"diff"`
+	ParentGenerationID  string                   `json:"parent_generation_id"`
+	BaseVersion         int                      `json:"base_version"`
+	IdempotencyKey      string                   `json:"idempotency_key"`
+	Reason              string                   `json:"reason"`
+	Evidence            string                   `json:"evidence"`
+	Diff                *pmPlanGenerationDiffReq `json:"diff"`
+	ResolveBlockEventID string                   `json:"resolve_block_event_id"`
+	ResolutionKind      string                   `json:"resolution_kind"`
+	ResolutionNote      string                   `json:"resolution_note"`
 }
 
 // pmCommitPlanEvolutionHandler is the product Evolution write surface. It uses
@@ -841,6 +866,13 @@ func (s *Server) pmCommitPlanEvolutionHandler(w http.ResponseWriter, r *http.Req
 	d := hd(r)
 	pl, caller, ok := s.pmRequirePlanInProject(w, r, d)
 	if !ok {
+		return
+	}
+	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "plan.write", authz.ResourceScope{Kind: "plan", ID: string(pl.ID()), ProjectID: string(pl.ProjectID())}) {
+		return
+	}
+	if pl.CreatorRef() != caller {
+		writeError(w, http.StatusForbidden, "forbidden", "plan owner is required to commit evolution")
 		return
 	}
 	var req pmPlanEvolutionReq
@@ -874,14 +906,17 @@ func (s *Server) pmCommitPlanEvolutionHandler(w http.ResponseWriter, r *http.Req
 		Edges:         *req.Diff.Edges,
 	}
 	result, err := d.PM.EvolvePlanGeneration(r.Context(), pmservice.EvolvePlanGenerationCommand{
-		PlanID:             pl.ID(),
-		ParentGenerationID: pm.PlanGenerationID(req.ParentGenerationID),
-		BaseVersion:        req.BaseVersion,
-		IdempotencyKey:     req.IdempotencyKey,
-		Reason:             req.Reason,
-		Evidence:           req.Evidence,
-		Creator:            caller,
-		Diff:               diff,
+		PlanID:              pl.ID(),
+		ParentGenerationID:  pm.PlanGenerationID(req.ParentGenerationID),
+		BaseVersion:         req.BaseVersion,
+		IdempotencyKey:      req.IdempotencyKey,
+		Reason:              req.Reason,
+		Evidence:            req.Evidence,
+		Creator:             caller,
+		Diff:                diff,
+		ResolveBlockEventID: req.ResolveBlockEventID,
+		ResolutionKind:      req.ResolutionKind,
+		ResolutionNote:      req.ResolutionNote,
 	})
 	if err != nil {
 		mapPlanError(w, err)

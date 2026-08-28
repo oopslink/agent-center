@@ -338,6 +338,18 @@ type planCreatorFailureWakePayload struct {
 	PlanID         string `json:"plan_id"`
 	TaskID         string `json:"task_id"`
 	OrganizationID string `json:"organization_id"`
+	MessageText    string `json:"-"`
+}
+
+type planOwnerBlockWakePayload struct {
+	OwnerRef       string `json:"owner_ref"`
+	ConversationID string `json:"conversation_id"`
+	MessageID      string `json:"message_id"`
+	PlanID         string `json:"plan_id"`
+	TaskID         string `json:"task_id"`
+	WaitType       string `json:"wait_type"`
+	Reason         string `json:"reason"`
+	OrganizationID string `json:"organization_id"`
 }
 
 // taskLeaseExpiredNudgePayload mirrors the JSON the PM Service writes for the T456
@@ -379,6 +391,8 @@ func (p *WakeProjector) Project(ctx context.Context, e outbox.Event) error {
 		return p.projectMessageAdded(ctx, e)
 	case pmservice.EvtPlanCreatorFailureWake:
 		return p.projectPlanCreatorWake(ctx, e)
+	case pmservice.EvtPlanOwnerBlockWake:
+		return p.projectPlanOwnerBlockWake(ctx, e)
 	case pmservice.EvtTaskLeaseExpiredNudge:
 		return p.projectLeaseExpiredNudge(ctx, e)
 	case pmservice.EvtIssueDerivedTasksDone:
@@ -386,6 +400,47 @@ func (p *WakeProjector) Project(ctx context.Context, e outbox.Event) error {
 	default:
 		return nil
 	}
+}
+
+func (p *WakeProjector) projectPlanOwnerBlockWake(ctx context.Context, e outbox.Event) error {
+	var pl planOwnerBlockWakePayload
+	if err := json.Unmarshal([]byte(e.Payload), &pl); err != nil {
+		return err
+	}
+	if p.controlLog == nil || p.agents == nil {
+		return nil
+	}
+	ownerRef := strings.TrimSpace(pl.OwnerRef)
+	convID := strings.TrimSpace(pl.ConversationID)
+	msgID := strings.TrimSpace(pl.MessageID)
+	if msgID == "" {
+		msgID = e.ID
+	}
+	if !strings.HasPrefix(ownerRef, agentParticipantPrefix) || convID == "" {
+		return nil
+	}
+	rawID := strings.TrimPrefix(ownerRef, agentParticipantPrefix)
+	now := p.clock.Now()
+	return persistence.RunInTx(ctx, p.db, func(txCtx context.Context) error {
+		if done, err := p.applied.IsApplied(txCtx, p.Name(), e.ID); err != nil {
+			return err
+		} else if done {
+			return nil
+		}
+		err := p.deliverCreatorWake(txCtx, rawID, convID, msgID, planCreatorFailureWakePayload{
+			CreatorRef:     ownerRef,
+			ConversationID: convID,
+			MessageID:      msgID,
+			PlanID:         pl.PlanID,
+			TaskID:         pl.TaskID,
+			OrganizationID: pl.OrganizationID,
+			MessageText:    "A node in your plan is blocked (" + pl.WaitType + ") — read the plan conversation and evolve, unblock, or otherwise resolve it.",
+		})
+		if err != nil {
+			return err
+		}
+		return p.applied.MarkApplied(txCtx, p.Name(), e.ID, now)
+	})
 }
 
 // projectMessageAdded routes a message-added event to the conversational wake
@@ -963,6 +1018,10 @@ func (p *WakeProjector) deliverCreatorWake(ctx context.Context, rawID, convID, f
 			convName = name
 		}
 	}
+	messageText := pl.MessageText
+	if strings.TrimSpace(messageText) == "" {
+		messageText = "A task in your plan failed — read the plan conversation and self-handle (adjust the DAG or escalate)."
+	}
 	payload, err := json.Marshal(converseCommandPayload{
 		AgentID:        entityID,
 		ConversationID: convID,
@@ -971,7 +1030,7 @@ func (p *WakeProjector) deliverCreatorWake(ctx context.Context, rawID, convID, f
 		SenderRef:      "system",
 		SenderDisplay:  "system",
 		MessageID:      failureMsgID,
-		MessageText:    "A task in your plan failed — read the plan conversation and self-handle (adjust the DAG or escalate).",
+		MessageText:    messageText,
 		OwnerRef:       ownerRef,
 	})
 	if err != nil {

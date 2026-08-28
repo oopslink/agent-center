@@ -25,6 +25,7 @@ import (
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
+	"github.com/oopslink/agent-center/internal/insight"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/outbox"
@@ -167,6 +168,9 @@ type HandlerDeps struct {
 	// .../agents/{id}/concurrency endpoint reads the SAME store instance. nil →
 	// snapshots are dropped (feature off / not wired).
 	LiveState concurrency.LiveStateStore
+	// InsightObservations durably appends heartbeat concurrency snapshots before
+	// the latest-value LiveState update so DuckDB Insight can replay after restart.
+	InsightObservations *insight.ObservationRepo
 	// OrchService is the orchestration engine application service (P2-T2) backing
 	// the graph/node/edge agent MCP tools. nil when not wired (handlers then
 	// return orchestration_not_wired 501).

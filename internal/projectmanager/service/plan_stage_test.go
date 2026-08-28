@@ -143,6 +143,23 @@ func TestLegacyBareStageGate_RejectsThenReconciles(t *testing.T) {
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); !errors.Is(err, pm.ErrMissingGateEvaluator) {
 		t.Fatalf("StartPlan = %v, want missing_gate_evaluator", err)
 	}
+	obs, err := h.plans.ListOpenProgressObligations(ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if obligationsOfKind(obs, pm.ObligationBindGate) != 1 {
+		t.Fatalf("missing gate obligations=%+v, want one bind_gate_evaluator", obs)
+	}
+	incs, err := h.plans.ListOpenProgressIncidents(ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if incidentsOfKind(incs, pm.IncidentMissingGateEvaluator) != 1 {
+		t.Fatalf("missing gate incidents=%+v, want one missing_gate_evaluator", incs)
+	}
+	if got := len(planOwnerBlockWakeEvents(t, h, planID)); got != 1 {
+		t.Fatalf("missing gate owner wakes=%d, want 1", got)
+	}
 	if err := h.svc.ReconcileStageGates(ctx, planID); err != nil {
 		t.Fatalf("ReconcileStageGates: %v", err)
 	}

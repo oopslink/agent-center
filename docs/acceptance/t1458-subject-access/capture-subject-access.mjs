@@ -132,11 +132,11 @@ async function shot(page, name) {
 async function main() {
   await fs.mkdir(outDir, { recursive: true });
   const browser = await chromium.launch();
-  const page = await browser.newPage({ viewport: { width: 1684, height: 934 }, deviceScaleFactor: 1 });
+  const page = await browser.newPage({ viewport: { width: 1672, height: 941 }, deviceScaleFactor: 1 });
   page.on('requestfailed', (request) => console.log(`requestfailed: ${request.url()} ${request.failure()?.errorText || ''}`));
   await routeJSON(page);
 
-  await page.goto(`${baseURL}/organizations/test/access?view=subject-access`);
+  await page.goto(`${baseURL}/organizations/test/access/subject-access`);
   try {
     await page.getByTestId('access-subject-view').waitFor({ timeout: 10_000 });
   } catch (error) {
@@ -144,52 +144,57 @@ async function main() {
     console.log(await page.locator('body').innerText().catch(() => 'body unavailable'));
     throw error;
   }
-  await shot(page, '01-subject-workbench');
+  await shot(page, 's5-01-ready-1672-light');
+  await page.evaluate(() => document.documentElement.classList.add('dark'));
+  await shot(page, 's5-02-ready-1672-dark');
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await shot(page, 's5-03-ready-1280-dark');
+  await page.evaluate(() => document.documentElement.classList.remove('dark'));
+  await shot(page, 's5-04-ready-1280-light');
+  await page.setViewportSize({ width: 1672, height: 941 });
 
-  await page.getByTestId('access-filter-subject').selectOption('agent');
+  await page.getByTestId('access-filter-type').selectOption('agent');
   await page.getByTestId('access-subject-row-agent:builder').click();
-  await shot(page, '02-filter-agent-detail');
+  await shot(page, 's5-05-filter-agent-detail');
 
   await page.getByTestId('access-open-direct-binding').click();
   await page.getByTestId('access-batch-drawer').waitFor();
-  await shot(page, '03-add-binding-drawer');
+  await shot(page, 's5-06-add-binding-context');
 
   const drawer = page.getByTestId('access-batch-drawer');
-  await drawer.getByRole('button', { name: /Builder/ }).click();
   await drawer.getByRole('button', { name: /project\.write/ }).click();
   await drawer.getByRole('button', { name: /Project Alpha/ }).click();
   await drawer.getByTestId('access-batch-reason').fill('temporary direct binding');
   await drawer.getByTestId('access-run-preview').click();
   await drawer.getByTestId('access-preview-summary').waitFor();
-  await shot(page, '04-impact-preview');
+  await shot(page, 's5-07-grant-preview');
 
   await drawer.getByTestId('access-preview-continue').click();
   await drawer.getByTestId('access-apply-batch').click();
   await page.getByTestId('access-result').waitFor();
   await page.getByTestId('access-toast').waitFor();
-  await shot(page, '05-grant-success');
   await drawer.getByRole('button', { name: 'Done' }).click();
+  await shot(page, 's5-08-grant-success-toast');
 
   await page.getByTestId('access-grant-select').first().check();
   await page.getByTestId('access-revoke-preview').click();
   await page.getByTestId('access-revoke-preview-panel').waitFor();
-  await shot(page, '06-revoke-preview');
+  await shot(page, 's5-09-revoke-preview');
   await page.getByTestId('access-revoke-confirm').click();
   await page.getByText('Revoke result').waitFor();
-  await shot(page, '07-revoke-success');
+  await shot(page, 's5-10-revoke-success-toast');
   await page.getByLabel('Dismiss notification').click().catch(() => {});
 
-  const forbidden = await browser.newPage({ viewport: { width: 1684, height: 934 }, deviceScaleFactor: 1 });
+  const forbidden = await browser.newPage({ viewport: { width: 1672, height: 941 }, deviceScaleFactor: 1 });
   await routeJSON(forbidden);
   await forbidden.route('**/api/orgs/test/permissions/effective**', (route) => route.fulfill({ json: { subject_ref: 'user:ops', resource: resources.org, permissions: [{ key: 'org.read', source: 'org_role', evidence_ref: 'members:mem-ops' }] } }));
-  await forbidden.goto(`${baseURL}/organizations/test/access?view=subject-access`);
-  await forbidden.getByTestId('access-forbidden').waitFor();
-  await shot(forbidden, '08-forbidden-403');
+  await forbidden.goto(`${baseURL}/organizations/test/access/subject-access`);
+  await forbidden.getByTestId('access-subject-access-forbidden').waitFor();
+  await shot(forbidden, 's5-11-forbidden-403');
   await forbidden.close();
 
   await page.getByTestId('access-open-direct-binding').click();
   const conflictDrawer = page.getByTestId('access-batch-drawer');
-  await conflictDrawer.getByRole('button', { name: /Builder/ }).click();
   await conflictDrawer.getByRole('button', { name: /project\.write/ }).click();
   await conflictDrawer.getByRole('button', { name: /Project Alpha/ }).click();
   await conflictDrawer.getByTestId('access-batch-reason').fill('conflict direct binding');
@@ -197,8 +202,31 @@ async function main() {
   await conflictDrawer.getByTestId('access-preview-summary').waitFor();
   await conflictDrawer.getByTestId('access-preview-continue').click();
   await conflictDrawer.getByTestId('access-apply-batch').click();
-  await page.getByText(/409:/).waitFor();
-  await shot(page, '09-conflict-409');
+  await page.getByTestId('access-toast').waitFor();
+  await conflictDrawer.getByLabel('Close').click();
+  await shot(page, 's5-12-conflict-409-toast');
+  await page.getByLabel('Dismiss notification').click();
+
+  await page.getByTestId('access-filter-type').selectOption('all');
+  await page.getByTestId('access-filter-status').selectOption('not_applicable');
+  await page.getByTestId('access-explicit-deny').waitFor();
+  await shot(page, 's5-13-not-applicable');
+
+  const empty = await browser.newPage({ viewport: { width: 1280, height: 900 }, deviceScaleFactor: 1 });
+  await routeJSON(empty);
+  await empty.route('**/api/orgs/test/access/overview**', (route) => route.fulfill({ json: { generated_at: '2026-08-24T00:00:00Z', subjects: [], roles: [], catalog: [], decisions: [], grants: [], summary: { allowed: 0, high_risk: 0, expiring: 0, denied: 0, not_applicable: 0 } } }));
+  await empty.goto(`${baseURL}/organizations/test/access/subject-access`);
+  await empty.getByTestId('access-empty').waitFor();
+  await shot(empty, 's5-14-empty-1280');
+  await empty.close();
+
+  const loading = await browser.newPage({ viewport: { width: 1672, height: 941 }, deviceScaleFactor: 1 });
+  await routeJSON(loading);
+  await loading.route('**/api/orgs/test/access/overview**', () => new Promise(() => {}));
+  await loading.goto(`${baseURL}/organizations/test/access/subject-access`);
+  await loading.getByTestId('access-subject-access-loading').waitFor();
+  await shot(loading, 's5-15-loading-1672');
+  await loading.close();
 
   await browser.close();
 }
