@@ -220,6 +220,11 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 
 		// ---- §4 step 4: persist the diff. ----
 		addedNodes, removedNodes := wm.nodeDiff(curNodes)
+		for _, id := range removedNodes {
+			if err := s.requireRemovablePendingPlanNode(txCtx, cmd.PlanID, id, taskByID[id], dispatchedSet[id]); err != nil {
+				return err
+			}
+		}
 		// Added nodes: select into the plan (+ ADD-ONLY participant delta, mirroring
 		// SelectTaskIntoPlan so the assignee reaches the plan conversation).
 		for _, id := range addedNodes {
