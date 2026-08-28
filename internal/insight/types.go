@@ -8,7 +8,7 @@ import (
 const (
 	Window24h             = "24h"
 	DefaultFreshnessSLA   = 2 * time.Minute
-	SchemaVersion         = 1
+	SchemaVersion         = 2
 	SourceActivity        = "agent_activity_events"
 	SourceQueue           = "worker_control_events"
 	SourceSlotObservation = "agent_concurrency_observations"
@@ -70,25 +70,29 @@ type Overview struct {
 }
 
 type ExecutionRow struct {
-	ExecutionID   string  `json:"execution_id"`
-	CommandID     *string `json:"command_id"`
-	TaskID        *string `json:"task_id"`
-	TaskRef       *string `json:"task_ref"`
-	TaskTitle     *string `json:"task_title"`
-	AgentRef      string  `json:"agent_ref"`
-	AgentName     *string `json:"agent_name"`
-	ProjectID     *string `json:"project_id"`
-	ProjectName   *string `json:"project_name"`
-	WorkerID      *string `json:"worker_id"`
-	Outcome       *string `json:"outcome"`
-	FailureReason *string `json:"failure_reason"`
-	QueuedAt      *string `json:"queued_at"`
-	StartedAt     *string `json:"started_at"`
-	FinishedAt    *string `json:"finished_at"`
-	QueueWaitMS   *int64  `json:"queue_wait_ms"`
-	DurationMS    *int64  `json:"duration_ms"`
-	Recovered     bool    `json:"recovered"`
-	Quality       string  `json:"quality"`
+	ExecutionID    string  `json:"execution_id"`
+	CommandID      *string `json:"command_id"`
+	TaskID         *string `json:"task_id"`
+	TaskRef        *string `json:"task_ref"`
+	TaskTitle      *string `json:"task_title"`
+	AgentRef       string  `json:"agent_ref"`
+	AgentName      *string `json:"agent_name"`
+	ProjectID      *string `json:"project_id"`
+	ProjectName    *string `json:"project_name"`
+	WorkerID       *string `json:"worker_id"`
+	Outcome        *string `json:"outcome"`
+	FailureReason  *string `json:"failure_reason"`
+	FailureMessage *string `json:"failure_message"`
+	CommandStatus  *string `json:"command_status"`
+	StatusReason   *string `json:"status_reason"`
+	StatusMessage  *string `json:"status_message"`
+	QueuedAt       *string `json:"queued_at"`
+	StartedAt      *string `json:"started_at"`
+	FinishedAt     *string `json:"finished_at"`
+	QueueWaitMS    *int64  `json:"queue_wait_ms"`
+	DurationMS     *int64  `json:"duration_ms"`
+	Recovered      bool    `json:"recovered"`
+	Quality        string  `json:"quality"`
 }
 
 type ExecutionsResponse struct {

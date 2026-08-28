@@ -1,4 +1,154 @@
 {
+  "insight": {
+    "breadcrumb": "面包屑",
+    "overview": {
+      "title": "Insight 概览",
+      "byAgent": "按智能体查看",
+      "byProject": "按项目查看",
+      "tableSubtitle": "按已结束执行次数降序；同数时按 ID 排序；最多显示 20 项。"
+    },
+    "executions": {
+      "title": "Task executions",
+      "subtitle": "每行代表一次执行尝试"
+    },
+    "detail": {
+      "title": "TaskExecution 详情",
+      "timeline": "执行时间线",
+      "result": "结果",
+      "task": "Task",
+      "project": "项目",
+      "agent": "智能体",
+      "worker": "Worker",
+      "technical": "技术详情"
+    },
+    "actions": {
+      "viewAll": "查看全部执行记录",
+      "viewExecutions": "查看执行记录",
+      "previous": "上一页",
+      "next": "下一页",
+      "refresh": "刷新",
+      "refreshing": "刷新中"
+    },
+    "window": {
+      "title": "过去 24 小时（滚动）",
+      "localTz": "本地时间 · {{tz}}",
+      "refreshed": "更新于 {{time}}"
+    },
+    "freshness": {
+      "fresh": "数据最新",
+      "stale": "数据延迟",
+      "rebuilding": "正在重建",
+      "unavailable": "暂不可用"
+    },
+    "state": {
+      "loadingOverview": "正在加载 Insight 概览",
+      "loadingExecutions": "正在加载执行记录",
+      "loadingDetail": "正在加载执行详情",
+      "overviewFailed": "Insight 概览加载失败",
+      "executionsFailed": "执行记录请求失败",
+      "detailFailed": "执行详情加载失败",
+      "emptyOverview": "过去 24 小时没有执行记录",
+      "emptyOverviewBody": "后端返回了空的 24 小时 Insight 窗口。",
+      "emptyList": "过去 24 小时没有执行记录",
+      "emptyFiltered": "当前筛选下没有执行记录",
+      "emptyDimension": "过去 24 小时没有执行记录。",
+      "stale": "数据有延迟",
+      "staleBody": "指标仍可查看，但可能缺少最近发生的执行。最后更新于 {{time}}。",
+      "rebuilding": "Insight 正在重建",
+      "unavailable": "Insight 暂不可用",
+      "unauthorized": "你没有查看组织 Insight 的权限",
+      "detailMissing": "当前组织中找不到这条 TaskExecution",
+      "detailMissingBody": "它可能不在当前 24 小时 Insight 窗口内。"
+    },
+    "metric": {
+      "completed": "已结束的执行",
+      "completedHint": "每次执行尝试分别计数，包括重试",
+      "failureRate": "失败率",
+      "failureFormula": "{{failed}} / {{completed}} 失败",
+      "noCompleted": "无已结束执行",
+      "utilization": "容量利用率",
+      "queue": "排队等待",
+      "duration": "执行耗时",
+      "p50": "典型值（P50）",
+      "p95": "慢端（P95）",
+      "noSamples": "没有有效样本",
+      "queueSamples": "{{count}} 个排队样本",
+      "durationSamples": "{{count}} 个耗时样本"
+    },
+    "coverage": {
+      "unknown": "无法判断",
+      "insufficient": "数据不足",
+      "partialSuffix": "（部分观测）",
+      "noBaseline": "没有可计算的容量基线",
+      "noObservation": "过去 24 小时没有有效 slot 观测",
+      "noAvailable": "没有有效的可用 slot 时长",
+      "insufficientSub": "观测覆盖 {{coverage}}；暂不展示利用率",
+      "partialSub": "观测覆盖 {{coverage}}；结果可能不代表完整 24 小时",
+      "representativeSub": "观测覆盖 {{coverage}}",
+      "noticeTitle": "容量观测说明"
+    },
+    "table": {
+      "name": "名称",
+      "completed": "已结束",
+      "failure": "失败",
+      "queue": "排队 P50 / P95",
+      "duration": "耗时 P50 / P95",
+      "action": "操作",
+      "completedValue": "{{count}} 次已结束"
+    },
+    "filters": {
+      "agent": "智能体：{{value}}",
+      "project": "项目：{{value}}",
+      "clear": "清除筛选"
+    },
+    "execution": {
+      "status": "状态",
+      "task": "Task / 项目",
+      "agent": "智能体",
+      "queued": "入队",
+      "started": "开始",
+      "finished": "结束",
+      "queueWait": "排队等待",
+      "duration": "执行耗时",
+      "dataHint": "数据提示",
+      "notStarted": "尚未开始",
+      "notFinished": "尚未结束",
+      "recovered": "由系统恢复"
+    },
+    "status": {
+      "completed": "已完成",
+      "failed": "执行失败",
+      "interrupted": "执行中断",
+      "quietFinalized": "恢复时结束",
+      "outcomeUnknown": "结果未知",
+      "running": "执行中",
+      "didNotStart": "未开始",
+      "waiting": "等待开始",
+      "unknown": "状态未知"
+    },
+    "quality": {
+      "invalidTime": "时间数据异常",
+      "check": "数据需检查",
+      "invalidBody": "该记录仍可见，但无效区间不参与排队/执行耗时分位数。"
+    },
+    "reason": {
+      "nonzeroExit": "执行进程返回错误。",
+      "outputFailure": "执行器报告失败。",
+      "processGone": "执行进程意外退出。",
+      "cleanExitNoOutput": "执行结束，但没有生成有效结果。",
+      "stalled": "执行长时间没有进展，已停止。",
+      "nonDelivery": "执行结果未成功交付。",
+      "evidencePersistence": "执行证据未能保存。",
+      "repoSourceUnavailable": "仓库源不可用，执行未能开始或完成。",
+      "noBackfillGuard": "恢复时无法安全确认此前执行结果。",
+      "generic": "执行未成功。"
+    },
+    "method": {
+      "base": "一次重试算一次 execution attempt；P50/P95 仅使用具有有效起止时间的样本。",
+      "invalidFacts": "有 {{count}} 条记录的时间数据异常，已从相关耗时统计中排除。",
+      "lateEvents": "本窗口处理了 {{count}} 条延迟到达的观测；指标按业务发生时间归窗。"
+    }
+  },
   "reminders": {
     "header": "提醒 · {{scope}}",
     "newButton": "+ 新建提醒",

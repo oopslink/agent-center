@@ -1,4 +1,154 @@
 {
+  "insight": {
+    "breadcrumb": "Breadcrumb",
+    "overview": {
+      "title": "Insight overview",
+      "byAgent": "By agent",
+      "byProject": "By project",
+      "tableSubtitle": "Sorted by completed executions descending, then by ID; up to 20 items."
+    },
+    "executions": {
+      "title": "Task executions",
+      "subtitle": "Each row is one execution attempt"
+    },
+    "detail": {
+      "title": "TaskExecution detail",
+      "timeline": "Execution timeline",
+      "result": "Result",
+      "task": "Task",
+      "project": "Project",
+      "agent": "Agent",
+      "worker": "Worker",
+      "technical": "Technical details"
+    },
+    "actions": {
+      "viewAll": "View all executions",
+      "viewExecutions": "View executions",
+      "previous": "Previous page",
+      "next": "Next page",
+      "refresh": "Refresh",
+      "refreshing": "Refreshing"
+    },
+    "window": {
+      "title": "Past 24 hours (rolling)",
+      "localTz": "Local time · {{tz}}",
+      "refreshed": "Refreshed {{time}}"
+    },
+    "freshness": {
+      "fresh": "Fresh data",
+      "stale": "Data delayed",
+      "rebuilding": "Rebuilding",
+      "unavailable": "Unavailable"
+    },
+    "state": {
+      "loadingOverview": "Loading Insight overview",
+      "loadingExecutions": "Loading executions",
+      "loadingDetail": "Loading execution detail",
+      "overviewFailed": "Insight overview failed",
+      "executionsFailed": "Execution request failed",
+      "detailFailed": "Execution detail failed",
+      "emptyOverview": "No executions in the past 24 hours",
+      "emptyOverviewBody": "The backend returned an empty 24-hour Insight window.",
+      "emptyList": "No executions in the past 24 hours",
+      "emptyFiltered": "No executions match these filters",
+      "emptyDimension": "No executions in the past 24 hours.",
+      "stale": "Data is delayed",
+      "staleBody": "Metrics remain available but may omit recent executions. Last updated {{time}}.",
+      "rebuilding": "Insight is rebuilding",
+      "unavailable": "Insight is unavailable",
+      "unauthorized": "You do not have permission to view organization Insight",
+      "detailMissing": "This TaskExecution was not found in the current organization",
+      "detailMissingBody": "It may be outside the current 24-hour Insight window."
+    },
+    "metric": {
+      "completed": "Completed executions",
+      "completedHint": "Each execution attempt is counted, including retries",
+      "failureRate": "Failure rate",
+      "failureFormula": "{{failed}} / {{completed}} failed",
+      "noCompleted": "No completed executions",
+      "utilization": "Slot utilization",
+      "queue": "Queue wait",
+      "duration": "Execution duration",
+      "p50": "Typical (P50)",
+      "p95": "Slow tail (P95)",
+      "noSamples": "No valid samples",
+      "queueSamples": "{{count}} queue samples",
+      "durationSamples": "{{count}} duration samples"
+    },
+    "coverage": {
+      "unknown": "Cannot determine",
+      "insufficient": "Insufficient data",
+      "partialSuffix": "(partial observation)",
+      "noBaseline": "No computable capacity baseline",
+      "noObservation": "No valid slot observations in the past 24 hours",
+      "noAvailable": "No valid available slot duration",
+      "insufficientSub": "Observation coverage {{coverage}}; utilization is hidden",
+      "partialSub": "Observation coverage {{coverage}}; may not represent the full 24 hours",
+      "representativeSub": "Observation coverage {{coverage}}",
+      "noticeTitle": "Capacity observation note"
+    },
+    "table": {
+      "name": "Name",
+      "completed": "Completed",
+      "failure": "Failure",
+      "queue": "Queue P50 / P95",
+      "duration": "Duration P50 / P95",
+      "action": "Action",
+      "completedValue": "{{count}} completed"
+    },
+    "filters": {
+      "agent": "Agent: {{value}}",
+      "project": "Project: {{value}}",
+      "clear": "Clear filters"
+    },
+    "execution": {
+      "status": "Status",
+      "task": "Task / Project",
+      "agent": "Agent",
+      "queued": "Queued",
+      "started": "Started",
+      "finished": "Finished",
+      "queueWait": "Queue wait",
+      "duration": "Duration",
+      "dataHint": "Data hint",
+      "notStarted": "Not started",
+      "notFinished": "Not finished",
+      "recovered": "Recovered by system"
+    },
+    "status": {
+      "completed": "Completed",
+      "failed": "Failed",
+      "interrupted": "Interrupted",
+      "quietFinalized": "Ended during recovery",
+      "outcomeUnknown": "Outcome unavailable",
+      "running": "Running",
+      "didNotStart": "Did not start",
+      "waiting": "Waiting to start",
+      "unknown": "Status unavailable"
+    },
+    "quality": {
+      "invalidTime": "Invalid time data",
+      "check": "Data needs review",
+      "invalidBody": "This record is visible, but invalid intervals are excluded from queue and duration percentiles."
+    },
+    "reason": {
+      "nonzeroExit": "The execution process returned an error.",
+      "outputFailure": "The executor reported failure.",
+      "processGone": "The execution process exited unexpectedly.",
+      "cleanExitNoOutput": "Execution ended without a valid result.",
+      "stalled": "Execution stopped after a long period without progress.",
+      "nonDelivery": "The execution result was not delivered successfully.",
+      "evidencePersistence": "Execution evidence could not be saved.",
+      "repoSourceUnavailable": "The repository source was unavailable.",
+      "noBackfillGuard": "Recovery could not safely confirm the earlier execution result.",
+      "generic": "The execution was not successful."
+    },
+    "method": {
+      "base": "Each retry is counted as one execution attempt. P50/P95 use only records with valid start/end times.",
+      "invalidFacts": "{{count}} records have invalid time data and were excluded from related duration statistics.",
+      "lateEvents": "{{count}} late observations were processed in this window; metrics are assigned by event time."
+    }
+  },
   "reminders": {
     "header": "Reminders · {{scope}}",
     "newButton": "+ New reminder",
