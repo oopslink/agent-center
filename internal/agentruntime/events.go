@@ -188,17 +188,28 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 				}()
 			}
 		}
-		go r.maybeReplyNudge(agentID)
+		r.startRuntimeBackground(func(ctx context.Context) {
+			r.maybeReplyNudge(ctx, agentID)
+		})
 		var usageTaskID string
 		r.mu.Lock()
 		usageTaskID = st.UsageTaskAtResult()
 		r.mu.Unlock()
-		go r.maybeReportUsage(agentID, ev, usageTaskID)
+		r.startRuntimeBackground(func(ctx context.Context) {
+			r.maybeReportUsage(ctx, agentID, ev, usageTaskID)
+		})
 		if isCodex {
 			if codexRecycleReason != "" {
-				r.commitDirtyMemory(agentID)
+				if r.beginRuntimeWork() {
+					ctx, cancel := r.runtimeContext(codexMemoryCommitTimeout)
+					r.commitDirtyMemory(ctx, agentID)
+					cancel()
+					r.endRuntimeWork()
+				}
 			} else {
-				go r.commitDirtyMemory(agentID)
+				r.startRuntimeBackground(func(ctx context.Context) {
+					r.commitDirtyMemory(ctx, agentID)
+				})
 			}
 		}
 		if codexRecycleReason != "" {
@@ -492,8 +503,23 @@ func (r *LocalRuntime) onExit(exitErr error) {
 	}
 }
 
+func (r *LocalRuntime) startRuntimeBackground(fn func(context.Context)) bool {
+	if !r.beginRuntimeWork() {
+		return false
+	}
+	r.bg.Add(1)
+	go func() {
+		defer r.endRuntimeWork()
+		defer r.bg.Done()
+		ctx, cancel := r.runtimeContext(0)
+		defer cancel()
+		fn(ctx)
+	}()
+	return true
+}
+
 // maybeReplyNudge is the worker half of the reply-guardrail turn-end hook (T341).
-func (r *LocalRuntime) maybeReplyNudge(agentID string) {
+func (r *LocalRuntime) maybeReplyNudge(ctx context.Context, agentID string) {
 	r.mu.Lock()
 	sess := r.state.Session
 	inConverse := r.state.CurrentConversationID != ""
@@ -504,7 +530,9 @@ func (r *LocalRuntime) maybeReplyNudge(agentID string) {
 	if r.cfg.Reporter == nil {
 		return
 	}
-	ctx := context.Background()
+	if err := ctx.Err(); err != nil {
+		return
+	}
 	prompts, err := r.cfg.Reporter.FetchReplyNudges(ctx, agentID)
 	if err != nil {
 		r.log("reply-guardrail agent=%s fetch nudges: %v", agentID, err)
@@ -513,6 +541,9 @@ func (r *LocalRuntime) maybeReplyNudge(agentID string) {
 	for _, p := range prompts {
 		if strings.TrimSpace(p) == "" {
 			continue
+		}
+		if err := ctx.Err(); err != nil {
+			return
 		}
 		if err := sess.Inject(ctx, p); err != nil {
 			r.log("reply-guardrail agent=%s inject nudge: %v", agentID, err)
@@ -523,10 +554,18 @@ func (r *LocalRuntime) maybeReplyNudge(agentID string) {
 }
 
 // MaybeReplyNudge is the daemon-facing entry (boot relaunch re-triggers the guardrail).
-func (r *LocalRuntime) MaybeReplyNudge(agentID string) { r.maybeReplyNudge(agentID) }
+func (r *LocalRuntime) MaybeReplyNudge(agentID string) {
+	if !r.beginRuntimeWork() {
+		return
+	}
+	defer r.endRuntimeWork()
+	ctx, cancel := r.runtimeContext(0)
+	defer cancel()
+	r.maybeReplyNudge(ctx, agentID)
+}
 
 // maybeReportUsage ships the result line's token totals to the center (F2).
-func (r *LocalRuntime) maybeReportUsage(agentID string, ev claudestream.StreamEvent, taskID string) {
+func (r *LocalRuntime) maybeReportUsage(ctx context.Context, agentID string, ev claudestream.StreamEvent, taskID string) {
 	if (r.cfg.DisableUsageReport != nil && r.cfg.DisableUsageReport()) || r.cfg.Reporter == nil {
 		return
 	}
@@ -539,7 +578,10 @@ func (r *LocalRuntime) maybeReportUsage(agentID string, ev claudestream.StreamEv
 	if model == "" {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	if err := ctx.Err(); err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	if err := r.cfg.Reporter.ReportUsage(ctx, UsageReport{
 		AgentID:          agentID,

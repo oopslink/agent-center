@@ -380,21 +380,21 @@ func TestMaybeReportUsage_Branches(t *testing.T) {
 
 	// Empty turn (no tokens) → skipped: NOT reported.
 	rt.withState(func(s *SessionState) { s.Model = "m-1" })
-	rt.maybeReportUsage("agent-x", claudestream.StreamEvent{Type: "result"}, "t-1")
+	rt.maybeReportUsage(context.Background(), "agent-x", claudestream.StreamEvent{Type: "result"}, "t-1")
 	if got := len(rep.usages()); got != 0 {
 		t.Fatalf("empty turn must not report usage, got %d", got)
 	}
 
 	// Tokens present but no model → skipped: NOT reported.
 	rt.withState(func(s *SessionState) { s.Model = "" })
-	rt.maybeReportUsage("agent-x", claudestream.StreamEvent{Type: "result", TokensIn: 5}, "t-1")
+	rt.maybeReportUsage(context.Background(), "agent-x", claudestream.StreamEvent{Type: "result", TokensIn: 5}, "t-1")
 	if got := len(rep.usages()); got != 0 {
 		t.Fatalf("no-model turn must not report usage, got %d", got)
 	}
 
 	// Model + tokens → reported exactly once with the turn's tokens attributed to the task.
 	rt.withState(func(s *SessionState) { s.Model = "m-2" })
-	rt.maybeReportUsage("agent-x", claudestream.StreamEvent{Type: "result", TokensIn: 10, TokensOut: 3, CacheReadTokens: 2}, "t-2")
+	rt.maybeReportUsage(context.Background(), "agent-x", claudestream.StreamEvent{Type: "result", TokensIn: 10, TokensOut: 3, CacheReadTokens: 2}, "t-2")
 	us := rep.usages()
 	if len(us) != 1 {
 		t.Fatalf("model+tokens must report once, got %d", len(us))

@@ -14,7 +14,9 @@ import (
 
 // MaybeReportUsage exposes the turn-end usage hook for daemon-level tests.
 func (r *LocalRuntime) MaybeReportUsage(agentID string, ev claudestream.StreamEvent, taskID string) {
-	r.maybeReportUsage(agentID, ev, taskID)
+	ctx, cancel := r.runtimeContext(0)
+	defer cancel()
+	r.maybeReportUsage(ctx, agentID, ev, taskID)
 }
 
 // RecordTaskEvent exposes the W3/W4 local task sink for tests.

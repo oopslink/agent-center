@@ -11,7 +11,10 @@ import (
 
 const codexMemoryCommitTimeout = 10 * time.Second
 
-func (r *LocalRuntime) commitDirtyMemory(agentID string) {
+func (r *LocalRuntime) commitDirtyMemory(ctx context.Context, agentID string) {
+	if err := ctx.Err(); err != nil {
+		return
+	}
 	home, _, _, err := r.agentPaths(agentID)
 	if err != nil {
 		r.log("codex agent=%s: memory sync resolve home: %v", agentID, err)
@@ -22,8 +25,9 @@ func (r *LocalRuntime) commitDirtyMemory(agentID string) {
 	r.mu.Unlock()
 	authorName, authorEmail := memorySyncIdentity(displayName, agentID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), codexMemoryCommitTimeout)
-	defer cancel()
+	if err := ctx.Err(); err != nil {
+		return
+	}
 	memEngine := memory.NewEngine(filepath.Join(home, "memory"), "")
 	if err := memEngine.CommitDirty(ctx, authorName, authorEmail, ""); err != nil {
 		r.log("codex agent=%s: memory sync: %v", agentID, err)

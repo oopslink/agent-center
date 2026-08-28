@@ -3,6 +3,7 @@ package agentruntime
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -75,6 +76,70 @@ func (r *nopReporter) ReportRuntimeFsResponse(context.Context, runtimefs.Respons
 
 var _ Reporter = (*nopReporter)(nil)
 
+type blockingTurnEndReporter struct {
+	nopReporter
+
+	mu        sync.Mutex
+	usage     int
+	fetches   int
+	usageErr  error
+	fetchErr  error
+	usageOnce sync.Once
+	fetchOnce sync.Once
+
+	usageStarted chan struct{}
+	usageDone    chan struct{}
+	fetchStarted chan struct{}
+	fetchDone    chan struct{}
+}
+
+func newBlockingTurnEndReporter() *blockingTurnEndReporter {
+	return &blockingTurnEndReporter{
+		usageStarted: make(chan struct{}),
+		usageDone:    make(chan struct{}),
+		fetchStarted: make(chan struct{}),
+		fetchDone:    make(chan struct{}),
+	}
+}
+
+func (r *blockingTurnEndReporter) ReportUsage(ctx context.Context, _ UsageReport) error {
+	r.mu.Lock()
+	r.usage++
+	r.mu.Unlock()
+	r.usageOnce.Do(func() { close(r.usageStarted) })
+	<-ctx.Done()
+	r.mu.Lock()
+	r.usageErr = ctx.Err()
+	r.mu.Unlock()
+	close(r.usageDone)
+	return ctx.Err()
+}
+
+func (r *blockingTurnEndReporter) FetchReplyNudges(ctx context.Context, _ string) ([]string, error) {
+	r.mu.Lock()
+	r.fetches++
+	r.mu.Unlock()
+	r.fetchOnce.Do(func() { close(r.fetchStarted) })
+	<-ctx.Done()
+	r.mu.Lock()
+	r.fetchErr = ctx.Err()
+	r.mu.Unlock()
+	close(r.fetchDone)
+	return nil, ctx.Err()
+}
+
+func (r *blockingTurnEndReporter) counts() (usage, fetches int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.usage, r.fetches
+}
+
+func (r *blockingTurnEndReporter) errs() (usageErr, fetchErr error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.usageErr, r.fetchErr
+}
+
 // newTestRuntime returns the runtime WITHOUT its *SessionState: reach the state via
 // rt.withState so the shared-mutex contract holds by construction (docs/rules/testing.md § 6.3).
 func newTestRuntime(t *testing.T) (*LocalRuntime, *nopReporter) {
@@ -106,6 +171,99 @@ func newPersistentTestRuntime(t *testing.T, base string, rep Reporter) *LocalRun
 	// writer can recreate agents/agent-x while RemoveAll is walking the directory.
 	t.Cleanup(rt.WaitBG)
 	return rt
+}
+
+func waitClosed(t *testing.T, ch <-chan struct{}, name string) {
+	t.Helper()
+	select {
+	case <-ch:
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for %s", name)
+	}
+}
+
+func TestTurnEndBackgroundHooksStopCancelsAndJoins(t *testing.T) {
+	rep := newBlockingTurnEndReporter()
+	rt := NewLocalRuntime(LocalRuntimeConfig{
+		AgentID:  "agent-x",
+		Reporter: rep,
+		Log:      func(string, ...any) {},
+	}, &SessionState{})
+	rt.withState(func(s *SessionState) {
+		s.Session = &fakeSession{}
+		s.Model = "m-1"
+	})
+
+	rt.onEvent(claudestream.StreamEvent{Type: "result", TokensIn: 1})
+	waitClosed(t, rep.fetchStarted, "reply nudge fetch to start")
+	waitClosed(t, rep.usageStarted, "usage report to start")
+
+	if err := rt.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+	waitClosed(t, rep.fetchDone, "reply nudge fetch to observe lifecycle cancellation")
+	waitClosed(t, rep.usageDone, "usage report to observe lifecycle cancellation")
+	usageErr, fetchErr := rep.errs()
+	if fetchErr != context.Canceled || usageErr != context.Canceled {
+		t.Fatalf("turn-end hooks must receive lifecycle cancellation, fetch=%v usage=%v", fetchErr, usageErr)
+	}
+}
+
+func TestTurnEndBackgroundHooksRejectedAfterStopHaveNoSideEffects(t *testing.T) {
+	rep := &recReporter{nudges: []string{"reply to the user"}}
+	rt := NewLocalRuntime(LocalRuntimeConfig{
+		AgentID:       "agent-x",
+		AgentHomeBase: t.TempDir(),
+		WorkerID:      "worker-test",
+		Reporter:      rep,
+		Log:           func(string, ...any) {},
+	}, &SessionState{})
+	fs := &fakeSession{}
+	rt.withState(func(s *SessionState) {
+		s.Session = fs
+		s.Model = "m-1"
+	})
+	if err := rt.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop: %v", err)
+	}
+
+	rt.onEvent(claudestream.StreamEvent{Type: "result", TokensIn: 1})
+	rt.WaitBG()
+
+	if got := rep.fetchCount(); got != 0 {
+		t.Fatalf("post-stop reply nudge fetches = %d, want 0", got)
+	}
+	if got := len(rep.usages()); got != 0 {
+		t.Fatalf("post-stop usage reports = %d, want 0", got)
+	}
+	if got := fs.msgs(); len(got) != 0 {
+		t.Fatalf("post-stop nudge injects = %v, want none", got)
+	}
+
+	base := t.TempDir()
+	rep2 := &recReporter{}
+	rt2 := NewLocalRuntime(LocalRuntimeConfig{
+		AgentID:       "agent-x",
+		AgentHomeBase: base,
+		WorkerID:      "worker-test",
+		Reporter:      rep2,
+		Log:           func(string, ...any) {},
+	}, &SessionState{})
+	rt2.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.Model = "m-1"
+	})
+	if err := rt2.Stop(context.Background()); err != nil {
+		t.Fatalf("Stop without session: %v", err)
+	}
+	rt2.onEvent(claudestream.StreamEvent{Type: "result", TokensIn: 1})
+	rt2.WaitBG()
+	if got := len(rep2.usages()); got != 0 {
+		t.Fatalf("post-stop codex usage reports = %d, want 0", got)
+	}
+	if _, err := os.Stat(filepath.Join(base, "agents")); !os.IsNotExist(err) {
+		t.Fatalf("post-stop codex memory commit touched filesystem, stat err=%v", err)
+	}
 }
 
 // TestNotifyWork_InjectsAndSetsState pins the wired NotifyWork inject path: with a
