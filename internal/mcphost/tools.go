@@ -16,6 +16,7 @@
 //   - complete_task               : {task_id, summary?}
 //   - discard_task                : {task_id, reason?}
 //   - create_task                 : {project_id, title, description?, derived_from_issue?, assignee?, dispatch?, dispatch_mode?}
+//   - update_task                 : {task_id, title?, description?, clear_description?}
 //   - fork_executor               : {task_id, model?, context?}
 //   - get_task                    : {task_id}
 //   - get_issue                   : {issue_id}
@@ -310,6 +311,34 @@ func makeCreateTask(cfg Config) mcp.ToolHandlerFor[createTaskArgs, any] {
 			"delivery_contract":  args.DeliveryContract,
 		}
 		return callAdmin(ctx, cfg, "create_task", body)
+	}
+}
+
+// --- update_task -------------------------------------------------------------
+
+type updateTaskArgs struct {
+	TaskID           string `json:"task_id" jsonschema:"the existing task to update"`
+	Title            string `json:"title,omitempty" jsonschema:"optional replacement task title; omit to keep unchanged"`
+	Description      string `json:"description,omitempty" jsonschema:"optional replacement task description; omit to keep unchanged. Description edits on running tasks may be rejected as task_description_frozen."`
+	ClearDescription bool   `json:"clear_description,omitempty" jsonschema:"true to clear the task description; mutually exclusive with description"`
+}
+
+func makeUpdateTask(cfg Config) mcp.ToolHandlerFor[updateTaskArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args updateTaskArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+		}
+		if args.Title != "" {
+			body["title"] = args.Title
+		}
+		if args.Description != "" {
+			body["description"] = args.Description
+		}
+		if args.ClearDescription {
+			body["clear_description"] = true
+		}
+		return callAdmin(ctx, cfg, "update_task", body)
 	}
 }
 

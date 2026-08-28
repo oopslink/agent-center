@@ -89,6 +89,18 @@ func TestJSONToolsForwarding(t *testing.T) {
 			wantBody: map[string]any{"agent_id": "agent-X", "project_id": "p-1", "title": "Do it", "description": "d", "derived_from_issue": "i-2"},
 		},
 		{
+			toolName: "update_task",
+			args:     map[string]any{"task_id": "t-1", "title": "Do it better", "description": "new scope"},
+			wantTool: "update_task",
+			wantBody: map[string]any{"agent_id": "agent-X", "task_id": "t-1", "title": "Do it better", "description": "new scope"},
+		},
+		{
+			toolName: "update_task",
+			args:     map[string]any{"task_id": "t-1", "clear_description": true},
+			wantTool: "update_task",
+			wantBody: map[string]any{"agent_id": "agent-X", "task_id": "t-1", "clear_description": true},
+		},
+		{
 			toolName: "assign_task",
 			args:     map[string]any{"task_id": "t-1", "assignee": "agent:bob"},
 			wantTool: "assign_task",

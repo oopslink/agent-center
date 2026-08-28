@@ -75,7 +75,7 @@ var toolDomain = map[string]string{
 	"pause_task": "work_queue", "resume_task": "work_queue", "claim_task": "work_queue",
 	// tasks & issues
 	"get_task": "tasks_issues", "list_tasks": "tasks_issues", "create_task": "tasks_issues",
-	"assign_task": "tasks_issues", "reassign_task": "tasks_issues", "complete_task": "tasks_issues",
+	"update_task": "tasks_issues", "assign_task": "tasks_issues", "reassign_task": "tasks_issues", "complete_task": "tasks_issues",
 	"discard_task": "tasks_issues", "set_task_issue": "tasks_issues", "block_task": "tasks_issues", "unblock_task": "tasks_issues",
 	"reset_task": "tasks_issues", "report_manual_recovery_delivery": "tasks_issues",
 	"get_issue": "tasks_issues", "list_issues": "tasks_issues", "create_issue": "tasks_issues",

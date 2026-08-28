@@ -32,6 +32,7 @@ var secondaryTools = []struct{ name, summary string }{
 	// That leaves the agent with a system instruction naming close_issue but no
 	// callable schema. Keep the issue lifecycle directly discoverable.
 	// task link / assignment admin
+	{"update_task", "update a task's title or description card fields"},
 	{"reassign_task", "reassign a task to a different identity"},
 	{"set_task_issue", "(re)set or clear a task's derived_from_issue link"},
 	{"get_task_audit", "read a task's redacted lifecycle audit history"},

@@ -595,7 +595,7 @@ describe('ProjectDetail page', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
-  it('member name links to its detail page (agent → AgentDetail, human → user page)', async () => {
+  it('member name links humans to detail and opens the agent sidebar for agents', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
       http.get('/api/projects/:pid/issues', () => HttpResponse.json({ issues: [] })),
@@ -621,6 +621,39 @@ describe('ProjectDetail page', () => {
           { identity_id: 'agent-xyz', display_name: 'Builder', kind: 'agent', status: 'joined' },
         ]),
       ),
+      http.get('/api/agents/:id', ({ params }) =>
+        HttpResponse.json({
+          id: String(params.id),
+          organization_id: 'org-test',
+          name: 'Builder',
+          description: 'build agent',
+          model: 'gpt-5',
+          cli: 'codex',
+          env_vars: {},
+          worker_id: 'worker-1',
+          lifecycle: 'running',
+          availability: 'available',
+          created_by: 'user:hayang',
+          version: 1,
+          created_at: '2026-05-20T01:00:00Z',
+          updated_at: '2026-05-20T01:00:00Z',
+        }),
+      ),
+      http.get('/api/agents/:id/tasks', () => HttpResponse.json({ tasks: [] })),
+      http.get('/api/agents/:id/activity', () =>
+        HttpResponse.json({ activity: [], next_cursor: null }),
+      ),
+      http.get('/api/agents/:id/concurrency', () =>
+        HttpResponse.json({
+          agent_id: 'agent-xyz',
+          cap: 1,
+          active: 0,
+          queued: 0,
+          stale: false,
+          snapshot_age_ms: 0,
+          executors: [],
+        }),
+      ),
     );
     wrap('/projects/proj-a');
     await waitFor(() => expect(screen.getByTestId('project-work-tabs')).toBeInTheDocument());
@@ -636,10 +669,13 @@ describe('ProjectDetail page', () => {
     expect(humanRef.tagName).toBe('A');
     expect(humanRef).toHaveAttribute('href', '/users/hayang');
 
-    // Agent member → /agents/<execution-agent id> (resolved via identity_member_id).
+    // Agent member → opens the reusable sender sidebar instead of navigating away.
     const agentRef = within(agent as HTMLElement).getByTestId('project-member-ref');
-    expect(agentRef.tagName).toBe('A');
-    expect(agentRef).toHaveAttribute('href', '/agents/agent-exec-1');
+    expect(agentRef.tagName).toBe('BUTTON');
+    fireEvent.click(agentRef);
+    await waitFor(() => expect(screen.getByTestId('sender-sidebar-agent')).toBeInTheDocument());
+    expect(screen.getByTestId('sender-sidebar')).toHaveTextContent('Builder');
+    expect(screen.getByTestId('sender-sidebar-agent-info')).toHaveTextContent('codex');
   });
 
   // T131: the per-project Task/Issue lists reuse the global FilterBar with the

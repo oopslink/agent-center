@@ -303,6 +303,67 @@ func TestCreateTask_CrossWorker_403(t *testing.T) {
 	}
 }
 
+// --- update_task -------------------------------------------------------------
+
+func TestUpdateTask_TitleDescription_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	_, tid := f.seedMemberProject(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/update_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "title": "renamed", "description": "new scope"})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	tk, err := f.pmSvc.GetTask(context.Background(), pm.TaskID(tid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tk.Title() != "renamed" || tk.Description() != "new scope" {
+		t.Fatalf("task metadata = %q / %q, want renamed / new scope", tk.Title(), tk.Description())
+	}
+}
+
+func TestUpdateTask_ClearDescription_OK(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	_, tid := f.seedMemberProject(t)
+	desc := "existing scope"
+	if err := f.pmSvc.UpdateTask(context.Background(), pmservice.UpdateTaskCommand{
+		TaskID: pm.TaskID(tid), Description: &desc, Actor: pm.IdentityRef("agent:" + atAgent1),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/update_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "clear_description": true})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	tk, err := f.pmSvc.GetTask(context.Background(), pm.TaskID(tid))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tk.Description() != "" {
+		t.Fatalf("description = %q, want cleared", tk.Description())
+	}
+}
+
+func TestUpdateTask_NoFields_400(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	_, tid := f.seedMemberProject(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/update_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusBadRequest || body["error"] != "missing_update_fields" {
+		t.Fatalf("status = %d error=%v, want 400 missing_update_fields; body = %v", status, body["error"], body)
+	}
+}
+
 // --- create_task one-step dispatch (T199/WS3) --------------------------------
 
 // dispatch=true (no assignee) → the created task lands in the project's built-in

@@ -280,6 +280,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Create a task in a project the calling agent belongs to.",
 	}, makeCreateTask(cfg))
 
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "update_task",
+		Description: "Update an existing task's card fields: title and/or description, or clear the description. Omitted fields are left unchanged. Description edits on running tasks are rejected with task_description_frozen.",
+	}, makeUpdateTask(cfg))
+
 	// --- issue management (v2.10.3 T170) -------------------------------------
 	// The agent gets the full issue lifecycle a human has in the Web Console:
 	// open → discuss (@/thread) → edit/close/reopen → derive tasks. Use an issue

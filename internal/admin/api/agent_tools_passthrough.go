@@ -143,6 +143,69 @@ func (s *Server) createTaskHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"task_id": string(taskID)})
 }
 
+// --- update_task -------------------------------------------------------------
+
+type updateTaskReq struct {
+	AgentID          string  `json:"agent_id"`
+	TaskID           string  `json:"task_id"`
+	Title            *string `json:"title"`
+	Description      *string `json:"description"`
+	ClearDescription bool    `json:"clear_description"`
+}
+
+// updateTaskHandler updates task card metadata through the same pm service path
+// used by human-facing task edits. That keeps project membership, audit history,
+// derived invariants, and task_description_frozen enforcement in one place.
+func (s *Server) updateTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req updateTaskReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.TaskID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_task_id", "")
+		return
+	}
+	if req.ClearDescription && req.Description != nil {
+		writeError(w, http.StatusBadRequest, "invalid_request", "clear_description is mutually exclusive with description")
+		return
+	}
+	if req.Title == nil && req.Description == nil && !req.ClearDescription {
+		writeError(w, http.StatusBadRequest, "missing_update_fields", "provide title, description, or clear_description")
+		return
+	}
+	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
+		return
+	}
+	if !s.requireAgentTaskWrite(w, r, d, a, req.TaskID) {
+		return
+	}
+	description := req.Description
+	if req.ClearDescription {
+		empty := ""
+		description = &empty
+	}
+	if err := d.PMService.UpdateTask(r.Context(), pmservice.UpdateTaskCommand{
+		TaskID:      pm.TaskID(req.TaskID),
+		Title:       req.Title,
+		Description: description,
+		Actor:       pm.IdentityRef(agentActor(a)),
+	}); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task_id": req.TaskID})
+}
+
 // --- assign_task / reassign_task ---------------------------------------------
 
 type assignTaskReq struct {

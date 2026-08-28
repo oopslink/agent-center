@@ -452,6 +452,7 @@ func (s *Server) routes() {
 	// is the write-gate) + per-agent-scoped reads (get_task own-work, get_issue
 	// project-membership domain).
 	s.mux.HandleFunc("POST /admin/agent-tools/create_task", s.createTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/update_task", s.updateTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/assign_task", s.assignTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/reassign_task", s.assignTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/subscribe", s.subscribeHandler)

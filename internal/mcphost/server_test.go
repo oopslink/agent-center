@@ -184,7 +184,7 @@ var wantTools = []string{
 	// v2.18.4 BE-2 (issue-f980c8de): workspace CodeRepo info tools
 	"list_project_repos", "get_repo_info",
 	// pm writes / passthrough
-	"create_task", "assign_task", "reassign_task",
+	"create_task", "update_task", "assign_task", "reassign_task",
 	"subscribe", "unsubscribe",
 	"block_task", "complete_task",
 	"report_manual_recovery_delivery",
@@ -314,7 +314,7 @@ func TestPlanToolsRegistered(t *testing.T) {
 
 	// Sanity: the existing task tools must still be present (the plan
 	// additions did not displace them).
-	for _, name := range []string{"create_task", "assign_task", "get_task", "complete_task"} {
+	for _, name := range []string{"create_task", "update_task", "assign_task", "get_task", "complete_task"} {
 		if !registered[name] {
 			t.Errorf("existing tool %q went missing after the plan-tool additions", name)
 		}

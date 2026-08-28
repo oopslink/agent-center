@@ -13,7 +13,6 @@ import {
 } from '@/api/projects';
 import { useIssues } from '@/api/issues';
 import { useBatchArchivePlans, useProjectPlansList, type PlanStatus } from '@/api/plans';
-import { useAgents } from '@/api/agents';
 import { formatDurationSeconds, formatLocalTime } from '@/utils/time';
 import { useTasksList } from '@/api/tasks';
 import { buildWorkItemFilters } from '@/api/orgWorkItems';
@@ -39,6 +38,7 @@ import {
   useSetPrimaryProjectRepo,
 } from '@/api/repos';
 import { ProviderBadge } from '@/components/repoDisplay';
+import { SenderSidebarProvider, useSenderSidebar } from '@/components/SenderSidebarContext';
 
 // ProjectDetail (/projects/:id). v2.7 ProjectManager BC: a single
 // project hosts its Issues and Tasks as tabs/sections — there is no
@@ -376,7 +376,11 @@ function ProjectWorkTabs({ projectId }: { projectId: string }): React.ReactEleme
         {tab === 'tasks' && <TasksPanel projectId={projectId} />}
         {tab === 'plans' && <PlansPanel projectId={projectId} />}
         {tab === 'repos' && <CodeReposPanel projectId={projectId} />}
-        {tab === 'members' && <MembersPanel projectId={projectId} />}
+        {tab === 'members' && (
+          <SenderSidebarProvider>
+            <MembersPanel projectId={projectId} />
+          </SenderSidebarProvider>
+        )}
       </div>
     </div>
   );
@@ -700,29 +704,16 @@ function removeMemberErrorMessage(
 function MembersPanel({ projectId }: { projectId: string }): React.ReactElement {
   const { t } = useTranslation('work');
   const members = useProjectMembers(projectId);
+  const openSender = useSenderSidebar();
   // v2.7 #192: show member display names (raw identity id on hover).
   const resolveName = useDisplayNameResolver();
-  // Click a member name → its detail page. Agent members link to their
-  // execution Agent (identity_member_id == member identity_id, the unified-create
-  // link; no match → no link for legacy identity-only rows). Human members link
-  // to the user page. Mirrors the canonical resolution in MembersAgents.
-  const agents = useAgents();
-  const agentIDByIdentity = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const a of agents.data ?? []) {
-      if (a.identity_member_id) map.set(a.identity_member_id, a.id);
-    }
-    return map;
-  }, [agents.data]);
   // ProjectMember carries no `kind`, so resolve agent vs human from the
-  // identity_id prefix (same compat check MembersAgents uses).
-  const memberPath = (identityId: string): string | undefined => {
-    if (identityId.startsWith('agent:') || identityId.startsWith('agent-')) {
-      const aid = agentIDByIdentity.get(identityId);
-      return aid ? `/agents/${encodeURIComponent(aid)}` : undefined;
-    }
-    return `/users/${encodeURIComponent(normalizeIdentityRef(identityId))}`;
-  };
+  // identity_id prefix (same compat check MembersAgents uses). Human members
+  // still navigate to UserDetail; agent members open the shared SenderDetailSidebar.
+  const memberPath = (identityId: string): string | undefined =>
+    identityId.startsWith('agent:') || identityId.startsWith('agent-')
+      ? undefined
+      : `/users/${encodeURIComponent(normalizeIdentityRef(identityId))}`;
   // v2.7 #207: owner-gated add/remove.
   const me = useAppStore((s) => s.currentUserId);
   const remove = useRemoveProjectMember(projectId);
@@ -780,14 +771,40 @@ function MembersPanel({ projectId }: { projectId: string }): React.ReactElement 
                 const displayName = resolveName(m.identity_id);
                 const label = displayName === m.identity_id ? m.identity_id : displayName;
                 const kind = m.identity_id.startsWith('agent:') || m.identity_id.startsWith('agent-') ? 'agent' : 'user';
+                const visibleName = displayName !== m.identity_id ? displayName : normalizeIdentityRef(m.identity_id);
+                const path = memberPath(m.identity_id);
                 return (
                   <tr key={m.id} data-testid="member-row" data-member-id={m.id} className="text-text-secondary">
-                    <td className="py-2 pr-3 font-mono text-xs text-text-muted">{m.identity_id}</td>
-                    <td className="py-2 pr-3 text-text-primary">
-                      {memberPath(m.identity_id) ? (
-                        <OrgLink to={memberPath(m.identity_id)!} className="hover:underline" data-testid="project-member-ref" title={m.identity_id}>{displayName !== m.identity_id ? displayName : normalizeIdentityRef(m.identity_id)}</OrgLink>
+                    <td className="py-2 pr-3 font-mono text-xs text-text-muted">
+                      {kind === 'agent' && openSender ? (
+                        <button
+                          type="button"
+                          onClick={() => openSender(m.identity_id)}
+                          className="rounded text-left hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          data-testid="project-member-agent-identity"
+                          title={m.identity_id}
+                        >
+                          {m.identity_id}
+                        </button>
                       ) : (
-                        <span>{displayName !== m.identity_id ? displayName : normalizeIdentityRef(m.identity_id)}</span>
+                        m.identity_id
+                      )}
+                    </td>
+                    <td className="py-2 pr-3 text-text-primary">
+                      {kind === 'agent' && openSender ? (
+                        <button
+                          type="button"
+                          onClick={() => openSender(m.identity_id)}
+                          className="rounded text-left hover:text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          data-testid="project-member-ref"
+                          title={m.identity_id}
+                        >
+                          {visibleName}
+                        </button>
+                      ) : path ? (
+                        <OrgLink to={path} className="hover:underline" data-testid="project-member-ref" title={m.identity_id}>{visibleName}</OrgLink>
+                      ) : (
+                        <span>{visibleName}</span>
                       )}
                     </td>
                     <td className="py-2 pr-3 whitespace-nowrap text-text-muted">{shortDate(m.created_at)}</td>
