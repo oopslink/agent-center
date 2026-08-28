@@ -51,6 +51,11 @@ import (
 // precondition the agent must observe), and ErrNotMember/ErrCrossProject fall
 // through to mapDomainError's 403.
 func mapPlanToolError(w http.ResponseWriter, err error) {
+	var nodeErr *pm.PlanNodeNotRemovableError
+	if errors.As(err, &nodeErr) {
+		writePlanNodeNotRemovableError(w, http.StatusConflict, nodeErr)
+		return
+	}
 	switch {
 	case errors.Is(err, pm.ErrPlanNotFound), errors.Is(err, pm.ErrStageNotFound),
 		errors.Is(err, pm.ErrPlanGenerationNotFound):
@@ -102,6 +107,19 @@ func mapPlanToolError(w http.ResponseWriter, err error) {
 	default:
 		mapDomainError(w, err)
 	}
+}
+
+func writePlanNodeNotRemovableError(w http.ResponseWriter, status int, err *pm.PlanNodeNotRemovableError) {
+	writeJSON(w, status, map[string]any{
+		"error":            pm.PlanNodeNotRemovableCode,
+		"message":          err.Error(),
+		"plan_id":          string(err.PlanID),
+		"node_id":          err.NodeID,
+		"task_id":          string(err.TaskID),
+		"current_status":   string(err.CurrentStatus),
+		"allowed_status":   err.AllowedStatus,
+		"history_blockers": err.HistoryBlockers,
+	})
 }
 
 // --- create_plan -------------------------------------------------------------

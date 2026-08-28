@@ -199,6 +199,60 @@ func TestEditPlanTopology_TerminalCycleRejected(t *testing.T) {
 	}
 }
 
+func TestEditPlanTopology_RemoveNodeRequiresZeroHistoryAndRollsBackBatch(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "remove", CreatedBy: "user:a"})
+	h.drain(t)
+	removable := h.seedAssignedTask(t, pid, planID, "removable", "user:a1")
+	blocked := h.seedAssignedTask(t, pid, planID, "blocked", "user:b1")
+	dep := h.seedAssignedTask(t, pid, planID, "dep", "user:c1")
+	if err := h.svc.AddPlanDependency(h.ctx, planID, blocked, dep, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	base := h.planVersion(t, planID)
+	_, err := h.edit(t, planID, base,
+		TopologyOp{Kind: OpRemoveNode, TaskID: removable},
+		TopologyOp{Kind: OpRemoveNode, TaskID: blocked},
+	)
+	var nodeErr *pm.PlanNodeNotRemovableError
+	if !errors.As(err, &nodeErr) {
+		t.Fatalf("remove_node batch err=%v, want PlanNodeNotRemovableError", err)
+	}
+	if nodeErr.TaskID != blocked || !hasStringPrefix(nodeErr.HistoryBlockers, "dependency:") {
+		t.Fatalf("node error = %+v, want dependency blocker for %s", nodeErr, blocked)
+	}
+	if got := h.planVersion(t, planID); got != base {
+		t.Fatalf("version=%d want %d (rejected batch must not commit)", got, base)
+	}
+	for _, id := range []pm.TaskID{removable, blocked, dep} {
+		tk, _ := h.tasks.FindByID(h.ctx, id)
+		if tk.PlanID() != planID {
+			t.Fatalf("task %s plan_id=%q, want %q after rejected batch", id, tk.PlanID(), planID)
+		}
+	}
+	edges, _ := h.plans.ListDependencies(h.ctx, planID)
+	if len(edges) != 1 || edges[0].FromTaskID != blocked || edges[0].ToTaskID != dep {
+		t.Fatalf("dependency history changed: %v", edges)
+	}
+}
+
+func TestEditPlanTopology_RemoveNodeMissingIsNotSilentNoOp(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "remove-missing", CreatedBy: "user:a"})
+	h.drain(t)
+	missing := h.seedBacklogAssignedTask(t, pid, "missing", "user:m")
+	base := h.planVersion(t, planID)
+	_, err := h.edit(t, planID, base, TopologyOp{Kind: OpRemoveNode, TaskID: missing})
+	if !errors.Is(err, ErrTaskNotInPlan) {
+		t.Fatalf("remove_node missing err=%v, want ErrTaskNotInPlan", err)
+	}
+	if got := h.planVersion(t, planID); got != base {
+		t.Fatalf("version=%d want %d (missing remove must not commit)", got, base)
+	}
+}
+
 // startRunningPlanAB builds + starts a running plan with B depends_on A and dispatches
 // the root A (so A has a dispatch record). Returns the ids.
 func (h *planAdvanceHarness) startRunningPlanAB(t *testing.T, pid pm.ProjectID, planID pm.PlanID) (a, b pm.TaskID) {
@@ -239,8 +293,8 @@ func TestEditPlanTopology_RunningFailClosed(t *testing.T) {
 	}
 	// remove_node of the in-flight node A is rejected by the same status guard.
 	_, err = h.edit(t, planID, base, TopologyOp{Kind: OpRemoveNode, TaskID: a})
-	if !errors.Is(err, pm.ErrPlanNotPending) {
-		t.Fatalf("remove_node on running plan: err=%v, want ErrPlanNotPending", err)
+	if !errors.Is(err, pm.ErrPlanNodeNotRemovable) {
+		t.Fatalf("remove_node on running plan: err=%v, want ErrPlanNodeNotRemovable", err)
 	}
 	// Version unchanged (both rejected, nothing committed).
 	if got := h.planVersion(t, planID); got != base {
