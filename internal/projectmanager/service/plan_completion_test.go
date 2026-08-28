@@ -5,9 +5,42 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	orch "github.com/oopslink/agent-center/internal/projectmanager/orchestration"
 )
+
+func TestActiveUnresolvedGraphConditions_IgnoresSupersededGenerationConditions(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0).UTC()
+	condition := func(id, taskID string, status orch.NodeStatus) *orch.Node {
+		n, err := orch.RehydrateNode(orch.RehydrateNodeInput{
+			ID: orch.NodeID(id), GraphID: "graph-1", Category: orch.NodeCategoryControl,
+			ControlKind: orch.ControlKindCondition, Title: id, Status: status,
+			Metadata: map[string]any{"condition_for": taskID}, CreatedAt: now, UpdatedAt: now, Version: 1,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return n
+	}
+	view := pm.PlanView{Nodes: []pm.PlanNodeView{
+		{TaskID: "old-gate", Effective: false, NodeStatus: pm.NodeFailed},
+		{TaskID: "active-gate", Effective: true, NodeStatus: pm.NodeDone},
+	}}
+	nodes := []*orch.Node{
+		condition("old-condition", "old-gate", orch.NodeOpen),
+		condition("active-condition", "active-gate", orch.NodeOpen),
+		condition("settled-condition", "active-gate", orch.NodeCompleted),
+		condition("ambiguous-condition", "", orch.NodeOpen),
+	}
+
+	got := activeUnresolvedGraphConditions(nodes, view)
+	want := []string{"active-gate", "ambiguous-condition"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("active conditions=%v want %v", got, want)
+	}
+}
 
 func (h *planAdvanceHarness) seedAssignedTaskFollowing(t *testing.T, pid pm.ProjectID, planID pm.PlanID, title, assignee string, follows pm.TaskID) pm.TaskID {
 	t.Helper()
