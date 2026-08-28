@@ -169,24 +169,64 @@ func TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch(t *testing.T) {
 	go func() { stopDone <- rt.Stop(context.Background()) }()
 	select {
 	case err := <-stopDone:
-		t.Fatalf("Stop returned before in-flight SpawnExecutor left the lifecycle gate: %v", err)
+		if err != nil {
+			t.Fatalf("Stop: %v", err)
+		}
 	case <-time.After(25 * time.Millisecond):
+		t.Fatal("Stop did not cancel and join the in-flight SpawnExecutor center read")
 	}
 
-	close(caller.release)
 	res := <-spawnDone
-	if res == nil || res.CommandStatus != controlCommandStatusFailed || res.Reason != "runtime_stopping" {
-		t.Fatalf("in-flight SpawnExecutor during Stop = %+v, want failed/runtime_stopping", res)
-	}
-	if err := <-stopDone; err != nil {
-		t.Fatalf("Stop: %v", err)
+	if res == nil || res.CommandStatus != controlCommandStatusFailed || res.Reason != "get_task_failed" {
+		t.Fatalf("in-flight SpawnExecutor during Stop = %+v, want failed/get_task_failed from lifecycle-canceled center read", res)
 	}
 	if active := ee.engine.Pool().Active(); active != 0 {
 		t.Fatalf("Stop race leaked active executor slot, active=%d", active)
 	}
-	if seen := caller.toolsSeen(); len(seen) != 1 || seen[0] != "get_task" {
-		t.Fatalf("Stop race must not start new admission/pre-launch work after get_task returns; calls=%v", seen)
+	if seen := caller.toolsSeen(); len(seen) != 0 {
+		t.Fatalf("Stop race must cancel before start_task/launch side effects, calls=%v", seen)
 	}
+}
+
+func TestStopCancelsInflightSpawnExecutorCenterRead(t *testing.T) {
+	rt, ee, _ := engineForAgent(t, "agent-r9-cancel-read")
+	attach(rt, ee)
+	caller := &blockingGetTaskCaller{
+		scriptedToolCaller: &scriptedToolCaller{getTaskBody: map[string]any{
+			"id": "task-r9-cancel-read", "title": "race", "status": "open", "assignee": "agent:agent-r9-cancel-read",
+		}},
+		entered: make(chan struct{}),
+		release: make(chan struct{}),
+	}
+	setToolCaller(rt, caller)
+
+	spawnDone := make(chan *SpawnResult, 1)
+	go func() {
+		res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-r9-cancel-read"})
+		if err != nil {
+			t.Errorf("SpawnExecutor: %v", err)
+		}
+		spawnDone <- res
+	}()
+	<-caller.entered
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	if err := rt.Stop(stopCtx); err != nil {
+		t.Fatalf("Stop must cancel and join in-flight SpawnExecutor center read, got %v", err)
+	}
+
+	res := <-spawnDone
+	if res == nil || res.CommandStatus != controlCommandStatusFailed || res.Reason != "get_task_failed" {
+		t.Fatalf("in-flight SpawnExecutor result = %+v, want failed/get_task_failed", res)
+	}
+	if active := ee.engine.Pool().Active(); active != 0 {
+		t.Fatalf("Stop leaked active executor slot, active=%d", active)
+	}
+	if seen := caller.toolsSeen(); len(seen) != 0 {
+		t.Fatalf("Stop must cancel before start_task/launch side effects, calls=%v", seen)
+	}
+	close(caller.release)
 }
 
 func TestStopRepeatedKeepsAdmissionClosed(t *testing.T) {

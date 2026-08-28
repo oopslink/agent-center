@@ -1,0 +1,82 @@
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.00s)
+=== RUN   TestStopCancelsInflightSpawnExecutorCenterRead
+--- PASS: TestStopCancelsInflightSpawnExecutorCenterRead (0.00s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.00s)
+=== RUN   TestStopCancelsInflightSpawnExecutorCenterRead
+--- PASS: TestStopCancelsInflightSpawnExecutorCenterRead (0.00s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.00s)
+=== RUN   TestStopCancelsInflightSpawnExecutorCenterRead
+--- PASS: TestStopCancelsInflightSpawnExecutorCenterRead (0.00s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.00s)
+=== RUN   TestStopCancelsInflightSpawnExecutorCenterRead
+--- PASS: TestStopCancelsInflightSpawnExecutorCenterRead (0.00s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.00s)
+=== RUN   TestStopCancelsInflightSpawnExecutorCenterRead
+--- PASS: TestStopCancelsInflightSpawnExecutorCenterRead (0.00s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.00s)
+=== RUN   TestStopCancelsInflightSpawnExecutorCenterRead
+--- PASS: TestStopCancelsInflightSpawnExecutorCenterRead (0.00s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.00s)
+=== RUN   TestStopCancelsInflightSpawnExecutorCenterRead
+--- PASS: TestStopCancelsInflightSpawnExecutorCenterRead (0.00s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.00s)
+=== RUN   TestStopCancelsInflightSpawnExecutorCenterRead
+--- PASS: TestStopCancelsInflightSpawnExecutorCenterRead (0.00s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.00s)
+=== RUN   TestStopCancelsInflightSpawnExecutorCenterRead
+--- PASS: TestStopCancelsInflightSpawnExecutorCenterRead (0.00s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+=== RUN   TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead
+--- PASS: TestStopThenSpawnExecutor_FailsClosedWithoutCenterRead (0.00s)
+=== RUN   TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch
+--- PASS: TestStopRacesInflightSpawnExecutor_NoPostCloseLaunch (0.00s)
+=== RUN   TestStopCancelsInflightSpawnExecutorCenterRead
+--- PASS: TestStopCancelsInflightSpawnExecutorCenterRead (0.00s)
+=== RUN   TestStopRepeatedKeepsAdmissionClosed
+--- PASS: TestStopRepeatedKeepsAdmissionClosed (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime	1.653s

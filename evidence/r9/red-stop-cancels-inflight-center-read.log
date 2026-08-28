@@ -1,0 +1,6 @@
+=== RUN   TestStopCancelsInflightSpawnExecutorCenterRead
+    executor_runtime_test.go:217: Stop must cancel and join in-flight SpawnExecutor center read, got runtime lifecycle work: context deadline exceeded
+--- FAIL: TestStopCancelsInflightSpawnExecutorCenterRead (0.10s)
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/agentruntime	0.654s
+FAIL

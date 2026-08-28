@@ -1,0 +1,83 @@
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-4ec06566 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-4ec06566: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-4ec06566: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-4ec06566 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-4ec06566 start_task declined (cap/again/not-runnable): Post "http://127.0.0.1:57509/admin/agent-tools/start_task": context canceled — left queued
+    local_runtime.go:543: agent=AG1 task=task-4ec06566 re-drive after independent clone ready: completed command status=rejected reason=start_task_declined
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (3.49s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-34443255 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-34443255: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-34443255: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-34443255 — SpawnExecutor entry
+2026/08/28 22:45:52 WARN pm: audit append failed (best-effort, mutation unaffected) err="context canceled" object_type=task object_id=task-34443255 change_type=status_changed
+    local_runtime.go:543: fork_executor agent=AG1 task=task-34443255 start_task declined (cap/again/not-runnable): Post "http://127.0.0.1:57518/admin/agent-tools/start_task": context canceled — left queued
+    local_runtime.go:543: agent=AG1 task=task-34443255 re-drive after independent clone ready: completed command status=rejected reason=start_task_declined
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (3.58s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-51221705 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-51221705: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-51221705: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-51221705 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-51221705 start_task declined (cap/again/not-runnable): Post "http://127.0.0.1:57533/admin/agent-tools/start_task": context canceled — left queued
+    local_runtime.go:543: agent=AG1 task=task-51221705 re-drive after independent clone ready: completed command status=rejected reason=start_task_declined
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (3.58s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-88d2bf5e — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-88d2bf5e: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-88d2bf5e: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-88d2bf5e — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-88d2bf5e start_task declined (cap/again/not-runnable): Post "http://127.0.0.1:57546/admin/agent-tools/start_task": context canceled — left queued
+    local_runtime.go:543: agent=AG1 task=task-88d2bf5e re-drive after independent clone ready: completed command status=rejected reason=start_task_declined
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (3.41s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-98b6bd8c — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-98b6bd8c: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-98b6bd8c: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-98b6bd8c — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-98b6bd8c start_task declined (cap/again/not-runnable): Post "http://127.0.0.1:57558/admin/agent-tools/start_task": context canceled — left queued
+    local_runtime.go:543: agent=AG1 task=task-98b6bd8c re-drive after independent clone ready: completed command status=rejected reason=start_task_declined
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (3.47s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-f86fa168 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-f86fa168: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-f86fa168: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-f86fa168 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-f86fa168 start_task declined (cap/again/not-runnable): Post "http://127.0.0.1:57568/admin/agent-tools/start_task": context canceled — left queued
+    local_runtime.go:543: agent=AG1 task=task-f86fa168 re-drive after independent clone ready: completed command status=rejected reason=start_task_declined
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (3.46s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-55f6fd51 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-55f6fd51: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-55f6fd51: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-55f6fd51 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-55f6fd51 start_task declined (cap/again/not-runnable): Post "http://127.0.0.1:57577/admin/agent-tools/start_task": context canceled — left queued
+    local_runtime.go:543: agent=AG1 task=task-55f6fd51 re-drive after independent clone ready: completed command status=rejected reason=start_task_declined
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (3.47s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-9d2a1f37 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-9d2a1f37: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-9d2a1f37: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-9d2a1f37 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-9d2a1f37 start_task declined (cap/again/not-runnable): Post "http://127.0.0.1:57596/admin/agent-tools/start_task": context canceled — left queued
+    local_runtime.go:543: agent=AG1 task=task-9d2a1f37 re-drive after independent clone ready: completed command status=rejected reason=start_task_declined
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (3.32s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-b38bcf91 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-b38bcf91: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-b38bcf91: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-b38bcf91 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-b38bcf91 start_task declined (cap/again/not-runnable): Post "http://127.0.0.1:57620/admin/agent-tools/start_task": context canceled — left queued
+    local_runtime.go:543: agent=AG1 task=task-b38bcf91 re-drive after independent clone ready: completed command status=rejected reason=start_task_declined
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (3.42s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-9add0c34 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-9add0c34: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-9add0c34: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-9add0c34 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-9add0c34 start_task declined (cap/again/not-runnable): Post "http://127.0.0.1:57641/admin/agent-tools/start_task": context canceled — left queued
+    local_runtime.go:543: agent=AG1 task=task-9add0c34 re-drive after independent clone ready: completed command status=rejected reason=start_task_declined
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (3.47s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/admin/api	36.645s

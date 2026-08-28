@@ -762,6 +762,8 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "runtime_stopping", Detail: ErrRuntimeStopping.Error()}, nil
 	}
 	defer r.endRuntimeWork()
+	ctx, cancel := r.lifecycleBoundContext(ctx)
+	defer cancel()
 	ee := r.execEngine()
 	if ee == nil {
 		r.log("fork_executor agent=%s task=%s SpawnExecutor: no executor engine — left queued", agentID, taskID)

@@ -424,6 +424,21 @@ func (r *LocalRuntime) runtimeContext(timeout time.Duration) (context.Context, c
 	return context.WithTimeout(r.lifecycleCtx, timeout)
 }
 
+func (r *LocalRuntime) lifecycleBoundContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	child, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(r.lifecycleCtx, cancel)
+	return child, func() {
+		if stop() {
+			cancel()
+			return
+		}
+		cancel()
+	}
+}
+
 func (r *LocalRuntime) runtimeStopped() bool {
 	select {
 	case <-r.lifecycleCtx.Done():
