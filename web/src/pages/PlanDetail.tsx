@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -361,21 +361,48 @@ export default function PlanDetail(): React.ReactElement {
 
 export function PlanProgressCockpit({ control }: { control: PlanProgressControl }): React.ReactElement {
   const degraded = control.decision === 'cannot_determine' || control.quality === 'suspect' || control.freshness.state !== 'fresh';
+  const [open, setOpen] = useState(false);
+  const actionsId = useId();
+  const hasActions = control.required_actions.length > 0;
+  const summary = (
+    <>
+      <span className="flex min-w-0 items-center gap-1.5">
+        {hasActions && <DagEvolutionChevron open={open} />}
+        <strong className="text-text-primary">Progress control</strong>
+      </span>
+      <span>{control.decision.replaceAll('_', ' ')}</span>
+      <span>freshness: {control.freshness.state}</span>
+      <span>quality: {control.quality}</span>
+      {hasActions && (
+        <span className="rounded-full border border-border-base bg-bg-elevated px-1.5 py-0.5 font-medium text-text-secondary">
+          {control.required_actions.length} action{control.required_actions.length === 1 ? '' : 's'}
+        </span>
+      )}
+    </>
+  );
   return (
     <section
-      className={`mx-3 mt-2 rounded-md border px-3 py-2 text-xs md:mx-6 ${degraded ? 'border-warning/50 bg-warning/5' : 'border-border-base bg-bg-subtle'}`}
+      className={`mx-3 mt-2 rounded-md border px-3 py-1.5 text-xs md:mx-6 ${degraded ? 'border-warning/50 bg-warning/5' : 'border-border-base bg-bg-subtle'}`}
       data-testid="plan-progress-cockpit"
       data-decision={control.decision}
       data-freshness={control.freshness.state}
     >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <strong className="text-text-primary">Progress control</strong>
-        <span>{control.decision.replaceAll('_', ' ')}</span>
-        <span>freshness: {control.freshness.state}</span>
-        <span>quality: {control.quality}</span>
-      </div>
-      {control.required_actions.length > 0 && (
-        <ul className="mt-2 space-y-1" aria-label="Required actions">
+      {hasActions ? (
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls={actionsId}
+          data-testid="plan-progress-toggle"
+          className="flex w-full flex-wrap items-center gap-x-3 gap-y-1 text-left text-text-muted hover:text-text-secondary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        >
+          {summary}
+        </button>
+      ) : (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-text-muted">{summary}</div>
+      )}
+      {hasActions && open && (
+        <ul id={actionsId} className="mt-2 space-y-1" aria-label="Required actions">
           {control.required_actions.map((action) => (
             <li key={action.id} className="rounded border border-border-base bg-bg-elevated px-2 py-1" data-action-category={action.category}>
               <span className="font-medium text-text-primary">{action.category.replaceAll('_', ' ')}</span>

@@ -1,10 +1,11 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import type { PlanProgressControl } from '@/api/plans';
 import { PlanProgressCockpit } from './PlanDetail';
 
 describe('PlanProgressCockpit', () => {
-  it('distinguishes owner actions from prerequisite waits and shows authoritative facts', () => {
+  it('collapses action details by default and expands them on demand', async () => {
     const control: PlanProgressControl = {
       as_of: '2026-08-27T12:00:00Z',
       freshness: { state: 'degraded', watermark_lag_ms: 1000, threshold_ms: 120000 },
@@ -17,6 +18,13 @@ describe('PlanProgressCockpit', () => {
     };
     render(<PlanProgressCockpit control={control} />);
     expect(screen.getByTestId('plan-progress-cockpit')).toHaveAttribute('data-freshness', 'degraded');
+    const toggle = screen.getByTestId('plan-progress-toggle');
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText('2 actions')).toBeInTheDocument();
+    expect(screen.queryByText(/owner action/)).not.toBeInTheDocument();
+
+    await userEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
     expect(screen.getByText(/owner action/)).toBeInTheDocument();
     expect(screen.getByText(/prerequisite wait/)).toBeInTheDocument();
     expect(screen.getByText(/facts decision:1/)).toBeInTheDocument();
