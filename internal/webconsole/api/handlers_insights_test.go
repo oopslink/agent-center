@@ -166,11 +166,19 @@ func TestInsightsExecutionAPI_ReadsSingleProjectedExecution(t *testing.T) {
 			ThresholdMS int64  `json:"threshold_ms"`
 		} `json:"freshness"`
 		Execution struct {
-			ExecutionID string  `json:"execution_id"`
-			TaskTitle   *string `json:"task_title"`
-			AgentRef    string  `json:"agent_ref"`
-			ProjectID   *string `json:"project_id"`
-			DurationMS  *int64  `json:"duration_ms"`
+			ExecutionID    string  `json:"execution_id"`
+			TaskTitle      *string `json:"task_title"`
+			AgentRef       string  `json:"agent_ref"`
+			ProjectID      *string `json:"project_id"`
+			DurationMS     *int64  `json:"duration_ms"`
+			CommandStatus  *string `json:"command_status"`
+			StatusReason   *string `json:"status_reason"`
+			StatusMessage  *string `json:"status_message"`
+			FailureMessage *string `json:"failure_message"`
+			Status         struct {
+				State           string `json:"state"`
+				CountsAsFailure bool   `json:"counts_as_failure"`
+			} `json:"status"`
 		} `json:"execution"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
@@ -178,6 +186,12 @@ func TestInsightsExecutionAPI_ReadsSingleProjectedExecution(t *testing.T) {
 	}
 	if out.Execution.ExecutionID != "exec-api" || out.Execution.AgentRef != "agent:agent-api" || out.Execution.ProjectID == nil || *out.Execution.ProjectID != "project-api" || out.Execution.DurationMS == nil {
 		t.Fatalf("execution body = %+v", out.Execution)
+	}
+	if out.Execution.CommandStatus == nil || *out.Execution.CommandStatus != "started" || out.Execution.StatusReason == nil || *out.Execution.StatusReason != "worker_ack" || out.Execution.StatusMessage == nil || *out.Execution.StatusMessage != "worker accepted" {
+		t.Fatalf("execution command fields = %+v", out.Execution)
+	}
+	if out.Execution.FailureMessage != nil || out.Execution.Status.State != "completed" || out.Execution.Status.CountsAsFailure {
+		t.Fatalf("execution user status/message = %+v", out.Execution)
 	}
 	if out.RefreshedAt == "" || out.Freshness.State != "fresh" || out.Freshness.AgeMS < 0 || out.Freshness.ThresholdMS != time.Minute.Milliseconds() {
 		t.Fatalf("execution freshness = %+v refreshed_at=%q, want fresh production checkpoint", out.Freshness, out.RefreshedAt)
@@ -192,6 +206,50 @@ func TestInsightsExecutionAPI_ReadsSingleProjectedExecution(t *testing.T) {
 	_ = resp.Body.Close()
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("missing status = %d, want 404", resp.StatusCode)
+	}
+}
+
+func TestInsightsAPIUnavailableReturnsFreshnessEnvelope(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	duckPath := t.TempDir() + "/insight.duckdb"
+	svc, err := insight.Open(context.Background(), db, duckPath, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.Close(); err != nil {
+		t.Fatal(err)
+	}
+	deps.Insight = svc
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/overview?window=24h", nil)
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("unavailable status = %d, want 503", resp.StatusCode)
+	}
+	var out struct {
+		Code   string `json:"code"`
+		Window struct {
+			Duration string `json:"duration"`
+		} `json:"window"`
+		AsOf      string `json:"as_of"`
+		Freshness struct {
+			State       string `json:"state"`
+			ThresholdMS int64  `json:"threshold_ms"`
+		} `json:"freshness"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Code != "insight_unavailable" || out.Window.Duration != "24h" || out.AsOf == "" || out.Freshness.State != "unavailable" || out.Freshness.ThresholdMS != time.Minute.Milliseconds() {
+		t.Fatalf("unavailable envelope = %+v", out)
 	}
 }
 
@@ -242,6 +300,11 @@ func seedInsightHTTPFactsWithIDs(t *testing.T, db *sql.DB, orgID, suffix, execut
 	execWebSQL(t, db, `INSERT INTO pm_projects (id, organization_id, name, description, status, created_by, created_at, updated_at) VALUES (?, ?, 'Project API', '', 'active', 'user:test', ?, ?)`, projectID, orgID, now, now)
 	execWebSQL(t, db, `INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, created_by, created_at, updated_at) VALUES (?, ?, 'Task API', '', 'running', ?, 'user:test', ?, ?)`, taskID, projectID, "agent:"+agentID, now, now)
 	started := finished.Add(-time.Second)
+	queued := started.Add(-time.Second)
+	execWebSQL(t, db, `INSERT INTO worker_control_events
+		(id, worker_id, "offset", idempotency_key, command_type, payload, agent_id, task_id, status, status_reason, status_detail, execution_id, status_updated_at, created_at)
+		VALUES (?, ?, 1, ?, 'agent.fork_executor', '{}', ?, ?, 'started', 'worker_ack', 'worker accepted', ?, ?, ?)`,
+		"cmd-"+suffix, workerID, "cmd-"+suffix+"-idem", agentID, taskID, executionID, started.Format(time.RFC3339Nano), queued.Format(time.RFC3339Nano))
 	payloadStart := `{"event":"executor.start","executor_id":"` + executionID + `","cli":"codex","model":"gpt-5"}`
 	payloadStop := `{"event":"executor.stop","executor_id":"` + executionID + `","outcome":"succeeded"}`
 	execWebSQL(t, db, `INSERT INTO agent_activity_events (id, agent_id, task_ref, interaction_ref, event_type, payload, occurred_at) VALUES (?, ?, ?, ?, 'lifecycle', ?, ?)`, suffix+"-start", agentID, taskID, "executor:"+executionID, payloadStart, started.Format(time.RFC3339Nano))

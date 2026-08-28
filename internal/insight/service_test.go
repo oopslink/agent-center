@@ -340,6 +340,84 @@ func TestInsightInvalidTimeOrder(t *testing.T) {
 	}
 }
 
+func TestInsightExecutionSemanticsMessagesAndDetailWindow(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+
+	queued := asOf.Add(-time.Hour)
+	started := queued.Add(time.Second)
+	finished := started.Add(time.Minute)
+	execSQL(t, db, `INSERT INTO worker_control_events
+		(id, worker_id, "offset", idempotency_key, command_type, payload, agent_id, task_id, status, status_reason, status_detail, execution_id, status_updated_at, created_at)
+		VALUES ('cmd-failed','worker-1',1,'cmd-failed-idem','agent.fork_executor','{}','agent-1','task-1','started','worker_ack','worker accepted','exec-failed',?,?)`,
+		started.Format(time.RFC3339Nano), queued.Format(time.RFC3339Nano))
+	insertActivity(t, db, "start-failed", "agent-1", "task-1", "exec-failed", map[string]any{"event": "executor.start", "executor_id": "exec-failed"}, started)
+	insertActivity(t, db, "stop-failed", "agent-1", "task-1", "exec-failed", map[string]any{"event": "executor.stop", "executor_id": "exec-failed", "outcome": "failed", "reason": "nonzero_exit", "detail": "command exited 2"}, finished)
+
+	execSQL(t, db, `INSERT INTO worker_control_events
+		(id, worker_id, "offset", idempotency_key, command_type, payload, agent_id, task_id, status, status_reason, status_detail, status_updated_at, created_at)
+		VALUES ('cmd-rejected','worker-1',2,'cmd-rejected-idem','agent.fork_executor','{}','agent-1','task-1','rejected','repo_source_unavailable','repository missing',?,?)`,
+		asOf.Add(-30*time.Minute).Format(time.RFC3339Nano), asOf.Add(-30*time.Minute).Format(time.RFC3339Nano))
+
+	insertActivity(t, db, "start-unknown", "agent-1", "task-1", "exec-unknown", map[string]any{"event": "executor.start", "executor_id": "exec-unknown"}, asOf.Add(-20*time.Minute))
+	insertActivity(t, db, "stop-unknown", "agent-1", "task-1", "exec-unknown", map[string]any{"event": "executor.stop", "executor_id": "exec-unknown", "outcome": "future_terminal"}, asOf.Add(-19*time.Minute))
+
+	insertActivity(t, db, "start-old", "agent-1", "task-1", "exec-old", map[string]any{"event": "executor.start", "executor_id": "exec-old"}, asOf.Add(-26*time.Hour))
+	insertActivity(t, db, "stop-old", "agent-1", "task-1", "exec-old", map[string]any{"event": "executor.stop", "executor_id": "exec-old", "outcome": "succeeded"}, asOf.Add(-25*time.Hour))
+
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	rows, err := svc.Executions(ctx, "org-1", ExecutionFilter{AsOf: asOf, Limit: 100})
+	if err != nil {
+		t.Fatalf("executions: %v", err)
+	}
+	byID := map[string]ExecutionRow{}
+	for _, row := range rows.Executions {
+		byID[row.ExecutionID] = row
+	}
+	failed := byID["exec-failed"]
+	if failed.FailureReason == nil || *failed.FailureReason != "nonzero_exit" || failed.FailureMessage == nil || *failed.FailureMessage != "command exited 2" {
+		t.Fatalf("failed reason/message = reason:%v message:%v", failed.FailureReason, failed.FailureMessage)
+	}
+	if failed.CommandStatus == nil || *failed.CommandStatus != "started" || failed.StatusReason == nil || *failed.StatusReason != "worker_ack" || failed.StatusMessage == nil || *failed.StatusMessage != "worker accepted" {
+		t.Fatalf("failed command semantics fields = %+v", failed)
+	}
+	if failed.StatusSemantic.State != "failed" || !failed.StatusSemantic.CountsAsFailure || failed.StatusSemantic.AuditOutcome != "failed" {
+		t.Fatalf("failed status semantic = %+v", failed.StatusSemantic)
+	}
+	rejected := byID["command:cmd-rejected"]
+	if rejected.StatusSemantic.State != "did_not_start" || rejected.StatusMessage == nil || *rejected.StatusMessage != "repository missing" {
+		t.Fatalf("rejected command row = %+v", rejected)
+	}
+	unknown := byID["exec-unknown"]
+	if unknown.StatusSemantic.State != "outcome_unavailable" || unknown.StatusSemantic.CountsAsFailure {
+		t.Fatalf("unknown outcome semantic = %+v", unknown.StatusSemantic)
+	}
+	if _, ok := byID["exec-old"]; ok {
+		t.Fatalf("old execution leaked into 24h list: %+v", byID["exec-old"])
+	}
+	if _, err := svc.Execution(ctx, "org-1", "exec-old", asOf); !errors.Is(err, ErrExecutionNotFound) {
+		t.Fatalf("old execution detail err = %v, want ErrExecutionNotFound", err)
+	}
+	overview, err := svc.Overview(ctx, "org-1", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if overview.Summary.CompletedExecutions != 1 || overview.Summary.FailedExecutions != 1 {
+		t.Fatalf("summary = %+v, want only known terminal failed counted", overview.Summary)
+	}
+	if len(overview.Agents) != 1 || overview.Agents[0].Summary.CompletedExecutions != 1 {
+		t.Fatalf("leaderboard = %+v, want unknown outcome excluded from completed sort/count", overview.Agents)
+	}
+	if overview.Summary.Semantics.FailureRate.Status != "ok" || overview.Summary.Semantics.QueueWaitP50MS.SampleCount == nil || *overview.Summary.Semantics.QueueWaitP50MS.SampleCount != 1 {
+		t.Fatalf("summary semantics = %+v", overview.Summary.Semantics)
+	}
+}
+
 func TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow(t *testing.T) {
 	ctx := context.Background()
 	db := migratedSQLite(t)

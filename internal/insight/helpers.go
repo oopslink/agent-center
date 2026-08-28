@@ -18,6 +18,7 @@ type dims struct {
 
 type queueDim struct {
 	CommandID, OrgID, ProjectID, WorkerID, QueuedAt, StartedAt string
+	CommandStatus, StatusReason, StatusMessage                 string
 }
 
 func (s *Service) dimensions(ctx context.Context, taskID, agentID string) (dims, error) {
@@ -44,9 +45,10 @@ func (s *Service) queueByExecution(ctx context.Context, tx *sql.Tx, execID strin
 	if execID == "" {
 		return q
 	}
-	_ = tx.QueryRowContext(ctx, `SELECT command_id, COALESCE(organization_id,''), COALESCE(project_id,''), worker_id, CAST(queued_at AS VARCHAR), COALESCE(CAST(started_at AS VARCHAR),'')
+	_ = tx.QueryRowContext(ctx, `SELECT command_id, COALESCE(organization_id,''), COALESCE(project_id,''), worker_id, CAST(queued_at AS VARCHAR), COALESCE(CAST(started_at AS VARCHAR),''),
+		COALESCE(command_status,''), COALESCE(status_reason,''), COALESCE(status_message,'')
 		FROM queue_interval_fact WHERE execution_id=? LIMIT 1`, execID).
-		Scan(&q.CommandID, &q.OrgID, &q.ProjectID, &q.WorkerID, &q.QueuedAt, &q.StartedAt)
+		Scan(&q.CommandID, &q.OrgID, &q.ProjectID, &q.WorkerID, &q.QueuedAt, &q.StartedAt, &q.CommandStatus, &q.StatusReason, &q.StatusMessage)
 	return q
 }
 
@@ -104,6 +106,157 @@ func (s *Service) freshness(ctx context.Context, asOf time.Time) (string, Freshn
 	return fmtTS(t), f
 }
 
+func (s *Service) ErrorResponse(ctx context.Context, code, message string, asOf time.Time) ErrorResponse {
+	if asOf.IsZero() {
+		asOf = time.Now().UTC()
+	}
+	ref, fresh := s.freshness(ctx, asOf)
+	if fresh.State == "fresh" || fresh.State == "stale" {
+		fresh.State = "unavailable"
+	}
+	return ErrorResponse{Error: message, Code: code, Window: makeWindow(asOf), AsOf: fmtTS(asOf), RefreshedAt: ref, Freshness: fresh}
+}
+
+func decorateOverviewSemantics(sum *Summary, agents, projects *[]LeaderRow, win Window, fresh Freshness) {
+	decorateSummary(sum, win, fresh)
+	for i := range *agents {
+		decorateSummary(&(*agents)[i].Summary, win, fresh)
+	}
+	for i := range *projects {
+		decorateSummary(&(*projects)[i].Summary, win, fresh)
+	}
+}
+
+func decorateSummary(sum *Summary, win Window, fresh Freshness) {
+	if sum == nil {
+		return
+	}
+	sum.Semantics.CompletedExecutions = metricEnvelope(sum.CompletedExecutions, semanticStatusCount(sum.CompletedExecutions), nil, fresh, win, nil)
+	sum.Semantics.FailedExecutions = metricEnvelope(sum.FailedExecutions, semanticStatusCount(sum.FailedExecutions), nil, fresh, win, nil)
+	completed := sum.CompletedExecutions
+	sum.Semantics.FailureRate = metricEnvelope(sum.FailureRate, semanticStatusNullable(sum.FailureRate, completed), nil, fresh, win, &completed)
+	sum.Semantics.SlotUtilization = metricEnvelope(sum.SlotUtilization, utilizationStatus(sum.SlotUtilization, sum.SlotCoverageRatio), sum.SlotCoverageRatio, fresh, win, nil)
+	sum.Semantics.SlotCoverageRatio = metricEnvelope(sum.SlotCoverageRatio, coverageStatus(sum.SlotCoverageRatio), sum.SlotCoverageRatio, fresh, win, nil)
+	qSamples := sum.QueueWaitMS.Samples
+	dSamples := sum.ExecutionDurationMS.Samples
+	sum.Semantics.QueueWaitP50MS = metricEnvelope(sum.QueueWaitMS.P50, percentileStatus(sum.QueueWaitMS.P50, qSamples), nil, fresh, win, &qSamples)
+	sum.Semantics.QueueWaitP95MS = metricEnvelope(sum.QueueWaitMS.P95, percentileStatus(sum.QueueWaitMS.P95, qSamples), nil, fresh, win, &qSamples)
+	sum.Semantics.ExecutionDurationP50 = metricEnvelope(sum.ExecutionDurationMS.P50, percentileStatus(sum.ExecutionDurationMS.P50, dSamples), nil, fresh, win, &dSamples)
+	sum.Semantics.ExecutionDurationP95 = metricEnvelope(sum.ExecutionDurationMS.P95, percentileStatus(sum.ExecutionDurationMS.P95, dSamples), nil, fresh, win, &dSamples)
+}
+
+func metricEnvelope(value any, status string, coverage *float64, fresh Freshness, win Window, samples *int64) MetricEnvelope {
+	if fresh.State == "stale" && status == "ok" {
+		status = "stale"
+	}
+	return MetricEnvelope{Value: value, Status: status, Coverage: coverage, Freshness: &fresh, Window: &win, SampleCount: samples}
+}
+
+func semanticStatusCount(v int64) string {
+	if v == 0 {
+		return "zero"
+	}
+	return "ok"
+}
+
+func semanticStatusNullable(v any, samples int64) string {
+	if v == nil {
+		if samples == 0 {
+			return "no_sample"
+		}
+		return "unknown"
+	}
+	return "ok"
+}
+
+func percentileStatus(v *int64, samples int64) string {
+	if v == nil {
+		if samples == 0 {
+			return "no_sample"
+		}
+		return "unknown"
+	}
+	return "ok"
+}
+
+func coverageStatus(cov *float64) string {
+	if cov == nil || *cov == 0 {
+		return "unknown"
+	}
+	if *cov < 0.5 {
+		return "low_coverage"
+	}
+	if *cov < 0.9 {
+		return "partial_coverage"
+	}
+	return "ok"
+}
+
+func utilizationStatus(util, cov *float64) string {
+	if util == nil {
+		return "unknown"
+	}
+	return coverageStatus(cov)
+}
+
+func decorateExecutionRow(r *ExecutionRow) {
+	if r == nil {
+		return
+	}
+	r.StatusSemantic = executionStatusSemantic(r)
+	r.QualitySemantic = executionQualitySemantic(r.Quality)
+}
+
+func executionStatusSemantic(r *ExecutionRow) ExecutionStatusSemantic {
+	outcome := deref(r.Outcome)
+	commandStatus := deref(r.CommandStatus)
+	sem := ExecutionStatusSemantic{Recovered: r.Recovered, AuditOutcome: outcome, AuditCommandState: commandStatus}
+	switch outcome {
+	case "succeeded":
+		sem.State, sem.Label, sem.Severity = "completed", "Completed", "success"
+		return sem
+	case "failed":
+		sem.State, sem.Label, sem.Severity, sem.CountsAsFailure = "failed", "Failed", "danger", true
+		return sem
+	case "crashed":
+		sem.State, sem.Label, sem.Severity, sem.CountsAsFailure = "interrupted", "Interrupted", "danger", true
+		return sem
+	case "quiet_finalized":
+		sem.State, sem.Label, sem.Severity, sem.CountsAsFailure = "ended_during_recovery", "Ended during recovery", "danger", true
+		return sem
+	}
+	if r.FinishedAt != nil {
+		sem.State, sem.Label, sem.Severity = "outcome_unavailable", "Outcome unavailable", "warning"
+		return sem
+	}
+	if r.StartedAt != nil {
+		sem.State, sem.Label, sem.Severity = "running", "Running", "info"
+		return sem
+	}
+	switch commandStatus {
+	case "rejected", "failed", "expired":
+		sem.State, sem.Label, sem.Severity = "did_not_start", "Did not start", "danger"
+		return sem
+	}
+	if r.QueuedAt != nil {
+		sem.State, sem.Label, sem.Severity = "waiting_to_start", "Waiting to start", "neutral"
+		return sem
+	}
+	sem.State, sem.Label, sem.Severity = "status_unavailable", "Status unavailable", "warning"
+	return sem
+}
+
+func executionQualitySemantic(quality string) ExecutionQualitySemantic {
+	switch quality {
+	case "", "valid":
+		return ExecutionQualitySemantic{State: "valid", Label: "Valid", Severity: "none", AuditQuality: quality}
+	case "invalid_time_order":
+		return ExecutionQualitySemantic{State: "invalid_time_order", Label: "Time data anomaly", Severity: "warning", AuditQuality: quality}
+	default:
+		return ExecutionQualitySemantic{State: "needs_review", Label: "Data needs review", Severity: "warning", AuditQuality: quality}
+	}
+}
+
 func (s *Service) summary(ctx context.Context, orgID, agentRef, projectID string, asOf time.Time) (Summary, error) {
 	start := asOf.Add(-24 * time.Hour)
 	where := `organization_id=?`
@@ -153,6 +306,7 @@ func (s *Service) leaderboard(ctx context.Context, orgID, by string, asOf time.T
 	start := asOf.Add(-24 * time.Hour)
 	rows, err := s.duck.QueryContext(ctx, `SELECT `+by+`, COUNT(*) AS c FROM execution_fact
 		WHERE organization_id=? AND `+by+` IS NOT NULL AND finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ)
+		AND outcome IN ('succeeded','failed','crashed','quiet_finalized')
 		GROUP BY `+by+` ORDER BY c DESC, `+by+` ASC LIMIT 20`, orgID, fmtTS(start), fmtTS(asOf))
 	if err != nil {
 		return nil, err
@@ -382,6 +536,13 @@ func nullableString(s string) *string {
 		return nil
 	}
 	return &s
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func encodeCursor(key, id string) string {
