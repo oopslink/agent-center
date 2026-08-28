@@ -199,6 +199,59 @@ func TestEditPlanTopology_TerminalCycleRejected(t *testing.T) {
 	}
 }
 
+func TestEditPlanTopology_RemovePendingDAGNodeDeletesIncidentEdgesAtomically(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "remove", CreatedBy: "user:a"})
+	h.drain(t)
+	removable := h.seedAssignedTask(t, pid, planID, "removable", "user:a1")
+	dagNode := h.seedAssignedTask(t, pid, planID, "dag-node", "user:b1")
+	dep := h.seedAssignedTask(t, pid, planID, "dep", "user:c1")
+	if err := h.svc.AddPlanDependency(h.ctx, planID, dagNode, dep, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	base := h.planVersion(t, planID)
+	if _, err := h.edit(t, planID, base, TopologyOp{Kind: OpRemoveNode, TaskID: removable}, TopologyOp{Kind: OpRemoveNode, TaskID: dagNode}); err != nil {
+		t.Fatalf("remove pending DAG nodes: %v", err)
+	}
+	if got := h.planVersion(t, planID); got != base+1 {
+		t.Fatalf("version=%d want=%d", got, base+1)
+	}
+	for _, id := range []pm.TaskID{removable, dagNode} {
+		tk, _ := h.tasks.FindByID(h.ctx, id)
+		if tk.PlanID() != "" {
+			t.Fatalf("task %s plan=%q, want backlog", id, tk.PlanID())
+		}
+	}
+	remaining, _ := h.tasks.FindByID(h.ctx, dep)
+	if remaining.PlanID() != planID {
+		t.Fatalf("unremoved dependency task plan=%q, want %q", remaining.PlanID(), planID)
+	}
+	edges, err := h.plans.ListDependencies(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(edges) != 0 {
+		t.Fatalf("incident edges after DAG-node removal = %+v, want none", edges)
+	}
+}
+
+func TestEditPlanTopology_RemoveNodeMissingIsNotSilentNoOp(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "remove-missing", CreatedBy: "user:a"})
+	h.drain(t)
+	missing := h.seedBacklogAssignedTask(t, pid, "missing", "user:m")
+	base := h.planVersion(t, planID)
+	_, err := h.edit(t, planID, base, TopologyOp{Kind: OpRemoveNode, TaskID: missing})
+	if !errors.Is(err, ErrTaskNotInPlan) {
+		t.Fatalf("err=%v", err)
+	}
+	if got := h.planVersion(t, planID); got != base {
+		t.Fatalf("version=%d want=%d", got, base)
+	}
+}
+
 // startRunningPlanAB builds + starts a running plan with B depends_on A and dispatches
 // the root A (so A has a dispatch record). Returns the ids.
 func (h *planAdvanceHarness) startRunningPlanAB(t *testing.T, pid pm.ProjectID, planID pm.PlanID) (a, b pm.TaskID) {
@@ -239,8 +292,8 @@ func TestEditPlanTopology_RunningFailClosed(t *testing.T) {
 	}
 	// remove_node of the in-flight node A is rejected by the same status guard.
 	_, err = h.edit(t, planID, base, TopologyOp{Kind: OpRemoveNode, TaskID: a})
-	if !errors.Is(err, pm.ErrPlanNotPending) {
-		t.Fatalf("remove_node on running plan: err=%v, want ErrPlanNotPending", err)
+	if !errors.Is(err, pm.ErrPlanNodeNotRemovable) {
+		t.Fatalf("remove_node on running plan: err=%v, want ErrPlanNodeNotRemovable", err)
 	}
 	// Version unchanged (both rejected, nothing committed).
 	if got := h.planVersion(t, planID); got != base {

@@ -161,6 +161,13 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
+		// Removal from a pending Plan clears both membership and assignment in the
+		// same transaction. Requiring an assignee here closes the remove-vs-start
+		// race: if removal commits first, a replayed start cannot resurrect the now
+		// backlog, unassigned task as running.
+		if t.Assignee() == "" {
+			return pm.ErrTaskNotRunnable
+		}
 		prevStatus := t.Status()
 		if err := t.Start(now); err != nil {
 			return err

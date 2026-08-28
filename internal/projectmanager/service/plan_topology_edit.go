@@ -102,6 +102,17 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 		if p.IsBuiltin() {
 			return pm.ErrBuiltinPlanNoEdges
 		}
+		if p.Status() != pm.PlanPending {
+			for _, id := range removeNodeTargets(cmd.Ops) {
+				t, terr := s.tasks.FindByID(txCtx, id)
+				if terr != nil {
+					return terr
+				}
+				if err := s.requirePlanNodeRemovable(txCtx, p, t); err != nil {
+					return err
+				}
+			}
+		}
 		switch p.Status() {
 		case pm.PlanPending:
 			// editable
@@ -140,6 +151,15 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 		for _, t := range curTasks {
 			taskByID[t.ID()] = t
 			curNodes[t.ID()] = true
+		}
+		for _, id := range removeNodeTargets(cmd.Ops) {
+			t := taskByID[id]
+			if t == nil {
+				return ErrTaskNotInPlan
+			}
+			if err := s.requirePlanNodeRemovable(txCtx, p, t); err != nil {
+				return err
+			}
 		}
 
 		// Apply the WHOLE batch to an in-memory copy (§4 step 2). Intermediate shapes
@@ -270,6 +290,9 @@ func (s *Service) EditPlanTopology(ctx context.Context, cmd EditPlanTopologyComm
 				return err
 			}
 			if err := t.ClearPlan(now); err != nil {
+				return err
+			}
+			if err := t.Unassign(now); err != nil {
 				return err
 			}
 			if err := s.tasks.Update(txCtx, t); err != nil {
@@ -525,6 +548,20 @@ func taskIDStrings(ids []pm.TaskID) []string {
 	for _, id := range ids {
 		out = append(out, string(id))
 	}
+	return out
+}
+
+func removeNodeTargets(ops []TopologyOp) []pm.TaskID {
+	seen := map[pm.TaskID]bool{}
+	var out []pm.TaskID
+	for _, op := range ops {
+		if op.Kind != OpRemoveNode || op.TaskID == "" || seen[op.TaskID] {
+			continue
+		}
+		seen[op.TaskID] = true
+		out = append(out, op.TaskID)
+	}
+	sortTaskIDs(out)
 	return out
 }
 
