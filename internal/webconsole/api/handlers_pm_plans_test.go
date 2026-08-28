@@ -55,6 +55,9 @@ func setupPlanAPI(t *testing.T, deps HandlerDeps) *planAPIFixture {
 		CodeRepoRefs:    pmsql.NewCodeRepoRefRepo(db),
 		Plans:           plans,
 		AssignmentPools: pmsql.NewAssignmentPoolRepo(db),
+		TaskActionLogs:  pmsql.NewTaskActionLogRepo(db, gen),
+		Stages:          pmsql.NewStageRepo(db),
+		Remediation:     pmsql.NewRemediationRepo(db),
 		Outbox:          ob,
 		IDGen:           gen,
 		Clock:           clk,
@@ -558,10 +561,7 @@ func TestPlanAPI_Delete_RunningRejected_409(t *testing.T) {
 	}
 }
 
-// TestPlanAPI_RemoveTask_NonDraft_409 locks the v2.9 ErrPlanNotPending→409 unification:
-// editing the task-set of a RUNNING plan is a STATE-conflict (was 400 invalid_request),
-// now 409 plan_conflict — same class + code as ErrPlanRunning/Archived, consistent with MCP.
-func TestPlanAPI_RemoveTask_NonDraft_409(t *testing.T) {
+func TestPlanAPI_RemoveTask_NonRemovableNode_409Structured(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	fx := setupPlanAPI(t, deps)
@@ -578,10 +578,22 @@ func TestPlanAPI_RemoveTask_NonDraft_409(t *testing.T) {
 	}
 	fx.drain(t)
 
-	// Remove a task from the RUNNING plan → ErrPlanNotPending → 409 (was 400).
+	// Remove a task from the RUNNING plan → stable structured node-removal error.
 	resp := orgScopedDelete(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/tasks/"+string(taskA), sess)
 	if resp.StatusCode != http.StatusConflict {
-		t.Fatalf("remove task from running plan status=%d want 409 (ErrPlanNotPending state-conflict)", resp.StatusCode)
+		t.Fatalf("remove task from running plan status=%d want 409", resp.StatusCode)
+	}
+	body := decodeBody(t, resp)
+	if body["error"] != pm.PlanNodeNotRemovableCode {
+		t.Fatalf("error=%v want %s body=%v", body["error"], pm.PlanNodeNotRemovableCode, body)
+	}
+	if body["plan_id"] != string(planID) || body["task_id"] != string(taskA) ||
+		body["current_status"] != string(pm.TaskOpen) || body["allowed_status"] != "pending" {
+		t.Fatalf("structured fields mismatch: %v", body)
+	}
+	blockers, _ := body["history_blockers"].([]any)
+	if len(blockers) == 0 || blockers[0] != "plan_status:running" {
+		t.Fatalf("history_blockers=%v want plan_status:running", body["history_blockers"])
 	}
 }
 

@@ -254,6 +254,11 @@ func taskIDsToStrings(ids []pm.TaskID) []string {
 
 // mapPlanError extends mapPMError with the Plan-specific status mappings.
 func mapPlanError(w http.ResponseWriter, err error) {
+	var nodeErr *pm.PlanNodeNotRemovableError
+	if errors.As(err, &nodeErr) {
+		writePlanNodeNotRemovableError(w, http.StatusConflict, nodeErr)
+		return
+	}
 	switch {
 	case errors.Is(err, pm.ErrPlanNotFound):
 		writeError(w, http.StatusNotFound, "not_found", err.Error())
@@ -297,6 +302,19 @@ func mapPlanError(w http.ResponseWriter, err error) {
 	default:
 		mapPMError(w, err)
 	}
+}
+
+func writePlanNodeNotRemovableError(w http.ResponseWriter, status int, err *pm.PlanNodeNotRemovableError) {
+	writeJSON(w, status, map[string]any{
+		"error":            pm.PlanNodeNotRemovableCode,
+		"message":          err.Error(),
+		"plan_id":          string(err.PlanID),
+		"node_id":          err.NodeID,
+		"task_id":          string(err.TaskID),
+		"current_status":   string(err.CurrentStatus),
+		"allowed_status":   err.AllowedStatus,
+		"history_blockers": err.HistoryBlockers,
+	})
 }
 
 // --- handlers ---------------------------------------------------------------
