@@ -154,6 +154,45 @@ describe('Insight pages', () => {
     expect(new URL(seen[2]).searchParams.get('cursor')).toBe('next-opaque');
   });
 
+  it('opens a visible pre-start command row through an encoded TaskExecution detail request', async () => {
+    const preStart = {
+      ...execution,
+      execution_id: 'command:cmd-prestart',
+      command_id: 'cmd-prestart',
+      task_title: 'Queued prestart',
+      outcome: null,
+      started_at: null,
+      finished_at: null,
+      queue_wait_ms: null,
+      duration_ms: null,
+      command_status: 'pending',
+    };
+    const detailURLs: string[] = [];
+    server.use(
+      http.get('/api/orgs/:slug/insights/executions', ({ request }) => {
+        const params = new URL(request.url).searchParams;
+        expect(params.get('window')).toBe('24h');
+        expect(params.get('agent_ref')).toBe('agent:builder');
+        expect(params.get('project_id')).toBe('proj-1');
+        return HttpResponse.json({ ...windowEnvelope, executions: [preStart], next_cursor: null });
+      }),
+      http.get('/api/orgs/:slug/insights/executions/:executionId', ({ params, request }) => {
+        detailURLs.push(request.url);
+        expect(params.executionId).toBe('command:cmd-prestart');
+        expect(new URL(request.url).searchParams.get('window')).toBe('24h');
+        return HttpResponse.json({ ...windowEnvelope, execution: preStart });
+      }),
+    );
+
+    renderAt('/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder&project_id=proj-1');
+
+    fireEvent.click(await screen.findByRole('link', { name: 'Queued prestart' }));
+
+    expect(await screen.findByTestId('insight-execution-detail')).toHaveTextContent('Queued prestart');
+    expect(detailURLs).toHaveLength(1);
+    expect(new URL(detailURLs[0]).pathname).toBe('/api/orgs/acme/insights/executions/command%3Acmd-prestart');
+  });
+
   it('maps execution status, recovery, quality, and reasons without exposing raw enums in the main row', async () => {
     const rows = [
       { ...execution, execution_id: 'ok', outcome: 'succeeded', failure_reason: null, failure_message: null, recovered: true },

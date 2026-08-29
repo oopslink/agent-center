@@ -209,6 +209,56 @@ func TestInsightsExecutionAPI_ReadsSingleProjectedExecution(t *testing.T) {
 	}
 }
 
+func TestInsightsExecutionAPI_ReadsPreStartCommandPseudoExecution(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	now := time.Now().UTC().Add(-time.Minute)
+	seedInsightHTTPPreStartCommand(t, db, sess.OrgID, now)
+	duckPath := t.TempDir() + "/insight.duckdb"
+	svc, err := insight.Open(context.Background(), db, duckPath, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+	if err := svc.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	deps.Insight = svc
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/executions/command%3Acmd-prestart?window=24h", nil)
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("pre-start command detail status = %d, want 200", resp.StatusCode)
+	}
+	var out struct {
+		Execution struct {
+			ExecutionID   string  `json:"execution_id"`
+			CommandID     *string `json:"command_id"`
+			ProjectID     *string `json:"project_id"`
+			StartedAt     *string `json:"started_at"`
+			Outcome       *string `json:"outcome"`
+			QueueWaitMS   *int64  `json:"queue_wait_ms"`
+			CommandStatus *string `json:"command_status"`
+		} `json:"execution"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Execution.ExecutionID != "command:cmd-prestart" || out.Execution.CommandID == nil || *out.Execution.CommandID != "cmd-prestart" || out.Execution.ProjectID == nil || *out.Execution.ProjectID != "project-prestart" {
+		t.Fatalf("pre-start command identity = %+v", out.Execution)
+	}
+	if out.Execution.StartedAt != nil || out.Execution.Outcome != nil || out.Execution.QueueWaitMS != nil || out.Execution.CommandStatus == nil || *out.Execution.CommandStatus != "pending" {
+		t.Fatalf("pre-start command state = %+v, want pending without execution timings", out.Execution)
+	}
+}
+
 func TestInsightsAPIUnavailableReturnsFreshnessEnvelope(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -309,6 +359,23 @@ func seedInsightHTTPFactsWithIDs(t *testing.T, db *sql.DB, orgID, suffix, execut
 	payloadStop := `{"event":"executor.stop","executor_id":"` + executionID + `","outcome":"succeeded"}`
 	execWebSQL(t, db, `INSERT INTO agent_activity_events (id, agent_id, task_ref, interaction_ref, event_type, payload, occurred_at) VALUES (?, ?, ?, ?, 'lifecycle', ?, ?)`, suffix+"-start", agentID, taskID, "executor:"+executionID, payloadStart, started.Format(time.RFC3339Nano))
 	execWebSQL(t, db, `INSERT INTO agent_activity_events (id, agent_id, task_ref, interaction_ref, event_type, payload, occurred_at) VALUES (?, ?, ?, ?, 'lifecycle', ?, ?)`, suffix+"-stop", agentID, taskID, "executor:"+executionID, payloadStop, finished.Format(time.RFC3339Nano))
+}
+
+func seedInsightHTTPPreStartCommand(t *testing.T, db *sql.DB, orgID string, queued time.Time) {
+	t.Helper()
+	now := queued.UTC().Format(time.RFC3339Nano)
+	workerID := "worker-prestart"
+	agentID := "agent-prestart"
+	projectID := "project-prestart"
+	taskID := "task-prestart"
+	execWebSQL(t, db, `INSERT INTO workers (id, organization_id, status, capabilities_json, enrolled_at, created_at, updated_at) VALUES (?, ?,'online','[]',?,?,?)`, workerID, orgID, now, now, now)
+	execWebSQL(t, db, `INSERT INTO agents (id, organization_id, name, env_vars, worker_id, lifecycle, created_by, created_at, updated_at) VALUES (?, ?, 'Agent Prestart', '{}', ?, 'running', 'user:test', ?, ?)`, agentID, orgID, workerID, now, now)
+	execWebSQL(t, db, `INSERT INTO pm_projects (id, organization_id, name, description, status, created_by, created_at, updated_at) VALUES (?, ?, 'Project Prestart', '', 'active', 'user:test', ?, ?)`, projectID, orgID, now, now)
+	execWebSQL(t, db, `INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, created_by, created_at, updated_at) VALUES (?, ?, 'Task Prestart', '', 'running', ?, 'user:test', ?, ?)`, taskID, projectID, "agent:"+agentID, now, now)
+	execWebSQL(t, db, `INSERT INTO worker_control_events
+		(id, worker_id, "offset", idempotency_key, command_type, payload, agent_id, task_id, status, execution_id, status_updated_at, created_at)
+		VALUES ('cmd-prestart', ?, 1, 'cmd-prestart-idem', 'agent.fork_executor', '{}', ?, ?, 'pending', 'exec-prestart', ?, ?)`,
+		workerID, agentID, taskID, now, now)
 }
 
 func execWebSQL(t *testing.T, db *sql.DB, q string, args ...any) {
