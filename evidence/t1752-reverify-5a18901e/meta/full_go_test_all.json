@@ -1,0 +1,9 @@
+{
+  "gate": "full_go_test_all",
+  "status": "PASS",
+  "exit_code": 0,
+  "start_utc": "2026-08-29T05:10:55Z",
+  "end_utc": "2026-08-29T05:15:25Z",
+  "duration_seconds": 270,
+  "log": "logs/full_go_test_all.log"
+}

@@ -1,0 +1,6 @@
+gate=focused_e2e_adopted_old_runtime_skew_count5
+start_utc=2026-08-29T05:08:58Z
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8aabb33a
+command=go test -timeout=30m -count=5 ./tests/e2e -run \^TestDeployedBinaryRuntimeVersion_AdoptedOldRuntimeSkewFails\$ 
+
+ok  	github.com/oopslink/agent-center/tests/e2e	103.767s

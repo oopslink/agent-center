@@ -1,0 +1,9 @@
+gate=terminal_state_machine_focused
+start_utc=2026-08-29T05:27:08Z
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8aabb33a
+command=go test -timeout=30m -count=1 ./internal/projectmanager ./internal/projectmanager/service ./internal/projectmanager/sqlite ./internal/observability/query -run Test\(TaskStatus_IsTerminal_Partition\|TaskTerminalStatusesCannotReopen\|TaskReopenedIsRetired\|TaskSetStatus_TerminalMonotonic\|ActiveTaskStatuses_MatchesIsTerminal\|Stats_Executions_CountsActiveAndTerminal\|ListRunnableAgentTasks_CompletedPoolTaskCannotReopen\|Plan_Archive_RequiresTerminalLifecycle\|TaskRepo_CountActiveByAssignee_ExcludesTerminalPlanTasks\|StageGate_.\*Terminal\|IssueDerivedDone_EmitsOnlyWhenAllTerminal\)\$ 
+
+ok  	github.com/oopslink/agent-center/internal/projectmanager	0.446s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	0.833s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/sqlite	1.590s
+ok  	github.com/oopslink/agent-center/internal/observability/query	1.210s

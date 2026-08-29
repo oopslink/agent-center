@@ -1,0 +1,9 @@
+{
+  "gate": "historical_migration_focused",
+  "status": "PASS",
+  "exit_code": 0,
+  "start_utc": "2026-08-29T05:27:15Z",
+  "end_utc": "2026-08-29T05:27:28Z",
+  "duration_seconds": 13,
+  "log": "logs/historical_migration_focused.log"
+}

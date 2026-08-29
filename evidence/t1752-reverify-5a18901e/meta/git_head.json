@@ -1,0 +1,9 @@
+{
+  "gate": "git_head",
+  "status": "PASS",
+  "exit_code": 0,
+  "start_utc": "2026-08-29T05:08:47Z",
+  "end_utc": "2026-08-29T05:08:47Z",
+  "duration_seconds": 0,
+  "log": "logs/git_head.log"
+}

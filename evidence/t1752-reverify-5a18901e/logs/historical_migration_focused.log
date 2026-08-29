@@ -1,0 +1,9 @@
+gate=historical_migration_focused
+start_utc=2026-08-29T05:27:15Z
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8aabb33a
+command=go test -timeout=30m -count=1 ./internal/persistence ./internal/conversation/service ./internal/conversation/sqlite ./internal/projectmanager/service -run Test\(Migrations_FullRoundTrip\|Migration_.\*\|Migration0.\*\|UpgradeAcc_Migrate0057_PreservesLegacyMessagesAsRoots\|FollowState_CrossVersionUpgrade_NonEmptyDB\|PlanCompletion_.\*Legacy\|PlanCompletion_RemediatedHistorical.\*\)\$ 
+
+ok  	github.com/oopslink/agent-center/internal/persistence	12.839s
+ok  	github.com/oopslink/agent-center/internal/conversation/service	1.913s
+ok  	github.com/oopslink/agent-center/internal/conversation/sqlite	1.740s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	1.669s

@@ -1,0 +1,9 @@
+{
+  "gate": "git_ls_remote",
+  "status": "PASS",
+  "exit_code": 0,
+  "start_utc": "2026-08-29T05:08:47Z",
+  "end_utc": "2026-08-29T05:08:53Z",
+  "duration_seconds": 6,
+  "log": "logs/git_ls_remote.log"
+}

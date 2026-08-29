@@ -1,0 +1,6 @@
+gate=git_head
+start_utc=2026-08-29T05:08:47Z
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8aabb33a
+command=git rev-parse HEAD 
+
+5a18901eaea33c48247e2e8847a29f1d66038d40

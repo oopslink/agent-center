@@ -1,0 +1,7 @@
+gate=http_api_focused
+start_utc=2026-08-29T05:27:42Z
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8aabb33a
+command=go test -timeout=30m -count=1 ./internal/admin/api ./internal/webconsole/api -run Test.\*\(API\|HTTP\|Handler\|CompleteTask\|ForkExecutor\|Env\|Environment\|Permissions\|SystemVersion\|Access\|Agent\|Task\|Plan\|Org\|Conversation\|Members\|Runtime\|Bootstrap\|Signin\|Health\) 
+
+ok  	github.com/oopslink/agent-center/internal/admin/api	37.637s
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	65.916s

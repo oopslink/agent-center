@@ -1,0 +1,9 @@
+{
+  "gate": "focused_e2e_adopted_old_runtime_skew_count5",
+  "status": "PASS",
+  "exit_code": 0,
+  "start_utc": "2026-08-29T05:08:58Z",
+  "end_utc": "2026-08-29T05:10:51Z",
+  "duration_seconds": 113,
+  "log": "logs/focused_e2e_adopted_old_runtime_skew_count5.log"
+}

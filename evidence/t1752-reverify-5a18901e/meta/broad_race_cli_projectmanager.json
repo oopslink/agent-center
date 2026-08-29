@@ -1,0 +1,9 @@
+{
+  "gate": "broad_race_cli_projectmanager",
+  "status": "PASS",
+  "exit_code": 0,
+  "start_utc": "2026-08-29T05:15:29Z",
+  "end_utc": "2026-08-29T05:27:03Z",
+  "duration_seconds": 694,
+  "log": "logs/broad_race_cli_projectmanager.log"
+}

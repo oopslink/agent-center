@@ -1,0 +1,6 @@
+gate=git_ls_remote
+start_utc=2026-08-29T05:08:47Z
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8aabb33a
+command=git ls-remote origin refs/heads/ac-exec/task-5866c095/manual-recovery 
+
+5a18901eaea33c48247e2e8847a29f1d66038d40	refs/heads/ac-exec/task-5866c095/manual-recovery

@@ -1,0 +1,7 @@
+gate=git_world_state
+start_utc=2026-08-29T05:08:47Z
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8aabb33a
+command=git status --short --branch 
+
+## HEAD (no branch)
+?? evidence/

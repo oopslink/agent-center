@@ -1,0 +1,9 @@
+{
+  "gate": "integration_tests",
+  "status": "PASS",
+  "exit_code": 0,
+  "start_utc": "2026-08-29T05:27:34Z",
+  "end_utc": "2026-08-29T05:27:38Z",
+  "duration_seconds": 4,
+  "log": "logs/integration_tests.log"
+}

@@ -1,0 +1,6 @@
+gate=integration_tests
+start_utc=2026-08-29T05:27:34Z
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8aabb33a
+command=go test -timeout=30m -count=1 ./tests/integration 
+
+ok  	github.com/oopslink/agent-center/tests/integration	2.809s

@@ -1,0 +1,9 @@
+{
+  "gate": "http_api_focused",
+  "status": "PASS",
+  "exit_code": 0,
+  "start_utc": "2026-08-29T05:27:42Z",
+  "end_utc": "2026-08-29T05:28:50Z",
+  "duration_seconds": 68,
+  "log": "logs/http_api_focused.log"
+}

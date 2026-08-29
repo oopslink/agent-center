@@ -1,0 +1,77 @@
+{
+  "task": "T1752",
+  "verdict": "ACCEPT",
+  "reviewed_sha": "5a18901eaea33c48247e2e8847a29f1d66038d40",
+  "base_sha": "a62d4dd6aa735c997076b4322768c99760726e8e",
+  "remote_ref": "refs/heads/ac-exec/task-5866c095/manual-recovery",
+  "fresh_remote_ref_readback": "5a18901eaea33c48247e2e8847a29f1d66038d40",
+  "merge_base_readback": "a62d4dd6aa735c997076b4322768c99760726e8e",
+  "worktree": {
+    "mode": "detached HEAD",
+    "product_diff": "clean",
+    "notes": [
+      "task-input/v1 was not present in this isolated workspace; reviewed_sha/base_sha/remote_ref were taken from the frozen task contract in the prompt.",
+      "No agent-center/MCP/team-rule interfaces were available or used; isolation boundary was preserved.",
+      "Only evidence files were added."
+    ]
+  },
+  "summary": "Fresh ref readback matched the frozen candidate, merge-base matched expected base, and all required gates passed with exit_code=0. No FAIL, panic, timeout, or INCOMPLETE markers were found in gate logs; [no test files] appeared only for packages without tests during go test ./....",
+  "gates": [
+    {
+      "name": "focused_e2e_adopted_old_runtime_skew_count5",
+      "command": "go test -timeout=30m -count=5 ./tests/e2e -run '^TestDeployedBinaryRuntimeVersion_AdoptedOldRuntimeSkewFails$'",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_seconds": 113,
+      "log": "logs/focused_e2e_adopted_old_runtime_skew_count5.log"
+    },
+    {
+      "name": "full_go_test_all",
+      "command": "go test ./...",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_seconds": 270,
+      "log": "logs/full_go_test_all.log"
+    },
+    {
+      "name": "broad_race_cli_projectmanager",
+      "command": "go test -race -timeout=30m -count=1 ./internal/cli ./internal/projectmanager/...",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_seconds": 694,
+      "log": "logs/broad_race_cli_projectmanager.log"
+    },
+    {
+      "name": "terminal_state_machine_focused",
+      "command": "go test -timeout=30m -count=1 ./internal/projectmanager ./internal/projectmanager/service ./internal/projectmanager/sqlite ./internal/observability/query -run 'Test(TaskStatus_IsTerminal_Partition|TaskTerminalStatusesCannotReopen|TaskReopenedIsRetired|TaskSetStatus_TerminalMonotonic|ActiveTaskStatuses_MatchesIsTerminal|Stats_Executions_CountsActiveAndTerminal|ListRunnableAgentTasks_CompletedPoolTaskCannotReopen|Plan_Archive_RequiresTerminalLifecycle|TaskRepo_CountActiveByAssignee_ExcludesTerminalPlanTasks|StageGate_.*Terminal|IssueDerivedDone_EmitsOnlyWhenAllTerminal)$'",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_seconds": 2,
+      "log": "logs/terminal_state_machine_focused.log"
+    },
+    {
+      "name": "historical_migration_focused",
+      "command": "go test -timeout=30m -count=1 ./internal/persistence ./internal/conversation/service ./internal/conversation/sqlite ./internal/projectmanager/service -run 'Test(Migrations_FullRoundTrip|Migration_.*|Migration0.*|UpgradeAcc_Migrate0057_PreservesLegacyMessagesAsRoots|FollowState_CrossVersionUpgrade_NonEmptyDB|PlanCompletion_.*Legacy|PlanCompletion_RemediatedHistorical.*)$'",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_seconds": 13,
+      "log": "logs/historical_migration_focused.log"
+    },
+    {
+      "name": "integration_tests",
+      "command": "go test -timeout=30m -count=1 ./tests/integration",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_seconds": 4,
+      "log": "logs/integration_tests.log"
+    },
+    {
+      "name": "http_api_focused",
+      "command": "go test -timeout=30m -count=1 ./internal/admin/api ./internal/webconsole/api -run 'Test.*(API|HTTP|Handler|CompleteTask|ForkExecutor|Env|Environment|Permissions|SystemVersion|Access|Agent|Task|Plan|Org|Conversation|Members|Runtime|Bootstrap|Signin|Health)'",
+      "status": "PASS",
+      "exit_code": 0,
+      "duration_seconds": 68,
+      "log": "logs/http_api_focused.log"
+    }
+  ]
+}

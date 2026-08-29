@@ -1,0 +1,9 @@
+{
+  "gate": "terminal_state_machine_focused",
+  "status": "PASS",
+  "exit_code": 0,
+  "start_utc": "2026-08-29T05:27:08Z",
+  "end_utc": "2026-08-29T05:27:10Z",
+  "duration_seconds": 2,
+  "log": "logs/terminal_state_machine_focused.log"
+}

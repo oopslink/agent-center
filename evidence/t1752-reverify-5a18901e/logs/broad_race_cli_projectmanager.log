@@ -1,0 +1,11 @@
+gate=broad_race_cli_projectmanager
+start_utc=2026-08-29T05:15:29Z
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8aabb33a
+command=go test -race -timeout=30m -count=1 ./internal/cli ./internal/projectmanager/... 
+
+ok  	github.com/oopslink/agent-center/internal/cli	682.871s
+ok  	github.com/oopslink/agent-center/internal/projectmanager	2.278s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/orchestration	44.402s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/orchestration/sqlite	30.112s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	53.052s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/sqlite	400.437s
