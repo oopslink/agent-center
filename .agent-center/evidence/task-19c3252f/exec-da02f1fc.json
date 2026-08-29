@@ -1,0 +1,263 @@
+{
+  "task_id": "task-19c3252f",
+  "execution_id": "exec-da02f1fc",
+  "reviewed_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "base_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1 | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-parse origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f | sed 's#\"'^./##'\"' | sort | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'ls -la'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find .. -maxdepth 4 -path '*task-input*' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'rg -n \"deploy|prod|production|e2e|acceptance|cockpit|api\" Makefile README.md docs scripts tests web cmd internal | head -300'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'rg -n \"deterministic terminal|empty frontier|restart/replay|restart replay|rejection|evolution|Cockpit|frontier|terminal convergence|runtime\" docs tests internal cmd scripts Makefile README.md README.zh-CN.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type f \\\\( -name '*e2e*' -o -name '*accept*' -o -name '*runtime*' -o -name '*cockpit*' -o -name '*deploy*' \\\\) | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' scripts/smoke/deploy-smoke.sh\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' tests/e2e/restart_recovery_e2e_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/rules/acceptance-evidence-spec.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/design/features/plan-progress-control-phase-0-contract.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"sed -n '260,620p' docs/design/features/plan-progress-control-phase-0-contract.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"rg -n \\\"Progress|progress|required_actions|frontier|terminal|Acceptance|rejected|evolution|Plan Progress|Cockpit|cockpit\\\" internal web tests/e2e/v2/tests tests/e2e -g '\"'!tests/e2e/v2/artifacts/**'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"sed -n '1,320p' tests/e2e/v2/tests/v22-deployed-pipeline.spec.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"rg --files | rg 'progress|acceptance|gate|plan.*control|cockpit|frontier|replay|evolution|terminal'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"rg -n \\\"PlanProgressControl|required_actions|progress_control|observation_vector|pm_progress|DeliverySubject|Acceptance\\\" internal web/src tests -g '\"'!tests/e2e/v2/artifacts/**'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' tests/e2e/v2/tests/plan-gate-audit-layout.spec.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"sed -n '1,360p' internal/projectmanager/service/progress_cockpit_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/service/plan_generation_evolution_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '1,320p' web/src/pages/PlanProgressCockpit.test.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager ./internal/projectmanager/service ./internal/projectmanager/sqlite ./internal/webconsole/api ./internal/admin/api -list 'Progress|Frontier|Delivery|Acceptance|Evolution|Replay|Terminal|Cockpit|Gate|Hold|Wake|Lease|Watchdog|Generation'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t-real-runtime-terminal-determinism/raw docs/acceptance/t-real-runtime-terminal-determinism/screenshots'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"{\n  echo '# provenance';\n  date -u '+utc=%Y-%m-%dT%H:%M:%SZ';\n  echo 'pwd='\"'$(pwd);\n  echo '\"'current_head='\"'$(git rev-parse HEAD);\n  echo '\"'origin_main='\"'$(git rev-parse origin/main);\n  echo '\"'head_short='\"'$(git rev-parse --short HEAD);\n  echo '\"'branch='\"'$(git rev-parse --abbrev-ref HEAD);\n  echo '\"'--- status --short --branch';\n  git status --short --branch;\n  echo '--- task-input lookup';\n  if [ -e task-input/v1 ]; then find task-input/v1 -maxdepth 3 -type f -print | sort; else echo 'MISSING task-input/v1'; fi;\n  echo '--- adjacent task-input lookup';\n  find .. -maxdepth 4 -path '*task-input*' -print | sort;\n  echo '--- latest origin/main commit';\n  git show --no-patch --format='commit=%H%nparents=%P%nauthor=%an \u003c%ae\u003e%nauthor_date=%aI%ncommitter_date=%cI%nsubject=%s' origin/main;\n} 2\u003e\u00261 | tee docs/acceptance/t-real-runtime-terminal-determinism/raw/00-provenance.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'make build VERSION=ac-exec-f61c3110 COMMIT=f61c3110 BRANCH=origin-main BUILT_AT=2026-08-29T03:16:24Z 2\u003e\u00261 | tee docs/acceptance/t-real-runtime-terminal-determinism/raw/01-make-build.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc './scripts/smoke/deploy-smoke.sh 2\u003e\u00261 | tee docs/acceptance/t-real-runtime-terminal-determinism/raw/02-make-smoke.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc 'AC_E2E_AGENT_CENTER_BIN=\"$PWD/bin/agent-center\" go test ./tests/e2e -run TestE2E_RestartRecovery_DeployLevel -count=1 -v 2\u003e\u00261 | tee docs/acceptance/t-real-runtime-terminal-determinism/raw/03-restart-recovery-e2e.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' tests/e2e/cmd/fakeclaude/main.go \u0026\u0026 sed -n '260,560p' tests/e2e/restart_recovery_e2e_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc 'AC_E2E_AGENT_CENTER_BIN=\"$PWD/bin/agent-center\" go test ./tests/e2e -run TestE2E_RestartRecovery_ReadoptSurvivor -count=1 -v 2\u003e\u00261 | tee docs/acceptance/t-real-runtime-terminal-determinism/raw/04-restart-readopt-e2e.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager ./internal/projectmanager/service ./internal/projectmanager/sqlite ./internal/webconsole/api ./internal/admin/api -run 'Test(TaskStatus_IsTerminal_Partition|TaskTerminalStatusesCannotReopen|TaskSetStatus_TerminalMonotonic|DeriveFrontier_Empty|DeriveFrontier_GroupsByWaitTypeCanonicalOrder|PlanDetailMap_BlockedOnPerNode_Frontier_PendingQueue|PlanGenerationAPI_G0GnLineageSnapshotReplayAndStaleConflicts|Orchestrator_ReplayIdempotent|CompleteTask_StageGateRejectAppendsRemediationAndReplayIsIdempotent|S2B_RecordStageGateVerdict_FailClosedOnRemoteAndAuthority|S2B_AcceptanceLedgerHigherAuthorityOverride|EvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates|EvolvePlanGeneration_OwnerSupersedesCompletedTerminalNodeWithoutRemoveGate|EvolvePlanGeneration_OwnerSupersedesDiscardedTerminalNode|ProgressControl_EmptyFrontierUnresolvedContinuationCreatesOwnerObligation|DeriveProgressRequiredActions_AuthoritativeFactsOnly|PMProgressControlMapContract|ProgressControlMapContract|ProgressControl_ReconcileRunningPlansPersistsProductionPath|ProgressControl_ReconcileExpiredWakeCreatesHoldAndEscalates|ProgressHold_BlocksAuthoritativeDecisionPassToken|ListRunnableAgentTasks_SkipsProgressHeldTaskWithoutBlockingQueue)\"'$'\"' -count=1 -v 2\u003e\u00261 | tee docs/acceptance/t-real-runtime-terminal-determinism/raw/05-targeted-progress-matrix-go.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc 'cd web \u0026\u0026 pnpm exec vitest run src/pages/PlanProgressCockpit.test.tsx --reporter=verbose 2\u003e\u00261 | tee ../docs/acceptance/t-real-runtime-terminal-determinism/raw/06-plan-progress-cockpit-vitest.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc 'PLAN_GATE_EVIDENCE_DIR=\"$PWD/docs/acceptance/t-real-runtime-terminal-determinism/screenshots\" cd tests/e2e/v2 \u0026\u0026 PLAN_GATE_EVIDENCE_DIR=\"$OLDPWD/docs/acceptance/t-real-runtime-terminal-determinism/screenshots\" pnpm exec playwright test tests/plan-gate-audit-layout.spec.ts --reporter=line 2\u003e\u00261 | tee \"$OLDPWD/docs/acceptance/t-real-runtime-terminal-determinism/raw/07-plan-gate-cockpit-playwright.log\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t-real-runtime-terminal-determinism -maxdepth 3 -type f -print | sort | xargs -n1 ls -lh'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc '(cd docs/acceptance/t-real-runtime-terminal-determinism \u0026\u0026 find raw screenshots -type f -print | sort | xargs shasum -a 256) | tee docs/acceptance/t-real-runtime-terminal-determinism/SHA256SUMS'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc '(cd docs/acceptance/t-real-runtime-terminal-determinism \u0026\u0026 find raw screenshots -type f -print | sort | xargs shasum -a 256 \u0026\u0026 shasum -a 256 REPORT.md verdict.json) \u003e docs/acceptance/t-real-runtime-terminal-determinism/SHA256SUMS \u0026\u0026 cat docs/acceptance/t-real-runtime-terminal-determinism/SHA256SUMS'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t-real-runtime-terminal-determinism -maxdepth 3 -type f -print | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t-real-runtime-terminal-determinism/REPORT.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc 'mkdir -p tests/e2e/v2/artifacts/playwright-report/data \u0026\u0026 git show HEAD:tests/e2e/v2/artifacts/playwright-report/index.html \u003e tests/e2e/v2/artifacts/playwright-report/index.html \u0026\u0026 git show HEAD:tests/e2e/v2/artifacts/playwright-report/data/2f51dd1dc4a6654a6dde898b2d47453c82581800.png \u003e tests/e2e/v2/artifacts/playwright-report/data/2f51dd1dc4a6654a6dde898b2d47453c82581800.png \u0026\u0026 git show HEAD:tests/e2e/v2/artifacts/playwright-report/data/6d9fd422184bec3ab8ff22e2c564588f89a00c01.png \u003e tests/e2e/v2/artifacts/playwright-report/data/6d9fd422184bec3ab8ff22e2c564588f89a00c01.png \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc \"{\n  echo '# final status';\n  date -u '+utc=%Y-%m-%dT%H:%M:%SZ';\n  git status --short --branch;\n  echo '--- evidence files';\n  find docs/acceptance/t-real-runtime-terminal-determinism -maxdepth 3 -type f -print | sort;\n} 2\u003e\u00261 | tee docs/acceptance/t-real-runtime-terminal-determinism/raw/08-final-status.log\n(cd docs/acceptance/t-real-runtime-terminal-determinism \u0026\u0026 find raw screenshots -type f -print | sort | xargs shasum -a 256 \u0026\u0026 shasum -a 256 REPORT.md verdict.json) \u003e docs/acceptance/t-real-runtime-terminal-determinism/SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'tail -20 docs/acceptance/t-real-runtime-terminal-determinism/SHA256SUMS \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-da02f1fc/command_events.jsonl",
+  "command_event_digest": "sha256:a521784f28404b19713fc3510f3b4b71f60b44b1faf31b89e59a645fb19c5a94",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "已完成 evidence-only 验收并保存证据，不改产品代码、不调用 center/MCP。",
+  "artifact_digest": "sha256:e0ea84d6c05940cfaf0aa030ee257c01c1cb7c6a41e1d82a62d9bcbac2079ecd",
+  "path": ".agent-center/evidence/task-19c3252f/exec-da02f1fc.json",
+  "branch": "ac-exec/task-19c3252f/exec-da02f1fc"
+}
