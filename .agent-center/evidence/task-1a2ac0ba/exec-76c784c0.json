@@ -1,0 +1,347 @@
+{
+  "task_id": "task-1a2ac0ba",
+  "execution_id": "exec-76c784c0",
+  "reviewed_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "base_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1 \u0026\u0026 git status --short --branch'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' task-input/v1/manifest.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'ls -la'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find .. -maxdepth 4 -path '*/task-input/v1/README.md' -o -path '*/task-input/v1/manifest.json'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git remote -v \u0026\u0026 git rev-parse --show-toplevel \u0026\u0026 git branch -vv'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"git for-each-ref --format='%(refname:short) %(objectname:short) %(subject)' refs/heads refs/remotes | rg -i 't1739|insight|rebuild|semantics|75427e3d|3cc52ed3|b10fcd3f'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"git log --all --decorate --oneline --grep='T1739\\\\|1739\\\\|insight semantics\\\\|解阻\\\\|rebuild' -n 80\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'\"",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'\"",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"git fetch --prune origin-push '+refs/heads/*:refs/remotes/origin-push/*'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'git config --get-all remote.origin.fetch \u0026\u0026 git config --get-all remote.origin-push.fetch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'git rev-parse --verify origin/main \u0026\u0026 git rev-parse --verify origin-push/immutable/insight-rebuild-75427e3d \u0026\u0026 git rev-parse --verify origin-push/main || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git worktree list --porcelain'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"git rev-parse origin-push/main origin-push/immutable/insight-rebuild-75427e3d \u0026\u0026 git merge-base origin-push/main origin-push/immutable/insight-rebuild-75427e3d \u0026\u0026 git merge-base --is-ancestor origin-push/main origin-push/immutable/insight-rebuild-75427e3d; printf 'ancestor_exit=%s\\\\n' \"'$? \u0026\u0026 git diff --stat origin-push/main..origin-push/immutable/insight-rebuild-75427e3d'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/immutable/insight-rebuild-75427e3d refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'git worktree add --detach /tmp/t1739-verify-75427e3d-$$ 75427e3d3c9c09b3535379bde5e275da2af639cf'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'ls -d /tmp/t1739-verify-75427e3d-* | tail -1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '1,340p' internal/insight/helpers.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/insight/types.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"git log -1 --format='%H %D%n%an \u003c%ae\u003e%n%ct%n%s'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"sed -n '1,380p' internal/insight/service.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"sed -n '1,300p' internal/webconsole/api/handlers_insights.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"sed -n '380,780p' internal/insight/service.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/insight/schema.go\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/insight/service_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"sed -n '1,320p' internal/webconsole/api/handlers_insights_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"sed -n '260,620p' internal/insight/service_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/insight/projector.go\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"sed -n '620,980p' internal/insight/service_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"sed -n '300,520p' internal/insight/helpers.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc 'rg -n \"slotUtilization|diagnostics|makeWindow|parseTS|decodeCursor|normalizeAgent|qualityFor|statusOrPending|roundPtr|func TestInsight\" internal/insight internal/webconsole/api/handlers_insights_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc 'git diff --name-only origin-push/main..HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"go test ./internal/insight -run 'TestInsight' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"go test ./internal/webconsole/api -run 'TestInsights' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc \"go test -race ./internal/insight -run 'TestInsight(PostCommitCrashRestartDoesNotDuplicate|PreCommitCrashReplaysAndAppliesExactlyOnce|Replay_IdempotentLateEventsBoundariesQuantilesAndRebuild)' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/reports/t1723-insight-api-semantics.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t1722-insight/REPORT.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc \"rg -n \\\"audit_outcome|AuditOutcome|quality_semantic|status\\\\.state|CountsAsFailure|outcome_unavailable|needs_review|late_events|diagnostics|semantics\\\" web/src internal docs -g '\"'!docs/acceptance/t1722-insight/*.png'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' docs/design/features/insight-metric-semantics-and-information-architecture.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc \"sed -n '1,380p' docs/design/features/insight-phase-1-contract.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc \"sed -n '1,140p' web/src/api/insights.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc \"sed -n '240,380p' web/src/pages/InsightOverview.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc 'go test ./... -count=1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'pnpm exec tsc -b'",
+      "exit_status": 254
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc 'pnpm test -- --run src/pages/InsightOverview.test.tsx'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'pnpm exec vite build'",
+      "exit_status": 254
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc \"nl -ba internal/insight/helpers.go | sed -n '382,390p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc \"nl -ba internal/insight/helpers.go | sed -n '209,217p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc \"nl -ba web/src/pages/InsightOverview.tsx | sed -n '287,294p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc \"nl -ba internal/insight/service_test.go | sed -n '440,482p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc 'git diff --check origin-push/main..HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc \"nl -ba internal/insight/helpers.go | sed -n '390,394p'\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-76c784c0/command_events.jsonl",
+  "command_event_digest": "sha256:ab801f9986b5908f3a6ddc16eb238edf567be4657e1d822af10988f23c1e0e32",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "REJECT for candidate `75427e3d3c9c09b3535379bde5e275da2af639cf`.",
+  "artifact_digest": "sha256:d96063498cbcad52bbea719ff0479267bd9a57f68021ddb57b06caee47b28b4c",
+  "path": ".agent-center/evidence/task-1a2ac0ba/exec-76c784c0.json",
+  "branch": "ac-exec/task-1a2ac0ba/exec-76c784c0"
+}
