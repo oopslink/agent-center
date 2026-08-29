@@ -1,0 +1,5 @@
+{"case":"contract_base","status":"pass","observation":"origin/main resolved to 5a18901eaea33c48247e2e8847a29f1d66038d40 before edits; work started from that exact commit"}
+{"case":"service_pre_start_pseudo_execution","status":"pass","observation":"worker_control_events rows with an execution_id but no execution_fact are exposed as command:<command_id> rows in global, agent, and project execution drilldowns"}
+{"case":"service_reconciliation","status":"pass","observation":"when executor.start arrives for the queued execution_id, the command:<command_id> pseudo row is removed and the real execution_id remains available for detail reads"}
+{"case":"http_encoded_detail","status":"pass","observation":"GET /api/orgs/{slug}/insights/executions/command%3Acmd-prestart returns the pre-start pseudo execution detail under the requesting organization"}
+{"case":"frontend_encoded_detail","status":"pass","observation":"InsightOverview drilldown links command: ids with encodeURIComponent and loads the TaskExecution detail route through the encoded API request"}

@@ -69,6 +69,7 @@ function renderOverview() {
       <MemoryRouter initialEntries={['/organizations/acme/insights/overview']}>
         <Routes>
           <Route path="/organizations/:slug/insights/overview" element={<InsightOverview />} />
+          <Route path="/organizations/:slug/insights/executions/:executionId" element={<InsightExecutionDetailPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -189,6 +190,41 @@ describe('InsightOverview page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Launch' }));
     expect(await screen.findByTestId('insight-drilldown-stale')).toBeInTheDocument();
     expect(screen.getByTestId('insight-drilldown-empty')).toBeInTheDocument();
+  });
+
+  it('opens a pre-start command row through an encoded TaskExecution detail request', async () => {
+    const preStart = {
+      ...execution,
+      execution_id: 'command:cmd-prestart',
+      command_id: 'cmd-prestart',
+      task_title: 'Queued prestart',
+      outcome: null,
+      started_at: null,
+      finished_at: null,
+      queue_wait_ms: null,
+      duration_ms: null,
+    };
+    const detailUrls: string[] = [];
+    server.use(
+      http.get('/api/orgs/:slug/insights/overview', () => HttpResponse.json(overview())),
+      http.get('/api/orgs/:slug/insights/executions', ({ request }) => {
+        expect(new URL(request.url).searchParams.get('agent_ref')).toBe('agent:builder');
+        return HttpResponse.json({ ...windowEnvelope, executions: [preStart], next_cursor: null });
+      }),
+      http.get('/api/orgs/:slug/insights/executions/:executionId', ({ params, request }) => {
+        detailUrls.push(request.url);
+        expect(params.executionId).toBe('command:cmd-prestart');
+        return HttpResponse.json({ ...windowEnvelope, execution: preStart });
+      }),
+    );
+
+    renderOverview();
+    fireEvent.click(await screen.findByRole('button', { name: 'Builder' }));
+    fireEvent.click(await screen.findByRole('link', { name: 'command:cmd-prestart' }));
+
+    expect(await screen.findByTestId('insight-execution-detail')).toHaveTextContent('Queued prestart');
+    expect(detailUrls).toHaveLength(1);
+    expect(new URL(detailUrls[0]).pathname).toBe('/api/orgs/acme/insights/executions/command%3Acmd-prestart');
   });
 
   it('shows auth, loading, and unavailable states', async () => {

@@ -340,6 +340,91 @@ func TestInsightInvalidTimeOrder(t *testing.T) {
 	}
 }
 
+func TestInsightPreStartCommandWithExecutionIDVisibleAndReconcilesAcrossDrilldowns(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+
+	queued := asOf.Add(-10 * time.Minute)
+	insertQueue(t, db, "cmd-prestart", "worker-1", "agent-1", "task-1", "exec-prestart", "pending", queued, queued)
+
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh pre-start: %v", err)
+	}
+
+	for name, filter := range map[string]ExecutionFilter{
+		"global":  {AsOf: asOf, Limit: 10},
+		"agent":   {AsOf: asOf, AgentRef: "agent:agent-1", Limit: 10},
+		"project": {AsOf: asOf, ProjectID: "project-1", Limit: 10},
+	} {
+		t.Run(name, func(t *testing.T) {
+			rows, err := svc.Executions(ctx, "org-1", filter)
+			if err != nil {
+				t.Fatalf("executions: %v", err)
+			}
+			if len(rows.Executions) != 1 {
+				t.Fatalf("executions len = %d body=%+v, want one pre-start row", len(rows.Executions), rows.Executions)
+			}
+			row := rows.Executions[0]
+			if row.ExecutionID != "command:cmd-prestart" || row.CommandID == nil || *row.CommandID != "cmd-prestart" {
+				t.Fatalf("row identity = %+v, want command pseudo identity tied to command id", row)
+			}
+			if row.TaskID == nil || *row.TaskID != "task-1" || row.ProjectID == nil || *row.ProjectID != "project-1" || row.AgentRef != "agent:agent-1" {
+				t.Fatalf("row dimensions = %+v, want selected TaskExecution reachable from scoped drilldown", row)
+			}
+			if row.StartedAt != nil || row.Outcome != nil || row.QueueWaitMS != nil || row.DurationMS != nil {
+				t.Fatalf("pre-start timings/outcome = %+v, want excluded from duration aggregates", row)
+			}
+		})
+	}
+
+	detail, err := svc.Execution(ctx, "org-1", "command:cmd-prestart", asOf)
+	if err != nil {
+		t.Fatalf("pseudo execution detail: %v", err)
+	}
+	if detail.Execution.ExecutionID != "command:cmd-prestart" {
+		t.Fatalf("pseudo detail = %+v", detail.Execution)
+	}
+	overview, err := svc.Overview(ctx, "org-1", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if overview.Summary.CompletedExecutions != 0 || overview.Summary.QueueWaitMS.Samples != 0 || overview.Summary.ExecutionDurationMS.Samples != 0 {
+		t.Fatalf("pre-start summary = %+v, want no aggregate contribution", overview.Summary)
+	}
+
+	started := queued.Add(2 * time.Second)
+	finished := started.Add(5 * time.Second)
+	insertActivity(t, db, "start-prestart", "agent-1", "task-1", "exec-prestart", map[string]any{"event": "executor.start", "executor_id": "exec-prestart"}, started)
+	insertActivity(t, db, "stop-prestart", "agent-1", "task-1", "exec-prestart", map[string]any{"event": "executor.stop", "executor_id": "exec-prestart", "outcome": "succeeded"}, finished)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh real execution: %v", err)
+	}
+
+	rows, err := svc.Executions(ctx, "org-1", ExecutionFilter{AsOf: asOf, AgentRef: "agent:agent-1", Limit: 10})
+	if err != nil {
+		t.Fatalf("executions after start: %v", err)
+	}
+	if len(rows.Executions) != 1 || rows.Executions[0].ExecutionID != "exec-prestart" {
+		t.Fatalf("reconciled rows = %+v, want only real execution id", rows.Executions)
+	}
+	if _, err := svc.Execution(ctx, "org-1", "command:cmd-prestart", asOf); !errors.Is(err, ErrExecutionNotFound) {
+		t.Fatalf("pseudo detail after reconciliation err = %v, want ErrExecutionNotFound", err)
+	}
+	if _, err := svc.Execution(ctx, "org-1", "exec-prestart", asOf); err != nil {
+		t.Fatalf("real execution detail after reconciliation: %v", err)
+	}
+	overview, err = svc.Overview(ctx, "org-1", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if overview.Summary.CompletedExecutions != 1 || overview.Summary.QueueWaitMS.Samples != 1 || overview.Summary.ExecutionDurationMS.Samples != 1 {
+		t.Fatalf("reconciled summary = %+v, want one real execution contribution", overview.Summary)
+	}
+}
+
 func TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow(t *testing.T) {
 	ctx := context.Background()
 	db := migratedSQLite(t)

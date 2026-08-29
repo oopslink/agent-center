@@ -467,7 +467,8 @@ func (s *Service) projectQueue(ctx context.Context) error {
 				project_name = COALESCE(project_name, ?), task_id = COALESCE(task_id, ?), task_title = COALESCE(task_title, ?)
 				WHERE execution_id = ?`,
 				id, fmtTS(queuedAt), workerID, nullArg(d.OrgID), nullArg(d.ProjectID), nullArg(d.ProjectName), nullArg(taskID), nullArg(d.TaskTitle), execID)
-		} else if err == nil && execID == "" {
+		}
+		if err == nil && !realExecutionExists(ctx, tx, execID) {
 			pseudoID := "command:" + id
 			_, err = tx.ExecContext(ctx, `INSERT INTO execution_fact
 				(execution_id, command_id, organization_id, project_id, task_id, task_title, agent_ref, agent_name, worker_id,
@@ -579,6 +580,9 @@ func (s *Service) projectActivity(ctx context.Context) error {
 				fmtTS(occurred), fmtTS(occurred), cli, model, agentRef, sourceID, fmtTS(occurred), fmtTS(occurred))
 			if err == nil {
 				_, err = tx.ExecContext(ctx, `UPDATE queue_interval_fact SET started_at = COALESCE(started_at, CAST(? AS TIMESTAMPTZ)) WHERE execution_id = ?`, fmtTS(occurred), execID)
+			}
+			if err == nil && q.CommandID != "" {
+				_, err = tx.ExecContext(ctx, `DELETE FROM execution_fact WHERE execution_id = ?`, "command:"+q.CommandID)
 			}
 		default:
 			outcome := "quiet_finalized"

@@ -59,6 +59,14 @@ func projected(ctx context.Context, tx *sql.Tx, id string) (bool, error) {
 	return err == nil, err
 }
 
+func realExecutionExists(ctx context.Context, tx *sql.Tx, executionID string) bool {
+	if strings.TrimSpace(executionID) == "" {
+		return false
+	}
+	var one int
+	return tx.QueryRowContext(ctx, `SELECT 1 FROM execution_fact WHERE execution_id=?`, executionID).Scan(&one) == nil
+}
+
 func markProjected(ctx context.Context, tx *sql.Tx, id, kind, cursor string, occurred time.Time) error {
 	now := time.Now().UTC()
 	if _, err := tx.ExecContext(ctx, `INSERT INTO projected_event (source_event_id, source_kind, source_cursor, occurred_at, projected_at)
