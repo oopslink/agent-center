@@ -1,0 +1,281 @@
+{
+  "task_id": "task-e52d2ffc",
+  "execution_id": "exec-8bbc91e0",
+  "reviewed_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "base_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files -n task-input/v1 | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f | sed 's#\"'^./##'\"' | sort | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'ls -la'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find .. -maxdepth 4 -path '*task-input*' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'rg -n \"T1746|1746|runtime evidence|empty frontier|superseded|discarded|outbox crash|frontier\" .'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"find . -path './.git' -prune -o -iname '*1746*' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"git remote -v \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch -vv --all | sed -n '1,80p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"find .agent-center/evidence -type f -maxdepth 3 -print | sort | xargs -n1 sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"find docs -path '*t1746*' -o -path '*T1746*' -o -path '*runtime*evidence*' | sort | head -100\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'git fetch origin main --prune'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD origin/main FETCH_HEAD \u0026\u0026 git merge-base --is-ancestor HEAD origin/main; echo head_in_origin_main=$? \u0026\u0026 git log --oneline --decorate -5 origin/main \u0026\u0026 git log --oneline --decorate -5 HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'rg -n \"f61c3110|task-2f50961b|T1746|1746|release stale blocked-on holds|frontier\" .agent-center docs internal tests -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/acceptance/t1685-r9-runtime-stop-lifecycle/REPORT.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/design/features/plan-progress-control-phase-0-contract.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"rg -n \\\"duplicate|replay|restart|outbox|crash|superseded|discarded|active state|empty_frontier|Release|blocked-on holds|progress\\\" internal/projectmanager internal/admin tests -g'*.go' -g'*.ts' -S\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"find internal/projectmanager -maxdepth 3 -type f | sort | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/service/progress_observation_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/service/plan_remediation_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' internal/projectmanager/service/f6_task_input_conversation_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"sed -n '1,280p' internal/projectmanager/plan_view_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"rg -n \\\"Crash|crash|outbox|RunOnce|duplicate|idempot|applied|replay|restart\\\" internal/*/service/*test.go internal/outbox tests/e2e -g'*.go' -S\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"find internal/outbox -type f -maxdepth 3 -print -exec sed -n '1,220p' {} \\\\;\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' tests/e2e/fork_executor_deployed_e2e_test.go \u0026\u0026 sed -n '1,160p' tests/e2e/runtime_version_assertions_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t1746-runtime-final-state/raw'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"{\n  echo '\"'$ date -u +%Y-%m-%dT%H:%M:%SZ'\"'\n  date -u +%Y-%m-%dT%H:%M:%SZ\n  echo '\"'$ pwd'\"'\n  pwd\n  echo '\"'$ git fetch origin main --prune'\"'\n  git fetch origin main --prune\n  echo '\"'$ git rev-parse HEAD origin/main FETCH_HEAD'\"'\n  git rev-parse HEAD origin/main FETCH_HEAD\n  echo '\"'$ git merge-base --is-ancestor HEAD origin/main; echo $?'\"'\n  git merge-base --is-ancestor HEAD origin/main\n  echo \"'$?\n  echo '\"'\"'$ git status --short --branch'\"'\n  git status --short --branch\n  echo '\"'$ go version'\"'\n  go version\n  echo '\"'$ node --version'\"'\n  node --version 2\u003e/dev/null || true\n  echo '\"'$ pnpm --version'\"'\n  pnpm --version 2\u003e/dev/null || true\n} \u003e docs/acceptance/t1746-runtime-final-state/raw/00-preflight-environment.log 2\u003e\u00261\ncode=\"'$?\ntail -120 docs/acceptance/t1746-runtime-final-state/raw/00-preflight-environment.log\nexit $code'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"{\n  echo '\"'$ go test ./internal/projectmanager/service -run TestProgressControl_EmptyFrontierUnresolvedContinuationCreatesOwnerObligation -count=1 -v'\"'\n  go test ./internal/projectmanager/service -run TestProgressControl_EmptyFrontierUnresolvedContinuationCreatesOwnerObligation -count=1 -v\n} \u003e docs/acceptance/t1746-runtime-final-state/raw/10-empty-frontier.log 2\u003e\u00261\ncode=\"'$?\ntail -160 docs/acceptance/t1746-runtime-final-state/raw/10-empty-frontier.log\nexit $code'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"{\n  echo '\"'$ go test ./internal/projectmanager/service -run \"TestStageReject_(AppendsIncrementalStageWithoutReopeningHistory|WhilePausedRecordsFactsThenAppendsOnceAfterResume)$\" -count=1 -v'\"'\n  go test ./internal/projectmanager/service -run 'TestStageReject_(AppendsIncrementalStageWithoutReopeningHistory|WhilePausedRecordsFactsThenAppendsOnceAfterResume)\"'$'\"' -count=1 -v\n} \u003e docs/acceptance/t1746-runtime-final-state/raw/11-stage-reject-replay.log 2\u003e\u00261\ncode=\"'$?\ntail -180 docs/acceptance/t1746-runtime-final-state/raw/11-stage-reject-replay.log\nexit $code'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"{\n  echo '\"'$ go test ./internal/projectmanager -run \"TestDerivePlanView_(SupersededFailedNodeIsHistoricalOnly|SupersededFailureKeepsFailedAuditStatusWhenBranchIsPruned|AllDone)$\" -count=1 -v'\"'\n  go test ./internal/projectmanager -run 'TestDerivePlanView_(SupersededFailedNodeIsHistoricalOnly|SupersededFailureKeepsFailedAuditStatusWhenBranchIsPruned|AllDone)\"'$'\"' -count=1 -v\n} \u003e docs/acceptance/t1746-runtime-final-state/raw/12-active-projection-history.log 2\u003e\u00261\ncode=\"'$?\ntail -180 docs/acceptance/t1746-runtime-final-state/raw/12-active-projection-history.log\nexit $code'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"{\n  echo '\"'$ go test ./internal/outbox/sqlite -run \"TestRelay_(IdempotentAcrossRuns|FailingProjectorLeavesEventUnprocessed)|TestPump_DrainsBacklogOnBoot|TestAppliedStore_DedupByEventID\" -count=1 -v'\"'\n  go test ./internal/outbox/sqlite -run 'TestRelay_(IdempotentAcrossRuns|FailingProjectorLeavesEventUnprocessed)|TestPump_DrainsBacklogOnBoot|TestAppliedStore_DedupByEventID' -count=1 -v\n} \u003e docs/acceptance/t1746-runtime-final-state/raw/13-outbox-crash-retry.log 2\u003e\u00261\ncode=\"'$?\ntail -200 docs/acceptance/t1746-runtime-final-state/raw/13-outbox-crash-retry.log\nexit $code'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"{\n  echo '\"'$ go test ./tests/e2e -run TestForkExecutorDeployedBinary_AlreadyRunningTask -count=1 -v'\"'\n  go test ./tests/e2e -run TestForkExecutorDeployedBinary_AlreadyRunningTask -count=1 -v\n} \u003e docs/acceptance/t1746-runtime-final-state/raw/20-deployed-fork-executor.log 2\u003e\u00261\ncode=\"'$?\ntail -240 docs/acceptance/t1746-runtime-final-state/raw/20-deployed-fork-executor.log\nexit $code'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"{\n  echo '\"'$ go test ./tests/e2e -run \"TestE2E_RestartRecovery_(ReinjectUnansweredMessage|ReadoptSurvivor)$\" -count=1 -v'\"'\n  go test ./tests/e2e -run 'TestE2E_RestartRecovery_(ReinjectUnansweredMessage|ReadoptSurvivor)\"'$'\"' -count=1 -v\n} \u003e docs/acceptance/t1746-runtime-final-state/raw/21-restart-recovery.log 2\u003e\u00261\ncode=\"'$?\ntail -260 docs/acceptance/t1746-runtime-final-state/raw/21-restart-recovery.log\nexit $code'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc 'rg -n \"func TestE2E_RestartRecovery\" tests/e2e/restart_recovery_e2e_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc \"{\n  echo '\"'$ go test ./tests/e2e -run TestE2E_RestartRecovery_DeployLevel -count=1 -v'\"'\n  go test ./tests/e2e -run TestE2E_RestartRecovery_DeployLevel -count=1 -v\n} \u003e docs/acceptance/t1746-runtime-final-state/raw/22-restart-recovery-deploy-level.log 2\u003e\u00261\ncode=\"'$?\ntail -300 docs/acceptance/t1746-runtime-final-state/raw/22-restart-recovery-deploy-level.log\nexit $code'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc \"{\n  echo '\"'$ shasum -a 256 docs/acceptance/t1746-runtime-final-state/raw/*.log'\"'\n  shasum -a 256 docs/acceptance/t1746-runtime-final-state/raw/*.log\n} \u003e docs/acceptance/t1746-runtime-final-state/raw/90-raw-sha256.log 2\u003e\u00261\ncode=\"'$?\ncat docs/acceptance/t1746-runtime-final-state/raw/90-raw-sha256.log\nexit $code'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'jq . docs/acceptance/t1746-runtime-final-state/verdict.json \u003e/dev/null \u0026\u0026 echo verdict_json_valid'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t1746-runtime-final-state -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc 'shasum -a 256 docs/acceptance/t1746-runtime-final-state/REPORT.md docs/acceptance/t1746-runtime-final-state/verdict.json docs/acceptance/t1746-runtime-final-state/raw/*.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc \"{\n  echo '\"'$ shasum -a 256 docs/acceptance/t1746-runtime-final-state/raw/00-preflight-environment.log docs/acceptance/t1746-runtime-final-state/raw/10-empty-frontier.log docs/acceptance/t1746-runtime-final-state/raw/11-stage-reject-replay.log docs/acceptance/t1746-runtime-final-state/raw/12-active-projection-history.log docs/acceptance/t1746-runtime-final-state/raw/13-outbox-crash-retry.log docs/acceptance/t1746-runtime-final-state/raw/20-deployed-fork-executor.log docs/acceptance/t1746-runtime-final-state/raw/21-restart-recovery.log docs/acceptance/t1746-runtime-final-state/raw/22-restart-recovery-deploy-level.log'\"'\n  shasum -a 256 \\\\\n    docs/acceptance/t1746-runtime-final-state/raw/00-preflight-environment.log \\\\\n    docs/acceptance/t1746-runtime-final-state/raw/10-empty-frontier.log \\\\\n    docs/acceptance/t1746-runtime-final-state/raw/11-stage-reject-replay.log \\\\\n    docs/acceptance/t1746-runtime-final-state/raw/12-active-projection-history.log \\\\\n    docs/acceptance/t1746-runtime-final-state/raw/13-outbox-crash-retry.log \\\\\n    docs/acceptance/t1746-runtime-final-state/raw/20-deployed-fork-executor.log \\\\\n    docs/acceptance/t1746-runtime-final-state/raw/21-restart-recovery.log \\\\\n    docs/acceptance/t1746-runtime-final-state/raw/22-restart-recovery-deploy-level.log\n} \u003e docs/acceptance/t1746-runtime-final-state/raw/90-raw-sha256.log 2\u003e\u00261\ncat docs/acceptance/t1746-runtime-final-state/raw/90-raw-sha256.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc 'jq . docs/acceptance/t1746-runtime-final-state/verdict.json \u003e/dev/null \u0026\u0026 echo verdict_json_valid'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc 'shasum -a 256 docs/acceptance/t1746-runtime-final-state/REPORT.md docs/acceptance/t1746-runtime-final-state/verdict.json docs/acceptance/t1746-runtime-final-state/raw/90-raw-sha256.log'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-8bbc91e0/command_events.jsonl",
+  "command_event_digest": "sha256:fb086e9e82293d58d711cdfbff38c37768d73d942a6538aabfb7fb0974040183",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "PASS.",
+  "artifact_digest": "sha256:11180839353a043b67867e67f075ce1a9f5f3c32d90131643544639550e29d18",
+  "path": ".agent-center/evidence/task-e52d2ffc/exec-8bbc91e0.json",
+  "branch": "ac-exec/task-e52d2ffc/exec-8bbc91e0"
+}
