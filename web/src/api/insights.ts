@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
 
-export type InsightFreshnessState = 'fresh' | 'stale' | 'rebuilding' | 'unavailable';
+export type InsightFreshnessState = 'fresh' | 'stale' | 'rebuilding' | 'unavailable' | 'unknown';
 
 export interface InsightWindow {
   kind: 'rolling';
@@ -107,6 +107,168 @@ export interface InsightExecutionFilters {
   limit?: number;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function arrayOrEmpty<T>(value: T[] | null | undefined): T[] {
+  return Array.isArray(value) ? value : [];
+}
+
+function stringOrEmpty(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function stringOrNull(value: unknown): string | null {
+  return typeof value === 'string' ? value : null;
+}
+
+function numberOrZero(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function numberOrNull(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function booleanOrFalse(value: unknown): boolean {
+  return typeof value === 'boolean' ? value : false;
+}
+
+function normalizeWindow(value: unknown): InsightWindow {
+  const source = isRecord(value) ? value : {};
+  return {
+    kind: 'rolling',
+    duration: '24h',
+    start: stringOrEmpty(source.start),
+    end: stringOrEmpty(source.end),
+  };
+}
+
+function normalizeFreshness(value: unknown): InsightFreshness {
+  const source = isRecord(value) ? value : {};
+  const state = source.state;
+  return {
+    state: state === 'fresh' || state === 'stale' || state === 'rebuilding' || state === 'unavailable'
+      ? state
+      : 'unknown',
+    age_ms: numberOrZero(source.age_ms),
+    threshold_ms: numberOrZero(source.threshold_ms),
+  };
+}
+
+function normalizePercentiles(value: unknown): InsightPercentiles {
+  const source = isRecord(value) ? value : {};
+  return {
+    p50: numberOrNull(source.p50),
+    p95: numberOrNull(source.p95),
+    samples: numberOrZero(source.samples),
+  };
+}
+
+function normalizeSummary(value: unknown): InsightSummary {
+  const source = isRecord(value) ? value : {};
+  return {
+    completed_executions: numberOrZero(source.completed_executions),
+    failed_executions: numberOrZero(source.failed_executions),
+    failure_rate: numberOrNull(source.failure_rate),
+    slot_utilization: numberOrNull(source.slot_utilization),
+    slot_coverage_ratio: numberOrNull(source.slot_coverage_ratio),
+    queue_wait_ms: normalizePercentiles(source.queue_wait_ms),
+    execution_duration_ms: normalizePercentiles(source.execution_duration_ms),
+  };
+}
+
+function normalizeAgent(value: unknown): InsightLeaderboardAgent {
+  const source = isRecord(value) ? value : {};
+  const agentRef = stringOrEmpty(source.agent_ref) || 'unknown';
+  return {
+    agent_ref: agentRef,
+    display_name: stringOrNull(source.display_name),
+    summary: normalizeSummary(source.summary),
+  };
+}
+
+function normalizeProject(value: unknown): InsightLeaderboardProject {
+  const source = isRecord(value) ? value : {};
+  const projectId = stringOrEmpty(source.project_id) || 'unknown';
+  return {
+    project_id: projectId,
+    name: stringOrNull(source.name),
+    summary: normalizeSummary(source.summary),
+  };
+}
+
+function normalizeDiagnostics(value: unknown): InsightDiagnostics {
+  const source = isRecord(value) ? value : {};
+  return {
+    invalid_facts: numberOrZero(source.invalid_facts),
+    late_events: numberOrZero(source.late_events),
+  };
+}
+
+function normalizeExecutionRow(value: unknown): InsightExecutionRow {
+  const source = isRecord(value) ? value : {};
+  return {
+    execution_id: stringOrEmpty(source.execution_id) || 'unknown',
+    command_id: stringOrNull(source.command_id),
+    task_id: stringOrNull(source.task_id),
+    task_ref: stringOrNull(source.task_ref),
+    task_title: stringOrNull(source.task_title),
+    agent_ref: stringOrEmpty(source.agent_ref) || 'unknown',
+    agent_name: stringOrNull(source.agent_name),
+    project_id: stringOrNull(source.project_id),
+    project_name: stringOrNull(source.project_name),
+    worker_id: stringOrNull(source.worker_id),
+    outcome: stringOrNull(source.outcome),
+    failure_reason: stringOrNull(source.failure_reason),
+    queued_at: stringOrNull(source.queued_at),
+    started_at: stringOrNull(source.started_at),
+    finished_at: stringOrNull(source.finished_at),
+    queue_wait_ms: numberOrNull(source.queue_wait_ms),
+    duration_ms: numberOrNull(source.duration_ms),
+    recovered: booleanOrFalse(source.recovered),
+    quality: stringOrEmpty(source.quality) || 'unknown',
+  };
+}
+
+function normalizeOverview(value: unknown): InsightOverview {
+  const source = isRecord(value) ? value : {};
+  return {
+    window: normalizeWindow(source.window),
+    as_of: stringOrEmpty(source.as_of),
+    refreshed_at: stringOrEmpty(source.refreshed_at),
+    freshness: normalizeFreshness(source.freshness),
+    summary: normalizeSummary(source.summary),
+    agents: arrayOrEmpty(source.agents as InsightLeaderboardAgent[] | null | undefined).map(normalizeAgent),
+    projects: arrayOrEmpty(source.projects as InsightLeaderboardProject[] | null | undefined).map(normalizeProject),
+    diagnostics: normalizeDiagnostics(source.diagnostics),
+  };
+}
+
+function normalizeExecutions(value: unknown): InsightExecutions {
+  const source = isRecord(value) ? value : {};
+  return {
+    window: normalizeWindow(source.window),
+    as_of: stringOrEmpty(source.as_of),
+    refreshed_at: stringOrEmpty(source.refreshed_at),
+    freshness: normalizeFreshness(source.freshness),
+    executions: arrayOrEmpty(source.executions as InsightExecutionRow[] | null | undefined).map(normalizeExecutionRow),
+    next_cursor: stringOrNull(source.next_cursor),
+  };
+}
+
+function normalizeExecutionDetail(value: unknown): InsightExecutionDetail {
+  const source = isRecord(value) ? value : {};
+  return {
+    window: normalizeWindow(source.window),
+    as_of: stringOrEmpty(source.as_of),
+    refreshed_at: stringOrEmpty(source.refreshed_at),
+    freshness: normalizeFreshness(source.freshness),
+    execution: normalizeExecutionRow(source.execution),
+  };
+}
+
 function executionParams(filters: InsightExecutionFilters = {}): string {
   const params = new URLSearchParams({ window: '24h' });
   if (filters.agent_ref) params.set('agent_ref', filters.agent_ref);
@@ -119,14 +281,14 @@ function executionParams(filters: InsightExecutionFilters = {}): string {
 export function useInsightOverview() {
   return useQuery({
     queryKey: qk.insightOverview(),
-    queryFn: () => api.get<InsightOverview>('/insights/overview?window=24h'),
+    queryFn: async () => normalizeOverview(await api.get<unknown>('/insights/overview?window=24h')),
   });
 }
 
 export function useInsightExecutions(filters: InsightExecutionFilters, enabled: boolean) {
   return useQuery({
     queryKey: qk.insightExecutions(filters),
-    queryFn: () => api.get<InsightExecutions>(`/insights/executions?${executionParams(filters)}`),
+    queryFn: async () => normalizeExecutions(await api.get<unknown>(`/insights/executions?${executionParams(filters)}`)),
     enabled,
   });
 }
@@ -134,7 +296,7 @@ export function useInsightExecutions(filters: InsightExecutionFilters, enabled: 
 export function useInsightExecution(executionId: string | undefined) {
   return useQuery({
     queryKey: qk.insightExecution(executionId ?? ''),
-    queryFn: () => api.get<InsightExecutionDetail>(`/insights/executions/${encodeURIComponent(executionId ?? '')}?window=24h`),
+    queryFn: async () => normalizeExecutionDetail(await api.get<unknown>(`/insights/executions/${encodeURIComponent(executionId ?? '')}?window=24h`)),
     enabled: Boolean(executionId),
   });
 }

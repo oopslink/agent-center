@@ -173,6 +173,55 @@ describe('InsightOverview page', () => {
     expect(screen.getByTestId('insight-summary')).toHaveTextContent('-');
   });
 
+  it('normalizes null or missing overview and drilldown collections to empty states', async () => {
+    const emptySummary = {
+      completed_executions: 0,
+      failed_executions: 0,
+      failure_rate: null,
+      slot_utilization: null,
+      slot_coverage_ratio: null,
+      queue_wait_ms: null,
+      execution_duration_ms: undefined,
+    };
+    server.use(
+      http.get('/api/orgs/:slug/insights/overview', () =>
+        HttpResponse.json({
+          ...windowEnvelope,
+          summary: emptySummary,
+          agents: null,
+          diagnostics: null,
+        }),
+      ),
+      http.get('/api/orgs/:slug/insights/executions', () =>
+        HttpResponse.json({ ...windowEnvelope, executions: null }),
+      ),
+    );
+
+    renderOverview();
+
+    expect(await screen.findByTestId('insight-empty')).toHaveTextContent('No executions');
+    expect(screen.getByTestId('agent-leaderboard')).toHaveTextContent('No agent executions');
+    expect(screen.getByTestId('project-leaderboard')).toHaveTextContent('No project executions');
+    expect(screen.getByTestId('insight-summary')).toHaveTextContent('Failure rate');
+    expect(screen.getByTestId('insight-summary')).toHaveTextContent('-');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Execution details' }));
+
+    expect(await screen.findByTestId('insight-drilldown-empty')).toHaveTextContent('No matching execution attempts');
+  });
+
+  it('renders a 200 null overview response as an unknown empty window', async () => {
+    server.use(
+      http.get('/api/orgs/:slug/insights/overview', () => HttpResponse.json(null)),
+    );
+
+    renderOverview();
+
+    expect(await screen.findByTestId('insight-window')).toHaveTextContent('Past 24 hours');
+    expect(screen.getByTestId('insight-freshness')).toHaveTextContent('unknown');
+    expect(screen.getByTestId('insight-empty')).toHaveTextContent('No executions');
+  });
+
   it('shows stale overview and stale empty drilldown states', async () => {
     const staleEnvelope = {
       ...windowEnvelope,
