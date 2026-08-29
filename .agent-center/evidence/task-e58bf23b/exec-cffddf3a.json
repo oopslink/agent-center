@@ -1,0 +1,155 @@
+{
+  "task_id": "task-e58bf23b",
+  "execution_id": "exec-cffddf3a",
+  "reviewed_sha": "73763ac7c1e23aaf4b84c25f740e9feceb279693",
+  "base_sha": "5a18901eaea33c48247e2e8847a29f1d66038d40",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' /Users/oopslink/.agents/skills/agent-browser/SKILL.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files task-input/v1 /Users/oopslink/.agents/skills/agent-browser | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'ls -la'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git status --porcelain=v1 \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-parse origin/main \u0026\u0026 git merge-base HEAD origin/main \u0026\u0026 git rev-list --left-right --count HEAD...origin/main \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git fetch --prune origin'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"git branch --contains 75427e3d 2\u003e\u00261 | sed -n '1,80p'; git branch --contains bda5d14a 2\u003e\u00261 | sed -n '1,80p'; git merge-base --is-ancestor 75427e3d HEAD; printf '75427e3d_ancestor=%s\\\\n' \"'$?; git merge-base --is-ancestor bda5d14a HEAD; printf '\"'bda5d14a_ancestor=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"git fetch --prune origin refs/heads/main:refs/remotes/origin/main \u0026\u0026 git status --porcelain=v1 \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-parse origin/main \u0026\u0026 git merge-base HEAD origin/main \u0026\u0026 git rev-list --left-right --count HEAD...origin/main \u0026\u0026 git for-each-ref --format='%(refname:short) %(objectname)' refs/remotes/origin/HEAD refs/remotes/origin/main\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'date -u +%Y-%m-%dT%H:%M:%SZ'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"git log --oneline --decorate -n 8 --all --not origin/main | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"find . -maxdepth 5 \\\\( -path './.git' -o -path './node_modules' \\\\) -prune -o -iname '*sha256*' -o -iname 'SHA256SUMS' -print | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'mkdir -p evidence/T1756-independent-browser-reverify'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc '(cd evidence/T1756-independent-browser-reverify \u0026\u0026 shasum -a 256 REPORT.md verdict.json raw-evidence.md \u003e SHA256SUMS \u0026\u0026 shasum -a 256 -c SHA256SUMS)'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '1,80p' evidence/T1756-independent-browser-reverify/SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'git add evidence/T1756-independent-browser-reverify \u0026\u0026 git commit -m \"chore(evidence): record T1756 fail-closed reverify\" \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-e58bf23b/exec-cffddf3a \u0026\u0026 git status --short --branch \u0026\u0026 git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc '(cd evidence/T1756-independent-browser-reverify \u0026\u0026 shasum -a 256 -c SHA256SUMS) \u0026\u0026 git status --porcelain=v1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc 'git rev-parse origin/main \u0026\u0026 git rev-parse HEAD''^ \u0026\u0026 git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-e58bf23b/exec-cffddf3a'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-cffddf3a/command_events.jsonl",
+  "command_event_digest": "sha256:9737111b82b226db26c1e74d8fce79e1cf3a648fd7b6a34633a6e47bed9ef841",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "REJECT, fail-closed.",
+  "artifact_digest": "sha256:b67963c5d1b00e512c112681d0680c9a27fc7a7906ea90f0a46b8fa9dbf51b3f",
+  "path": ".agent-center/evidence/task-e58bf23b/exec-cffddf3a.json",
+  "branch": "ac-exec/task-e58bf23b/exec-cffddf3a"
+}
