@@ -1,0 +1,12 @@
+
+ RUN  v2.1.9 /private/tmp/t1748-insight-candidate-bda5d14a.9LQyQE/candidate/web
+
+(node:10014) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/InsightOverview.test.tsx (7 tests) 393ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  15:02:58
+   Duration  1.70s (transform 218ms, setup 462ms, collect 97ms, tests 393ms, environment 265ms, prepare 48ms)
+

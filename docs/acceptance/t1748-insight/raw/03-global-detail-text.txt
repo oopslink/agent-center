@@ -1,0 +1,12 @@
+
+    InsightIISearch⌘KInsight⌄OverviewTask executionsInsightTaskExecution detailexec-global-001RefreshInsight overview/Task executionsPast 24 hours (rolling)8/29, 12:00 AM–8/30, 12:00 AMLocal time · UTC+08:00Refreshed 11:59:30 PMFresh dataFailedRecovered by systemReconcile checkout retry pathCheckout hardening · BuilderExecution timelineQueued11:01:00 PMQueue wait1 min 22 sStarted11:02:22 PMDuration7 min 20 sFinished11:09:42 PMResultFailedTool command exited with code 1TaskReconcile checkout retry pathProjectCheckout hardeningAgentBuilderWorkerworker-aExecution IDexec-global-001Command IDcmd-global-001Technical details{
+  "outcome": "failed",
+  "failure_reason": "nonzero_exit",
+  "command_status": "quiet_finalized",
+  "status_reason": "worker_recovered",
+  "quality": "valid"
+}WorkChatTeamsInsightRemindSys
+    
+  
+
+

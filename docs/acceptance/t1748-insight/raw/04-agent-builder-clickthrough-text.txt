@@ -1,0 +1,6 @@
+
+    InsightIISearch⌘KInsight⌄OverviewTask executionsInsightTask executionsEach row is one execution attemptPast 24 hours (rolling)Agent: agent:builder ×Clear filtersPast 24 hours (rolling)8/29, 12:00 AM–8/30, 12:00 AMLocal time · UTC+08:00Refreshed 11:59:30 PMFresh dataStatusTask / ProjectAgentQueuedStartedFinishedQueue waitDurationData hintFailedReconcile checkout retry pathCheckout hardeningBuilder11:01:00 PM11:02:22 PM11:09:42 PM1 min 22 s7 min 20 sCompletedShip queue wait chartCheckout hardeningBuilder10:10:00 PM10:10:12 PM10:12:06 PM12 s1 min 54 sPrevious pageNext pageWorkChatTeamsInsightRemindSys
+    
+  
+
+
