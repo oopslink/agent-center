@@ -1,0 +1,257 @@
+{
+  "task_id": "task-b7ffc437",
+  "execution_id": "exec-c4667baf",
+  "reviewed_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "base_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 find task-input/v1 -maxdepth 3 -type f -print'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git remote -v \u0026\u0026 git rev-parse --show-toplevel \u0026\u0026 git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'ls -la'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type d -name task-input -o -name v1 -o -path './*/manifest.json' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'git branch -a --contains HEAD \u0026\u0026 git log --oneline -5 --decorate'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git rev-parse --git-common-dir \u0026\u0026 git worktree list --porcelain'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"find . -maxdepth 8 -type f \\\\( -name manifest.json -o -name README.md \\\\) | sort | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"git for-each-ref --format='%(refname:short) %(objectname) %(upstream:short)' refs/heads refs/remotes | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'git fetch --all --prune --tags'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"git config --get-regexp '\"'^remote'\"\\\\..*\\\\.(url|fetch|pushurl)\"'$'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git remote show origin -n \u0026\u0026 git remote show origin-push -n'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc 'git fetch origin refs/heads/main:refs/remotes/origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'git fetch origin-push refs/heads/immutable/t1711-t1712-state-machine-migration-a62d4dd6:refs/remotes/origin-push/immutable/t1711-t1712-state-machine-migration-a62d4dd6'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc 'git fetch origin-push refs/heads/main:refs/remotes/origin-push/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"git for-each-ref --format='%(refname:short) %(objectname)' 'refs/remotes/origin-push/immutable/*t1711*t1712*' 'refs/remotes/origin/immutable/*t1711*t1712*' 'refs/heads/immutable/*t1711*t1712*' | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc 'git rev-parse origin/main origin-push/main origin-push/immutable/t1711-t1712-state-machine-migration-a62d4dd6 \u0026\u0026 git merge-base origin/main origin-push/immutable/t1711-t1712-state-machine-migration-a62d4dd6 \u0026\u0026 git log --oneline --decorate --max-count=8 origin/main..origin-push/immutable/t1711-t1712-state-machine-migration-a62d4dd6'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'git ls-remote --heads origin-push immutable/t1711-t1712-state-machine-migration-a62d4dd6 main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc 'mktemp -d /tmp/t1711-t1712-verify-a62d4dd6.XXXXXX'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc 'git worktree add --detach /tmp/t1711-t1712-verify-a62d4dd6.TDaKuE/wt a62d4dd6aa735c997076b4322768c99760726e8e'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc 'git diff --stat origin/main..HEAD \u0026\u0026 git diff --name-status origin/main..HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc 'rg -n \"T1711|T1712|state.machine|state machine|migration|migrate|orphan|condition\" docs internal tests cmd scripts Makefile go.mod -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --contains HEAD --format='%(refname:short)' | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc 'git diff origin/main..HEAD -- internal/projectmanager/service/plan_completion.go internal/projectmanager/service/plan_completion_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"git show --stat --oneline --decorate HEAD \u0026\u0026 git show --name-only --format='%H%n%s%n%b' HEAD~2..HEAD\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc 'git diff origin/main..HEAD -- internal/cli/handlers_migrate_orphan_conditions.go internal/cli/handlers_migrate_orphan_conditions_test.go internal/cli/build.go internal/cli/arch_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"git show --stat --format='%H%n%s%n%b' 8fd76364 \u0026\u0026 git show --stat --format='%H%n%s%n%b' d8a3959c \u0026\u0026 git show --stat --format='%H%n%s%n%b' a62d4dd6\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc 'rg -n \"race|full|matrix|test|go test|e2e|playwright|orphan-conditions|plan_completion|completion|migrate\" Makefile scripts tests internal/cli internal/projectmanager -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"go test -list '.*' ./internal/cli ./internal/projectmanager/service ./internal/projectmanager/...\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc 'ps -o pid,ppid,etime,command -g $(ps -o pgid= -p $$ | tr -d '\"' ') | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc \"pgrep -fl 'go test|/go|\\\\.test|agent-center' | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc 'go test ./...'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc 'go test -race -count=1 ./internal/cli ./internal/projectmanager/...'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc \"git status --short --branch \u0026\u0026 git diff --stat \u0026\u0026 git ls-files --others --exclude-standard | sed -n '1,80p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc \"git remote -v \u0026\u0026 git config --get-regexp '\"'^remote'\"\\\\..*\\\\.fetch\"'$'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD origin/main origin-push/main origin-push/immutable/t1711-t1712-state-machine-migration-a62d4dd6 \u0026\u0026 git merge-base --is-ancestor origin/main HEAD; echo merge_base_is_origin_main=$? \u0026\u0026 git merge-base origin/main HEAD \u0026\u0026 git ls-remote --heads origin-push immutable/t1711-t1712-state-machine-migration-a62d4dd6 main'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-c4667baf/command_events.jsonl",
+  "command_event_digest": "sha256:3d0b0f96e0440a3cf45d8c07fab5f3c313d8309c93eacb7fd879316412f94f14",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "REJECT.",
+  "artifact_digest": "sha256:19cfb95f050d8b87172c08f71a136506e56afea8cfcecdd8e05023371531da98",
+  "path": ".agent-center/evidence/task-b7ffc437/exec-c4667baf.json",
+  "branch": "ac-exec/task-b7ffc437/exec-c4667baf"
+}
