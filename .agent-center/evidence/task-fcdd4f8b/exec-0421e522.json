@@ -1,0 +1,365 @@
+{
+  "task_id": "task-fcdd4f8b",
+  "execution_id": "exec-0421e522",
+  "reviewed_sha": "45218d7304a70f66b067f67facc40541de9b81a5",
+  "base_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type d | sort | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f | sort | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'rg -n \"T1744|1744|reviewed|base SHA|base_sha|reviewed_sha|candidate\" README.md docs internal cmd scripts .github Makefile go.mod package.json 2\u003e/dev/null'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git remote -v \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current \u0026\u0026 git status --porcelain=v1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"git branch -a --contains HEAD | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate --max-count=30 --all'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'rg -n \"contract-to-production-chain|evidence-before-verdict|verify-world-state|production-chain|auditable|evidence-before|world-state\" docs/rules docs/design docs/acceptance README.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"git for-each-ref --format='%(refname:short) %(objectname) %(committerdate:iso8601) %(subject)' refs/heads refs/remotes/origin refs/remotes/origin-push | rg 't1711|t1712|state-machine|migration|rebuild|fcdd4f8b|0421e522|immutable'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'git fetch --prune origin origin-push'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"find .. -path '*/task-input/v1/README.md' -o -path '*/task-input/v1/manifest.json' | sort | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"git show --stat --oneline --decorate --no-renames a62d4dd6aa735c997076b4322768c99760726e8e | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'git diff --stat f61c3110eb830f544b87b85d4d4d94e90633a0d5..a62d4dd6aa735c997076b4322768c99760726e8e'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc 'git fetch --prune origin-push'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'git fetch --prune origin'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"git for-each-ref --format='%(refname:short) %(objectname)' refs/remotes/origin refs/remotes/origin-push | rg 'a62d4dd6|t1711|t1712|state-machine|migration'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'git merge-base origin/main a62d4dd6aa735c997076b4322768c99760726e8e \u0026\u0026 git merge-base --is-ancestor origin/main a62d4dd6aa735c997076b4322768c99760726e8e; echo ancestor_origin_main_to_candidate=$? \u0026\u0026 git rev-list --left-right --count origin/main...a62d4dd6aa735c997076b4322768c99760726e8e'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc 'git diff --name-status f61c3110eb830f544b87b85d4d4d94e90633a0d5..a62d4dd6aa735c997076b4322768c99760726e8e'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'git fetch origin main:refs/remotes/origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"git diff --unified=80 f61c3110eb830f544b87b85d4d4d94e90633a0d5..a62d4dd6aa735c997076b4322768c99760726e8e -- internal/projectmanager/service/plan_completion.go internal/cli/handlers_migrate_orphan_conditions.go | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"git diff --unified=80 f61c3110eb830f544b87b85d4d4d94e90633a0d5..a62d4dd6aa735c997076b4322768c99760726e8e -- internal/projectmanager/service/plan_completion_test.go internal/cli/handlers_migrate_orphan_conditions_test.go internal/cli/build.go internal/cli/arch_test.go | sed -n '1,320p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"git show --name-only --format=fuller a62d4dd6aa735c997076b4322768c99760726e8e | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'git worktree add --detach /tmp/t1744-candidate-a62d4dd6 a62d4dd6aa735c997076b4322768c99760726e8e'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' internal/projectmanager/service/plan_completion.go \u0026\u0026 sed -n '1,220p' internal/projectmanager/service/plan_completion_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"sed -n '200,520p' internal/cli/handlers_migrate_orphan_conditions.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc 'find . -maxdepth 2 -name package.json -o -name go.mod -o -name pnpm-lock.yaml -o -name Makefile | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-parse origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"sed -n '220,520p' internal/projectmanager/service/plan_completion.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"sed -n '220,520p' internal/projectmanager/service/plan_completion_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc \"go test ./internal/projectmanager/service -run 'Test(ActiveUnresolvedGraphConditions|PlanCompletion_)' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"go test ./internal/cli -run 'Test(MigrateOrphanConditions|Arch_NoDirectPersistenceOpenInHandlers)' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"go test -race ./internal/projectmanager/service -run 'Test(ActiveUnresolvedGraphConditions|PlanCompletion_)' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc \"ps -o pid,ppid,stat,etime,command -ax | rg 'go test|/tmp/t1744|agent-center.test|agent-center' | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc 'go test ./...'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'go test ./tests/integration -count=1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc \"go test ./internal/webconsole/api -run 'Test.*Plan|Test.*Progress|Test.*Gate|Test.*Condition|Test.*Completion' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc \"go test ./tests/e2e -run '\"'^TestDeployedBinaryRuntimeVersion_AdoptedOldRuntimeSkewFails$'\"' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_70",
+      "command": "/bin/zsh -lc \"pkill -INT -f 'go test -race -count=1 ./internal/cli ./internal/projectmanager' || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'go test -race -count=1 ./internal/cli ./internal/projectmanager/...'",
+      "exit_status": 143
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc \"pkill -TERM -f 'go test -race -count=1 ./internal/cli ./internal/projectmanager' || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_76",
+      "command": "/bin/zsh -lc 'git merge-base origin/main a62d4dd6aa735c997076b4322768c99760726e8e \u0026\u0026 git rev-list --left-right --count origin/main...a62d4dd6aa735c997076b4322768c99760726e8e \u0026\u0026 git diff --name-status origin/main..a62d4dd6aa735c997076b4322768c99760726e8e'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/immutable/t1711-t1712-state-machine-migration-a62d4dd6 refs/heads/ac-exec/task-1a0b6739/exec-ed392910 refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/main refs/heads/immutable/t1711-t1712-state-machine-migration-a62d4dd6'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc 'git switch --detach origin/main \u0026\u0026 git switch -c evidence/t1744-a62d4dd6-independent-reverify'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_80",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t1744-a62d4dd6/raw'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_84",
+      "command": "/bin/zsh -lc 'jq . docs/acceptance/t1744-a62d4dd6/verdict.json \u003e/dev/null \u0026\u0026 git diff --check'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_85",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_87",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/t1744-a62d4dd6/REPORT.md docs/acceptance/t1744-a62d4dd6/verdict.json \u0026\u0026 git commit -m \"test(evidence): reject t1744 a62d4dd6 reverify\" \u0026\u0026 git push origin-push HEAD:refs/heads/evidence/t1744-a62d4dd6-independent-reverify'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_90",
+      "command": "/bin/zsh -lc 'git show --stat --oneline HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_91",
+      "command": "/bin/zsh -lc 'git merge-base origin/main a62d4dd6aa735c997076b4322768c99760726e8e \u0026\u0026 git merge-base origin/main HEAD \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_92",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/immutable/t1711-t1712-state-machine-migration-a62d4dd6 refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/evidence/t1744-a62d4dd6-independent-reverify refs/heads/immutable/t1711-t1712-state-machine-migration-a62d4dd6 refs/heads/main'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-0421e522/command_events.jsonl",
+  "command_event_digest": "sha256:18459444e1d4600bbba24ada7b1441a138eb6b81ae93142682a897b2454d036f",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "REJECT fail-closed.",
+  "artifact_digest": "sha256:985ba1745e8fb35dbff6b722a6c822d43591333e99459dc45544f3d2d55d6a38",
+  "path": ".agent-center/evidence/task-fcdd4f8b/exec-0421e522.json",
+  "branch": "evidence/t1744-a62d4dd6-independent-reverify"
+}
