@@ -27,9 +27,10 @@ func (s *Server) insightsOverviewHandler(w http.ResponseWriter, r *http.Request)
 	if !requireInsightWindow(w, r) {
 		return
 	}
-	res, err := d.Insight.Overview(r.Context(), orgID, time.Now().UTC())
+	asOf := time.Now().UTC()
+	res, err := d.Insight.Overview(r.Context(), orgID, asOf)
 	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "insight_unavailable", err.Error())
+		writeInsightUnavailable(w, d.Insight, asOf, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
@@ -60,15 +61,16 @@ func (s *Server) insightsExecutionsHandler(w http.ResponseWriter, r *http.Reques
 		}
 		limit = n
 	}
+	asOf := time.Now().UTC()
 	res, err := d.Insight.Executions(r.Context(), orgID, insight.ExecutionFilter{
 		AgentRef:  strings.TrimSpace(r.URL.Query().Get("agent_ref")),
 		ProjectID: strings.TrimSpace(r.URL.Query().Get("project_id")),
 		Cursor:    strings.TrimSpace(r.URL.Query().Get("cursor")),
 		Limit:     limit,
-		AsOf:      time.Now().UTC(),
+		AsOf:      asOf,
 	})
 	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "insight_unavailable", err.Error())
+		writeInsightUnavailable(w, d.Insight, asOf, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
@@ -90,16 +92,30 @@ func (s *Server) insightsExecutionHandler(w http.ResponseWriter, r *http.Request
 	if !requireInsightWindow(w, r) {
 		return
 	}
-	res, err := d.Insight.Execution(r.Context(), orgID, strings.TrimSpace(r.PathValue("execution_id")), time.Now().UTC())
+	asOf := time.Now().UTC()
+	res, err := d.Insight.Execution(r.Context(), orgID, strings.TrimSpace(r.PathValue("execution_id")), asOf)
 	if errors.Is(err, insight.ErrExecutionNotFound) {
 		writeError(w, http.StatusNotFound, "not_found", "execution not found")
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusServiceUnavailable, "insight_unavailable", err.Error())
+		writeInsightUnavailable(w, d.Insight, asOf, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, res)
+}
+
+func writeInsightUnavailable(w http.ResponseWriter, svc *insight.Service, asOf time.Time, err error) {
+	body := svc.DegradedEnvelope(asOf, "unavailable")
+	writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+		"code":         "insight_unavailable",
+		"error":        "insight_unavailable",
+		"message":      err.Error(),
+		"window":       body.Window,
+		"as_of":        body.AsOf,
+		"refreshed_at": body.RefreshedAt,
+		"freshness":    body.Freshness,
+	})
 }
 
 func requireInsightWindow(w http.ResponseWriter, r *http.Request) bool {
