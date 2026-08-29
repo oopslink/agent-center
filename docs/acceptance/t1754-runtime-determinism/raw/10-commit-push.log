@@ -30,3 +30,10 @@ remote:
 To github.com:oopslink/agent-center.git
  * [new branch]        HEAD -> evidence/t1754-runtime-determinism-5a18901e
 621b6588b7245bf3bc52281a0cd422099ad001a0	refs/heads/evidence/t1754-runtime-determinism-5a18901e
+
+manual recovery audit (2026-08-29):
+- executor-local amended HEAD 0a97df2feb2d2f56730515807c02415e135919f4 was not remote-reachable after control-plane loss
+- durable reviewed evidence commit recovered from remote: 897f6ea4dd4a3562ff64cd00beb07f1f92394410
+- reviewed runtime source SHA: 5a18901eaea33c48247e2e8847a29f1d66038d40 (current origin/main at acceptance time)
+- ancestry: reviewed runtime source is an ancestor of the evidence commit
+- all PASS results and raw logs are preserved unchanged; this follow-up records delivery recovery only
