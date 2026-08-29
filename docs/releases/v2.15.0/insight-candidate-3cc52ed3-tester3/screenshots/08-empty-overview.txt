@@ -1,0 +1,6 @@
+
+    InsightTTSearch⌘KInsight⌄OverviewTask executionsInsightInsight overviewView all executionsPast 24 hours (rolling)8/28, 09:00 AM–8/29, 09:00 AMLocal time · UTC+08:00Refreshed 09:00:15 AMFresh dataCompleted executions0Each execution attempt is counted, including retriesFailure rate0%0 / 0 failedSlot utilization0%Observation coverage 95%Queue waitTypical (P50): —No valid samples · 0 queue samplesExecution durationTypical (P50): —No valid samples · 0 duration samplesBy agentSorted by completed executions descending, then by ID; up to 20 items.No executions in the past 24 hours.By projectSorted by completed executions descending, then by ID; up to 20 items.No executions in the past 24 hours.Each retry is counted as one execution attempt. P50/P95 use only records with valid start/end times.No executions in the past 24 hoursThe backend returned an empty 24-hour Insight window.WorkChatTeamsAccessInsightRemindSys
+    
+  
+
+

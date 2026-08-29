@@ -1,0 +1,12 @@
+
+    InsightTTSearch⌘KInsight⌄OverviewTask executionsInsightTaskExecution detailexec-failed-multiRefreshInsight overview/Task executionsPast 24 hours (rolling)8/28, 09:00 AM–8/29, 09:00 AMLocal time · UTC+08:00Refreshed 09:00:15 AMFresh dataFailedPersist execution evidenceBeta Project · QA TesterExecution timelineQueued08:15:00 AMQueue wait3 sStarted08:15:03 AMDuration1 min 10 sFinished08:16:13 AMResultFailedProcess exited with code 1.TaskPersist execution evidenceProjectBeta ProjectAgentQA TesterWorkerworker-linux-2Execution IDexec-failed-multiCommand IDcmd-failTechnical details{
+  "outcome": "failed",
+  "failure_reason": "nonzero_exit",
+  "command_status": "started",
+  "status_reason": null,
+  "quality": "valid"
+}WorkChatTeamsAccessInsightRemindSys
+    
+  
+
+

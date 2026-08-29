@@ -1,0 +1,6 @@
+
+    InsightTTSearch⌘KInsight⌄OverviewTask executionsInsightTask executionsEach row is one execution attemptPast 24 hours (rolling)Past 24 hours (rolling)8/28, 09:00 AM–8/29, 09:00 AMLocal time · UTC+08:00Refreshed 09:00:15 AMFresh dataStatusTask / ProjectAgentQueuedStartedFinishedQueue waitDurationData hintCompletedShip Insight drilldownAlpha ProjectBuilder Agent08:10:00 AM08:10:01 AM08:10:49 AM1 s48 sFailedPersist execution evidenceBeta ProjectQA Tester08:15:00 AM08:15:03 AM08:16:13 AM3 s1 min 10 sRunningLong running repairAlpha ProjectBuilder Agent08:20:00 AM08:20:05 AMNot finished5 s—Did not startCapacity rejected jobBeta ProjectQA Tester08:30:00 AMNot startedNot finished——Outcome unavailableClock skew sampleproj-gammaagent:future08:40:00 AM08:42:00 AM08:41:00 AMInvalid time dataInvalid time dataInvalid time dataPrevious pageNext pageWorkChatTeamsAccessInsightRemindSys
+    
+  
+
+

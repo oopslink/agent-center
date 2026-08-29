@@ -1,0 +1,6 @@
+
+    洞察TT搜索⌘KInsight⌄OverviewTask executionsInsightTask executions每行代表一次执行尝试过去 24 小时（滚动）过去 24 小时（滚动）8/28, 09:00 AM–8/29, 09:00 AM本地时间 · UTC+08:00更新于 09:00:15 AM数据最新状态Task / 项目智能体入队开始结束排队等待执行耗时数据提示已完成Ship Insight drilldownAlpha ProjectBuilder Agent08:10:00 AM08:10:01 AM08:10:49 AM1 s48 s执行失败Persist execution evidenceBeta ProjectQA Tester08:15:00 AM08:15:03 AM08:16:13 AM3 s1 min 10 s执行中Long running repairAlpha ProjectBuilder Agent08:20:00 AM08:20:05 AM尚未结束5 s—未开始Capacity rejected jobBeta ProjectQA Tester08:30:00 AM尚未开始尚未结束——结果未知Clock skew sampleproj-gammaagent:future08:40:00 AM08:42:00 AM08:41:00 AMInvalid time dataInvalid time data时间数据异常上一页下一页工作会话编队权限洞察提醒系统
+    
+  
+
+

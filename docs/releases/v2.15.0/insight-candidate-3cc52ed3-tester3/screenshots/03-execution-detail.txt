@@ -1,0 +1,12 @@
+
+    InsightTTSearch⌘KInsight⌄OverviewTask executionsInsightTaskExecution detailexec-ok-singleRefreshInsight overview/Task executionsPast 24 hours (rolling)8/28, 09:00 AM–8/29, 09:00 AMLocal time · UTC+08:00Refreshed 09:00:15 AMFresh dataCompletedShip Insight drilldownAlpha Project · Builder AgentExecution timelineQueued08:10:00 AMQueue wait1 sStarted08:10:01 AMDuration48 sFinished08:10:49 AMResultCompletedTaskShip Insight drilldownProjectAlpha ProjectAgentBuilder AgentWorkerworker-mac-1Execution IDexec-ok-singleCommand IDcmd-okTechnical details{
+  "outcome": "succeeded",
+  "failure_reason": null,
+  "command_status": "completed",
+  "status_reason": null,
+  "quality": "valid"
+}WorkChatTeamsAccessInsightRemindSys
+    
+  
+
+

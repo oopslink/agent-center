@@ -1,0 +1,12 @@
+
+    InsightTTSearch⌘KInsight⌄OverviewTask executionsInsightTaskExecution detailexec-invalid-timeRefreshInsight overview/Task executionsPast 24 hours (rolling)8/28, 09:00 AM–8/29, 09:00 AMLocal time · UTC+08:00Refreshed 09:00:15 AMFresh dataOutcome unavailableRecovered by systemClock skew sampleagent:futureExecution timelineQueued08:40:00 AMQueue waitInvalid time dataStarted08:42:00 AMDurationInvalid time dataFinished08:41:00 AMResultOutcome unavailableTaskClock skew sampleProjectproj-gammaAgentagent:futureWorkerworker-clockExecution IDexec-invalid-timeCommand IDcmd-invalidInvalid time dataThis record is visible, but invalid intervals are excluded from queue and duration percentiles.Technical details{
+  "outcome": "new_enum",
+  "failure_reason": null,
+  "command_status": "completed",
+  "status_reason": null,
+  "quality": "invalid_time_order"
+}WorkChatTeamsAccessInsightRemindSys
+    
+  
+
+
