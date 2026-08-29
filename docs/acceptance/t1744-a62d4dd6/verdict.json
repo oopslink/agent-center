@@ -1,0 +1,79 @@
+{
+  "task": "T1744",
+  "verdict": "REJECT",
+  "fail_closed": true,
+  "date": "2026-08-29",
+  "base_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "reviewed_sha": "a62d4dd6aa735c997076b4322768c99760726e8e",
+  "candidate_refs": [
+    "refs/remotes/origin/immutable/t1711-t1712-state-machine-migration-a62d4dd6",
+    "refs/remotes/origin-push/immutable/t1711-t1712-state-machine-migration-a62d4dd6",
+    "refs/remotes/origin-push/ac-exec/task-1a0b6739/exec-ed392910"
+  ],
+  "merge_base": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "ahead_behind_origin_main_candidate": "0\t3",
+  "remote_readback": {
+    "origin_main": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+    "origin_candidate": "a62d4dd6aa735c997076b4322768c99760726e8e",
+    "origin_push_main": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+    "origin_push_candidate": "a62d4dd6aa735c997076b4322768c99760726e8e",
+    "origin_push_delivery_alias": "a62d4dd6aa735c997076b4322768c99760726e8e"
+  },
+  "contract_checks": {
+    "task_input_package_present": false,
+    "candidate_pushed": true,
+    "origin_main_is_merge_base": true,
+    "candidate_clean_detached_worktree": true,
+    "contains_t1711_state_machine": true,
+    "contains_t1712_migration": true
+  },
+  "matrix": [
+    {
+      "name": "state_machine_focused",
+      "command": "go test ./internal/projectmanager/service -run 'Test(ActiveUnresolvedGraphConditions|PlanCompletion_)' -count=1 -v",
+      "status": "PASS"
+    },
+    {
+      "name": "migration_focused",
+      "command": "go test ./internal/cli -run 'Test(MigrateOrphanConditions|Arch_NoDirectPersistenceOpenInHandlers)' -count=1 -v",
+      "status": "PASS"
+    },
+    {
+      "name": "focused_race",
+      "command": "go test -race ./internal/projectmanager/service -run 'Test(ActiveUnresolvedGraphConditions|PlanCompletion_)' -count=1 -v",
+      "status": "PASS"
+    },
+    {
+      "name": "full_go",
+      "command": "go test ./...",
+      "status": "RED",
+      "failure": "tests/e2e TestDeployedBinaryRuntimeVersion_AdoptedOldRuntimeSkewFails old runtime pid mismatch: health=8720 pidstore=8852"
+    },
+    {
+      "name": "failed_e2e_rerun",
+      "command": "go test ./tests/e2e -run '^TestDeployedBinaryRuntimeVersion_AdoptedOldRuntimeSkewFails$' -count=1 -v",
+      "status": "PASS"
+    },
+    {
+      "name": "integration",
+      "command": "go test ./tests/integration -count=1",
+      "status": "PASS"
+    },
+    {
+      "name": "http_api_focused",
+      "command": "go test ./internal/webconsole/api -run 'Test.*Plan|Test.*Progress|Test.*Gate|Test.*Condition|Test.*Completion' -count=1 -v",
+      "status": "PASS"
+    },
+    {
+      "name": "broad_race",
+      "command": "go test -race -count=1 ./internal/cli ./internal/projectmanager/...",
+      "status": "INCOMPLETE",
+      "failure": "Stopped after extended nonterminal run with no output"
+    }
+  ],
+  "reject_reasons": [
+    "self-contained task-input/v1 package absent",
+    "complete go test ./... matrix returned RED",
+    "broader race package matrix did not complete"
+  ]
+}
