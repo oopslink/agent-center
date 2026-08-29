@@ -29,7 +29,7 @@ func (s *Service) ensureProgressHoldForBlockedOn(ctx context.Context, p *pm.Plan
 		TaskID:           b.TaskID,
 		NodeID:           b.NodeID,
 		ReasonKind:       "blocked_on",
-		ReasonID:         string(b.WaitType) + ":" + strings.Join(b.WaitKeys, ","),
+		ReasonID:         blockedOnReasonID(b),
 		OwnerRef:         owner,
 		OwnerDisplay:     owner,
 		EnteredAt:        b.WaitedSince,
@@ -57,10 +57,172 @@ func (s *Service) ensureProgressHoldForBlockedOn(ctx context.Context, p *pm.Plan
 		ID: "human:" + string(p.ID()) + ":" + string(b.TaskID), PlanID: p.ID(), TaskID: b.TaskID, NodeID: b.NodeID,
 		Kind: pm.ObligationHumanDecision, OwnerRef: pm.IdentityRef(owner), OwnerDisplay: owner,
 		DeadlineAt: deadline, AckRequired: true, EscalateToRef: "role:operational-owner",
-		EscalationDeadlineAt: deadline, SourceFactRefs: []string{"blocked_on:" + string(b.WaitType) + ":" + strings.Join(b.WaitKeys, ",")},
+		EscalationDeadlineAt: deadline, SourceFactRefs: []string{blockedOnSourceFactRef(b)},
 		Status: pm.ResponsibilityOpen, CreatedAt: now, UpdatedAt: now, Version: 1,
 	})
 	return err
+}
+
+func blockedOnReasonID(b pm.BlockedOn) string {
+	return string(b.WaitType) + ":" + strings.Join(b.WaitKeys, ",")
+}
+
+func blockedOnSourceFactRef(b pm.BlockedOn) string {
+	return "blocked_on:" + blockedOnReasonID(b)
+}
+
+func blockedOnSourceFactRefForReason(reasonID string) string {
+	return "blocked_on:" + reasonID
+}
+
+func blockedOnWakeKey(planID pm.PlanID, taskID pm.TaskID, reasonID string) string {
+	return fmt.Sprintf("blocked_on:%s:%s:%s", planID, taskID, reasonID)
+}
+
+func blockedOnReasonNeedsExecutableReleaseFact(reasonID string) bool {
+	waitType, _, ok := strings.Cut(reasonID, ":")
+	if !ok {
+		waitType = reasonID
+	}
+	switch pm.WaitType(waitType) {
+	case pm.WaitHumanDecision, pm.WaitAcceptanceVerdict:
+		return true
+	default:
+		return false
+	}
+}
+
+func sameBlockedOnDescriptor(a, b pm.BlockedOn) bool {
+	return a.WaitType == b.WaitType && stringSlicesEqual(a.WaitKeys, b.WaitKeys)
+}
+
+func (s *Service) releaseStaleBlockedOnProgress(ctx context.Context, p *pm.Plan, b pm.BlockedOn, now time.Time) error {
+	if s.progress == nil || p == nil || b.TaskID == "" || !missingExecutableReleaseFact(b) {
+		return nil
+	}
+	owner := p.CreatorRef()
+	if owner == "" {
+		owner = "role:operational-owner"
+	}
+	return s.releaseStaleBlockedOnProgressByReason(ctx, p, b.TaskID, blockedOnReasonID(b), owner, now)
+}
+
+func (s *Service) releaseStaleBlockedOnProgressExcept(ctx context.Context, p *pm.Plan, taskID pm.TaskID, currentReasonID string, now time.Time) error {
+	if s.progress == nil || p == nil || taskID == "" {
+		return nil
+	}
+	owner := p.CreatorRef()
+	if owner == "" {
+		owner = "role:operational-owner"
+	}
+	holds, err := s.progress.ListOpenHoldsByTask(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	var wakes []pm.ProgressWake
+	for _, h := range holds {
+		if h.PlanID != p.ID() {
+			continue
+		}
+		switch h.ReasonKind {
+		case "blocked_on":
+			if h.ReasonID == currentReasonID || h.OwnerRef != string(owner) || !blockedOnReasonNeedsExecutableReleaseFact(h.ReasonID) {
+				continue
+			}
+			if err := s.releaseStaleBlockedOnProgressByReason(ctx, p, taskID, h.ReasonID, owner, now); err != nil {
+				return err
+			}
+		case string(pm.ProgressObligationAckWake):
+			wakeID, ok := strings.CutPrefix(h.ReasonID, "obl:")
+			if !ok || wakeID == "" {
+				continue
+			}
+			if wakes == nil {
+				var err error
+				wakes, err = s.progress.ListWakesByTask(ctx, p.ID(), taskID)
+				if err != nil {
+					return err
+				}
+			}
+			for _, w := range wakes {
+				if w.ID != wakeID || !progressWakeMissingExecutableReleaseFact(w) {
+					continue
+				}
+				if currentReasonID != "" && w.IdempotencyKey == blockedOnWakeKey(p.ID(), taskID, currentReasonID) {
+					continue
+				}
+				if err := s.releaseStaleBlockedOnWake(ctx, p.ID(), taskID, w, now); err != nil {
+					return err
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (s *Service) releaseStaleBlockedOnWake(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, w pm.ProgressWake, now time.Time) error {
+	factRef := "blocked_on_wake_replaced:" + string(taskID) + ":" + w.ID
+	if _, err := s.progress.ReleaseHoldsByScopedReason(ctx, planID, taskID, string(pm.ProgressObligationAckWake), "obl:"+w.ID, w.OwnerRef, factRef, now); err != nil {
+		return err
+	}
+	if _, err := s.progress.ResolveOpenObligationsBySourceRef(ctx, planID, taskID, w.OwnerRef, w.ID, factRef, now); err != nil {
+		return err
+	}
+	if _, err := s.progress.ResolveOpenIncidentsBySource(ctx, planID, taskID, w.ID, factRef, now); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Service) releaseStaleBlockedOnProgressByReason(ctx context.Context, p *pm.Plan, taskID pm.TaskID, reasonID string, owner pm.IdentityRef, now time.Time) error {
+	if s.progress == nil || p == nil || taskID == "" || !blockedOnReasonNeedsExecutableReleaseFact(reasonID) {
+		return nil
+	}
+	factRef := "blocked_on_replaced:" + string(taskID) + ":" + reasonID
+	holds, err := s.progress.ListOpenHoldsByTask(ctx, taskID)
+	if err != nil {
+		return err
+	}
+	for _, h := range holds {
+		if h.PlanID != p.ID() || h.ReasonKind != "blocked_on" || h.ReasonID != reasonID || h.OwnerRef != string(owner) {
+			continue
+		}
+		if _, err := s.progress.ResolveOpenIncidentsBySource(ctx, p.ID(), taskID, h.ID, factRef, now); err != nil {
+			return err
+		}
+	}
+	if _, err := s.progress.ReleaseHoldsByScopedReason(ctx, p.ID(), taskID, "blocked_on", reasonID, owner, factRef, now); err != nil {
+		return err
+	}
+	if _, err := s.progress.ResolveOpenObligationsBySourceRef(ctx, p.ID(), taskID, owner, blockedOnSourceFactRefForReason(reasonID), factRef, now); err != nil {
+		return err
+	}
+	wakes, err := s.progress.ListWakesByTask(ctx, p.ID(), taskID)
+	if err != nil {
+		return err
+	}
+	for _, w := range wakes {
+		if w.IdempotencyKey != blockedOnWakeKey(p.ID(), taskID, reasonID) {
+			continue
+		}
+		if err := s.releaseStaleBlockedOnWake(ctx, p.ID(), taskID, w, now); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) pruneStaleBlockedOnProgressForTask(ctx context.Context, p *pm.Plan, taskID pm.TaskID, now time.Time) error {
+	if s.progress == nil || p == nil || taskID == "" || s.plans == nil {
+		return nil
+	}
+	currentReasonID := ""
+	if current, ok, err := s.plans.GetBlockedOn(ctx, p.ID(), taskID); err != nil {
+		return err
+	} else if ok && missingExecutableReleaseFact(current) {
+		currentReasonID = blockedOnReasonID(current)
+	}
+	return s.releaseStaleBlockedOnProgressExcept(ctx, p, taskID, currentReasonID, now)
 }
 
 // WaitHumanDecisionForPrerequisite records the only legal form of “continue
@@ -97,7 +259,7 @@ func (s *Service) recordProgressWakeRequested(ctx context.Context, p *pm.Plan, b
 		return nil
 	}
 	now := s.clock.Now()
-	key := fmt.Sprintf("blocked_on:%s:%s:%s:%s", p.ID(), b.TaskID, b.WaitType, strings.Join(b.WaitKeys, ","))
+	key := blockedOnWakeKey(p.ID(), b.TaskID, blockedOnReasonID(b))
 	w := pm.ProgressWake{
 		ID:                   s.id("wake"),
 		PlanID:               p.ID(),
@@ -299,6 +461,32 @@ func (s *Service) guardPlanProgressHolds(ctx context.Context, planID pm.PlanID, 
 	if s.progress == nil {
 		return nil
 	}
+	if s.plans != nil {
+		p, err := s.plans.FindByID(ctx, planID)
+		if err != nil {
+			return err
+		}
+		holds, err := s.progress.ListOpenHoldsByPlan(ctx, planID)
+		if err != nil {
+			return err
+		}
+		seen := make(map[pm.TaskID]struct{})
+		for _, h := range holds {
+			if h.TaskID == "" {
+				continue
+			}
+			if h.ReasonKind != "blocked_on" && h.ReasonKind != string(pm.ProgressObligationAckWake) {
+				continue
+			}
+			if _, ok := seen[h.TaskID]; ok {
+				continue
+			}
+			seen[h.TaskID] = struct{}{}
+			if err := s.pruneStaleBlockedOnProgressForTask(ctx, p, h.TaskID, s.clock.Now()); err != nil {
+				return err
+			}
+		}
+	}
 	holds, err := s.progress.ListOpenHoldsByPlan(ctx, planID)
 	if err != nil {
 		return err
@@ -309,6 +497,21 @@ func (s *Service) guardPlanProgressHolds(ctx context.Context, planID pm.PlanID, 
 func (s *Service) guardTaskProgressHolds(ctx context.Context, taskID pm.TaskID, dispatch, acceptance, completion bool) error {
 	if s.progress == nil {
 		return nil
+	}
+	if s.tasks != nil && s.plans != nil {
+		t, err := s.tasks.FindByID(ctx, taskID)
+		if err != nil {
+			return err
+		}
+		if t.PlanID() != "" {
+			p, err := s.plans.FindByID(ctx, t.PlanID())
+			if err != nil {
+				return err
+			}
+			if err := s.pruneStaleBlockedOnProgressForTask(ctx, p, taskID, s.clock.Now()); err != nil {
+				return err
+			}
+		}
 	}
 	holds, err := s.progress.ListOpenHoldsByTask(ctx, taskID)
 	if err != nil {

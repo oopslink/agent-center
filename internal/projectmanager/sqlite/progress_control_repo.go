@@ -130,6 +130,25 @@ func (r *ProgressControlRepo) ListExpiredUnackedWakes(ctx context.Context, now t
 	return out, rows.Err()
 }
 
+func (r *ProgressControlRepo) ListWakesByTask(ctx context.Context, planID pm.PlanID, taskID pm.TaskID) ([]pm.ProgressWake, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	rows, err := exec.QueryContext(ctx, `SELECT id, plan_id, task_id, node_id, owner_ref, owner_display, reason, status, idempotency_key, requested_at, delivered_at, acknowledged_at, ack_fact_ref, ack_deadline, max_hold_duration_ms, escalation_level, next_escalation_at, organization_owner_ref
+		FROM pm_progress_wakes WHERE plan_id=? AND task_id=? ORDER BY requested_at, id`, string(planID), string(taskID))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []pm.ProgressWake
+	for rows.Next() {
+		w, err := scanWake(rows.Scan)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
 func scanWake(scan func(...any) error) (pm.ProgressWake, error) {
 	var w pm.ProgressWake
 	var planID, taskID, owner, requested, delivered, acked, ackDeadline, next string
@@ -270,6 +289,20 @@ func (r *ProgressControlRepo) ResolveOpenObligationsByFact(ctx context.Context, 
 	return int(n), err
 }
 
+func (r *ProgressControlRepo) ResolveOpenObligationsBySourceRef(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, actor pm.IdentityRef, sourceRef string, factRef string, at time.Time) (int, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_control_obligations
+		SET status='resolved', acked_at=?, updated_at=?, source_fact_refs=?
+		WHERE plan_id=? AND (?='' OR task_id=?) AND status='open' AND owner_ref=?
+		  AND EXISTS (SELECT 1 FROM json_each(pm_progress_control_obligations.source_fact_refs) WHERE value=?)`,
+		ts(at), ts(at), encodeStrings([]string{factRef}), string(planID), string(taskID), string(taskID), string(actor), sourceRef)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	return int(n), err
+}
+
 func (r *ProgressControlRepo) ResolveOpenIncidentsBySource(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, sourceRef string, factRef string, at time.Time) (int, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_control_incidents
@@ -341,6 +374,17 @@ func (r *ProgressControlRepo) ReleaseHoldsByReason(ctx context.Context, reasonKi
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_holds SET released_at=?, release_fact_ref=? WHERE reason_kind=? AND reason_id=? AND released_at='' AND owner_ref=?`,
 		ts(at), factRef, reasonKind, reasonID, string(actor))
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	return int(n), err
+}
+
+func (r *ProgressControlRepo) ReleaseHoldsByScopedReason(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, reasonKind, reasonID string, actor pm.IdentityRef, factRef string, at time.Time) (int, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	res, err := exec.ExecContext(ctx, `UPDATE pm_progress_holds SET released_at=?, release_fact_ref=? WHERE plan_id=? AND task_id=? AND reason_kind=? AND reason_id=? AND released_at='' AND owner_ref=?`,
+		ts(at), factRef, string(planID), string(taskID), reasonKind, reasonID, string(actor))
 	if err != nil {
 		return 0, err
 	}

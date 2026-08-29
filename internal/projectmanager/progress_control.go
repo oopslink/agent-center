@@ -346,6 +346,7 @@ type ProgressControlRepository interface {
 	RecordWake(context.Context, ProgressWake) (bool, error)
 	MarkWakeDelivered(context.Context, string, time.Time) error
 	AcknowledgeWake(context.Context, string, IdentityRef, time.Time, string) (bool, error)
+	ListWakesByTask(context.Context, PlanID, TaskID) ([]ProgressWake, error)
 	ListExpiredUnackedWakes(context.Context, time.Time, int) ([]ProgressWake, error)
 	UpsertObligation(context.Context, ProgressObligation) (bool, error)
 	UpsertIncident(context.Context, ProgressIncident) (bool, error)
@@ -356,7 +357,9 @@ type ProgressControlRepository interface {
 	ListBreachedHolds(context.Context, time.Time, int) ([]ProgressHold, error)
 	ReleaseHoldsByFact(context.Context, PlanID, TaskID, IdentityRef, string, time.Time) (int, error)
 	ReleaseHoldsByReason(context.Context, string, string, IdentityRef, string, time.Time) (int, error)
+	ReleaseHoldsByScopedReason(context.Context, PlanID, TaskID, string, string, IdentityRef, string, time.Time) (int, error)
 	ResolveOpenObligationsByFact(context.Context, PlanID, TaskID, IdentityRef, string, time.Time) (int, error)
+	ResolveOpenObligationsBySourceRef(context.Context, PlanID, TaskID, IdentityRef, string, string, time.Time) (int, error)
 	ResolveOpenIncidentsBySource(context.Context, PlanID, TaskID, string, string, time.Time) (int, error)
 	UpsertPrerequisiteSubscription(context.Context, ProgressPrerequisiteSubscription) (bool, error)
 	ListOpenPrerequisiteSubscriptions(context.Context, time.Time, int) ([]ProgressPrerequisiteSubscription, error)

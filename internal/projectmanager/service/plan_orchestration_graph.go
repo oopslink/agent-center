@@ -1039,7 +1039,19 @@ func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error 
 		if cerr != nil {
 			return cerr
 		}
+		prev, hadPrev, gerr := s.plans.GetBlockedOn(txCtx, planID, n.TaskID)
+		if gerr != nil {
+			return gerr
+		}
 		if clear {
+			if hadPrev {
+				if err := s.releaseStaleBlockedOnProgress(txCtx, p, prev, now); err != nil {
+					return err
+				}
+			}
+			if err := s.releaseStaleBlockedOnProgressExcept(txCtx, p, n.TaskID, "", now); err != nil {
+				return err
+			}
 			if err := s.plans.ClearBlockedOn(txCtx, planID, n.TaskID); err != nil {
 				return err
 			}
@@ -1059,17 +1071,21 @@ func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error 
 		// and carry the router-owned probe history (last_probe_at / probe_count) forward so
 		// the sweep never clobbers it. A wait_type CHANGE is a genuinely new wait —
 		// waited_since resets to now (above) and the stale probe history is dropped.
-		var prev pm.BlockedOn
-		var hadPrev bool
-		if got, ok, gerr := s.plans.GetBlockedOn(txCtx, planID, n.TaskID); gerr != nil {
-			return gerr
-		} else if ok && got.WaitType == cls.waitType {
-			prev, hadPrev = got, true
-			b.WaitedSince = got.WaitedSince
-			b.LastProbeAt = got.LastProbeAt
-			b.ProbeCount = got.ProbeCount
-		} else if ok {
-			prev, hadPrev = got, true
+		if hadPrev && sameBlockedOnDescriptor(prev, b) {
+			b.WaitedSince = prev.WaitedSince
+			b.LastProbeAt = prev.LastProbeAt
+			b.ProbeCount = prev.ProbeCount
+		} else if hadPrev {
+			if err := s.releaseStaleBlockedOnProgress(txCtx, p, prev, now); err != nil {
+				return err
+			}
+		}
+		currentReasonID := ""
+		if missingExecutableReleaseFact(b) {
+			currentReasonID = blockedOnReasonID(b)
+		}
+		if err := s.releaseStaleBlockedOnProgressExcept(txCtx, p, n.TaskID, currentReasonID, now); err != nil {
+			return err
 		}
 		// I103 §2: (re)ASSIGN the deadline + on_timeout action from the policy, measured
 		// from waited_since. Because waited_since is preserved for an unchanged wait, the
