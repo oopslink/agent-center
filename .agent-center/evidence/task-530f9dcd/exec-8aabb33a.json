@@ -1,0 +1,251 @@
+{
+  "task_id": "task-530f9dcd",
+  "execution_id": "exec-8aabb33a",
+  "reviewed_sha": "48a9758a0425101d814427e2f0859c8ce1c157db",
+  "base_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files -g 'task-input/v1/**' -g '\"'!**/.git/**'\"'\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'find task-input -maxdepth 4 -type f -print'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"ls -la \u0026\u0026 find . -maxdepth 3 -type f -name 'README.md' -o -name 'manifest.json'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"rg -n \\\"adopted|old-runtime|runtime|skew|state machine|state-machine|migration|migrate|HTTP|API|api|integration\\\" tests internal -g '*_test.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/ac-exec/task-5866c095/manual-recovery'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git status --porcelain=v1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git fetch --prune origin refs/heads/ac-exec/task-5866c095/manual-recovery'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git checkout --detach 5a18901eaea33c48247e2e8847a29f1d66038d40 \u0026\u0026 git rev-parse HEAD \u0026\u0026 git merge-base HEAD a62d4dd6aa735c997076b4322768c99760726e8e \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"rg -n \\\"func Test.*(Skew|Runtime|Adopt|Readopt|Restart|Terminal|State|Migration|HTTP|API|INT|Migrate|Final|complete|Complete|terminal)\\\" tests internal -g '*_test.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"find tests internal -path '*_test.go' -maxdepth 5 -print | sed 's#\"'^#/#'\"' | head -500\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"sed -n '1,340p' tests/e2e/deployed_runtime_version_smoke_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/projectmanager/state_machine_test.go \u0026\u0026 sed -n '1,260p' internal/projectmanager/service/plan_completion_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/persistence/migration_round_trip_test.go \u0026\u0026 sed -n '1,240p' internal/conversation/service/follow_state_upgrade_test.go \u0026\u0026 sed -n '1,180p' internal/conversation/sqlite/message_thread_upgrade_acc_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'mkdir -p evidence/t1752-reverify-5a18901e/logs evidence/t1752-reverify-5a18901e/meta'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc 'chmod +x evidence/t1752-reverify-5a18901e/run_gate.sh \u0026\u0026 ./evidence/t1752-reverify-5a18901e/run_gate.sh git_world_state git status --short --branch \u0026\u0026 ./evidence/t1752-reverify-5a18901e/run_gate.sh git_head git rev-parse HEAD \u0026\u0026 ./evidence/t1752-reverify-5a18901e/run_gate.sh git_merge_base git merge-base HEAD a62d4dd6aa735c997076b4322768c99760726e8e \u0026\u0026 ./evidence/t1752-reverify-5a18901e/run_gate.sh git_ls_remote git ls-remote origin refs/heads/ac-exec/task-5866c095/manual-recovery'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"./evidence/t1752-reverify-5a18901e/run_gate.sh focused_e2e_adopted_old_runtime_skew_count5 go test -timeout=30m -count=5 ./tests/e2e -run '\"'^TestDeployedBinaryRuntimeVersion_AdoptedOldRuntimeSkewFails$'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc './evidence/t1752-reverify-5a18901e/run_gate.sh full_go_test_all go test ./...'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc './evidence/t1752-reverify-5a18901e/run_gate.sh broad_race_cli_projectmanager go test -race -timeout=30m -count=1 ./internal/cli ./internal/projectmanager/...'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc \"./evidence/t1752-reverify-5a18901e/run_gate.sh terminal_state_machine_focused go test -timeout=30m -count=1 ./internal/projectmanager ./internal/projectmanager/service ./internal/projectmanager/sqlite ./internal/observability/query -run 'Test(TaskStatus_IsTerminal_Partition|TaskTerminalStatusesCannotReopen|TaskReopenedIsRetired|TaskSetStatus_TerminalMonotonic|ActiveTaskStatuses_MatchesIsTerminal|Stats_Executions_CountsActiveAndTerminal|ListRunnableAgentTasks_CompletedPoolTaskCannotReopen|Plan_Archive_RequiresTerminalLifecycle|TaskRepo_CountActiveByAssignee_ExcludesTerminalPlanTasks|StageGate_.*Terminal|IssueDerivedDone_EmitsOnlyWhenAllTerminal)\"'$'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"./evidence/t1752-reverify-5a18901e/run_gate.sh historical_migration_focused go test -timeout=30m -count=1 ./internal/persistence ./internal/conversation/service ./internal/conversation/sqlite ./internal/projectmanager/service -run 'Test(Migrations_FullRoundTrip|Migration_.*|Migration0.*|UpgradeAcc_Migrate0057_PreservesLegacyMessagesAsRoots|FollowState_CrossVersionUpgrade_NonEmptyDB|PlanCompletion_.*Legacy|PlanCompletion_RemediatedHistorical.*)\"'$'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc './evidence/t1752-reverify-5a18901e/run_gate.sh integration_tests go test -timeout=30m -count=1 ./tests/integration'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc \"./evidence/t1752-reverify-5a18901e/run_gate.sh http_api_focused go test -timeout=30m -count=1 ./internal/admin/api ./internal/webconsole/api -run 'Test.*(API|HTTP|Handler|CompleteTask|ForkExecutor|Env|Environment|Permissions|SystemVersion|Access|Agent|Task|Plan|Org|Conversation|Members|Runtime|Bootstrap|Signin|Health)'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc \"rg -n \\\"FAIL|panic:|timeout|TIMEOUT|INCOMPLETE|no tests to run|\\\\[no test files\\\\]\\\" evidence/t1752-reverify-5a18901e/logs\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc \"for f in evidence/t1752-reverify-5a18901e/meta/*.json; do printf '%s ' \\\"\"'$f\"; tr -d '\"'\\\\n' \u003c \\\"\"'$f\"; printf '\"'\\\\n'; done\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'tail -n 20 evidence/t1752-reverify-5a18901e/logs/focused_e2e_adopted_old_runtime_skew_count5.log \u0026\u0026 tail -n 20 evidence/t1752-reverify-5a18901e/logs/full_go_test_all.log \u0026\u0026 tail -n 20 evidence/t1752-reverify-5a18901e/logs/broad_race_cli_projectmanager.log \u0026\u0026 tail -n 20 evidence/t1752-reverify-5a18901e/logs/http_api_focused.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc 'cat evidence/t1752-reverify-5a18901e/logs/git_head.log \u0026\u0026 cat evidence/t1752-reverify-5a18901e/logs/git_merge_base.log \u0026\u0026 cat evidence/t1752-reverify-5a18901e/logs/git_ls_remote.log \u0026\u0026 cat evidence/t1752-reverify-5a18901e/logs/git_world_state.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc \"git diff --stat -- . ':(exclude)evidence/t1752-reverify-5a18901e' \u0026\u0026 git status --short\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc \"jq . evidence/t1752-reverify-5a18901e/verdict.json \u003e/dev/null \u0026\u0026 jq -r '.verdict, .reviewed_sha, .base_sha, .summary' evidence/t1752-reverify-5a18901e/verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc \"git diff --stat -- . ':(exclude)evidence/t1752-reverify-5a18901e' \u0026\u0026 find evidence/t1752-reverify-5a18901e -type f -maxdepth 3 -print | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc '(cd evidence/t1752-reverify-5a18901e \u0026\u0026 find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 shasum -a 256) \u003e evidence/t1752-reverify-5a18901e/SHA256SUMS \u0026\u0026 tail -n 5 evidence/t1752-reverify-5a18901e/SHA256SUMS'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc 'git add evidence/t1752-reverify-5a18901e \u0026\u0026 git status --short \u0026\u0026 git commit -m \"evidence: T1752 independent reverify\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_68",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git rev-parse HEAD''^ \u0026\u0026 git ls-remote origin refs/heads/ac-exec/task-530f9dcd/exec-8aabb33a'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'git push origin HEAD:refs/heads/ac-exec/task-530f9dcd/exec-8aabb33a'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc \"git config --get-regexp 'remote\\\\..*\\\\.(mirror|push|url|pushurl)'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-530f9dcd/exec-8aabb33a'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_77",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate --no-renames HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-530f9dcd/exec-8aabb33a \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-8aabb33a/command_events.jsonl",
+  "command_event_digest": "sha256:28e2569c2a22b875e1b69ba5f5dbf6cd2ad567febc65e4412d5846e3cf15cfa2",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "完成独立复验并推送 evidence-only artifact。",
+  "artifact_digest": "sha256:4f8bf9523e2b01979d049e20dad8919146fd8324a0334ce3815b218f0bcfb5e7",
+  "path": ".agent-center/evidence/task-530f9dcd/exec-8aabb33a.json",
+  "branch": ""
+}
