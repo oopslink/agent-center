@@ -1,0 +1,220 @@
+web/src/pages/InsightOverview.test.tsx:27:  slot_coverage_ratio: 0.9,
+web/src/pages/InsightOverview.test.tsx:58:function overview(overrides: Record<string, unknown> = {}) {
+web/src/pages/InsightOverview.test.tsx:108:  it('treats null, zero, low, partial, and representative coverage without guessing missing data as zero', async () => {
+web/src/pages/InsightOverview.test.tsx:110:      { slot_coverage_ratio: null, slot_utilization: null, want: 'Cannot determine' },
+web/src/pages/InsightOverview.test.tsx:111:      { slot_coverage_ratio: 0, slot_utilization: 0, want: 'Cannot determine' },
+web/src/pages/InsightOverview.test.tsx:112:      { slot_coverage_ratio: 0.001, slot_utilization: 0, want: 'Insufficient data' },
+web/src/pages/InsightOverview.test.tsx:113:      { slot_coverage_ratio: 0.499, slot_utilization: 0.3, want: 'Insufficient data' },
+web/src/pages/InsightOverview.test.tsx:114:      { slot_coverage_ratio: 0.5, slot_utilization: 0, want: '0% (partial observation)' },
+web/src/pages/InsightOverview.test.tsx:115:      { slot_coverage_ratio: 0.899, slot_utilization: 0.4, want: '40% (partial observation)' },
+web/src/pages/InsightOverview.test.tsx:116:      { slot_coverage_ratio: 0.9, slot_utilization: 0, want: '0%' },
+web/src/pages/InsightOverview.test.tsx:122:      if (item.slot_coverage_ratio === 0.001) {
+web/src/pages/InsightOverview.test.tsx:123:        expect(screen.getByTestId('insight-utilization-card')).toHaveTextContent('Observation coverage 0.1%');
+web/src/api/insights.ts:5:export type InsightFreshnessState = 'fresh' | 'stale' | 'rebuilding' | 'unavailable';
+web/src/api/insights.ts:29:  | 'no_sample'
+web/src/api/insights.ts:30:  | 'unknown'
+web/src/api/insights.ts:31:  | 'low_coverage'
+web/src/api/insights.ts:32:  | 'partial_coverage'
+web/src/api/insights.ts:33:  | 'stale'
+web/src/api/insights.ts:39:  coverage?: number | null;
+web/src/api/insights.ts:42:  sample_count?: number;
+web/src/api/insights.ts:50:  slot_coverage_ratio: InsightMetricEnvelope<number | null>;
+web/src/api/insights.ts:62:  slot_coverage_ratio: number | null;
+web/src/pages/InsightOverview.tsx:194:  const tone = freshness.state === 'fresh' ? 'border-success/30 bg-success/10 text-success' : freshness.state === 'stale' ? 'border-warning/30 bg-warning/10 text-warning' : 'border-danger/30 bg-danger/10 text-danger';
+web/src/pages/InsightOverview.tsx:201:  const tone = data.freshness.state === 'stale' ? 'warn' : 'danger';
+web/src/pages/InsightOverview.tsx:202:  return <StatePanel testId={`insight-${data.freshness.state}`} tone={tone} title={t(`insight.state.${data.freshness.state}`)} body={t('insight.state.staleBody', { time: formatClock(data.refreshed_at) })} />;
+web/src/pages/InsightOverview.tsx:207:  const coverage = classifyCoverage(summary.slot_coverage_ratio, summary.slot_utilization, t);
+web/src/pages/InsightOverview.tsx:212:      <MetricCard label={t('insight.metric.utilization')} value={coverage.value} sub={coverage.sub} tone={coverage.tone} testId="insight-utilization-card" />
+web/src/pages/InsightOverview.tsx:219:function MetricCard({ label, value, sub, tone = 'normal', testId }: { label: string; value: string; sub: string; tone?: 'normal' | 'unknown' | 'warn'; testId?: string }): React.ReactElement {
+web/src/pages/InsightOverview.tsx:220:  const cls = tone === 'warn' ? 'border-warning/40' : tone === 'unknown' ? 'border-text-muted/30' : 'border-border-base';
+web/src/pages/InsightOverview.tsx:239:  const c = classifyCoverage(summary.slot_coverage_ratio, summary.slot_utilization, t);
+web/src/pages/InsightOverview.tsx:241:  return <StatePanel testId="insight-coverage-notice" tone={c.kind === 'partial' ? 'warn' : 'muted'} title={t('insight.coverage.noticeTitle')} body={c.sub} />;
+web/src/pages/InsightOverview.tsx:429:function InsightError({ testIdPrefix, error, fallbackTitle }: { testIdPrefix: string; error: unknown; fallbackTitle: string }): React.ReactElement {
+web/src/pages/InsightOverview.tsx:447:function classifyCoverage(coverage: number | null, utilization: number | null, t: (key: string, options?: Record<string, unknown>) => string): { kind: 'unknown' | 'insufficient' | 'partial' | 'representative'; value: string; sub: string; tone: 'unknown' | 'warn' | 'normal' } {
+web/src/pages/InsightOverview.tsx:448:  const coverageLabel = formatCoverage(coverage);
+web/src/pages/InsightOverview.tsx:449:  if (coverage === null) return { kind: 'unknown', value: t('insight.coverage.unknown'), sub: t('insight.coverage.noBaseline'), tone: 'unknown' };
+web/src/pages/InsightOverview.tsx:450:  if (coverage === 0) return { kind: 'unknown', value: t('insight.coverage.unknown'), sub: t('insight.coverage.noObservation'), tone: 'unknown' };
+web/src/pages/InsightOverview.tsx:451:  if (coverage < 0.5) return { kind: 'insufficient', value: t('insight.coverage.insufficient'), sub: t('insight.coverage.insufficientSub', { coverage: coverageLabel }), tone: 'warn' };
+web/src/pages/InsightOverview.tsx:452:  if (utilization === null) return { kind: 'unknown', value: t('insight.coverage.unknown'), sub: t('insight.coverage.noAvailable'), tone: 'unknown' };
+web/src/pages/InsightOverview.tsx:453:  if (coverage < 0.9) return { kind: 'partial', value: `${formatRatio(utilization)} ${t('insight.coverage.partialSuffix')}`, sub: t('insight.coverage.partialSub', { coverage: coverageLabel }), tone: 'warn' };
+web/src/pages/InsightOverview.tsx:454:  return { kind: 'representative', value: formatRatio(utilization), sub: t('insight.coverage.representativeSub', { coverage: coverageLabel }), tone: 'normal' };
+web/src/pages/InsightOverview.tsx:457:function executionStatus(row: InsightExecutionRow, t: (key: string, options?: Record<string, unknown>) => string): { label: string; className: string } {
+web/src/pages/InsightOverview.tsx:466:  return { label: t('insight.status.unknown'), className: 'border-warning/30 bg-warning/10 text-warning' };
+web/src/pages/InsightOverview.tsx:469:function qualityLabel(quality: string, t: (key: string, options?: Record<string, unknown>) => string): string {
+web/src/pages/InsightOverview.tsx:474:function failureMessage(row: InsightExecutionRow, t: (key: string, options?: Record<string, unknown>) => string): string | null {
+web/src/pages/InsightOverview.tsx:561:function isAuthError(err: unknown): boolean {
+web/src/pages/InsightOverview.tsx:565:function envelopeFromError(err: unknown): Pick<InsightOverviewDTO, 'window' | 'refreshed_at' | 'freshness'> | null {
+internal/insight/helpers.go:102:		f.State = "stale"
+internal/insight/helpers.go:114:	if fresh.State == "fresh" || fresh.State == "stale" {
+internal/insight/helpers.go:134:	sum.Semantics.CompletedExecutions = metricEnvelope(sum.CompletedExecutions, semanticStatusCount(sum.CompletedExecutions), nil, fresh, win, nil)
+internal/insight/helpers.go:135:	sum.Semantics.FailedExecutions = metricEnvelope(sum.FailedExecutions, semanticStatusCount(sum.FailedExecutions), nil, fresh, win, nil)
+internal/insight/helpers.go:137:	sum.Semantics.FailureRate = metricEnvelope(sum.FailureRate, semanticStatusNullable(sum.FailureRate, completed), nil, fresh, win, &completed)
+internal/insight/helpers.go:138:	sum.Semantics.SlotUtilization = metricEnvelope(sum.SlotUtilization, utilizationStatus(sum.SlotUtilization, sum.SlotCoverageRatio), sum.SlotCoverageRatio, fresh, win, nil)
+internal/insight/helpers.go:139:	sum.Semantics.SlotCoverageRatio = metricEnvelope(sum.SlotCoverageRatio, coverageStatus(sum.SlotCoverageRatio), sum.SlotCoverageRatio, fresh, win, nil)
+internal/insight/helpers.go:142:	sum.Semantics.QueueWaitP50MS = metricEnvelope(sum.QueueWaitMS.P50, percentileStatus(sum.QueueWaitMS.P50, qSamples), nil, fresh, win, &qSamples)
+internal/insight/helpers.go:143:	sum.Semantics.QueueWaitP95MS = metricEnvelope(sum.QueueWaitMS.P95, percentileStatus(sum.QueueWaitMS.P95, qSamples), nil, fresh, win, &qSamples)
+internal/insight/helpers.go:144:	sum.Semantics.ExecutionDurationP50 = metricEnvelope(sum.ExecutionDurationMS.P50, percentileStatus(sum.ExecutionDurationMS.P50, dSamples), nil, fresh, win, &dSamples)
+internal/insight/helpers.go:145:	sum.Semantics.ExecutionDurationP95 = metricEnvelope(sum.ExecutionDurationMS.P95, percentileStatus(sum.ExecutionDurationMS.P95, dSamples), nil, fresh, win, &dSamples)
+internal/insight/helpers.go:148:func metricEnvelope(value any, status string, coverage *float64, fresh Freshness, win Window, samples *int64) MetricEnvelope {
+internal/insight/helpers.go:149:	if fresh.State == "stale" && status == "ok" {
+internal/insight/helpers.go:150:		status = "stale"
+internal/insight/helpers.go:152:	return MetricEnvelope{Value: value, Status: status, Coverage: coverage, Freshness: &fresh, Window: &win, SampleCount: samples}
+internal/insight/helpers.go:155:func semanticStatusCount(v int64) string {
+internal/insight/helpers.go:162:func semanticStatusNullable(v any, samples int64) string {
+internal/insight/helpers.go:165:			return "no_sample"
+internal/insight/helpers.go:167:		return "unknown"
+internal/insight/helpers.go:172:func percentileStatus(v *int64, samples int64) string {
+internal/insight/helpers.go:175:			return "no_sample"
+internal/insight/helpers.go:177:		return "unknown"
+internal/insight/helpers.go:182:func coverageStatus(cov *float64) string {
+internal/insight/helpers.go:184:		return "unknown"
+internal/insight/helpers.go:187:		return "low_coverage"
+internal/insight/helpers.go:190:		return "partial_coverage"
+internal/insight/helpers.go:195:func utilizationStatus(util, cov *float64) string {
+internal/insight/helpers.go:197:		return "unknown"
+internal/insight/helpers.go:199:	return coverageStatus(cov)
+internal/insight/helpers.go:206:	r.StatusSemantic = executionStatusSemantic(r)
+internal/insight/helpers.go:210:func executionStatusSemantic(r *ExecutionRow) ExecutionStatusSemantic {
+internal/insight/helpers.go:363:		) WHERE known_to > CAST(? AS TIMESTAMP) AND `+where+` AND valid_from < CAST(? AS TIMESTAMPTZ) AND COALESCE(valid_to, CAST(? AS TIMESTAMPTZ)) > CAST(? AS TIMESTAMPTZ) AND state <> 'unknown'`, args...)
+internal/insight/types.go:43:	SlotCoverageRatio   *float64          `json:"slot_coverage_ratio"`
+internal/insight/types.go:52:	Coverage    *float64   `json:"coverage,omitempty"`
+internal/insight/types.go:55:	SampleCount *int64     `json:"sample_count,omitempty"`
+internal/insight/types.go:63:	SlotCoverageRatio    MetricEnvelope `json:"slot_coverage_ratio"`
+internal/insight/service.go:507:			agentRef = "agent:unknown"
+internal/insight/service_test.go:17:func TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild(t *testing.T) {
+internal/insight/service_test.go:171:	if overThreshold.Freshness.State != "stale" || overThreshold.Freshness.AgeMS != (ttl+time.Millisecond).Milliseconds() {
+internal/insight/service_test.go:172:		t.Fatalf("execution freshness over threshold = %+v, want stale age=%d", overThreshold.Freshness, (ttl + time.Millisecond).Milliseconds())
+internal/insight/service_test.go:357:		{SlotIndex: 0, State: concurrency.StateRunning, ExecutorID: "exec-stale", TaskID: "task-1"},
+internal/insight/service_test.go:380:		t.Fatal("slot coverage = nil, want one TTL-covered minute over the 24h window")
+internal/insight/service_test.go:384:		t.Fatalf("slot coverage = %.9f, want %.9f; time after heartbeat TTL must be unknown", *o.Summary.SlotCoverageRatio, want)
+internal/insight/service_test.go:429:	insertActivity(t, db, "start-unknown", "agent-1", "task-1", "exec-unknown", map[string]any{"event": "executor.start", "executor_id": "exec-unknown"}, asOf.Add(-20*time.Minute))
+internal/insight/service_test.go:430:	insertActivity(t, db, "stop-unknown", "agent-1", "task-1", "exec-unknown", map[string]any{"event": "executor.stop", "executor_id": "exec-unknown", "outcome": "future_terminal"}, asOf.Add(-19*time.Minute))
+internal/insight/service_test.go:461:	unknown := byID["exec-unknown"]
+internal/insight/service_test.go:462:	if unknown.StatusSemantic.State != "outcome_unavailable" || unknown.StatusSemantic.CountsAsFailure {
+internal/insight/service_test.go:463:		t.Fatalf("unknown outcome semantic = %+v", unknown.StatusSemantic)
+internal/insight/service_test.go:479:		t.Fatalf("leaderboard = %+v, want unknown outcome excluded from completed sort/count", overview.Agents)
+internal/insight/service_test.go:522:func TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce(t *testing.T) {
+internal/insight/service_test.go:575:func TestInsightPostCommitCrashRestartDoesNotDuplicate(t *testing.T) {
+internal/webconsole/api/handlers_coderepo_viewing_test.go:113:		t.Fatalf("unknown repo commits = %d, want 404", resp.StatusCode)
+internal/webconsole/api/handlers_pm_org_paginate_test.go:40:		t.Fatalf("unknown sort key must be dropped, got %q", pp.sortKey)
+internal/webconsole/api/handlers_teams_p3_test.go:199:		{name: "unknown", body: `{"name":"Imported","roles":[{"role":"reviewer","ram_role_keys":["Missing"]}]}`, status: http.StatusUnprocessableEntity, code: "ram_role_key_unknown"},
+internal/webconsole/api/handlers_teams_p3_test.go:276:		t.Fatalf("unknown template instances = %d, want 404", resp.StatusCode)
+internal/webconsole/api/handlers_teams_p2_test.go:197:		t.Fatalf("PATCH unknown = %d, want 404", resp.StatusCode)
+internal/webconsole/api/handlers_teams_p2_test.go:313:		t.Fatalf("get unknown = %d, want 404", resp.StatusCode)
+internal/webconsole/api/handlers_teams_p2_test.go:356:		t.Fatalf("extract unknown team = %d, want 404", resp.StatusCode)
+internal/webconsole/api/handlers_teams.go:344:		writeError(w, http.StatusUnprocessableEntity, "ram_role_key_unknown", err.Error())
+internal/webconsole/api/handlers_ai_runtime.go:223:					Path: path + "." + key, Message: "unknown schema v1 field was ignored",
+internal/webconsole/api/handlers_environment.go:100:// is fetched by id and a cross-org (or unknown) id returns 404, so an attacker
+internal/webconsole/api/handlers_environment.go:126:// the caller's org (unknown entity / cross-org / tmp / unscoped) is EXCLUDED, not
+internal/webconsole/api/handlers_environment.go:189:		// tmp + unscoped + unknown scope → not an org-resolvable view → exclude.
+internal/webconsole/api/handlers_permissions_test.go:221:		"reason":"regression coverage"
+internal/webconsole/api/org_routing_noshim_guard_test.go:11:// PATH slug is unknown but whose ?org_slug= query names the caller's valid org
+internal/webconsole/api/org_routing_noshim_guard_test.go:22:	// path slug unknown, but ?org_slug= names the caller's valid org →
+internal/webconsole/api/org_routing_noshim_guard_test.go:28:		t.Fatalf("no-shim violated: ?org_slug=%s resolved despite unknown path slug (got %d, want 400) — the legacy query is being read", sess.OrgSlug, resp.StatusCode)
+internal/webconsole/api/server_test.go:576:// /api/agents (removed in #185) and any unknown /api path returned 200 + the SPA
+internal/webconsole/api/server_test.go:933:	if body["version"] != "dev" || body["branch"] != "unknown" || body["commit"] != "unknown" || body["built_at"] != "unknown" {
+internal/webconsole/api/handlers_agent_test.go:270:// unknown id is 404 too.
+internal/webconsole/api/handlers_agent_test.go:295:		t.Fatalf("unknown agent get: got %d, want 404", resp.StatusCode)
+internal/webconsole/api/server.go:14:// frontend coverage).
+internal/webconsole/api/server.go:547:	// Without this, an unknown or wrong-method /api path (e.g. POST /api/agents
+internal/webconsole/api/server.go:590:		"branch":     fallback(s.deps.Branch, "unknown"),
+internal/webconsole/api/server.go:591:		"commit":     fallback(s.deps.Commit, "unknown"),
+internal/webconsole/api/server.go:592:		"built_at":   fallback(s.deps.BuiltAt, "unknown"),
+internal/webconsole/api/server.go:595:		"started_at": fallback(s.deps.StartedAt, "unknown"),
+internal/webconsole/api/server.go:600:			return "unknown"
+internal/webconsole/api/handlers_members.go:17:// or unknown org scope → 400; non-member → 403; unauthenticated → 401. On
+internal/webconsole/api/handlers_pm_plans.go:361:		writeError(w, http.StatusConflict, "remediation_proposal_stale", err.Error())
+internal/webconsole/api/handlers_insights_test.go:299:func TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound(t *testing.T) {
+internal/webconsole/api/handlers_agent_runtime_test.go:69:		t.Fatalf("unknown agent: status=%d want 404", resp.StatusCode)
+internal/webconsole/api/handlers_team_ram_roles_test.go:46:		t.Fatalf("stale replace=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+internal/webconsole/api/handlers_team_ram_roles_test.go:59:		t.Fatalf("stale write changed mapping: %#v", mapping)
+internal/webconsole/api/handlers_teams_p3.go:304:// since deleted (or moved out of the org) are skipped — a stale instance ref is
+internal/webconsole/api/handlers_teams_p2.go:1071:// the template is unknown — a raw create-team with a stale template_id).
+internal/webconsole/api/handlers_teams_p2.go:1085:// template id is unknown in the org.
+internal/webconsole/api/handlers_pm_org_260_test.go:31:	// T330: "discarded" (was the stale "withdrawn") must be excluded by default.
+internal/webconsole/api/handlers_pm_org_260_test.go:146:// DTO relies on. Tester's black-box de-risk left this to Dev unit coverage
+internal/webconsole/api/handlers_pm_plan_graph_test.go:376:func TestPlanGenerationAPI_G0GnLineageSnapshotReplayAndStaleConflicts(t *testing.T) {
+internal/webconsole/api/handlers_pm_plan_graph_test.go:445:	staleParent := fmt.Sprintf(`{"parent_generation_id":%q,"base_version":%d,"reason":"stale parent","evidence":"old lineage","idempotency_key":"stale-parent","diff":{"node_decisions":[],"tasks":[],"edges":[]}}`, fixture.g0, currentVersion)
+internal/webconsole/api/handlers_pm_plan_graph_test.go:446:	if resp := orgScopedPost(t, url+"/evolution", staleParent, sess); resp.StatusCode != 409 {
+internal/webconsole/api/handlers_pm_plan_graph_test.go:447:		t.Fatalf("stale parent status=%d want 409 body=%v", resp.StatusCode, decodeBody(t, resp))
+internal/webconsole/api/handlers_pm_plan_graph_test.go:449:	staleVersion := fmt.Sprintf(`{"parent_generation_id":%q,"base_version":%d,"reason":"stale version","evidence":"old version","idempotency_key":"stale-version","diff":{"node_decisions":[],"tasks":[],"edges":[]}}`, g1ID, fixture.version)
+internal/webconsole/api/handlers_pm_plan_graph_test.go:450:	if resp := orgScopedPost(t, url+"/evolution", staleVersion, sess); resp.StatusCode != 409 {
+internal/webconsole/api/handlers_pm_plan_graph_test.go:451:		t.Fatalf("stale version status=%d want 409 body=%v", resp.StatusCode, decodeBody(t, resp))
+internal/webconsole/api/handlers_teams_scrub_test.go:104:// TestTemplateScrub_NotFound locks the 404 for an unknown template id.
+internal/webconsole/api/handlers_teams_scrub_test.go:113:		t.Fatalf("scrub unknown template = %d, want 404", resp.StatusCode)
+internal/webconsole/api/handlers_pm_org.go:37:// T330: "withdrawn" was renamed "discarded" in v2.8.1 (issue.go) — the stale name
+internal/webconsole/api/handlers_thread_p3_classguard_test.go:16:// Dev's P3 coverage is the pure-fn (TestThreadHasNewActivity) + the sender-saw-own-
+internal/webconsole/api/handlers_files_scope_test.go:145:// TestAPI_TaskFiles_MissingOrCrossProject_404: an unknown task, or a task that
+internal/webconsole/api/handlers_files_scope_test.go:180:		t.Fatalf("unknown task: want 404, got %d body=%s", resp.StatusCode, b)
+internal/webconsole/api/handlers_environment_transfers_test.go:57:// Cross-org / tmp / expired / unknown-scope sessions are all EXCLUDED (no leak).
+internal/webconsole/api/handlers_environment_transfers_test.go:89:		t.Fatalf("got %d sessions, want 1 (only my-org live project session); cross-org/tmp/expired/unknown must be excluded: %+v", len(out.TransferSessions), out.TransferSessions)
+internal/webconsole/api/handlers_environment_transfers_test.go:163:// and a cross-org (or unknown) one is EXCLUDED, exercising transferSessionOrg's
+internal/webconsole/api/handlers_environment_transfers_test.go:176:	// agent scope: own-org agent (include), other-org agent (exclude), unknown (exclude).
+internal/webconsole/api/handlers_environment_transfers_test.go:181:	saveTransferSession(t, db, files.ScopeAgent, "agent-unknown", now, time.Hour)
+internal/webconsole/api/handlers_environment_transfers_test.go:228:	// Exactly 3 — every cross-org and unknown session excluded (fail-closed).
+internal/webconsole/api/handlers_environment_transfers_test.go:230:		t.Fatalf("got %d sessions, want exactly 3 own-org (agent/task/issue cross-org+unknown must be excluded): %+v", len(out.TransferSessions), out.TransferSessions)
+internal/webconsole/api/handlers.go:131:	// instance as the admin API's. nil → the endpoint reports stale (no live state).
+internal/webconsole/api/handlers.go:261:// Returns the resolved org ID, or empty string when the slug is missing/unknown
+internal/webconsole/api/handlers.go:277://  2. Resolves the target org via the {slug} path segment → returns 400 if missing/unknown.
+internal/webconsole/api/handlers.go:305:			"missing or unknown organization scope (use /api/orgs/{slug}/...)")
+internal/webconsole/api/handlers.go:331:	// transient org read — treat unknown as not-disabled, the membership check
+internal/webconsole/api/handlers.go:1130:// from the main list), in posted_at order. Cross-org / unknown-root → 404
+internal/webconsole/api/handlers.go:2442:	// Tear down any stale enroll token bound to this worker so the
+internal/webconsole/api/handlers_quote_test.go:176:		t.Fatalf("unknown quote target: got %d want 404", resp.StatusCode)
+internal/webconsole/api/handlers_environment_test.go:164:		t.Fatalf("get unknown: got %d, want 404", resp.StatusCode)
+internal/webconsole/api/handlers_access_test.go:134:		if item.SubjectRef == "unknown" || item.Permission == "unknown" || item.Resource.ID == "unknown" {
+internal/webconsole/api/handlers_access_test.go:135:			t.Fatalf("apply returned phantom unknown item: %+v", item)
+internal/webconsole/api/handlers_access_test.go:305:	var directReplay struct {
+internal/webconsole/api/handlers_access_test.go:315:	if err := json.NewDecoder(resp.Body).Decode(&directReplay); err != nil {
+internal/webconsole/api/handlers_access_test.go:319:	if directReplay.Summary.Succeeded != directConfirm.Summary.Succeeded || directReplay.Summary.Failed != directConfirm.Summary.Failed || len(directReplay.Items) != len(directConfirm.Items) || directReplay.Items[0].Status != directConfirm.Items[0].Status || directReplay.Items[0].GrantID != directConfirm.Items[0].GrantID {
+internal/webconsole/api/handlers_access_test.go:320:		t.Fatalf("direct revoke confirm replay = %+v, first = %+v", directReplay, directConfirm)
+internal/webconsole/api/handlers_access_test.go:778:	stale := orgScopedPost(t, server.URL+"/api/access/ram-roles/"+created.ID+"/versions", `{"expected_latest_version":0,"permissions":["team.read"]}`, sess)
+internal/webconsole/api/handlers_access_test.go:779:	if stale.StatusCode != http.StatusConflict {
+internal/webconsole/api/handlers_access_test.go:780:		t.Fatalf("stale new-version status=%d want 409", stale.StatusCode)
+internal/webconsole/api/handlers_access_test.go:782:	stale.Body.Close()
+internal/webconsole/api/handlers_access_test.go:819:	resp = orgScopedPost(t, server.URL+"/api/access/ram-roles/"+created.ID+"/revoke", `{"expected_latest_version":1,"reason":"stale"}`, sess)
+internal/webconsole/api/handlers_access_test.go:821:		t.Fatalf("stale revoke status=%d want 409", resp.StatusCode)
+internal/webconsole/api/handlers_thread_test.go:203:		t.Fatalf("unknown root: got %d want 404", resp.StatusCode)
+internal/webconsole/api/mint_enroll_test.go:338:	mintWorkerInOrg(t, &deps, sess, "worker-unknown")
+internal/webconsole/api/mint_enroll_test.go:341:	resp := orgScopedGet(t, srv.URL+"/api/workers/worker-unknown/install-command", sess)
+internal/webconsole/api/mint_enroll_test.go:420:// clicked re-mint on a stale Fleet row that got removed elsewhere).
+internal/webconsole/api/handlers_users_test.go:67:// v2.7.1 #214: unknown / non-user id → 404.
+internal/webconsole/api/coverage_test.go:81:	// (3) cookie but unknown org slug → 400 (must NOT return all data)
+internal/webconsole/api/coverage_test.go:86:		t.Fatalf("unknown org slug: got %d want 400", resp.StatusCode)
+internal/webconsole/api/coverage_test.go:598:// Error path coverage (force repo errors via closed DB)
+internal/webconsole/api/handlers_agent_concurrency_test.go:115:	if stale, _ := body["stale"].(bool); stale {
+internal/webconsole/api/handlers_agent_concurrency_test.go:116:		t.Errorf("fresh snapshot must not be stale")
+internal/webconsole/api/handlers_agent_concurrency_test.go:212:	memberID := createConcurrencyTestAgent(t, s.URL, sess, "stale-slots")
+internal/webconsole/api/handlers_agent_concurrency_test.go:223:	if stale, _ := body["stale"].(bool); !stale {
+internal/webconsole/api/handlers_agent_concurrency_test.go:224:		t.Fatalf("stale = %v, want true", body["stale"])
+internal/webconsole/api/handlers_agent_concurrency_test.go:231:	if empty["state"] != "unknown" {
+internal/webconsole/api/handlers_agent_concurrency_test.go:232:		t.Fatalf("stale empty slot state = %v, want unknown", empty["state"])
+internal/webconsole/api/handlers_agent_concurrency_test.go:302:// No snapshot for the agent → stale=true, active=0, but cap still resolves.
+internal/webconsole/api/handlers_agent_concurrency_test.go:323:	if stale, _ := body["stale"].(bool); !stale {
+internal/webconsole/api/handlers_agent_concurrency_test.go:324:		t.Error("no snapshot must report stale=true")
+internal/webconsole/api/handlers_analytics_f4_test.go:224:	// unknown agent id → 404.
+internal/webconsole/api/handlers_analytics_f4_test.go:227:		t.Fatalf("unknown agent: got %d, want 404", resp.StatusCode)
+internal/webconsole/api/handlers_agent_concurrency.go:15:// cadence, 30s) before the concurrency view is reported stale. A snapshot older than
+internal/webconsole/api/handlers_agent_concurrency.go:16:// this — or none at all — is returned as the last-known value with stale=true rather
+internal/webconsole/api/handlers_agent_concurrency.go:24:// none). A missing/stale snapshot → stale=true with the last-known (or empty) set.
+internal/webconsole/api/handlers_agent_concurrency.go:65:	// Three-state freshness (T606, issue-af03da2f): a single `stale` bool conflated
+internal/webconsole/api/handlers_agent_concurrency.go:72:	// worker — the common case for a non-concurrent agent). `stale` is retained as the
+internal/webconsole/api/handlers_agent_concurrency.go:75:	stale := true
+internal/webconsole/api/handlers_agent_concurrency.go:90:			stale = age > liveStateTTL
+internal/webconsole/api/handlers_agent_concurrency.go:136:				slots = append(slots, slotSnapshotMap(sl, !stale))
+internal/webconsole/api/handlers_agent_concurrency.go:165:		"stale":               stale,
+internal/webconsole/api/org_routing_prefix_guard_test.go:45:		t.Fatalf("only %d /api routes matched — regex likely stale vs server.go format", len(matches))
+internal/webconsole/api/handlers_files.go:237:// kind switch), or any unknown scheme resolves to no project → false, so the
+internal/webconsole/api/handlers_files.go:316:		writeError(w, http.StatusBadRequest, "invalid_scope", "unknown file scope")
+internal/webconsole/api/handlers_teams_test.go:143:	// unknown role (no config) → empty cli/model, non-nil tags.
+internal/webconsole/api/handlers_teams_test.go:146:		t.Errorf("unknown-role view = %v", v2)
+internal/webconsole/api/handlers_teams_test.go:149:		t.Errorf("unknown-role tags = %v, want non-nil []", v2["tags"])
+internal/webconsole/api/handlers_access.go:2235:		Permission:  "unknown",
+internal/webconsole/api/handlers_ai_runtime_test.go:523:				"unknown_root": true,
+internal/webconsole/api/handlers_ai_runtime_test.go:528:						"unknown_runtime": true,
+internal/webconsole/api/handlers_ai_runtime_test.go:533:							"unknown_cli":      true,
+internal/webconsole/api/handlers_ai_runtime_test.go:570:			want := []string{"$.document.runtime.clis[0].unknown_cli", "$.document.runtime.unknown_runtime", "$.unknown_root"}
+internal/webconsole/api/handlers_pm_test.go:114:// delete). This keeps the previously-removed ListProjects/ShowProject coverage
+internal/webconsole/api/handlers_pm_test.go:403:		t.Fatalf("unknown issue: status=%d, want 404", resp.StatusCode)
+internal/webconsole/api/handlers_pm_test.go:408:// NOT a project member is rejected (403), and an unknown/foreign project is 404.
+internal/webconsole/api/handlers_pm_test.go:432:		t.Fatalf("unknown project: status=%d, want 404", resp.StatusCode)

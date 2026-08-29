@@ -1,0 +1,24 @@
+=== RUN   TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild
+--- PASS: TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild (0.39s)
+=== RUN   TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild
+--- PASS: TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild (0.23s)
+=== RUN   TestInsightExecutionSemantics_ExposesRealMessagesAndTwentyFourHourDetailGate
+--- PASS: TestInsightExecutionSemantics_ExposesRealMessagesAndTwentyFourHourDetailGate (0.24s)
+=== RUN   TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap
+--- PASS: TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap (0.23s)
+=== RUN   TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval
+--- PASS: TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval (0.22s)
+=== RUN   TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail
+--- PASS: TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail (0.22s)
+=== RUN   TestInsightInvalidTimeOrder
+--- PASS: TestInsightInvalidTimeOrder (0.23s)
+=== RUN   TestInsightExecutionSemanticsMessagesAndDetailWindow
+--- PASS: TestInsightExecutionSemanticsMessagesAndDetailWindow (0.25s)
+=== RUN   TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow
+--- PASS: TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow (0.28s)
+=== RUN   TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce
+--- PASS: TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce (0.22s)
+=== RUN   TestInsightPostCommitCrashRestartDoesNotDuplicate
+--- PASS: TestInsightPostCommitCrashRestartDoesNotDuplicate (0.23s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/insight	3.372s

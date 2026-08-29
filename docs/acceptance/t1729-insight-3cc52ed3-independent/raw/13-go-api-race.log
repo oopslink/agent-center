@@ -1,0 +1,14 @@
+=== RUN   TestInsightsOverviewAPI_WindowValidationAndShape
+--- PASS: TestInsightsOverviewAPI_WindowValidationAndShape (7.37s)
+=== RUN   TestInsightsHTTPReadDoesNotTriggerProjection
+--- PASS: TestInsightsHTTPReadDoesNotTriggerProjection (5.65s)
+=== RUN   TestInsightsAPI_UnavailableResponseIncludesFreshnessEnvelope
+--- PASS: TestInsightsAPI_UnavailableResponseIncludesFreshnessEnvelope (5.03s)
+=== RUN   TestInsightsExecutionAPI_ReadsSingleProjectedExecution
+--- PASS: TestInsightsExecutionAPI_ReadsSingleProjectedExecution (5.03s)
+=== RUN   TestInsightsAPIUnavailableReturnsFreshnessEnvelope
+--- PASS: TestInsightsAPIUnavailableReturnsFreshnessEnvelope (4.86s)
+=== RUN   TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound
+--- PASS: TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound (4.93s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	34.521s

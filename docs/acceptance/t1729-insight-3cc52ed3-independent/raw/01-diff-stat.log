@@ -1,0 +1,10 @@
+ internal/insight/helpers.go                       | 165 +++++-
+ internal/insight/service.go                       | 157 +++--
+ internal/insight/service_test.go                  | 143 +++++
+ internal/insight/types.go                         |  94 ++-
+ internal/webconsole/api/handlers_insights.go      |  28 +-
+ internal/webconsole/api/handlers_insights_test.go | 116 +++-
+ web/src/api/insights.ts                           |  51 ++
+ web/src/pages/InsightOverview.test.tsx            | 351 ++++-------
+ web/src/pages/InsightOverview.tsx                 | 676 +++++++++++++---------
+ 9 files changed, 1218 insertions(+), 563 deletions(-)

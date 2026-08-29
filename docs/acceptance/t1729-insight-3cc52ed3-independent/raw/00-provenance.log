@@ -1,0 +1,12 @@
+Fetching origin
+fatal: refusing to fetch into branch 'refs/heads/ac-exec/task-b9ff74f6/exec-63aad951' checked out at '/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-63aad951'
+error: could not fetch origin
+Fetching origin-push
+From github.com:oopslink/agent-center
+   10b67a9eb..d3fadaf40  main       -> origin-push/main
+3cc52ed300bfe00444d6487aded97e96280d2b16
+3cc52ed300bfe00444d6487aded97e96280d2b16
+d3fadaf404731dacbd74909381f9315ea8714475
+1f27bfe74e3dddaf3ffb7e0156c5a61ad55480b4
+ancestor_exit:1
+  origin-push/immutable/t1729-insight-api-ui-3cc52ed3

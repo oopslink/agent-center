@@ -1,0 +1,14 @@
+33bfc41cec5bbd1aef23cd46e2c9967b6b9d9965c55644ce139bcbb6dc4d6fe4  docs/acceptance/t1729-insight-3cc52ed3-independent/REPORT.md
+76563b76e5485a2567b86f441d6939e0eba4fd02ced7f7c11f9b6dfed7d1f638  docs/acceptance/t1729-insight-3cc52ed3-independent/verdict.json
+b0b1b2d48dc308ce02f1a75634008579d36f02a7a2c5fda823f15ed30b735f84  docs/acceptance/t1729-insight-3cc52ed3-independent/raw/00-provenance.log
+fdee8b0a4ea0daff5db6c9a5fe445ecdfdbc70c4bcfda716688217c829dad2ab  docs/acceptance/t1729-insight-3cc52ed3-independent/raw/01-diff-stat.log
+584915f68b97ae14aa2b416fabd444463062f2db56832fcecaff81b94d740788  docs/acceptance/t1729-insight-3cc52ed3-independent/raw/02-semantic-audit.log
+c2a3fb64909e432b07a85637fcf792838a46170b83f1ca0448210440c5b23ed0  docs/acceptance/t1729-insight-3cc52ed3-independent/raw/03-task-input-presence.log
+22bdce2fde725ccd70fc997abbe12b52fa269aedb10459fa9671c1a97eba5f10  docs/acceptance/t1729-insight-3cc52ed3-independent/raw/04-remote-reachability.log
+7b419a95bda7bdc04f416a416b4260a998edf80f8e8d27b1851cfe28081a7c01  docs/acceptance/t1729-insight-3cc52ed3-independent/raw/10-go-insight-focused.log
+3c592932ae753b886fc5bc9086f6f7002de26e6e97f835494276d8fee5727d76  docs/acceptance/t1729-insight-3cc52ed3-independent/raw/11-go-api-focused.log
+8302ca8be9c16f1df9844fee68b002ed33ff4431c8ef6f462442d21f45a63db0  docs/acceptance/t1729-insight-3cc52ed3-independent/raw/12-go-insight-race.log
+efeba44147d06b2fa5e4c9d89499f41d3fe52161cac80475c6e0e24aa8db4cf3  docs/acceptance/t1729-insight-3cc52ed3-independent/raw/13-go-api-race.log
+6dfd6274a12a845ef836e73f735300821a9f4016c45a666bc604f0818e9c857c  docs/acceptance/t1729-insight-3cc52ed3-independent/raw/14-go-projectmanager-focused.log
+9890cf5e68f3ff6c87cb0ff0b9d725eb4be048f709d4bbf7f58afc14a9a9172e  docs/acceptance/t1729-insight-3cc52ed3-independent/raw/20-vitest-insight-overview.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  docs/acceptance/t1729-insight-3cc52ed3-independent/raw/21-web-tsc.log
