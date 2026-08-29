@@ -1,0 +1,539 @@
+{
+  "task_id": "task-299d7d07",
+  "execution_id": "exec-26748f38",
+  "reviewed_sha": "5a18901eaea33c48247e2e8847a29f1d66038d40",
+  "base_sha": "5a18901eaea33c48247e2e8847a29f1d66038d40",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1 | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' /Users/oopslink/.agents/skills/dogfood/SKILL.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f | sed 's#\"'^./##'\"' | sort | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' /Users/oopslink/.agents/skills/dogfood/references/issue-taxonomy.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-parse origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"rg --files | rg '(\"'^package.json$|go.mod$|vite.config|playwright|acceptance|insight|web|frontend|console)'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'rg -n \"Insight|insight|真实数据|real data|owner|lineage|version|commit|sha\" README.md docs cmd internal web ui package.json go.mod Makefile 2\u003e/dev/null'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"find .. -path '*/task-input/v1/README.md' -o -path '*/task-input/v1/manifest.json'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/design/features/insight-phase-1-contract.md \u0026\u0026 sed -n '1,180p' docs/rules/acceptance-evidence-spec.md \u0026\u0026 sed -n '1,180p' docs/rules/acceptance-methodology.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/src/api/insights.ts \u0026\u0026 sed -n '1,260p' web/src/pages/InsightOverview.tsx \u0026\u0026 sed -n '1,260p' internal/webconsole/api/handlers_insights.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'rg -n \"contract-to-production-chain|evidence-before-verdict|verify-world-state-after-actions|验收|evidence|verdict|Insight Phase 1|insight phase\" docs .claude CLAUDE.md README.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"sed -n '220,420p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' internal/webconsole/api/handlers_auth.go \u0026\u0026 rg -n \\\"signup|signin|passcode|session|Set-Cookie|/api/auth|NewServer|listen|addr\\\" internal cmd web/src -g'*.go' -g'*.ts' -g'*.tsx'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/insight-owner-fresh-5a18901e/raw docs/acceptance/insight-owner-fresh-5a18901e/screenshots \u0026\u0026 {\n  echo \"cwd=$(pwd)\";\n  echo \"date_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)\";\n  echo \"branch=$(git branch --show-current)\";\n  echo \"head=$(git rev-parse HEAD)\";\n  echo \"origin_main=$(git rev-parse origin/main)\";\n  echo \"status:\"; git status --short;\n  echo \"task_input:\"; find task-input/v1 -maxdepth 2 -type f -print 2\u003e\u00261 || true;\n} | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/00-provenance.log\nmake build 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/01-make-build.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc './bin/agent-center install center --help 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/03-install-help.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc './bin/agent-center server --help 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/03-server-help.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc './bin/agent-center version 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/02-binary-version.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc 'PREFIX=\"$PWD/.tmp/insight-owner-fresh-prefix\"; ./bin/agent-center install center --prefix=\"$PREFIX\" --web-port=17100 --server-port=17050 --tcp-listen=127.0.0.1:17300 --force 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/04-install-center.log \u0026\u0026 \"$PREFIX/current/bin/agent-center\" version 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/05-installed-binary-version.log \u0026\u0026 sed -n '\"'1,220p' \\\"\"'$PREFIX/etc/config.yaml\" | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/06-installed-config.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17100\nfor i in $(seq 1 30); do\n  if curl -fsS \"$BASE/api/health\" \u003e/tmp/insight-health.json 2\u003e/tmp/insight-health.err; then break; fi\n  sleep 1\ndone\n{\n echo '\"'\"'$ curl -i /api/health'\"'; curl -i \\\"\"'$BASE/api/health\";\n echo; echo '\"'\"'$ curl -i /api/system/version'\"'; curl -i \\\"\"'$BASE/api/system/version\";\n echo; echo '\"'\"'$ curl -i /api/auth/bootstrap'\"'; curl -i \\\"\"'$BASE/api/auth/bootstrap\";\n} 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/08-runtime-http-version.log\ncurl -fsS -c docs/acceptance/insight-owner-fresh-5a18901e/raw/cookies.txt -H '\"'content-type: application/json' \\\\\n  -d '{\\\"display_name\\\":\\\"Owner Fresh\\\",\\\"email\\\":\\\"owner-fresh@example.test\\\",\\\"passcode\\\":\\\"passcode-12345\\\",\\\"organization_name\\\":\\\"Insight Fresh Org\\\"}' \\\\\n  \\\"\"'$BASE/api/auth/signup\" | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/09-signup.json\ncurl -fsS -b docs/acceptance/insight-owner-fresh-5a18901e/raw/cookies.txt \"$BASE/api/orgs\" | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/10-orgs.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' tests/e2e/v2/fixtures/agent-center.ts \u0026\u0026 sed -n '1,260p' tests/e2e/v2/tests/deployed-pipeline.spec.ts\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"rg -n \\\"Add Worker|workers|enroll|agent|task|dispatch|assignment|fork_executor|fakeagent|AGENT_CENTER|worker run|register\\\" tests/e2e/v2 web/src internal/webconsole/api -g'*.ts' -g'*.tsx' -g'*.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc './bin/agent-center worker --help 2\u003e\u00261 \u0026\u0026 ./bin/agent-center install worker --help 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"sed -n '139,380p' tests/e2e/v2/tests/v23-real-agent-pipeline.spec.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"rg -n \\\"mint|enroll|workers|members/agent|agent_instances|AgentInstance|start|fork_executor|assignment-pool|plans/.*/start|dispatch\\\" internal/webconsole/api internal/admin internal/projectmanager internal/workforce internal/workerdaemon -g'*.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"sed -n '1480,1570p' web/src/mocks/handlers.ts \u0026\u0026 sed -n '1,220p' web/src/api/workers.ts \u0026\u0026 sed -n '1,180p' web/src/api/agents.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"sed -n '2031,2165p' internal/webconsole/api/handlers.go \u0026\u0026 sed -n '2286,2475p' internal/webconsole/api/handlers.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"sed -n '1,140p' web/src/api/members.ts \u0026\u0026 sed -n '520,760p' internal/webconsole/api/handlers_agent.go \u0026\u0026 sed -n '1,180p' internal/webconsole/api/handlers_pm_org.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc 'rg -n \"func .*Project|projectsHandler|tasksHandler|assignment|dispatch|StartTask|CreateTask|plans\" internal/webconsole/api/handlers_pm*.go internal/webconsole/api/handlers.go web/src/api/projects.ts web/src/api/tasks.ts web/src/api/plans.ts'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17100\nCOOKIE=docs/acceptance/insight-owner-fresh-5a18901e/raw/cookies.txt\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\n# Create a real project via Web API.\ncurl -fsS -b \"$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"name\\\":\\\"Insight Recheck Project\\\",\\\"description\\\":\\\"real data owner recheck\\\"}' \\\\\n  \\\"\"'$BASE/api/projects\" | tee \"$RAW/11-create-project.json\"\n# Mint enroll token through Web Console API.\ncurl -fsS -b \"$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"name\\\":\\\"Insight Fresh Worker\\\"}' \\\\\n  \\\"\"'$BASE/api/admintoken/mint-enroll\" | tee \"$RAW/12-mint-enroll.json\"\n# Extract fields without leaking token to stdout beyond raw evidence file required for replay.\npython3 - \u003c\u003c'\"'PY' \\\"\"'$RAW/12-mint-enroll.json\" \"$RAW/12-mint-fields.env\"\nimport json,sys\nj=json.load(open(sys.argv[1]))\nwith open(sys.argv[2],'\"'w') as f:\n    for k in ['worker_id','worker_name','bootstrap_host','fingerprint','token']:\n        f.write(f\\\"{k.upper()}={j[k]}\\\\n\\\")\nPY\nset -a; . \\\"\"'$RAW/12-mint-fields.env\"; set +a\n# Install worker through the real install path into an isolated prefix.\nWPREFIX=\"$PWD/.tmp/insight-owner-fresh-worker-prefix\"\n./bin/agent-center install worker --prefix=\"$WPREFIX\" --bootstrap=\"tcp://$BOOTSTRAP_HOST\" --server-fingerprint=\"$FINGERPRINT\" --token=\"$TOKEN\" --worker-id=\"$WORKER_ID\" --worker-name=\"$WORKER_NAME\" --force 2\u003e\u00261 | tee \"$RAW/13-install-worker.log\"\n\"$WPREFIX/workers/$WORKER_ID/current/bin/agent-center\" version 2\u003e\u00261 | tee \"$RAW/14-installed-worker-binary-version.log\"\nsed -n '\"'1,220p' \\\"\"'$WPREFIX/workers/$WORKER_ID/etc/config.yaml\" | sed -E '\"'s/(token: [REDACTED_SECRET]' | tee \\\"\"'$RAW/15-installed-worker-config-redacted.log\"'",
+      "exit_status": 22
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc \"sed -n '1,170p' web/src/api/client.ts \u0026\u0026 sed -n '1,130p' web/src/api/projects.ts \u0026\u0026 rg -n \\\"Handle|/api/orgs|projects\\\" internal/webconsole/api/server.go internal/webconsole/api/handlers.go | head -120\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc \"sed -n '181,260p' internal/webconsole/api/server.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc \"sed -n '260,360p' internal/webconsole/api/server.go \u0026\u0026 sed -n '419,520p' internal/webconsole/api/handlers_pm.go \u0026\u0026 sed -n '821,890p' internal/webconsole/api/handlers_pm.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc \"rg -n \\\"admintoken|workers|agents|tasks\\\" internal/webconsole/api/server.go | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' cmd/fakeagent/main.go \u0026\u0026 sed -n '1,180p' internal/workerdaemon/adapters.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc \"rg -n \\\"fakeagent|DefaultRegistry|Register|claude|codex\\\" internal/agentruntime internal/workerdaemon cmd/fakeagent -g'*.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc './bin/fakeagent --help 2\u003e\u00261 | head -80'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc './bin/agent-center worker run --help 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/16-worker-run-help.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc \"rg -n \\\"fakeagent-script|FakeAgent|fake-agent|AgentCLIOverrides|--script\\\" internal/workerdaemon internal/agentruntime tests -g'*.go' -g'*.ts'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc \"sed -n '1,120p' tests/e2e/v2/tests/v22-deployed-pipeline.spec.ts \u0026\u0026 sed -n '480,580p' tests/e2e/v2/tests/v22-deployed-pipeline.spec.ts \u0026\u0026 sed -n '150,220p' internal/workerdaemon/run.go \u0026\u0026 sed -n '40,90p' internal/workerdaemon/runtime.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17100\nSLUG=org-a41b6581\nCOOKIE=docs/acceptance/insight-owner-fresh-5a18901e/raw/cookies.txt\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\ncurl -fsS -b \"$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"name\\\":\\\"Insight Recheck Project\\\",\\\"description\\\":\\\"real data owner recheck\\\"}' \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/projects\" | tee \"$RAW/11-create-project.json\"\ncurl -fsS -b \"$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"name\\\":\\\"Insight Fresh Worker\\\"}' \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/admintoken/mint-enroll\" | tee \"$RAW/12-mint-enroll.json\"\npython3 - \u003c\u003c'\"'PY' \\\"\"'$RAW/12-mint-enroll.json\" \"$RAW/12-mint-fields.env\"\nimport json,sys\nj=json.load(open(sys.argv[1]))\nwith open(sys.argv[2],'\"'w') as f:\n    for k in ['worker_id','worker_name','bootstrap_host','fingerprint','token']:\n        f.write(f\\\"{k.upper()}={j[k]}\\\\n\\\")\nPY\nset -a; . \\\"\"'$RAW/12-mint-fields.env\"; set +a\nWPREFIX=\"$PWD/.tmp/insight-owner-fresh-worker-prefix\"\n./bin/agent-center install worker --prefix=\"$WPREFIX\" --bootstrap=\"tcp://$BOOTSTRAP_HOST\" --server-fingerprint=\"$FINGERPRINT\" --token=\"$TOKEN\" --worker-id=\"$WORKER_ID\" --worker-name=\"$WORKER_NAME\" --force 2\u003e\u00261 | tee \"$RAW/13-install-worker.log\"\n\"$WPREFIX/workers/$WORKER_ID/current/bin/agent-center\" version 2\u003e\u00261 | tee \"$RAW/14-installed-worker-binary-version.log\"\nsed -n '\"'1,220p' \\\"\"'$WPREFIX/workers/$WORKER_ID/etc/config.yaml\" | sed -E '\"'s/(token: [REDACTED_SECRET]' | tee \\\"\"'$RAW/15-installed-worker-config-redacted.log\"'",
+      "exit_status": 127
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\nWPREFIX=\"$PWD/.tmp/insight-owner-fresh-worker-prefix\"\npython3 - \u003c\u003c'\"'PY' \\\"\"'$RAW/12-mint-enroll.json\" \"$WPREFIX\" \"$RAW/13-install-worker.log\" \"$RAW/14-installed-worker-binary-version.log\" \"$RAW/15-installed-worker-config-redacted.log\"\nimport json, subprocess, sys, pathlib, re\nj=json.load(open(sys.argv[1])); wp=sys.argv[2]\ncmd=['\"'./bin/agent-center','install','worker',f'--prefix={wp}',f'--bootstrap=tcp://{j[\\\"bootstrap_host\\\"]}',f'--server-fingerprint={j[\\\"fingerprint\\\"]}',f'--token={j[\\\"token\\\"]}',f'--worker-id={j[\\\"worker_id\\\"]}',f'--worker-name={j[\\\"worker_name\\\"]}','--force']\np=subprocess.run(cmd,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)\npathlib.Path(sys.argv[3]).write_text(p.stdout)\nprint(p.stdout,end='')\nif p.returncode: sys.exit(p.returncode)\nver=subprocess.run([f'{wp}/workers/{j[\\\"worker_id\\\"]}/current/bin/agent-center','version'],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)\npathlib.Path(sys.argv[4]).write_text(ver.stdout)\nprint(ver.stdout,end='')\nconfig=pathlib.Path(f'{wp}/workers/{j[\\\"worker_id\\\"]}/etc/config.yaml').read_text()\nconfig=re.sub(r'(token:\\\\s*).*',r'\\\\1\u003credacted\u003e',config)\npathlib.Path(sys.argv[5]).write_text(config)\nprint(config,end='')\nPY\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\nWPREFIX=\"$PWD/.tmp/insight-owner-fresh-worker-prefix\"\n./.tmp/insight-owner-fresh-worker-prefix/current/bin/agent-center version 2\u003e\u00261 | tee \"$RAW/14-installed-worker-binary-version.log\"\nsed -n '\"'1,220p' \\\"\"'$WPREFIX/etc/config.yaml\" | sed -E '\"'s/(token: [REDACTED_SECRET]' | tee \\\"\"'$RAW/15-installed-worker-config-redacted.log\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc './.tmp/insight-owner-fresh-worker-prefix/current/bin/agent-center worker run --config=./.tmp/insight-owner-fresh-worker-prefix/etc/config.yaml --fake-agent=./bin/fakeagent 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/17-worker-run.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17100\nSLUG=org-a41b6581\nCOOKIE=docs/acceptance/insight-owner-fresh-5a18901e/raw/cookies.txt\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\nfor i in $(seq 1 40); do\n  curl -fsS -b \"$COOKIE\" \"$BASE/api/orgs/$SLUG/workers\" \u003e \"$RAW/18-workers-last.json\" || true\n  if grep -q '\"'\\\"status\\\":\\\"online\\\"' \\\"\"'$RAW/18-workers-last.json\"; then break; fi\n  sleep 1\ndone\ncat \"$RAW/18-workers-last.json\" | tee \"$RAW/18-workers.json\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_70",
+      "command": "/bin/zsh -lc 'lsof -nP -iTCP:17100 -iTCP:17050 -iTCP:17300 -sTCP:LISTEN 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/19-listeners.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'tail -200 docs/acceptance/insight-owner-fresh-5a18901e/raw/07-server.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc './.tmp/insight-owner-fresh-prefix/current/bin/agent-center server --config=./.tmp/insight-owner-fresh-prefix/etc/config.yaml 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/07-server.log'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\nSPREFIX=\"/tmp/ac-insight-fresh-5a189-$$\"\necho \"$SPREFIX\" | tee \"$RAW/20-short-prefix.txt\"\n./bin/agent-center install center --prefix=\"$SPREFIX\" --web-port=17101 --server-port=17051 --tcp-listen=127.0.0.1:17301 --force 2\u003e\u00261 | tee \"$RAW/21-short-install-center.log\"\n\"$SPREFIX/current/bin/agent-center\" version 2\u003e\u00261 | tee \"$RAW/22-short-installed-version.log\"\nsed -n '\"'1,220p' \\\"\"'$SPREFIX/etc/config.yaml\" | tee \"$RAW/23-short-config.log\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_77",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17101\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\nfor i in $(seq 1 30); do curl -fsS \"$BASE/api/health\" \u003e/dev/null 2\u003e\u00261 \u0026\u0026 break || sleep 1; done\n{\n echo '\"'\"'$ curl -i /api/health'\"'; curl -i \\\"\"'$BASE/api/health\";\n echo; echo '\"'\"'$ curl -i /api/system/version'\"'; curl -i \\\"\"'$BASE/api/system/version\";\n echo; echo '\"'\"'$ lsof listeners'\"'; lsof -nP -iTCP:17101 -iTCP:17051 -iTCP:17301 -sTCP:LISTEN;\n} 2\u003e\u00261 | tee \\\"\"'$RAW/25-short-runtime-version-listeners.log\"\ncurl -fsS -c \"$RAW/short-cookies.txt\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"display_name\\\":\\\"Owner Fresh Short\\\",\\\"email\\\":\\\"owner-fresh-short@example.test\\\",\\\"passcode\\\":\\\"passcode-12345\\\",\\\"organization_name\\\":\\\"Insight Fresh Short Org\\\"}' \\\\\n  \\\"\"'$BASE/api/auth/signup\" | tee \"$RAW/26-short-signup.json\"\ncurl -fsS -b \"$RAW/short-cookies.txt\" \"$BASE/api/orgs\" | tee \"$RAW/27-short-orgs.json\"'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_79",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17101\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\ncurl -fsS -c \"$RAW/short-cookies.txt\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"display_name\\\":\\\"Owner Fresh Short\\\",\\\"email\\\":\\\"owner-fresh-short@example.test\\\",\\\"passcode\\\":\\\"passcode-12345\\\",\\\"organization_name\\\":\\\"Insight Fresh Short Org\\\"}' \\\\\n  \\\"\"'$BASE/api/auth/signup\" | tee \"$RAW/26-short-signup.json\"\ncurl -fsS -b \"$RAW/short-cookies.txt\" \"$BASE/api/orgs\" | tee \"$RAW/27-short-orgs.json\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17101\nSLUG=org-6e873615\nCOOKIE=docs/acceptance/insight-owner-fresh-5a18901e/raw/short-cookies.txt\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\ncurl -fsS -b \"$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"name\\\":\\\"Insight Real Data Project\\\",\\\"description\\\":\\\"real data owner recheck short prefix\\\"}' \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/projects\" | tee \"$RAW/28-short-create-project.json\"\ncurl -fsS -b \"$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"name\\\":\\\"Insight Short Worker\\\"}' \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/admintoken/mint-enroll\" | tee \"$RAW/29-short-mint-enroll.json\"\npython3 - \u003c\u003c'\"'PY' \\\"\"'$RAW/29-short-mint-enroll.json\" \"$RAW/30-short-install-worker.log\" \"$RAW/31-short-worker-version.log\" \"$RAW/32-short-worker-config-redacted.log\"\nimport json, subprocess, sys, pathlib, re\nj=json.load(open(sys.argv[1])); wp=f'\"'/tmp/ac-insight-worker-{j[\\\"worker_id\\\"]}'\npathlib.Path('docs/acceptance/insight-owner-fresh-5a18901e/raw/29-short-worker-prefix.txt').write_text(wp+'\\\\n')\ncmd=['./bin/agent-center','install','worker',f'--prefix={wp}',f'--bootstrap=tcp://{j[\\\"bootstrap_host\\\"]}',f'--server-fingerprint={j[\\\"fingerprint\\\"]}',f'--token={j[\\\"token\\\"]}',f'--worker-id={j[\\\"worker_id\\\"]}',f'--worker-name={j[\\\"worker_name\\\"]}','--force']\np=subprocess.run(cmd,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)\npathlib.Path(sys.argv[2]).write_text(p.stdout)\nprint(p.stdout,end='')\nif p.returncode: sys.exit(p.returncode)\nver=subprocess.run([f'{wp}/current/bin/agent-center','version'],text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)\npathlib.Path(sys.argv[3]).write_text(ver.stdout)\nprint(ver.stdout,end='')\nconfig=pathlib.Path(f'{wp}/etc/config.yaml').read_text()\nconfig=re.sub(r'(token:\\\\s*).*',r'\\\\1\u003credacted\u003e',config)\npathlib.Path(sys.argv[4]).write_text(config)\nprint(config,end='')\nPY\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_84",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17101\nSLUG=org-6e873615\nCOOKIE=docs/acceptance/insight-owner-fresh-5a18901e/raw/short-cookies.txt\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\nfor i in $(seq 1 40); do\n  curl -fsS -b \"$COOKIE\" \"$BASE/api/orgs/$SLUG/workers\" \u003e \"$RAW/34-short-workers-last.json\" || true\n  if grep -q '\"'\\\"status\\\":\\\"online\\\"' \\\"\"'$RAW/34-short-workers-last.json\"; then break; fi\n  sleep 1\ndone\ncat \"$RAW/34-short-workers-last.json\" | tee \"$RAW/34-short-workers.json\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_86",
+      "command": "/bin/zsh -lc \"set -euo pipefail\nBASE=http://127.0.0.1:17101\nSLUG=org-6e873615\nCOOKIE=docs/acceptance/insight-owner-fresh-5a18901e/raw/short-cookies.txt\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\n{\n echo '\"'$ GET ai-runtime clis'\"'; curl -fsS -b \\\"\"'$COOKIE\" \"$BASE/api/orgs/$SLUG/ai-runtime/clis\"; echo;\n echo '\"'\"'$ GET ai-runtime models'\"'; curl -fsS -b \\\"\"'$COOKIE\" \"$BASE/api/orgs/$SLUG/ai-runtime/models\"; echo;\n echo '\"'\"'$ GET agents'\"'; curl -fsS -b \\\"\"'$COOKIE\" \"$BASE/api/orgs/$SLUG/agents\"; echo;\n} | tee \"$RAW/35-runtime-catalog-agents-before.log\"\ncurl -fsS -b \"$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"display_name\\\":\\\"Insight Runner\\\",\\\"description\\\":\\\"fakeagent-script: /tmp/insight-fakeagent-script.jsonl\\\",\\\"role\\\":\\\"member\\\",\\\"worker_id\\\":\\\"worker-6808a12a\\\",\\\"cli\\\":\\\"fakeagent\\\",\\\"model\\\":\\\"scripted\\\"}' \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/members/agent\" | tee \"$RAW/36-create-agent-fakeagent.json\"'",
+      "exit_status": 22
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_88",
+      "command": "/bin/zsh -lc \"curl -sS -i -b docs/acceptance/insight-owner-fresh-5a18901e/raw/short-cookies.txt -H 'content-type: application/json' -d '{\\\"display_name\\\":\\\"Insight Runner\\\",\\\"description\\\":\\\"fakeagent-script: /tmp/insight-fakeagent-script.jsonl\\\",\\\"role\\\":\\\"member\\\",\\\"worker_id\\\":\\\"worker-6808a12a\\\",\\\"cli\\\":\\\"fakeagent\\\",\\\"model\\\":\\\"scripted\\\"}' http://127.0.0.1:17101/api/orgs/org-6e873615/members/agent | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/36-create-agent-fakeagent-400.http\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/webconsole/api/handlers_ai_runtime.go \u0026\u0026 sed -n '1,220p' web/src/api/aiRuntime.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_90",
+      "command": "/bin/zsh -lc \"rg -n \\\"func .*RuntimeCLI|createRuntimeCLI|RuntimeModel|createRuntimeModel|parameter_schema|executable\\\" internal/webconsole/api/handlers_ai_runtime.go internal/webconsole/api -g'*.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_92",
+      "command": "/bin/zsh -lc \"sed -n '260,380p' internal/webconsole/api/handlers_ai_runtime.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_94",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17101\nSLUG=org-6e873615\nCOOKIE=docs/acceptance/insight-owner-fresh-5a18901e/raw/short-cookies.txt\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\ncurl -sS -i -b \"$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"expected_revision\\\":0,\\\"value\\\":{\\\"key\\\":\\\"fakeagent\\\",\\\"display_name\\\":\\\"Fake Agent\\\",\\\"executable\\\":\\\"fakeagent\\\",\\\"required_features\\\":[],\\\"parameter_schema\\\":{\\\"type\\\":\\\"object\\\"},\\\"enabled\\\":true}}' \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/ai-runtime/clis\" | tee \"$RAW/37-create-runtime-cli.http\"\nREV=$(python3 - \u003c\u003c'\"'PY' \\\"\"'$RAW/37-create-runtime-cli.http\"\nimport sys,json\ns=open(sys.argv[1]).read(); print(json.loads(s.split('\"'\\\\r\\\\n\\\\r\\\\n',1)[1])['revision'])\nPY\n)\ncurl -sS -i -b \\\"\"'$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d \\\"{\\\\\\\"expected_revision\\\\\\\":\"'$REV,'\"\\\\\\\"value\\\\\\\":{\\\\\\\"key\\\\\\\":\\\\\\\"scripted\\\\\\\",\\\\\\\"model_key\\\\\\\":\\\\\\\"scripted\\\\\\\",\\\\\\\"display_name\\\\\\\":\\\\\\\"Scripted\\\\\\\",\\\\\\\"compatible_cli_keys\\\\\\\":[\\\\\\\"fakeagent\\\\\\\"],\\\\\\\"default_parameters\\\\\\\":{},\\\\\\\"enabled\\\\\\\":true,\\\\\\\"context_window\\\\\\\":1000,\\\\\\\"tier\\\\\\\":\\\\\\\"test\\\\\\\"}}\\\" \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/ai-runtime/models\" | tee \"$RAW/38-create-runtime-model.http\"\ncurl -fsS -b \"$COOKIE\" \"$BASE/api/orgs/$SLUG/ai-runtime\" | tee \"$RAW/39-runtime-catalog-after.json\"\ncat \u003e /tmp/insight-fakeagent-script.jsonl \u003c\u003c'\"'EOF'\n{\\\"type\\\":\\\"start\\\",\\\"text\\\":\\\"insight owner real-data recheck\\\"}\n{\\\"type\\\":\\\"progress\\\",\\\"milestone\\\":\\\"reconcile\\\",\\\"content\\\":\\\"checking insight\\\"}\n{\\\"type\\\":\\\"done\\\",\\\"exit_code\\\":0,\\\"content\\\":\\\"insight recheck done\\\"}\nEOF\ncurl -sS -i -b \\\"\"'$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"display_name\\\":\\\"Insight Runner\\\",\\\"description\\\":\\\"fakeagent-script: /tmp/insight-fakeagent-script.jsonl\\\",\\\"role\\\":\\\"member\\\",\\\"worker_id\\\":\\\"worker-6808a12a\\\",\\\"cli\\\":\\\"fakeagent\\\",\\\"model\\\":\\\"scripted\\\"}' \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/members/agent\" | tee \"$RAW/40-create-agent.http\"'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_96",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17101\nSLUG=org-6e873615\nCOOKIE=docs/acceptance/insight-owner-fresh-5a18901e/raw/short-cookies.txt\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\nREV=$(python3 - \u003c\u003c'\"'PY' \\\"\"'$RAW/37-create-runtime-cli.http\"\nimport sys,json,re\ns=open(sys.argv[1]).read(); body=re.split(r'\"'\\\\r?\\\\n\\\\r?\\\\n',s,1)[1]; print(json.loads(body)['revision'])\nPY\n)\ncurl -sS -i -b \\\"\"'$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d \\\"{\\\\\\\"expected_revision\\\\\\\":\"'$REV,'\"\\\\\\\"value\\\\\\\":{\\\\\\\"key\\\\\\\":\\\\\\\"scripted\\\\\\\",\\\\\\\"model_key\\\\\\\":\\\\\\\"scripted\\\\\\\",\\\\\\\"display_name\\\\\\\":\\\\\\\"Scripted\\\\\\\",\\\\\\\"compatible_cli_keys\\\\\\\":[\\\\\\\"fakeagent\\\\\\\"],\\\\\\\"default_parameters\\\\\\\":{},\\\\\\\"enabled\\\\\\\":true,\\\\\\\"context_window\\\\\\\":1000,\\\\\\\"tier\\\\\\\":\\\\\\\"test\\\\\\\"}}\\\" \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/ai-runtime/models\" | tee \"$RAW/38-create-runtime-model.http\"\ncurl -fsS -b \"$COOKIE\" \"$BASE/api/orgs/$SLUG/ai-runtime\" | tee \"$RAW/39-runtime-catalog-after.json\"\ncat \u003e /tmp/insight-fakeagent-script.jsonl \u003c\u003c'\"'EOF'\n{\\\"type\\\":\\\"start\\\",\\\"text\\\":\\\"insight owner real-data recheck\\\"}\n{\\\"type\\\":\\\"progress\\\",\\\"milestone\\\":\\\"reconcile\\\",\\\"content\\\":\\\"checking insight\\\"}\n{\\\"type\\\":\\\"done\\\",\\\"exit_code\\\":0,\\\"content\\\":\\\"insight recheck done\\\"}\nEOF\ncurl -sS -i -b \\\"\"'$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"display_name\\\":\\\"Insight Runner\\\",\\\"description\\\":\\\"fakeagent-script: /tmp/insight-fakeagent-script.jsonl\\\",\\\"role\\\":\\\"member\\\",\\\"worker_id\\\":\\\"worker-6808a12a\\\",\\\"cli\\\":\\\"fakeagent\\\",\\\"model\\\":\\\"scripted\\\"}' \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/members/agent\" | tee \"$RAW/40-create-agent.http\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_98",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17101\nSLUG=org-6e873615\nCOOKIE=docs/acceptance/insight-owner-fresh-5a18901e/raw/short-cookies.txt\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\nREV=$(python3 - \u003c\u003c'\"'PY' \\\"\"'$RAW/38-create-runtime-model.http\"\nimport sys,json,re\ns=open(sys.argv[1]).read(); body=re.split(r'\"'\\\\r?\\\\n\\\\r?\\\\n',s,1)[1]; print(json.loads(body)['revision'])\nPY\n)\ncurl -sS -i -b \\\"\"'$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d \\\"{\\\\\\\"expected_revision\\\\\\\":\"'$REV,'\"\\\\\\\"value\\\\\\\":{\\\\\\\"key\\\\\\\":\\\\\\\"codex-local\\\\\\\",\\\\\\\"model_key\\\\\\\":\\\\\\\"gpt-5\\\\\\\",\\\\\\\"display_name\\\\\\\":\\\\\\\"Codex Local\\\\\\\",\\\\\\\"compatible_cli_keys\\\\\\\":[\\\\\\\"codex\\\\\\\"],\\\\\\\"default_parameters\\\\\\\":{},\\\\\\\"enabled\\\\\\\":true,\\\\\\\"context_window\\\\\\\":1000,\\\\\\\"tier\\\\\\\":\\\\\\\"test\\\\\\\"}}\\\" \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/ai-runtime/models\" | tee \"$RAW/41-create-codex-model.http\"\ncurl -sS -i -b \"$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"display_name\\\":\\\"Insight Codex Runner\\\",\\\"description\\\":\\\"Owner recheck codex runner\\\",\\\"role\\\":\\\"member\\\",\\\"worker_id\\\":\\\"worker-6808a12a\\\",\\\"cli\\\":\\\"codex\\\",\\\"model\\\":\\\"codex-local\\\"}' \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/members/agent\" | tee \"$RAW/42-create-codex-agent.http\"\ncurl -fsS -b \"$COOKIE\" \"$BASE/api/orgs/$SLUG/agents\" | tee \"$RAW/43-agents-after.json\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_104",
+      "command": "/bin/zsh -lc 'tail -200 docs/acceptance/insight-owner-fresh-5a18901e/raw/33-short-worker-run.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_105",
+      "command": "/bin/zsh -lc 'tail -200 docs/acceptance/insight-owner-fresh-5a18901e/raw/24-short-server.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_106",
+      "command": "/bin/zsh -lc \"cat docs/acceptance/insight-owner-fresh-5a18901e/raw/46-task-last.json; printf '\\\\n---activity---\\\\n'; cat docs/acceptance/insight-owner-fresh-5a18901e/raw/47-agent-activity-last.json; printf '\\\\n---insight---\\\\n'; cat docs/acceptance/insight-owner-fresh-5a18901e/raw/48-insight-overview-last.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_100",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17101\nSLUG=org-6e873615\nCOOKIE=docs/acceptance/insight-owner-fresh-5a18901e/raw/short-cookies.txt\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\nAGENT=agent-b93f7d0e\nPROJECT=project-96114426\ncurl -sS -i -b \"$COOKIE\" -H '\"'content-type: application/json' -d '{}' \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/agents/$AGENT/start\" | tee \"$RAW/44-start-agent.http\"\ncurl -sS -i -b \"$COOKIE\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"title\\\":\\\"Insight owner real execution\\\",\\\"description\\\":\\\"Run a tiny verification and then stop. Reply with done.\\\",\\\"assignee\\\":\\\"agent:agent-b93f7d0e\\\",\\\"dispatch\\\":true,\\\"model\\\":\\\"codex-local\\\"}' \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/projects/$PROJECT/tasks\" | tee \"$RAW/45-create-dispatch-task.http\"\npython3 - \u003c\u003c'\"'PY' \\\"\"'$RAW/45-create-dispatch-task.http\" \"$RAW/45-task-id.txt\"\nimport sys,json,re\ns=open(sys.argv[1]).read(); body=re.split(r'\"'\\\\r?\\\\n\\\\r?\\\\n',s,1)[1]\nj=json.loads(body); open(sys.argv[2],'w').write(j['id']+'\\\\n'); print(j['id'])\nPY\nTASK=\"'$(cat \"$RAW/45-task-id.txt\")\nfor i in $(seq 1 90); do\n  curl -fsS -b \"$COOKIE\" \"$BASE/api/orgs/$SLUG/projects/$PROJECT/tasks/$TASK\" \u003e \"$RAW/46-task-last.json\" || true\n  curl -fsS -b \"$COOKIE\" \"$BASE/api/orgs/$SLUG/agents/$AGENT/activity\" \u003e \"$RAW/47-agent-activity-last.json\" || true\n  curl -fsS -b \"$COOKIE\" \"$BASE/api/orgs/$SLUG/insights/overview?window=24h\" \u003e \"$RAW/48-insight-overview-last.json\" || true\n  if grep -Eq '\"'\\\"completed_executions\\\":[1-9]|\\\"failed_executions\\\":[1-9]' \\\"\"'$RAW/48-insight-overview-last.json\"; then break; fi\n  sleep 2\ndone\ncat \"$RAW/46-task-last.json\" | tee \"$RAW/46-task-final.json\"\ncat \"$RAW/47-agent-activity-last.json\" | tee \"$RAW/47-agent-activity-final.json\"\ncat \"$RAW/48-insight-overview-last.json\" | tee \"$RAW/48-insight-overview-final.json\"'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_108",
+      "command": "/bin/zsh -lc 'command -v agent-browser || true \u0026\u0026 agent-browser --help 2\u003e\u00261 | head -80'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_110",
+      "command": "/bin/zsh -lc 'OUT=docs/acceptance/insight-owner-fresh-5a18901e\nSESSION=insight-owner-fresh\nBASE=http://127.0.0.1:17101\nagent-browser --session \"$SESSION\" open \"$BASE/\" \u0026\u0026 agent-browser --session \"$SESSION\" wait 1000 \u0026\u0026 agent-browser --session \"$SESSION\" screenshot --annotate \"$OUT/screenshots/01-entry.png\" \u0026\u0026 agent-browser --session \"$SESSION\" snapshot -i'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_112",
+      "command": "/bin/zsh -lc 'OUT=docs/acceptance/insight-owner-fresh-5a18901e\nSESSION=insight-owner-fresh\nagent-browser --session \"$SESSION\" fill @e1 \"Owner Fresh Short\" \u0026\u0026 agent-browser --session \"$SESSION\" fill @e2 \"passcode-12345\" \u0026\u0026 agent-browser --session \"$SESSION\" click @e3 \u0026\u0026 agent-browser --session \"$SESSION\" wait --load networkidle \u0026\u0026 agent-browser --session \"$SESSION\" screenshot --annotate \"$OUT/screenshots/02-after-signin.png\" \u0026\u0026 agent-browser --session \"$SESSION\" snapshot -i'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_115",
+      "command": "/bin/zsh -lc 'OUT=docs/acceptance/insight-owner-fresh-5a18901e\nSESSION=insight-owner-fresh\nagent-browser --session \"$SESSION\" wait 2000 \u0026\u0026 agent-browser --session \"$SESSION\" screenshot --annotate \"$OUT/screenshots/02-after-signin.png\" \u0026\u0026 agent-browser --session \"$SESSION\" get url \u0026\u0026 agent-browser --session \"$SESSION\" snapshot -i'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_117",
+      "command": "/bin/zsh -lc 'OUT=docs/acceptance/insight-owner-fresh-5a18901e\nSESSION=insight-owner-fresh\nagent-browser --session \"$SESSION\" click @e6 \u0026\u0026 agent-browser --session \"$SESSION\" wait 3000 \u0026\u0026 agent-browser --session \"$SESSION\" screenshot --annotate \"$OUT/screenshots/03-insight-overview-empty.png\" \u0026\u0026 agent-browser --session \"$SESSION\" get url \u0026\u0026 agent-browser --session \"$SESSION\" snapshot -i \u0026\u0026 agent-browser --session \"$SESSION\" console \u0026\u0026 agent-browser --session \"$SESSION\" errors'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_119",
+      "command": "/bin/zsh -lc \"set -euo pipefail\nBASE=http://127.0.0.1:17101\nSLUG=org-6e873615\nCOOKIE=docs/acceptance/insight-owner-fresh-5a18901e/raw/short-cookies.txt\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\n{\n echo '\"'$ overview'\"'; curl -i -b \\\"\"'$COOKIE\" \"$BASE/api/orgs/$SLUG/insights/overview?window=24h\"; echo;\n echo '\"'\"'$ executions'\"'; curl -i -b \\\"\"'$COOKIE\" \"$BASE/api/orgs/$SLUG/insights/executions?window=24h\u0026limit=50\"; echo;\n echo '\"'\"'$ execution detail missing'\"'; curl -i -b \\\"\"'$COOKIE\" \"$BASE/api/orgs/$SLUG/insights/executions/exec-missing?window=24h\"; echo;\n echo '\"'\"'$ invalid window'\"'; curl -i -b \\\"\"'$COOKIE\" \"$BASE/api/orgs/$SLUG/insights/overview?window=7d\"; echo;\n echo '\"'\"'$ unauth overview'\"'; curl -i \\\"\"'$BASE/api/orgs/$SLUG/insights/overview?window=24h\"; echo;\n} 2\u003e\u00261 | tee \"$RAW/49-insight-api-raw.http\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_121",
+      "command": "/bin/zsh -lc 'set -euo pipefail\nBASE=http://127.0.0.1:17101\nSLUG=org-6e873615\nOWNER=docs/acceptance/insight-owner-fresh-5a18901e/raw/short-cookies.txt\nRAW=docs/acceptance/insight-owner-fresh-5a18901e/raw\ncurl -sS -i -b \"$OWNER\" -H '\"'content-type: application/json' \\\\\n  -d '{\\\"display_name\\\":\\\"Insight Plain Member\\\",\\\"role\\\":\\\"member\\\",\\\"reuse\\\":false}' \\\\\n  \\\"\"'$BASE/api/orgs/$SLUG/members\" | tee \"$RAW/50-create-plain-member.http\"\npython3 - \u003c\u003c'\"'PY' \\\"\"'$RAW/50-create-plain-member.http\" \"$RAW/50-plain-member-passcode.txt\"\nimport sys,json,re\ns=open(sys.argv[1]).read(); body=re.split(r'\"'\\\\r?\\\\n\\\\r?\\\\n',s,1)[1]\nj=json.loads(body); open(sys.argv[2],'w').write(j.get('temp_passcode','')+'\\\\n'); print(j.get('temp_passcode',''))\nPY\nPASS=\"'$(cat \"$RAW/50-plain-member-passcode.txt\")\ncurl -sS -i -c \"$RAW/plain-member-cookies.txt\" -H '\"'content-type: application/json' \\\\\n  -d \\\"{\\\\\\\"login\\\\\\\":\\\\\\\"Insight Plain Member\\\\\\\",\\\\\\\"passcode\\\\\\\":\\\\\\\"\"'$PASS'\"\\\\\\\"}\\\" \\\\\n  \\\"\"'$BASE/api/auth/signin\" | tee \"$RAW/51-plain-member-signin.http\"\n{\n echo '\"'\"'$ member orgs'\"'; curl -i -b \\\"\"'$RAW/plain-member-cookies.txt\" \"$BASE/api/orgs\"; echo;\n echo '\"'\"'$ member insight overview'\"'; curl -i -b \\\"\"'$RAW/plain-member-cookies.txt\" \"$BASE/api/orgs/$SLUG/insights/overview?window=24h\"; echo;\n} 2\u003e\u00261 | tee \"$RAW/52-plain-member-insight.http\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_123",
+      "command": "/bin/zsh -lc 'OUT=docs/acceptance/insight-owner-fresh-5a18901e\nSESSION=insight-plain-member\nBASE=http://127.0.0.1:17101\nagent-browser --session \"$SESSION\" open \"$BASE/\" \u0026\u0026 agent-browser --session \"$SESSION\" wait 1000 \u0026\u0026 agent-browser --session \"$SESSION\" snapshot -i'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_124",
+      "command": "/bin/zsh -lc 'OUT=docs/acceptance/insight-owner-fresh-5a18901e\nSESSION=insight-plain-member\nagent-browser --session \"$SESSION\" fill @e1 \"Insight Plain Member\" \u0026\u0026 agent-browser --session \"$SESSION\" fill @e2 \"z_un7q=nU_XN\" \u0026\u0026 agent-browser --session \"$SESSION\" click @e3 \u0026\u0026 agent-browser --session \"$SESSION\" wait 2000 \u0026\u0026 agent-browser --session \"$SESSION\" screenshot --annotate \"$OUT/screenshots/04-member-after-signin.png\" \u0026\u0026 agent-browser --session \"$SESSION\" snapshot -i'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_125",
+      "command": "/bin/zsh -lc 'OUT=docs/acceptance/insight-owner-fresh-5a18901e\nSESSION=insight-plain-member\nagent-browser --session \"$SESSION\" click @e5 \u0026\u0026 agent-browser --session \"$SESSION\" wait 3000 \u0026\u0026 agent-browser --session \"$SESSION\" screenshot --annotate \"$OUT/screenshots/05-member-insight-forbidden.png\" \u0026\u0026 agent-browser --session \"$SESSION\" get url \u0026\u0026 agent-browser --session \"$SESSION\" snapshot \u0026\u0026 agent-browser --session \"$SESSION\" console \u0026\u0026 agent-browser --session \"$SESSION\" errors'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_128",
+      "command": "/bin/zsh -lc 'tail -200 docs/acceptance/insight-owner-fresh-5a18901e/raw/24-short-server.log \u003e docs/acceptance/insight-owner-fresh-5a18901e/raw/54-server-log-tail.log \u0026\u0026 cat docs/acceptance/insight-owner-fresh-5a18901e/raw/54-server-log-tail.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_127",
+      "command": "/bin/zsh -lc 'tail -260 docs/acceptance/insight-owner-fresh-5a18901e/raw/33-short-worker-run.log \u003e docs/acceptance/insight-owner-fresh-5a18901e/raw/53-worker-log-tail.log \u0026\u0026 cat docs/acceptance/insight-owner-fresh-5a18901e/raw/53-worker-log-tail.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_129",
+      "command": "/bin/zsh -lc 'find docs/acceptance/insight-owner-fresh-5a18901e -type f | sort | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/55-evidence-file-list.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_131",
+      "command": "/bin/zsh -lc \"python3 - \u003c\u003c'PY'\nfrom pathlib import Path\nroot=Path('docs/acceptance/insight-owner-fresh-5a18901e/raw')\nfor p in root.glob('*'):\n    if p.is_file() and p.suffix not in {'.png'}:\n        try:\n            s=p.read_text()\n        except UnicodeDecodeError:\n            continue\n        s=s.replace('acat_8bhauGrXu3uQy7qbOCB557q8c5piCnS1Vt088-WQd_M','\u003credacted-enroll-token\u003e')\n        s=s.replace('acat_YaX1mCItSJ3cDqTTerqBJD3TzDhDinZxyM_3oD4_5dE','\u003credacted-enroll-token\u003e')\n        s=s.replace('z_un7q=nU_XN','\u003credacted-temp-passcode\u003e')\n        import re\n        s=re.sub(r'ac_session=[A-Za-z0-9._-]+', 'ac_session=\u003credacted-cookie\u003e', s)\n        s=re.sub(r'eyJ[A-Za-z0-9._-]+', '\u003credacted-jwt\u003e', s)\n        p.write_text(s)\n# cookie jar files are not useful durable evidence; replace with redacted marker.\nfor name in ['cookies.txt','short-cookies.txt','plain-member-cookies.txt']:\n    p=root/name\n    if p.exists():\n        p.write_text('# redacted cookie jar; session existence is evidenced by HTTP 200 responses\\\\n')\nPY\nrg -n \\\"acat_|ac_session=|z_un7q|eyJ\\\" docs/acceptance/insight-owner-fresh-5a18901e/raw || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_135",
+      "command": "/bin/zsh -lc 'find docs/acceptance/insight-owner-fresh-5a18901e -type f | sort \u003e docs/acceptance/insight-owner-fresh-5a18901e/raw/55-evidence-file-list.txt \u0026\u0026 shasum -a 256 $(find docs/acceptance/insight-owner-fresh-5a18901e -type f | sort) \u003e docs/acceptance/insight-owner-fresh-5a18901e/raw/56-SHA256SUMS \u0026\u0026 tail -20 docs/acceptance/insight-owner-fresh-5a18901e/raw/56-SHA256SUMS'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_136",
+      "command": "/bin/zsh -lc 'agent-browser --session insight-owner-fresh close; agent-browser --session insight-plain-member close'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_76",
+      "command": "/bin/zsh -lc '$(cat docs/acceptance/insight-owner-fresh-5a18901e/raw/20-short-prefix.txt)/current/bin/agent-center server --config=$(cat docs/acceptance/insight-owner-fresh-5a18901e/raw/20-short-prefix.txt)/etc/config.yaml 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/24-short-server.log'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_83",
+      "command": "/bin/zsh -lc '$(cat docs/acceptance/insight-owner-fresh-5a18901e/raw/29-short-worker-prefix.txt)/current/bin/agent-center worker run --config=$(cat docs/acceptance/insight-owner-fresh-5a18901e/raw/29-short-worker-prefix.txt)/etc/config.yaml --fake-agent=./bin/fakeagent 2\u003e\u00261 | tee docs/acceptance/insight-owner-fresh-5a18901e/raw/33-short-worker-run.log'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_139",
+      "command": "/bin/zsh -lc 'find docs/acceptance/insight-owner-fresh-5a18901e -type f ! -path '\"'*/raw/56-SHA256SUMS' | sort \u003e docs/acceptance/insight-owner-fresh-5a18901e/raw/55-evidence-file-list.txt \u0026\u0026 xargs shasum -a 256 \u003c docs/acceptance/insight-owner-fresh-5a18901e/raw/55-evidence-file-list.txt \u003e docs/acceptance/insight-owner-fresh-5a18901e/raw/56-SHA256SUMS \u0026\u0026 tail -12 docs/acceptance/insight-owner-fresh-5a18901e/raw/56-SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_140",
+      "command": "/bin/zsh -lc 'lsof -nP -iTCP:17101 -iTCP:17301 -sTCP:LISTEN 2\u003e\u00261 || true; git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_143",
+      "command": "/bin/zsh -lc \"python3 - \u003c\u003c'PY'\nfrom pathlib import Path\nimport shutil\npaths = [\n    Path('.tmp'),\n    Path('/tmp/ac-insight-fresh-5a189-38672'),\n    Path('/tmp/ac-insight-worker-worker-6808a12a'),\n    Path('/tmp/insight-fakeagent-script.jsonl'),\n]\nfor p in paths:\n    if p.is_dir():\n        shutil.rmtree(p)\n        print(f'removed dir {p}')\n    elif p.exists():\n        p.unlink()\n        print(f'removed file {p}')\nPY\ngit status --short\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-26748f38/command_events.jsonl",
+  "command_event_digest": "sha256:3e931ac39afe18a6c2d0802c5453e8455c1d2b0dd618b1400ca8e312730da5ff",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "已完成 Insight fresh lineage Owner 复验，结论：**FAIL / 不可核可**。",
+  "artifact_digest": "sha256:07cf7e8cc15cf0b19acba2bb4fdb9b602b37c523b9fe9e77a0a5f6638f0be9e8",
+  "path": ".agent-center/evidence/task-299d7d07/exec-26748f38.json",
+  "branch": "ac-exec/task-299d7d07/exec-26748f38"
+}
