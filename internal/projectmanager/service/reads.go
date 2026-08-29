@@ -461,7 +461,7 @@ func (s *Service) ListRunnableAgentTasks(ctx context.Context, assignee pm.Identi
 			continue
 		}
 		if err := s.EnsureTaskRunnable(ctx, t.ID()); err != nil {
-			if errors.Is(err, pm.ErrTaskNotRunnable) {
+			if errors.Is(err, pm.ErrTaskNotRunnable) || errors.Is(err, pm.ErrProgressHoldOpen) {
 				continue // deps unsatisfied / dead branch — not yet pullable (§13.A)
 			}
 			return nil, err

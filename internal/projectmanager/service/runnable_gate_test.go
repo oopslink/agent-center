@@ -3,9 +3,11 @@ package service
 import (
 	"errors"
 	"testing"
+	"time"
 
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
 // T130 — the open→running invariant (EnsureTaskRunnable + the AgentTaskRunGate
@@ -229,5 +231,43 @@ func TestListRunnableAgentTasks_CompletedPoolTaskCannotReopen(t *testing.T) {
 	}
 	if len(got) != 0 {
 		t.Fatalf("ListRunnableAgentTasks = %+v, want terminal task excluded", got)
+	}
+}
+
+func TestListRunnableAgentTasks_SkipsProgressHeldTaskWithoutBlockingQueue(t *testing.T) {
+	h := planAdvanceSetup(t)
+	h.svc.progress = pmsql.NewProgressControlRepo(h.db)
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "queue", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	const assignee = pm.IdentityRef("agent:m1")
+	held := h.seedAssignedTask(t, pid, planID, "held", string(assignee))
+	runnable := h.seedAssignedTask(t, pid, planID, "runnable", string(assignee))
+	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
+	now := h.clk.Now()
+	if _, err := h.svc.progress.UpsertHold(h.ctx, pm.ProgressHold{
+		ID: "hold-held", PlanID: planID, TaskID: held, NodeID: "node-held",
+		ReasonKind: string(pm.WaitHumanDecision), ReasonID: "decision:" + string(held),
+		OwnerRef: "user:a", OwnerDisplay: "user:a", EnteredAt: now,
+		HoldAckDeadline: now.Add(time.Minute), MaxHoldDuration: time.Hour, NextEscalationAt: now.Add(time.Minute),
+		BlocksDispatch: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := h.svc.ListRunnableAgentTasks(h.ctx, assignee)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].ID() != runnable {
+		t.Fatalf("ListRunnableAgentTasks = %+v, want only runnable task %s", got, runnable)
 	}
 }

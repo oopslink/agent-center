@@ -222,6 +222,17 @@ func TestProgressHold_MaterializesOnlyForMissingExecutableReleaseFact(t *testing
 	if len(snap.OpenHolds) != 0 {
 		t.Fatalf("upstream wait materialized progress_hold without missing executable release fact: %+v", snap.OpenHolds)
 	}
+	h.clk.Advance(defaultHoldAckDeadline + time.Minute)
+	if err := h.svc.ReconcileProgressControl(h.ctx, 10); err != nil {
+		t.Fatal(err)
+	}
+	snap, err = h.svc.progress.SnapshotPlan(h.ctx, planID, h.clk.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.OpenHolds) != 0 {
+		t.Fatalf("expired upstream wake materialized progress_hold for not-yet-runnable node: %+v", snap.OpenHolds)
+	}
 }
 
 func TestReconcilePausedPlans_SecondClockEscalatesHoldSLOWithoutDispatch(t *testing.T) {

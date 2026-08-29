@@ -202,6 +202,9 @@ func (s *Service) ReconcileProgressControl(ctx context.Context, limit int) error
 			return err
 		}
 		for _, w := range wakes {
+			if !progressWakeMissingExecutableReleaseFact(w) {
+				continue
+			}
 			obligationID := "obl:" + w.ID
 			_, err = s.progress.UpsertObligation(txCtx, pm.ProgressObligation{
 				ID: obligationID, PlanID: w.PlanID, TaskID: w.TaskID, NodeID: w.NodeID,
@@ -265,6 +268,31 @@ func (s *Service) ReconcileProgressControl(ctx context.Context, limit int) error
 		}
 		return nil
 	})
+}
+
+func progressWakeMissingExecutableReleaseFact(w pm.ProgressWake) bool {
+	waitType, ok := progressWakeWaitType(w)
+	if !ok {
+		return true
+	}
+	switch waitType {
+	case pm.WaitHumanDecision, pm.WaitAcceptanceVerdict:
+		return true
+	default:
+		return false
+	}
+}
+
+func progressWakeWaitType(w pm.ProgressWake) (pm.WaitType, bool) {
+	const prefix = "blocked_on:"
+	if !strings.HasPrefix(w.IdempotencyKey, prefix) {
+		return "", false
+	}
+	parts := strings.SplitN(strings.TrimPrefix(w.IdempotencyKey, prefix), ":", 4)
+	if len(parts) < 3 {
+		return "", false
+	}
+	return pm.WaitType(parts[2]), true
 }
 
 func (s *Service) guardPlanProgressHolds(ctx context.Context, planID pm.PlanID, dispatch, acceptance, completion bool) error {
