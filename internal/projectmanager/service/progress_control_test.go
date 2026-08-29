@@ -235,6 +235,54 @@ func TestProgressHold_MaterializesOnlyForMissingExecutableReleaseFact(t *testing
 	}
 }
 
+func TestPlanDetail_ProgressControlCannotDetermineAllowsIncidentOnly(t *testing.T) {
+	h := planAdvanceSetup(t)
+	h.svc.progress = pmsql.NewProgressControlRepo(h.db)
+	ctx := h.ctx
+	pid, err := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "incident-only", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskID := h.seedAssignedTask(t, pid, planID, "running without delivery", "user:a")
+	now := h.clk.Now()
+	ok, err := h.svc.progress.UpsertIncident(ctx, pm.ProgressIncident{
+		ID: "incident-only", PlanID: planID, TaskID: taskID, NodeID: "node-1",
+		Kind: pm.IncidentProgressClassificationUnknown, Severity: "P1",
+		OwnerRef: "system", OwnerDisplay: "system", Summary: "running_without_delivery",
+		SourceRef: "progress:running_without_delivery", Status: pm.ResponsibilityOpen,
+		CreatedAt: now, UpdatedAt: now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("incident was not inserted")
+	}
+	detail, err := h.svc.GetPlanDetail(ctx, planID)
+	if err != nil {
+		t.Fatalf("GetPlanDetail incident-only progress_control: %v", err)
+	}
+	if detail.ProgressControl == nil {
+		t.Fatal("progress_control missing")
+	}
+	if detail.ProgressControl.Decision != pm.CannotDetermine {
+		t.Fatalf("decision=%s, want cannot_determine", detail.ProgressControl.Decision)
+	}
+	if len(detail.ProgressControl.OpenHolds) != 0 {
+		t.Fatalf("open holds=%+v, want none", detail.ProgressControl.OpenHolds)
+	}
+	if len(detail.ProgressControl.OpenIncidents) != 1 {
+		t.Fatalf("open incidents=%+v, want one", detail.ProgressControl.OpenIncidents)
+	}
+	if len(detail.ProgressControl.RequiredActions) != 1 || detail.ProgressControl.RequiredActions[0].SourceType != "incident" {
+		t.Fatalf("required actions=%+v, want incident action", detail.ProgressControl.RequiredActions)
+	}
+}
+
 func TestReconcilePausedPlans_SecondClockEscalatesHoldSLOWithoutDispatch(t *testing.T) {
 	h := planAdvanceSetup(t)
 	h.svc.progress = pmsql.NewProgressControlRepo(h.db)

@@ -797,7 +797,7 @@ func (s *Service) fillProgressControl(ctx context.Context, detail *PlanDetail) e
 			snap.Quality = pm.ProgressQualitySuspect
 		}
 	}
-	if snap.Decision == pm.CannotDetermine && (len(snap.OpenIncidents) == 0 || len(snap.OpenHolds) == 0) {
+	if snap.Decision == pm.CannotDetermine && len(snap.OpenIncidents) == 0 {
 		return ErrProgressControlContract
 	}
 	snap.RequiredActions = deriveProgressRequiredActions(snap)
@@ -805,7 +805,7 @@ func (s *Service) fillProgressControl(ctx context.Context, detail *PlanDetail) e
 	return nil
 }
 
-var ErrProgressControlContract = errors.New("projectmanager: progress_control cannot_determine requires persisted incident and hold")
+var ErrProgressControlContract = errors.New("projectmanager: progress_control cannot_determine requires persisted incident")
 
 func appendUniqueObligations(dst, src []pm.ProgressObligation) []pm.ProgressObligation {
 	seen := map[string]bool{}
