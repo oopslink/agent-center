@@ -1,0 +1,23 @@
+{
+  "task": "T1756",
+  "verdict": "REJECT",
+  "blocking": true,
+  "fail_closed": true,
+  "candidate_sha": null,
+  "verified_sha": null,
+  "generated_at": "2026-08-29T07:19:50Z",
+  "reason": "Required task-input/v1 package is missing, so the exact immutable T1755 candidate SHA and delivery instructions could not be recovered without guessing.",
+  "gates": {
+    "task_input_readme_present": false,
+    "task_input_manifest_present": false,
+    "fresh_fetch_origin_main": true,
+    "head_equals_origin_main": true,
+    "merge_base_equals_origin_main": true,
+    "behind_origin_main": 0,
+    "worktree_clean_before_evidence": true,
+    "old_75427e3d_not_ancestor": true,
+    "old_bda5d14a_not_ancestor": true,
+    "browser_reverification_started": false,
+    "sha256sums_verified": true
+  }
+}
