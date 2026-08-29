@@ -1,0 +1,161 @@
+{
+  "task_id": "task-93b3fe7a",
+  "execution_id": "exec-68dcc49e",
+  "reviewed_sha": "5a18901eaea33c48247e2e8847a29f1d66038d40",
+  "base_sha": "5a18901eaea33c48247e2e8847a29f1d66038d40",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files task-input/v1 . | sed 's#\"'^#/#'\"' | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f \\\\( -path '*task-input*' -o -name 'manifest.json' -o -name 'README.md' -o -name 'SHA256SUMS' -o -name '*verdict*' -o -name '*REPORT*' \\\\) | sort | head -300\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git show --no-patch --format=fuller HEAD \u0026\u0026 git branch --all --contains d55279debfa874ecaeff90eaac020aa62d8a7a2e || true \u0026\u0026 git cat-file -t d55279debfa874ecaeff90eaac020aa62d8a7a2e 2\u003e/dev/null || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"git branch --all --list '*73659147*' '*delivery*' '*deliver*' '*d55279*' \u0026\u0026 git for-each-ref --format='%(refname:short) %(objectname)' refs/heads refs/remotes | rg '73659147|d55279deb|delivery|deliver|task-93b3fe7a' || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"find .. -maxdepth 5 -type f \\\\( -path '*task-input*' -o -name 'manifest.json' -o -name 'SHA256SUMS' -o -name '*verdict*' -o -name '*REPORT*' \\\\) | sort | head -300\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"git ls-tree -r --name-only d55279debfa874ecaeff90eaac020aa62d8a7a2e | rg '(\"'^|/)SHA256SUMS$|REPORT|verdict|acceptance|evidence|screenshot|api'\"' | sed -n '1,300p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"git show --no-patch --format='%H%n%P%n%B' d55279debfa874ecaeff90eaac020aa62d8a7a2e \u0026\u0026 git merge-base d55279debfa874ecaeff90eaac020aa62d8a7a2e 5a18901eaea33c48247e2e8847a29f1d66038d40 \u0026\u0026 git diff --name-status 5a18901eaea33c48247e2e8847a29f1d66038d40..d55279debfa874ecaeff90eaac020aa62d8a7a2e | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate --graph --max-count=10 d55279debfa874ecaeff90eaac020aa62d8a7a2e'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"find ../exec-a5dc2b4f -maxdepth 5 -type f | rg 't1760|73659147|insight|null|SHA256SUMS|REPORT|verdict|screenshot|api' | sort | sed -n '1,400p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'git cat-file -t 73659147 2\u003e/dev/null \u0026\u0026 git show --no-patch --format=fuller 73659147 || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"find . -maxdepth 7 -type f | rg 'docs/acceptance/.*(t1760|insight|null|fresh|empty)|evidence/.*(t1760|insight|null|fresh|empty)|SHA256SUMS|verdict\\\\.json|REPORT\\\\.md' | sort | sed -n '1,500p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"git for-each-ref --format='%(refname:short) %(objectname) %(subject)' refs/heads refs/remotes | rg '73659147|t1760|insight|null|fresh|empty|review'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"git log --all --grep='73659147\\\\|insight\\\\|null\\\\|empty' --oneline --decorate --max-count=80\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"git ls-tree -r --name-only 7365914751f3a257a1d2a9d4cf1bc59ae6e242db | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"git show --name-only --format='commit %H%nparents %P%nsubject %s' 7365914751f3a257a1d2a9d4cf1bc59ae6e242db | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate --no-renames 7365914751f3a257a1d2a9d4cf1bc59ae6e242db'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"git grep -n 'd55279deb\\\\|73659147\\\\|5a18901e\\\\|PASS\\\\|REJECT\\\\|verdict\\\\|fresh\\\\|null\\\\|403\\\\|503' 7365914751f3a257a1d2a9d4cf1bc59ae6e242db -- docs/acceptance web/src 2\u003e/dev/null | sed -n '1,400p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc 'git show 7365914751f3a257a1d2a9d4cf1bc59ae6e242db:docs/acceptance/t1760-independent-browser-d55279de/REPORT.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"git show 7365914751f3a257a1d2a9d4cf1bc59ae6e242db:docs/acceptance/t1760-independent-browser-d55279de/verdict.json \u0026\u0026 printf '\\\\n--- browser ---\\\\n' \u0026\u0026 git show 7365914751f3a257a1d2a9d4cf1bc59ae6e242db:docs/acceptance/t1760-independent-browser-d55279de/browser-verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"git show 7365914751f3a257a1d2a9d4cf1bc59ae6e242db:docs/acceptance/t1760-independent-browser-d55279de/raw/provenance.log \u0026\u0026 printf '\\\\n--- task input search ---\\\\n' \u0026\u0026 git show 7365914751f3a257a1d2a9d4cf1bc59ae6e242db:docs/acceptance/t1760-independent-browser-d55279de/raw/task-input-search.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc 'tmpdir=$(mktemp -d /tmp/t1760-evidence-verify.XXXXXX) \u0026\u0026 git archive 7365914751f3a257a1d2a9d4cf1bc59ae6e242db docs/acceptance/t1760-independent-browser-d55279de | tar -x -C \"$tmpdir\" \u0026\u0026 cd \"$tmpdir/docs/acceptance/t1760-independent-browser-d55279de\" \u0026\u0026 shasum -a 256 -c SHA256SUMS'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-68dcc49e/command_events.jsonl",
+  "command_event_digest": "sha256:a716d46b209c9e6b5268ddb177810fd8b446187db75de9df9cdd07867f43fbc6",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "blocking REJECT.",
+  "artifact_digest": "sha256:785036fa288d26bbf1c43cf47527885ecc62e954292ce3d0eed28ace2d397ac3",
+  "path": ".agent-center/evidence/task-93b3fe7a/exec-68dcc49e.json",
+  "branch": "ac-exec/task-93b3fe7a/exec-68dcc49e"
+}
