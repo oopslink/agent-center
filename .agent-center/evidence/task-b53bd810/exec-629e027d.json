@@ -1,0 +1,71 @@
+{
+  "task_id": "task-b53bd810",
+  "execution_id": "exec-629e027d",
+  "reviewed_sha": "5a18901eaea33c48247e2e8847a29f1d66038d40",
+  "base_sha": "5a18901eaea33c48247e2e8847a29f1d66038d40",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files -n task-input/v1 . | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"find . -maxdepth 5 \\\\( -iname '*1756*' -o -iname '*78b35542*' -o -iname '*insight*' -o -iname 'SHA256SUMS' -o -iname 'REPORT.md' -o -iname 'report.md' \\\\) -print | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'rg -n \"T1756|t1756|exec-78b35542|b53bd810|7d9e8bb0765f5cc5ff484c18359764c2a9716e57|5a18901eaea33c48247e2e8847a29f1d66038d40\" .'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type d -name 'task-input' -o -path './task-input/*' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f \\\\( -name 'manifest.json' -o -name 'README.md' \\\\) -print | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-629e027d/command_events.jsonl",
+  "command_event_digest": "sha256:45bd23c86fc994953a56157d93768142b0b01f960321ef6300b741ed23af36ac",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "Verdict: **BLOCKED / fail closed**.",
+  "artifact_digest": "sha256:8e6f6c2b051f131cde3fa61c148d4cdee92155dbc928790f5420005ea01a29df",
+  "path": ".agent-center/evidence/task-b53bd810/exec-629e027d.json",
+  "branch": "ac-exec/task-b53bd810/exec-629e027d"
+}
