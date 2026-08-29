@@ -1,13 +1,86 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/persistence"
 )
+
+func TestMigrateOrphanConditions_CLIIsolatedCopyDryRunApplyReapply(t *testing.T) {
+	ctx := context.Background()
+	dbPath := filepath.Join(t.TempDir(), "isolated-copy.db")
+	db, err := persistence.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := persistence.NewMigrator(db).Up(ctx); err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	seedOrphanConditionRows(t, ctx, db)
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	dryRun := runOrphanConditionCLI(t, "--db="+dbPath, "--dry-run")
+	if dryRun.Mode != "dry-run" || dryRun.Summary.Scanned != 5 || dryRun.Summary.Resolved != 1 || dryRun.Summary.Superseded != 2 || dryRun.Summary.Incidents != 1 {
+		t.Fatalf("dry-run summary=%+v", dryRun)
+	}
+	t.Logf("isolated copy dry-run: %+v", dryRun.Summary)
+
+	first := runOrphanConditionCLI(t, "--db="+dbPath, "--apply", "--deadline-hours=2")
+	if first.Mode != "apply" || first.Summary.Resolved != 1 || first.Summary.Superseded != 2 || first.Summary.Incidents != 1 {
+		t.Fatalf("first apply summary=%+v", first)
+	}
+	t.Logf("isolated copy first apply: %+v", first.Summary)
+
+	second := runOrphanConditionCLI(t, "--db="+dbPath, "--apply", "--deadline-hours=2")
+	if second.Summary.AlreadyApplied != 1 || second.Summary.ShadowCurrent != 1 || second.Summary.Resolved != 0 || second.Summary.Superseded != 0 || second.Summary.Incidents != 0 {
+		t.Fatalf("second apply summary=%+v", second)
+	}
+	t.Logf("isolated copy second apply: %+v", second.Summary)
+
+	db, err = persistence.Open(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if n := scalarInt(t, ctx, db, `SELECT COUNT(*) FROM pm_orphan_condition_migration_markers`); n != 4 {
+		t.Fatalf("markers after reapply=%d want 4", n)
+	}
+	if n := scalarInt(t, ctx, db, `SELECT COUNT(*) FROM pm_progress_incidents WHERE kind='migration_gap'`); n != 1 {
+		t.Fatalf("incidents after reapply=%d want 1", n)
+	}
+	if n := scalarInt(t, ctx, db, `SELECT COUNT(*) FROM pm_audit_log WHERE change_type='migration' AND field='orphan_condition'`); n != 4 {
+		t.Fatalf("audits after reapply=%d want 4", n)
+	}
+}
+
+func runOrphanConditionCLI(t *testing.T, args ...string) orphanConditionResult {
+	t.Helper()
+	router, _, err := BuildRouter("v-test", "test", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out, errw bytes.Buffer
+	router.Out = &out
+	router.Err = &errw
+	code := router.Run(context.Background(), append([]string{"migrate", "orphan-conditions"}, args...))
+	if code != ExitOK {
+		t.Fatalf("CLI args=%v code=%d stderr=%s", args, code, errw.String())
+	}
+	var result orphanConditionResult
+	if err := json.Unmarshal(out.Bytes(), &result); err != nil {
+		t.Fatalf("decode CLI output %q: %v", out.String(), err)
+	}
+	return result
+}
 
 func TestMigrateOrphanConditions_DryRunClassifiesWithoutMutation(t *testing.T) {
 	ctx, db := orphanConditionDB(t)
