@@ -52,6 +52,9 @@ func BuildRouter(buildVersion, buildCommit string, args []string) (*Router, stri
 	if err := router.Add([]string{"migrate"}, MigrateV1ToV2Command()); err != nil {
 		return nil, "", err
 	}
+	if err := router.Add([]string{"migrate"}, MigrateOrphanConditionsCommand()); err != nil {
+		return nil, "", err
+	}
 	if err := router.Add([]string{"admin"}, AdminBlobMigratePlaceholder()); err != nil {
 		return nil, "", err
 	}

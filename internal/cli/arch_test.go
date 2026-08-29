@@ -20,6 +20,9 @@ import (
 //
 //   - handlers_migrate_v1_to_v2.go — schema migration tool (target
 //     might be empty / un-served DB; can't go through admin).
+//   - handlers_migrate_orphan_conditions.go — offline historical repair tool
+//     intended to run against an isolated sqlite copy; requiring the admin endpoint
+//     would make the dry-run/apply evidence depend on a live center.
 //   - handlers_system.go — `agent-center server` boot path (the
 //     process that OWNS the DB and serves the admin endpoint).
 //
@@ -28,8 +31,9 @@ import (
 // rule exists to prevent.
 func TestArch_NoDirectPersistenceOpenInHandlers(t *testing.T) {
 	whitelist := map[string]bool{
-		"handlers_migrate_v1_to_v2.go": true,
-		"handlers_system.go":           true,
+		"handlers_migrate_v1_to_v2.go":          true,
+		"handlers_migrate_orphan_conditions.go": true,
+		"handlers_system.go":                    true,
 	}
 
 	matches, err := filepath.Glob("handlers_*.go")
