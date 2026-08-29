@@ -1,0 +1,11 @@
+2026-08-29T05:39:07Z
+BEFORE_HEAD=f61c3110eb830f544b87b85d4d4d94e90633a0d5
+REMOTE_MAIN=5a18901eaea33c48247e2e8847a29f1d66038d40
+fatal: remote error: upload-pack: not our ref 5a18901e7d9f7a7a6c5e1b56b4ef93b9a3d51c13
+fatal: remote error: upload-pack: not our ref 5a18901e7d9f7a7a6c5e1b56b4ef93b9a3d51c13
+fatal: remote error: upload-pack: not our ref 5a18901e7d9f7a7a6c5e1b56b4ef93b9a3d51c13
+fatal: remote error: upload-pack: not our ref 5a18901e7d9f7a7a6c5e1b56b4ef93b9a3d51c13
+fatal: unable to read tree (5a18901e7d9f7a7a6c5e1b56b4ef93b9a3d51c13)
+AFTER_HEAD=f61c3110eb830f544b87b85d4d4d94e90633a0d5
+## ac-exec/task-05d9502f/exec-c38e24f4
+?? docs/acceptance/t1754-runtime-determinism/

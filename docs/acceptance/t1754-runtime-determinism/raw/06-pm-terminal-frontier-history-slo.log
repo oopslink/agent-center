@@ -1,0 +1,367 @@
+2026-08-29T05:42:30Z
+=== RUN   TestDerivePlanView_ConditionalRouting
+--- PASS: TestDerivePlanView_ConditionalRouting (0.00s)
+=== RUN   TestDerivePlanView_PendingDecisionBlocks
+--- PASS: TestDerivePlanView_PendingDecisionBlocks (0.00s)
+=== RUN   TestDerivePlanView_AllDoneWithSkipped
+--- PASS: TestDerivePlanView_AllDoneWithSkipped (0.00s)
+=== RUN   TestDerivePlanView_LoopbackNotForwardBlocking
+--- PASS: TestDerivePlanView_LoopbackNotForwardBlocking (0.00s)
+=== RUN   TestDerivePlanView_CycleControlFlowRouting
+=== RUN   TestDerivePlanView_CycleControlFlowRouting/pass_routes_to_Integrate
+=== RUN   TestDerivePlanView_CycleControlFlowRouting/reject_exhausted_routes_to_Escape
+--- PASS: TestDerivePlanView_CycleControlFlowRouting (0.00s)
+    --- PASS: TestDerivePlanView_CycleControlFlowRouting/pass_routes_to_Integrate (0.00s)
+    --- PASS: TestDerivePlanView_CycleControlFlowRouting/reject_exhausted_routes_to_Escape (0.00s)
+=== RUN   TestDerivePlanView_PureDAGBackCompat
+--- PASS: TestDerivePlanView_PureDAGBackCompat (0.00s)
+=== RUN   TestDeriveFrontier_GroupsByWaitTypeCanonicalOrder
+--- PASS: TestDeriveFrontier_GroupsByWaitTypeCanonicalOrder (0.00s)
+=== RUN   TestDeriveFrontier_Empty
+--- PASS: TestDeriveFrontier_Empty (0.00s)
+=== RUN   TestDeriveFrontier_UnknownWaitTypeAppended
+--- PASS: TestDeriveFrontier_UnknownWaitTypeAppended (0.00s)
+=== RUN   TestPlanDoneCanReopenWhileDiscardedStaysTerminal
+--- PASS: TestPlanDoneCanReopenWhileDiscardedStaysTerminal (0.00s)
+=== RUN   TestPlanArchiveIsOrthogonalAndTerminalOnly
+--- PASS: TestPlanArchiveIsOrthogonalAndTerminalOnly (0.00s)
+=== RUN   TestDerivePlanView_AllEightStates
+--- PASS: TestDerivePlanView_AllEightStates (0.00s)
+=== RUN   TestDerivePlanView_DraftPlan
+--- PASS: TestDerivePlanView_DraftPlan (0.00s)
+=== RUN   TestDerivePlanView_FlatPool
+--- PASS: TestDerivePlanView_FlatPool (0.00s)
+=== RUN   TestDerivePlanView_ExhaustedNewScaffold_IntegrateSkips_NoFailure
+--- PASS: TestDerivePlanView_ExhaustedNewScaffold_IntegrateSkips_NoFailure (0.00s)
+=== RUN   TestDerivePlanView_DiscardedUntakenEscape_IsSkippedNotFailed_T467
+--- PASS: TestDerivePlanView_DiscardedUntakenEscape_IsSkippedNotFailed_T467 (0.00s)
+=== RUN   TestDerivePlanView_DiscardedTakenEscape_StaysFailed_T467
+--- PASS: TestDerivePlanView_DiscardedTakenEscape_StaysFailed_T467 (0.00s)
+=== RUN   TestDerivePlanView_DiscardedDevNode_StaysFailed_T467
+--- PASS: TestDerivePlanView_DiscardedDevNode_StaysFailed_T467 (0.00s)
+=== RUN   TestDerivePlanView_RunningEscape_NotSkipped_T467
+--- PASS: TestDerivePlanView_RunningEscape_NotSkipped_T467 (0.00s)
+=== RUN   TestDerivePlanView_ActiveLoopback_EscapeNotPrematurelySkipped_T467
+--- PASS: TestDerivePlanView_ActiveLoopback_EscapeNotPrematurelySkipped_T467 (0.00s)
+=== RUN   TestDerivePlanView_ReadySet_FanOut
+--- PASS: TestDerivePlanView_ReadySet_FanOut (0.00s)
+=== RUN   TestDerivePlanView_DispatchedNotReady
+--- PASS: TestDerivePlanView_DispatchedNotReady (0.00s)
+=== RUN   TestDerivePlanView_PausedOverlay
+--- PASS: TestDerivePlanView_PausedOverlay (0.00s)
+=== RUN   TestDerivePlanView_FailureIsolation
+--- PASS: TestDerivePlanView_FailureIsolation (0.00s)
+=== RUN   TestDerivePlanView_SupersededFailedNodeIsHistoricalOnly
+--- PASS: TestDerivePlanView_SupersededFailedNodeIsHistoricalOnly (0.00s)
+=== RUN   TestDerivePlanView_SupersededFailureKeepsFailedAuditStatusWhenBranchIsPruned
+--- PASS: TestDerivePlanView_SupersededFailureKeepsFailedAuditStatusWhenBranchIsPruned (0.00s)
+=== RUN   TestDerivePlanView_AllDone
+=== RUN   TestDerivePlanView_AllDone/all_done
+=== RUN   TestDerivePlanView_AllDone/one_failed_keeps_not-done
+=== RUN   TestDerivePlanView_AllDone/empty_plan_is_not_all-done
+--- PASS: TestDerivePlanView_AllDone (0.00s)
+    --- PASS: TestDerivePlanView_AllDone/all_done (0.00s)
+    --- PASS: TestDerivePlanView_AllDone/one_failed_keeps_not-done (0.00s)
+    --- PASS: TestDerivePlanView_AllDone/empty_plan_is_not_all-done (0.00s)
+=== RUN   TestTaskStatus_IsTerminal_Partition
+--- PASS: TestTaskStatus_IsTerminal_Partition (0.00s)
+=== RUN   TestTaskTerminalStatusesCannotReopen
+--- PASS: TestTaskTerminalStatusesCannotReopen (0.00s)
+=== RUN   TestTaskSetStatus_TerminalMonotonic
+--- PASS: TestTaskSetStatus_TerminalMonotonic (0.00s)
+=== RUN   TestTaskTerminalHistoryCannotReopen
+--- PASS: TestTaskTerminalHistoryCannotReopen (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager	0.373s
+testing: warning: no tests to run
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/orchestration	0.766s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/orchestration/sqlite	1.156s [no tests to run]
+=== RUN   TestEnsureTaskRunnable_BlockedByUnfinishedUpstream_Rejected
+=== PAUSE TestEnsureTaskRunnable_BlockedByUnfinishedUpstream_Rejected
+=== RUN   TestIssueDerivedDone_EmitsOnlyWhenAllTerminal
+=== PAUSE TestIssueDerivedDone_EmitsOnlyWhenAllTerminal
+=== RUN   TestIssueDerivedDone_DiscardedCounts
+=== PAUSE TestIssueDerivedDone_DiscardedCounts
+=== RUN   TestIssueDerivedDone_NoEmitWhenIssueConcluded
+=== PAUSE TestIssueDerivedDone_NoEmitWhenIssueConcluded
+=== RUN   TestIssueDerivedDone_NoEmitForUnlinkedTask
+=== PAUSE TestIssueDerivedDone_NoEmitForUnlinkedTask
+=== RUN   TestIssueDerivedDone_ReArmsOnNewTask
+=== PAUSE TestIssueDerivedDone_ReArmsOnNewTask
+=== RUN   TestPlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shape
+=== PAUSE TestPlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shape
+=== RUN   TestPlanCompletion_LegacyPlan5a432139CompletesWithoutLineageBackfill
+=== PAUSE TestPlanCompletion_LegacyPlan5a432139CompletesWithoutLineageBackfill
+=== RUN   TestPlanCompletion_RealLegacyPlan5a432139GraphCompletes
+=== PAUSE TestPlanCompletion_RealLegacyPlan5a432139GraphCompletes
+=== RUN   TestPlanCompletion_UnrelatedLegacyRecoveryChainDoesNotReplaceFailure
+=== PAUSE TestPlanCompletion_UnrelatedLegacyRecoveryChainDoesNotReplaceFailure
+=== RUN   TestPlanCompletion_ManualCompleteAcceptsRemediatedHistoricalFailure
+=== PAUSE TestPlanCompletion_ManualCompleteAcceptsRemediatedHistoricalFailure
+=== RUN   TestPlanCompletion_LegacyContinuationStagesProvideReplacementLineage
+=== PAUSE TestPlanCompletion_LegacyContinuationStagesProvideReplacementLineage
+=== RUN   TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion
+=== PAUSE TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion
+=== RUN   TestPlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks
+=== PAUSE TestPlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks
+=== RUN   TestPlanCompletion_ForceRequiresReasonAndBypassesEligibility
+=== PAUSE TestPlanCompletion_ForceRequiresReasonAndBypassesEligibility
+=== RUN   TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion
+=== RUN   TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/ready
+=== PAUSE TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/ready
+=== RUN   TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/dispatched
+=== PAUSE TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/dispatched
+=== RUN   TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/running
+=== PAUSE TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/running
+=== CONT  TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/ready
+=== CONT  TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/running
+=== CONT  TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/dispatched
+--- PASS: TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion (0.00s)
+    --- PASS: TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/ready (0.23s)
+    --- PASS: TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/running (0.23s)
+    --- PASS: TestPlanCompletion_ReadyDispatchedAndRunningWorkBlockManualCompletion/dispatched (0.24s)
+=== RUN   TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates
+=== PAUSE TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates
+=== RUN   TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot
+=== PAUSE TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot
+=== RUN   TestEvolvePlanGeneration_InFlightConflictDecisions
+=== RUN   TestEvolvePlanGeneration_InFlightConflictDecisions/supersede_running_node_rejected
+=== PAUSE TestEvolvePlanGeneration_InFlightConflictDecisions/supersede_running_node_rejected
+=== RUN   TestEvolvePlanGeneration_InFlightConflictDecisions/edge_rewrite_of_dispatched_dependent_rejects_whole_request
+=== PAUSE TestEvolvePlanGeneration_InFlightConflictDecisions/edge_rewrite_of_dispatched_dependent_rejects_whole_request
+=== RUN   TestEvolvePlanGeneration_InFlightConflictDecisions/hold_at_gate_with_in_flight_downstream_rejected
+=== PAUSE TestEvolvePlanGeneration_InFlightConflictDecisions/hold_at_gate_with_in_flight_downstream_rejected
+=== CONT  TestEvolvePlanGeneration_InFlightConflictDecisions/supersede_running_node_rejected
+=== CONT  TestEvolvePlanGeneration_InFlightConflictDecisions/hold_at_gate_with_in_flight_downstream_rejected
+=== CONT  TestEvolvePlanGeneration_InFlightConflictDecisions/edge_rewrite_of_dispatched_dependent_rejects_whole_request
+--- PASS: TestEvolvePlanGeneration_InFlightConflictDecisions (0.00s)
+    --- PASS: TestEvolvePlanGeneration_InFlightConflictDecisions/edge_rewrite_of_dispatched_dependent_rejects_whole_request (0.03s)
+    --- PASS: TestEvolvePlanGeneration_InFlightConflictDecisions/supersede_running_node_rejected (0.04s)
+    --- PASS: TestEvolvePlanGeneration_InFlightConflictDecisions/hold_at_gate_with_in_flight_downstream_rejected (0.04s)
+=== RUN   TestEvolvePlanGeneration_OwnerSupersedesBlockedDispatchedNodeAtomically
+=== PAUSE TestEvolvePlanGeneration_OwnerSupersedesBlockedDispatchedNodeAtomically
+=== RUN   TestEvolvePlanGeneration_OwnerSupersedesCompletedTerminalNodeWithoutRemoveGate
+=== PAUSE TestEvolvePlanGeneration_OwnerSupersedesCompletedTerminalNodeWithoutRemoveGate
+=== RUN   TestEvolvePlanGeneration_OwnerSupersedesDiscardedTerminalNode
+=== PAUSE TestEvolvePlanGeneration_OwnerSupersedesDiscardedTerminalNode
+=== RUN   TestEvolvePlanGeneration_NonOwnerCannotSupersedeSettledDispatchedNode
+=== PAUSE TestEvolvePlanGeneration_NonOwnerCannotSupersedeSettledDispatchedNode
+=== RUN   TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached
+=== PAUSE TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached
+=== RUN   TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch
+=== PAUSE TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch
+=== RUN   TestOrchestrator_ReplayIdempotent
+=== PAUSE TestOrchestrator_ReplayIdempotent
+=== RUN   TestOrchestrator_FailureReplayNotifiesOnce
+=== PAUSE TestOrchestrator_FailureReplayNotifiesOnce
+=== RUN   TestOrchestrator_AgentCreatorWakeReplayOnce
+=== PAUSE TestOrchestrator_AgentCreatorWakeReplayOnce
+=== RUN   TestStageReject_AppendsIncrementalStageWithoutReopeningHistory
+=== PAUSE TestStageReject_AppendsIncrementalStageWithoutReopeningHistory
+=== RUN   TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume
+=== PAUSE TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume
+=== RUN   TestDiscardPlan_AllowsOrgOwnerProjectMemberButRejectsPlainMember
+=== PAUSE TestDiscardPlan_AllowsOrgOwnerProjectMemberButRejectsPlainMember
+=== RUN   TestDiscardPlan_SkipsAlreadyDiscardedTasks
+=== PAUSE TestDiscardPlan_SkipsAlreadyDiscardedTasks
+=== RUN   TestStageGateReadiness_RequiresEveryMemberTerminal
+=== PAUSE TestStageGateReadiness_RequiresEveryMemberTerminal
+=== RUN   TestStageGateReadiness_ReloadsPersistedMembersFailClosed
+=== PAUSE TestStageGateReadiness_ReloadsPersistedMembersFailClosed
+=== RUN   TestEnsureTaskRunnable_StageGateRequiresEveryPersistedMemberTerminal
+=== PAUSE TestEnsureTaskRunnable_StageGateRequiresEveryPersistedMemberTerminal
+=== RUN   TestEnsureTaskRunnable_DownstreamStageGateRequiresUpstreamGatePass
+=== PAUSE TestEnsureTaskRunnable_DownstreamStageGateRequiresUpstreamGatePass
+=== RUN   TestProgressControl_StaleFenceConflictPersistsWithoutMutation
+=== PAUSE TestProgressControl_StaleFenceConflictPersistsWithoutMutation
+=== RUN   TestProgressControl_ConcurrentFenceTakeoverRejectsStaleWriter
+=== PAUSE TestProgressControl_ConcurrentFenceTakeoverRejectsStaleWriter
+=== RUN   TestProgressControl_WatchdogIndependentFromPlanReconcile
+=== PAUSE TestProgressControl_WatchdogIndependentFromPlanReconcile
+=== RUN   TestProgressControl_WatchdogSilentCreatesServiceIncident
+=== PAUSE TestProgressControl_WatchdogSilentCreatesServiceIncident
+=== RUN   TestProgressControl_WatchdogTreatsMissingHeartbeatAsSilent
+=== PAUSE TestProgressControl_WatchdogTreatsMissingHeartbeatAsSilent
+=== RUN   TestProgressControl_WakeBucketP0ReserveAndAutoResume
+=== PAUSE TestProgressControl_WakeBucketP0ReserveAndAutoResume
+=== RUN   TestProgressControl_WakeStormAggregates1000PlansAndDurablyDrains
+=== PAUSE TestProgressControl_WakeStormAggregates1000PlansAndDurablyDrains
+=== RUN   TestProgressControl_ReconcileExpiredWakeCreatesHoldAndEscalates
+=== PAUSE TestProgressControl_ReconcileExpiredWakeCreatesHoldAndEscalates
+=== RUN   TestProgressControl_AckWakeExhaustsObligationIncidentHoldAndStoresFact
+=== PAUSE TestProgressControl_AckWakeExhaustsObligationIncidentHoldAndStoresFact
+=== RUN   TestReconcilePausedPlans_SecondClockEscalatesHoldSLOWithoutDispatch
+=== PAUSE TestReconcilePausedPlans_SecondClockEscalatesHoldSLOWithoutDispatch
+=== RUN   TestProgressControl_TornReadDisappearanceRequiresSecondConfirmation
+=== PAUSE TestProgressControl_TornReadDisappearanceRequiresSecondConfirmation
+=== RUN   TestProgressControl_WatermarkLagDedupsIncident
+=== PAUSE TestProgressControl_WatermarkLagDedupsIncident
+=== RUN   TestProgressControl_SourceRecoveryClosesObligationAfterAuthoritativeFact
+=== PAUSE TestProgressControl_SourceRecoveryClosesObligationAfterAuthoritativeFact
+=== RUN   TestProgressControl_MissingContractDefaultsAndCoverage
+=== PAUSE TestProgressControl_MissingContractDefaultsAndCoverage
+=== RUN   TestProgressControl_ReconcileRunningPlansPersistsProductionPath
+=== PAUSE TestProgressControl_ReconcileRunningPlansPersistsProductionPath
+=== RUN   TestProgressControl_EmptyFrontierUnresolvedContinuationCreatesOwnerObligation
+=== PAUSE TestProgressControl_EmptyFrontierUnresolvedContinuationCreatesOwnerObligation
+=== RUN   TestProgressControl_MissingGateEvaluatorCreatesOwnerObligation
+=== PAUSE TestProgressControl_MissingGateEvaluatorCreatesOwnerObligation
+=== RUN   TestEnsureTaskRunnable_MergeToMain_UngatedNode_Blocked
+=== PAUSE TestEnsureTaskRunnable_MergeToMain_UngatedNode_Blocked
+=== RUN   TestEnsureTaskRunnable_MergeToMain_GatedNode_ReleasedOnlyOnPass
+=== PAUSE TestEnsureTaskRunnable_MergeToMain_GatedNode_ReleasedOnlyOnPass
+=== RUN   TestEnsureTaskRunnable_MergeToMain_RejectVerdict_Blocked
+=== PAUSE TestEnsureTaskRunnable_MergeToMain_RejectVerdict_Blocked
+=== RUN   TestEnsureTaskRunnable_MergeToMain_BuiltinPool_Blocked
+=== PAUSE TestEnsureTaskRunnable_MergeToMain_BuiltinPool_Blocked
+=== RUN   TestEnsureTaskRunnable_BacklogNoPlan_Rejected
+=== PAUSE TestEnsureTaskRunnable_BacklogNoPlan_Rejected
+=== RUN   TestEnsureTaskRunnable_BuiltinNotDispatched_Rejected
+=== PAUSE TestEnsureTaskRunnable_BuiltinNotDispatched_Rejected
+=== RUN   TestEnsureTaskRunnable_AssignedReadyPoolMember_OK
+=== PAUSE TestEnsureTaskRunnable_AssignedReadyPoolMember_OK
+=== RUN   TestEnsureTaskRunnable_DispatchedPoolMember_OK
+=== PAUSE TestEnsureTaskRunnable_DispatchedPoolMember_OK
+=== RUN   TestEnsureTaskRunnable_RealPlanNode_OK
+=== PAUSE TestEnsureTaskRunnable_RealPlanNode_OK
+=== RUN   TestEnsureTaskRunnable_RealPlanNode_DraftPlan_Rejected
+=== PAUSE TestEnsureTaskRunnable_RealPlanNode_DraftPlan_Rejected
+=== RUN   TestEnsureTaskRunnable_RunningPoolTask_OK
+=== PAUSE TestEnsureTaskRunnable_RunningPoolTask_OK
+=== CONT  TestEnsureTaskRunnable_BlockedByUnfinishedUpstream_Rejected
+=== CONT  TestStageGateReadiness_ReloadsPersistedMembersFailClosed
+=== CONT  TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot
+=== CONT  TestProgressControl_MissingContractDefaultsAndCoverage
+=== CONT  TestOrchestrator_FailureReplayNotifiesOnce
+=== CONT  TestProgressControl_WakeBucketP0ReserveAndAutoResume
+=== CONT  TestEvolvePlanGeneration_NonOwnerCannotSupersedeSettledDispatchedNode
+=== CONT  TestProgressControl_ConcurrentFenceTakeoverRejectsStaleWriter
+=== CONT  TestEvolvePlanGeneration_OwnerSupersedesCompletedTerminalNodeWithoutRemoveGate
+=== CONT  TestReconcilePausedPlans_SecondClockEscalatesHoldSLOWithoutDispatch
+--- PASS: TestProgressControl_ConcurrentFenceTakeoverRejectsStaleWriter (0.06s)
+=== CONT  TestProgressControl_StaleFenceConflictPersistsWithoutMutation
+--- PASS: TestProgressControl_MissingContractDefaultsAndCoverage (0.06s)
+=== CONT  TestEnsureTaskRunnable_DownstreamStageGateRequiresUpstreamGatePass
+--- PASS: TestProgressControl_WakeBucketP0ReserveAndAutoResume (0.06s)
+=== CONT  TestEnsureTaskRunnable_StageGateRequiresEveryPersistedMemberTerminal
+--- PASS: TestEvolvePlanGeneration_NonOwnerCannotSupersedeSettledDispatchedNode (0.08s)
+=== CONT  TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch
+--- PASS: TestEnsureTaskRunnable_BlockedByUnfinishedUpstream_Rejected (0.08s)
+=== CONT  TestOrchestrator_ReplayIdempotent
+--- PASS: TestOrchestrator_FailureReplayNotifiesOnce (0.09s)
+=== CONT  TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached
+--- PASS: TestStageGateReadiness_ReloadsPersistedMembersFailClosed (0.09s)
+=== CONT  TestEnsureTaskRunnable_BacklogNoPlan_Rejected
+--- PASS: TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot (0.10s)
+=== CONT  TestEnsureTaskRunnable_RunningPoolTask_OK
+--- PASS: TestEvolvePlanGeneration_OwnerSupersedesCompletedTerminalNodeWithoutRemoveGate (0.10s)
+=== CONT  TestEnsureTaskRunnable_RealPlanNode_DraftPlan_Rejected
+--- PASS: TestReconcilePausedPlans_SecondClockEscalatesHoldSLOWithoutDispatch (0.11s)
+=== CONT  TestEnsureTaskRunnable_RealPlanNode_OK
+--- PASS: TestProgressControl_StaleFenceConflictPersistsWithoutMutation (0.05s)
+=== CONT  TestEnsureTaskRunnable_DispatchedPoolMember_OK
+--- PASS: TestEnsureTaskRunnable_BacklogNoPlan_Rejected (0.03s)
+=== CONT  TestEnsureTaskRunnable_AssignedReadyPoolMember_OK
+--- PASS: TestEnsureTaskRunnable_StageGateRequiresEveryPersistedMemberTerminal (0.06s)
+=== CONT  TestEnsureTaskRunnable_BuiltinNotDispatched_Rejected
+--- PASS: TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch (0.06s)
+=== CONT  TestEvolvePlanGeneration_OwnerSupersedesDiscardedTerminalNode
+--- PASS: TestEnsureTaskRunnable_RunningPoolTask_OK (0.04s)
+=== CONT  TestProgressControl_WatermarkLagDedupsIncident
+--- PASS: TestEnsureTaskRunnable_RealPlanNode_DraftPlan_Rejected (0.04s)
+=== CONT  TestProgressControl_SourceRecoveryClosesObligationAfterAuthoritativeFact
+--- PASS: TestEnsureTaskRunnable_DispatchedPoolMember_OK (0.04s)
+=== CONT  TestProgressControl_TornReadDisappearanceRequiresSecondConfirmation
+--- PASS: TestEnsureTaskRunnable_BuiltinNotDispatched_Rejected (0.04s)
+=== CONT  TestPlanCompletion_RealLegacyPlan5a432139GraphCompletes
+--- PASS: TestEnsureTaskRunnable_AssignedReadyPoolMember_OK (0.05s)
+=== CONT  TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates
+--- PASS: TestEnsureTaskRunnable_DownstreamStageGateRequiresUpstreamGatePass (0.12s)
+=== CONT  TestPlanCompletion_ForceRequiresReasonAndBypassesEligibility
+--- PASS: TestEnsureTaskRunnable_RealPlanNode_OK (0.08s)
+=== CONT  TestPlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks
+--- PASS: TestOrchestrator_ReplayIdempotent (0.10s)
+=== CONT  TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion
+--- PASS: TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached (0.12s)
+=== CONT  TestPlanCompletion_LegacyContinuationStagesProvideReplacementLineage
+--- PASS: TestProgressControl_WatermarkLagDedupsIncident (0.08s)
+=== CONT  TestPlanCompletion_ManualCompleteAcceptsRemediatedHistoricalFailure
+--- PASS: TestProgressControl_SourceRecoveryClosesObligationAfterAuthoritativeFact (0.09s)
+=== CONT  TestPlanCompletion_UnrelatedLegacyRecoveryChainDoesNotReplaceFailure
+--- PASS: TestProgressControl_TornReadDisappearanceRequiresSecondConfirmation (0.09s)
+=== CONT  TestProgressControl_ReconcileExpiredWakeCreatesHoldAndEscalates
+--- PASS: TestEvolvePlanGeneration_OwnerSupersedesDiscardedTerminalNode (0.11s)
+=== CONT  TestProgressControl_AckWakeExhaustsObligationIncidentHoldAndStoresFact
+--- PASS: TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates (0.09s)
+=== CONT  TestEvolvePlanGeneration_OwnerSupersedesBlockedDispatchedNodeAtomically
+--- PASS: TestPlanCompletion_ForceRequiresReasonAndBypassesEligibility (0.08s)
+=== CONT  TestIssueDerivedDone_NoEmitForUnlinkedTask
+--- PASS: TestPlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks (0.09s)
+=== CONT  TestPlanCompletion_LegacyPlan5a432139CompletesWithoutLineageBackfill
+--- PASS: TestProgressControl_ReconcileExpiredWakeCreatesHoldAndEscalates (0.04s)
+=== CONT  TestPlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shape
+--- PASS: TestProgressControl_AckWakeExhaustsObligationIncidentHoldAndStoresFact (0.03s)
+=== CONT  TestIssueDerivedDone_ReArmsOnNewTask
+--- PASS: TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion (0.10s)
+=== CONT  TestEnsureTaskRunnable_MergeToMain_UngatedNode_Blocked
+--- PASS: TestPlanCompletion_ManualCompleteAcceptsRemediatedHistoricalFailure (0.08s)
+=== CONT  TestEnsureTaskRunnable_MergeToMain_BuiltinPool_Blocked
+--- PASS: TestIssueDerivedDone_NoEmitForUnlinkedTask (0.04s)
+=== CONT  TestEnsureTaskRunnable_MergeToMain_RejectVerdict_Blocked
+--- PASS: TestPlanCompletion_LegacyContinuationStagesProvideReplacementLineage (0.10s)
+=== CONT  TestEnsureTaskRunnable_MergeToMain_GatedNode_ReleasedOnlyOnPass
+--- PASS: TestIssueDerivedDone_ReArmsOnNewTask (0.04s)
+=== CONT  TestProgressControl_EmptyFrontierUnresolvedContinuationCreatesOwnerObligation
+--- PASS: TestEnsureTaskRunnable_MergeToMain_BuiltinPool_Blocked (0.05s)
+=== CONT  TestProgressControl_MissingGateEvaluatorCreatesOwnerObligation
+--- PASS: TestEnsureTaskRunnable_MergeToMain_UngatedNode_Blocked (0.10s)
+=== CONT  TestProgressControl_WatchdogSilentCreatesServiceIncident
+--- PASS: TestPlanCompletion_UnrelatedLegacyRecoveryChainDoesNotReplaceFailure (0.17s)
+=== CONT  TestProgressControl_WatchdogTreatsMissingHeartbeatAsSilent
+--- PASS: TestEvolvePlanGeneration_OwnerSupersedesBlockedDispatchedNodeAtomically (0.15s)
+=== CONT  TestIssueDerivedDone_DiscardedCounts
+--- PASS: TestIssueDerivedDone_DiscardedCounts (0.04s)
+=== CONT  TestIssueDerivedDone_NoEmitWhenIssueConcluded
+--- PASS: TestProgressControl_WatchdogSilentCreatesServiceIncident (0.07s)
+=== CONT  TestProgressControl_WakeStormAggregates1000PlansAndDurablyDrains
+--- PASS: TestProgressControl_WatchdogTreatsMissingHeartbeatAsSilent (0.06s)
+=== CONT  TestProgressControl_WatchdogIndependentFromPlanReconcile
+--- PASS: TestEnsureTaskRunnable_MergeToMain_GatedNode_ReleasedOnlyOnPass (0.18s)
+=== CONT  TestIssueDerivedDone_EmitsOnlyWhenAllTerminal
+--- PASS: TestIssueDerivedDone_NoEmitWhenIssueConcluded (0.04s)
+=== CONT  TestProgressControl_ReconcileRunningPlansPersistsProductionPath
+--- PASS: TestEnsureTaskRunnable_MergeToMain_RejectVerdict_Blocked (0.19s)
+=== CONT  TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume
+--- PASS: TestPlanCompletion_RealLegacyPlan5a432139GraphCompletes (0.35s)
+=== CONT  TestStageGateReadiness_RequiresEveryMemberTerminal
+--- PASS: TestProgressControl_EmptyFrontierUnresolvedContinuationCreatesOwnerObligation (0.20s)
+=== CONT  TestDiscardPlan_SkipsAlreadyDiscardedTasks
+--- PASS: TestIssueDerivedDone_EmitsOnlyWhenAllTerminal (0.04s)
+=== CONT  TestDiscardPlan_AllowsOrgOwnerProjectMemberButRejectsPlainMember
+--- PASS: TestProgressControl_WatchdogIndependentFromPlanReconcile (0.08s)
+=== CONT  TestOrchestrator_AgentCreatorWakeReplayOnce
+--- PASS: TestProgressControl_MissingGateEvaluatorCreatesOwnerObligation (0.21s)
+=== CONT  TestStageReject_AppendsIncrementalStageWithoutReopeningHistory
+--- PASS: TestPlanCompletion_LegacyPlan5a432139CompletesWithoutLineageBackfill (0.29s)
+--- PASS: TestProgressControl_ReconcileRunningPlansPersistsProductionPath (0.08s)
+--- PASS: TestDiscardPlan_SkipsAlreadyDiscardedTasks (0.05s)
+--- PASS: TestStageGateReadiness_RequiresEveryMemberTerminal (0.09s)
+--- PASS: TestPlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shape (0.33s)
+--- PASS: TestOrchestrator_AgentCreatorWakeReplayOnce (0.06s)
+--- PASS: TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume (0.15s)
+--- PASS: TestStageReject_AppendsIncrementalStageWithoutReopeningHistory (0.11s)
+=== RUN   TestDiscardPlan_AllowsOrgOwnerProjectMemberButRejectsPlainMember/running
+=== RUN   TestDiscardPlan_AllowsOrgOwnerProjectMemberButRejectsPlainMember/paused
+--- PASS: TestDiscardPlan_AllowsOrgOwnerProjectMemberButRejectsPlainMember (0.17s)
+    --- PASS: TestDiscardPlan_AllowsOrgOwnerProjectMemberButRejectsPlainMember/running (0.01s)
+    --- PASS: TestDiscardPlan_AllowsOrgOwnerProjectMemberButRejectsPlainMember/paused (0.01s)
+--- PASS: TestProgressControl_WakeStormAggregates1000PlansAndDurablyDrains (0.50s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	1.726s
+=== RUN   TestProgressControlRepo_WakeAckHoldRoundTripIdempotent
+--- PASS: TestProgressControlRepo_WakeAckHoldRoundTripIdempotent (0.22s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/sqlite	1.123s

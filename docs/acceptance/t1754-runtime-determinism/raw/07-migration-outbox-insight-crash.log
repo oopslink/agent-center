@@ -1,0 +1,192 @@
+2026-08-29T05:42:40Z
+=== RUN   TestOpen_RejectsEmptyDSN
+--- PASS: TestOpen_RejectsEmptyDSN (0.00s)
+=== RUN   TestOpen_AppliesPragmasInMemory
+--- PASS: TestOpen_AppliesPragmasInMemory (0.00s)
+=== RUN   TestOpen_AppliesWALOnFileDB
+--- PASS: TestOpen_AppliesWALOnFileDB (0.00s)
+=== RUN   TestOpen_FilePath
+--- PASS: TestOpen_FilePath (0.00s)
+=== RUN   TestNormalizeDSN_AppendsMissingPragmas
+--- PASS: TestNormalizeDSN_AppendsMissingPragmas (0.00s)
+=== RUN   TestNormalizeDSN_PreservesExplicitTxLock
+--- PASS: TestNormalizeDSN_PreservesExplicitTxLock (0.00s)
+=== RUN   TestNormalizeDSN_MemoryShortForm
+--- PASS: TestNormalizeDSN_MemoryShortForm (0.00s)
+=== RUN   TestWithTx_StoresAndRetrievesTx
+--- PASS: TestWithTx_StoresAndRetrievesTx (0.00s)
+=== RUN   TestWithTx_NilTxNoop
+--- PASS: TestWithTx_NilTxNoop (0.00s)
+=== RUN   TestTxFromCtx_EmptyCtx
+--- PASS: TestTxFromCtx_EmptyCtx (0.00s)
+=== RUN   TestExecutorFromCtx_PrefersTx
+--- PASS: TestExecutorFromCtx_PrefersTx (0.00s)
+=== RUN   TestExecutorFromCtx_FallsBackToDB
+--- PASS: TestExecutorFromCtx_FallsBackToDB (0.00s)
+=== RUN   TestExecutorFromCtx_NoTxNoFallback
+--- PASS: TestExecutorFromCtx_NoTxNoFallback (0.00s)
+=== RUN   TestRunInTx_CommitsOnSuccess
+--- PASS: TestRunInTx_CommitsOnSuccess (0.00s)
+=== RUN   TestRunInTx_RollsBackOnError
+--- PASS: TestRunInTx_RollsBackOnError (0.00s)
+=== RUN   TestRunInTx_RollsBackOnPanic
+--- PASS: TestRunInTx_RollsBackOnPanic (0.00s)
+=== RUN   TestRunInTx_RejectsNilDB
+--- PASS: TestRunInTx_RejectsNilDB (0.00s)
+=== RUN   TestRunInTx_RejectsNilFn
+--- PASS: TestRunInTx_RejectsNilFn (0.00s)
+=== RUN   TestRunInTx_NestedReusesOuterTx
+--- PASS: TestRunInTx_NestedReusesOuterTx (0.00s)
+=== RUN   TestRunInTx_NestedRollsBackBothOnInnerError
+--- PASS: TestRunInTx_NestedRollsBackBothOnInnerError (0.00s)
+=== RUN   TestIsUniqueViolation
+=== RUN   TestIsUniqueViolation/nil
+=== RUN   TestIsUniqueViolation/unrelated
+=== RUN   TestIsUniqueViolation/string_UNIQUE_constraint_failed
+=== RUN   TestIsUniqueViolation/string_constraint_failed:_UNIQUE
+=== RUN   TestIsUniqueViolation/wrapped_string
+--- PASS: TestIsUniqueViolation (0.00s)
+    --- PASS: TestIsUniqueViolation/nil (0.00s)
+    --- PASS: TestIsUniqueViolation/unrelated (0.00s)
+    --- PASS: TestIsUniqueViolation/string_UNIQUE_constraint_failed (0.00s)
+    --- PASS: TestIsUniqueViolation/string_constraint_failed:_UNIQUE (0.00s)
+    --- PASS: TestIsUniqueViolation/wrapped_string (0.00s)
+=== RUN   TestMigration0085_AllowedExecutorsBackfill
+--- PASS: TestMigration0085_AllowedExecutorsBackfill (0.64s)
+=== RUN   TestMigration0086_AutoAssignSchema
+--- PASS: TestMigration0086_AutoAssignSchema (0.76s)
+=== RUN   TestMigration0087_WorkspaceCodeRepos
+--- PASS: TestMigration0087_WorkspaceCodeRepos (0.83s)
+=== RUN   TestMigration0088_TaskCompletedAt
+--- PASS: TestMigration0088_TaskCompletedAt (0.81s)
+=== RUN   TestMigration0106_PmStages
+--- PASS: TestMigration0106_PmStages (0.66s)
+=== RUN   TestMigration0114_DeliveredTasksBecomeCompletedAndUnblockReview
+--- PASS: TestMigration0114_DeliveredTasksBecomeCompletedAndUnblockReview (0.36s)
+=== RUN   TestMigration0116BackfillsLegacyModelCatalog
+--- PASS: TestMigration0116BackfillsLegacyModelCatalog (0.57s)
+=== RUN   TestMigration0126RemovesAIRuntimeProfileSchemaWhenUnbound
+--- PASS: TestMigration0126RemovesAIRuntimeProfileSchemaWhenUnbound (0.16s)
+=== RUN   TestMigration0126BlocksActiveAIRuntimeProfileBindings
+--- PASS: TestMigration0126BlocksActiveAIRuntimeProfileBindings (0.23s)
+=== RUN   TestMigration_0129_UnifiedAuthorizationRollback
+--- PASS: TestMigration_0129_UnifiedAuthorizationRollback (0.26s)
+=== RUN   TestMigration_0137_RoundTripPreservesAccessProfileData
+--- PASS: TestMigration_0137_RoundTripPreservesAccessProfileData (0.30s)
+=== RUN   TestMigration_0142_BackfillsRAMRoleVersionMetadata
+--- PASS: TestMigration_0142_BackfillsRAMRoleVersionMetadata (0.24s)
+=== RUN   TestMigration_0143_RAMRoleClassificationContract
+--- PASS: TestMigration_0143_RAMRoleClassificationContract (0.16s)
+=== RUN   TestMigration_0147_RemovesOnlyPlannedPoolDuplicates
+--- PASS: TestMigration_0147_RemovesOnlyPlannedPoolDuplicates (0.17s)
+=== RUN   TestMigration0066_DMDedup_MergesDuplicates
+--- PASS: TestMigration0066_DMDedup_MergesDuplicates (0.58s)
+=== RUN   TestMigration0076_FinalizeArchivedOpenTasks
+--- PASS: TestMigration0076_FinalizeArchivedOpenTasks (0.95s)
+=== RUN   TestMigrations_FullRoundTrip
+--- PASS: TestMigrations_FullRoundTrip (0.73s)
+=== RUN   TestMigration_0025_BridgeFeishuTablesDrop
+--- PASS: TestMigration_0025_BridgeFeishuTablesDrop (0.70s)
+=== RUN   TestMigrations_V1ColumnsAbsent
+--- PASS: TestMigrations_V1ColumnsAbsent (0.17s)
+=== RUN   TestMigrations_V1TablesAbsent
+--- PASS: TestMigrations_V1TablesAbsent (0.16s)
+=== RUN   TestMigration_0026_UserConvReadStateShape
+--- PASS: TestMigration_0026_UserConvReadStateShape (0.16s)
+=== RUN   TestMigrations_V1KindValuesAbsent
+--- PASS: TestMigrations_V1KindValuesAbsent (0.72s)
+=== RUN   TestMigration_0044_EnvironmentWorkerShape
+--- PASS: TestMigration_0044_EnvironmentWorkerShape (0.17s)
+=== RUN   TestMigration_0045_FileTransferSessionShape
+--- PASS: TestMigration_0045_FileTransferSessionShape (0.16s)
+=== RUN   TestMigration_0052_TaskIssueStateModelFix
+--- PASS: TestMigration_0052_TaskIssueStateModelFix (0.16s)
+=== RUN   TestMigration0058_TaskStateSimplify
+--- PASS: TestMigration0058_TaskStateSimplify (0.63s)
+=== RUN   TestMigration0059_BuiltinPlanBackfill
+--- PASS: TestMigration0059_BuiltinPlanBackfill (0.63s)
+=== RUN   TestMigration0071_AwiDataBackfill
+--- PASS: TestMigration0071_AwiDataBackfill (0.97s)
+=== RUN   TestMigrator_ReconcileStateB_0064Collision
+--- PASS: TestMigrator_ReconcileStateB_0064Collision (0.18s)
+=== RUN   TestMigrator_UpCreatesAllPhase1Tables
+--- PASS: TestMigrator_UpCreatesAllPhase1Tables (0.17s)
+=== RUN   TestMigrator_UpCreatesV2Tables
+--- PASS: TestMigrator_UpCreatesV2Tables (0.17s)
+=== RUN   TestMigrator_UpIdempotent
+--- PASS: TestMigrator_UpIdempotent (0.16s)
+=== RUN   TestMigration0144FailsClosedWhenRoleAccessReferencedByTeamRole
+--- PASS: TestMigration0144FailsClosedWhenRoleAccessReferencedByTeamRole (0.17s)
+=== RUN   TestMigration0144FailsClosedForNonSinglePermissionRoleAccess
+--- PASS: TestMigration0144FailsClosedForNonSinglePermissionRoleAccess (0.17s)
+=== RUN   TestMigration0144DirectCarrierEquivalenceIdempotentAndRollback
+--- PASS: TestMigration0144DirectCarrierEquivalenceIdempotentAndRollback (0.18s)
+=== RUN   TestMigrator_DownReverts
+--- PASS: TestMigrator_DownReverts (0.56s)
+=== RUN   TestMigrator_DownIdempotent
+--- PASS: TestMigrator_DownIdempotent (0.56s)
+=== RUN   TestMigrator_VersionTracksApplied
+--- PASS: TestMigrator_VersionTracksApplied (0.56s)
+=== RUN   TestMigrator_DownPreviousVersion
+--- PASS: TestMigrator_DownPreviousVersion (0.00s)
+=== RUN   TestMigrator_DuplicateVersionRejected
+--- PASS: TestMigrator_DuplicateVersionRejected (0.00s)
+=== RUN   TestParseMigrationName
+--- PASS: TestParseMigrationName (0.00s)
+=== RUN   TestMigrator_RejectsMissingUp
+--- PASS: TestMigrator_RejectsMissingUp (0.00s)
+=== RUN   TestMigrator_RejectsMissingDown
+--- PASS: TestMigrator_RejectsMissingDown (0.00s)
+=== RUN   TestMigrator_EmptyFS
+--- PASS: TestMigrator_EmptyFS (0.00s)
+=== RUN   TestMigrator_BadSQLRollsBack
+--- PASS: TestMigrator_BadSQLRollsBack (0.00s)
+=== RUN   TestRunInTx_RetriesOnBusyThenSucceeds
+--- PASS: TestRunInTx_RetriesOnBusyThenSucceeds (0.00s)
+=== RUN   TestRunInTx_NonRetryableErrorReturnsImmediately
+--- PASS: TestRunInTx_NonRetryableErrorReturnsImmediately (0.00s)
+=== RUN   TestRunInTx_BoundedAttemptsOnPersistentBusy
+--- PASS: TestRunInTx_BoundedAttemptsOnPersistentBusy (0.07s)
+=== RUN   TestRunInTx_ReentrantDoesNotRetry
+--- PASS: TestRunInTx_ReentrantDoesNotRetry (0.00s)
+=== RUN   TestRunInTx_ContextCanceledDuringBackoffAborts
+--- PASS: TestRunInTx_ContextCanceledDuringBackoffAborts (0.00s)
+=== RUN   TestIsSQLiteBusy
+--- PASS: TestIsSQLiteBusy (0.00s)
+=== RUN   TestIsSQLiteInterrupt
+--- PASS: TestIsSQLiteInterrupt (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/persistence	16.441s
+?   	github.com/oopslink/agent-center/internal/outbox	[no test files]
+=== RUN   TestOutboxRepo_AppendFetchMarkProcessed
+--- PASS: TestOutboxRepo_AppendFetchMarkProcessed (0.14s)
+=== RUN   TestRelay_IdempotentAcrossRuns
+--- PASS: TestRelay_IdempotentAcrossRuns (0.14s)
+=== RUN   TestRelay_FailingProjectorLeavesEventUnprocessed
+--- PASS: TestRelay_FailingProjectorLeavesEventUnprocessed (0.09s)
+=== RUN   TestAppliedStore_DedupByEventID
+--- PASS: TestAppliedStore_DedupByEventID (0.13s)
+=== RUN   TestPump_DrainsBacklogOnBoot
+--- PASS: TestPump_DrainsBacklogOnBoot (0.19s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/outbox/sqlite	1.483s
+=== RUN   TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild
+--- PASS: TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild (0.44s)
+=== RUN   TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild
+--- PASS: TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild (0.25s)
+=== RUN   TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap
+--- PASS: TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap (0.21s)
+=== RUN   TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval
+--- PASS: TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval (0.20s)
+=== RUN   TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail
+--- PASS: TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail (0.21s)
+=== RUN   TestInsightInvalidTimeOrder
+--- PASS: TestInsightInvalidTimeOrder (0.21s)
+=== RUN   TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow
+--- PASS: TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow (0.22s)
+=== RUN   TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce
+--- PASS: TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce (0.22s)
+=== RUN   TestInsightPostCommitCrashRestartDoesNotDuplicate
+--- PASS: TestInsightPostCommitCrashRestartDoesNotDuplicate (0.23s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/insight	3.238s

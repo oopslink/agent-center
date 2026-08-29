@@ -1,0 +1,9 @@
+2026-08-29T05:39:34Z
+REMOTE_MAIN=5a18901eaea33c48247e2e8847a29f1d66038d40
+From github.com:oopslink/agent-center
+   f61c3110..5a18901e  main       -> origin/main
+ORIGIN_MAIN_AFTER_FETCH=5a18901eaea33c48247e2e8847a29f1d66038d40
+HEAD is now at 5a18901e test(e2e): wait for coherent runtime pid snapshot
+HEAD=5a18901eaea33c48247e2e8847a29f1d66038d40
+## HEAD (no branch)
+?? docs/acceptance/t1754-runtime-determinism/

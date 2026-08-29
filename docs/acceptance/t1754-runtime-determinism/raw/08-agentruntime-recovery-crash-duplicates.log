@@ -1,0 +1,250 @@
+2026-08-29T05:43:02Z
+=== RUN   TestPlanExecutorReconcile_HistoricalTerminalQuietFinalizes
+--- PASS: TestPlanExecutorReconcile_HistoricalTerminalQuietFinalizes (0.00s)
+=== RUN   TestStart_RestartsRunningSessionWhenNewerSpecChangesModel
+--- PASS: TestStart_RestartsRunningSessionWhenNewerSpecChangesModel (0.29s)
+=== RUN   TestExecutorRecoveryPayload_Schema
+--- PASS: TestExecutorRecoveryPayload_Schema (0.00s)
+=== RUN   TestOnExit_DetachingReportsNothing
+--- PASS: TestOnExit_DetachingReportsNothing (0.00s)
+=== RUN   TestOnExit_ExpectedStopReportsNothing
+--- PASS: TestOnExit_ExpectedStopReportsNothing (0.00s)
+=== RUN   TestOnExit_CodexCrashReportsCrashedAndFiresFatal
+--- PASS: TestOnExit_CodexCrashReportsCrashedAndFiresFatal (0.00s)
+=== RUN   TestOnExit_ClaudeCrashReportsCrashedAndFiresFatal
+--- PASS: TestOnExit_ClaudeCrashReportsCrashedAndFiresFatal (0.00s)
+=== RUN   TestEscalateRecoveryExhausted_ClearsCurrentTaskID_T887
+--- PASS: TestEscalateRecoveryExhausted_ClearsCurrentTaskID_T887 (0.00s)
+=== RUN   TestEscalateRecoveryExhausted_LeavesOtherTask_T887
+--- PASS: TestEscalateRecoveryExhausted_LeavesOtherTask_T887 (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime	0.730s
+=== RUN   TestMonitor_Emit_Stop_Succeeded
+--- PASS: TestMonitor_Emit_Stop_Succeeded (0.01s)
+=== RUN   TestMonitor_Emit_Stop_FailedNonzeroExit
+--- PASS: TestMonitor_Emit_Stop_FailedNonzeroExit (0.01s)
+=== RUN   TestMonitor_Sweep_MarksStalled
+--- PASS: TestMonitor_Sweep_MarksStalled (0.00s)
+=== RUN   TestMonitor_Sweep_MarksStalledBeforeGracefulKill
+--- PASS: TestMonitor_Sweep_MarksStalledBeforeGracefulKill (0.00s)
+=== RUN   TestMonitor_Emit_Stop_StalledOverride
+--- PASS: TestMonitor_Emit_Stop_StalledOverride (0.01s)
+=== RUN   TestMonitor_Emit_Stop_OrphanRecovered
+--- PASS: TestMonitor_Emit_Stop_OrphanRecovered (0.00s)
+=== RUN   TestMonitor_Emit_Stop_OrphanStalled
+--- PASS: TestMonitor_Emit_Stop_OrphanStalled (0.00s)
+=== RUN   TestMonitor_SampleProgress_ChangeOnly
+--- PASS: TestMonitor_SampleProgress_ChangeOnly (0.00s)
+=== RUN   TestRunExecutor_CommandEventsCaptureClaudeExitStatuses
+--- PASS: TestRunExecutor_CommandEventsCaptureClaudeExitStatuses (0.00s)
+=== RUN   TestRunExecutor_CommandEventsCaptureCodexExitStatus
+--- PASS: TestRunExecutor_CommandEventsCaptureCodexExitStatus (0.00s)
+=== RUN   TestEvidenceOnlyFinalizeRetryDoesNotDuplicateCommit
+--- PASS: TestEvidenceOnlyFinalizeRetryDoesNotDuplicateCommit (1.11s)
+=== RUN   TestMonitor_Finalize_CapturesCleanPushedGitStatus
+--- PASS: TestMonitor_Finalize_CapturesCleanPushedGitStatus (0.00s)
+=== RUN   TestMonitor_Finalize_CapturesDirtyUnpushedGitStatus
+--- PASS: TestMonitor_Finalize_CapturesDirtyUnpushedGitStatus (0.00s)
+=== RUN   TestMonitor_Finalize_NonGitWorkspace_TimestampOnlyMarker
+--- PASS: TestMonitor_Finalize_NonGitWorkspace_TimestampOnlyMarker (0.00s)
+=== RUN   TestMonitor_Finalize_CarriesGitStatusToWriteback
+--- PASS: TestMonitor_Finalize_CarriesGitStatusToWriteback (0.00s)
+=== RUN   TestMonitor_Finalize_NonDeliveryGate
+--- PASS: TestMonitor_Finalize_NonDeliveryGate (0.41s)
+=== RUN   TestMonitor_Finalize_PushedDeliveryStaysSucceeded
+--- PASS: TestMonitor_Finalize_PushedDeliveryStaysSucceeded (0.61s)
+=== RUN   TestMonitor_Finalize_CommittedButUnpushed_Downgraded
+--- PASS: TestMonitor_Finalize_CommittedButUnpushed_Downgraded (0.56s)
+=== RUN   TestRunExecutor_RealCommandRunner
+--- PASS: TestRunExecutor_RealCommandRunner (0.01s)
+=== RUN   TestMonitor_Recover_AdoptWithNilPool
+--- PASS: TestMonitor_Recover_AdoptWithNilPool (0.00s)
+=== RUN   TestMonitor_Recover_FinalizeErrorSurfaces
+--- PASS: TestMonitor_Recover_FinalizeErrorSurfaces (0.00s)
+=== RUN   TestMonitor_FuseKillTask_MarksFusedNotStalled
+--- PASS: TestMonitor_FuseKillTask_MarksFusedNotStalled (0.00s)
+=== RUN   TestMonitor_FuseKillTask_NoLiveExecutor
+--- PASS: TestMonitor_FuseKillTask_NoLiveExecutor (0.00s)
+=== RUN   TestMonitor_FinalizeFused_NoWriteback
+--- PASS: TestMonitor_FinalizeFused_NoWriteback (0.00s)
+=== RUN   TestMonitor_AwaitCompletion_Success
+--- PASS: TestMonitor_AwaitCompletion_Success (0.01s)
+=== RUN   TestMonitor_AwaitCompletion_Failure
+--- PASS: TestMonitor_AwaitCompletion_Failure (0.01s)
+=== RUN   TestMonitor_ReapFinalized_TTLAndCap
+--- PASS: TestMonitor_ReapFinalized_TTLAndCap (0.00s)
+=== RUN   TestMonitor_AwaitCompletion_CrashRetainsDir
+--- PASS: TestMonitor_AwaitCompletion_CrashRetainsDir (0.01s)
+=== RUN   TestMonitor_AwaitCompletion_NilHandle
+--- PASS: TestMonitor_AwaitCompletion_NilHandle (0.00s)
+=== RUN   TestMonitor_Sweep_KillsOnlyStalled
+--- PASS: TestMonitor_Sweep_KillsOnlyStalled (0.00s)
+=== RUN   TestMonitor_Sweep_NoPoolOrWatchdog
+--- PASS: TestMonitor_Sweep_NoPoolOrWatchdog (0.00s)
+=== RUN   TestMonitor_Recover_FinalizesAndAdopts
+--- PASS: TestMonitor_Recover_FinalizesAndAdopts (0.00s)
+=== RUN   TestMonitor_Recover_NoReconciler
+--- PASS: TestMonitor_Recover_NoReconciler (0.00s)
+=== RUN   TestMonitor_Finalize_CapturesCodexThreadID
+--- PASS: TestMonitor_Finalize_CapturesCodexThreadID (0.01s)
+=== RUN   TestMonitor_Finalize_RunningIsNoop
+--- PASS: TestMonitor_Finalize_RunningIsNoop (0.00s)
+=== RUN   TestMonitor_QuietFinalizeRecovered_NoWriteback
+--- PASS: TestMonitor_QuietFinalizeRecovered_NoWriteback (0.00s)
+=== RUN   TestMonitor_Finalize_WritebackErrorRetainsDir
+--- PASS: TestMonitor_Finalize_WritebackErrorRetainsDir (0.00s)
+=== RUN   TestMonitor_Finalize_NoWritebackStillTearsDown
+--- PASS: TestMonitor_Finalize_NoWritebackStillTearsDown (0.00s)
+=== RUN   TestPool_Adopt_TakesSlotWithoutSpawning
+--- PASS: TestPool_Adopt_TakesSlotWithoutSpawning (0.00s)
+=== RUN   TestPool_Adopt_DuplicateAndCapacity
+--- PASS: TestPool_Adopt_DuplicateAndCapacity (0.00s)
+=== RUN   TestPool_Adopt_PreferredSlotConflictsFailLoud
+--- PASS: TestPool_Adopt_PreferredSlotConflictsFailLoud (0.00s)
+=== RUN   TestPool_Adopt_InvalidID
+--- PASS: TestPool_Adopt_InvalidID (0.00s)
+=== RUN   TestPool_AdmitsUpToMaxThenAtCapacity
+--- PASS: TestPool_AdmitsUpToMaxThenAtCapacity (0.00s)
+=== RUN   TestPool_DefaultMax
+--- PASS: TestPool_DefaultMax (0.00s)
+=== RUN   TestPool_DuplicateIDRejected
+--- PASS: TestPool_DuplicateIDRejected (0.00s)
+=== RUN   TestPool_ReleaseFreesSlot
+--- PASS: TestPool_ReleaseFreesSlot (0.00s)
+=== RUN   TestPool_LaunchAssignsLowestFreeSlot
+--- PASS: TestPool_LaunchAssignsLowestFreeSlot (0.00s)
+=== RUN   TestPool_ProvisionFailureFreesSlot
+--- PASS: TestPool_ProvisionFailureFreesSlot (0.00s)
+=== RUN   TestPool_ConcurrentLaunchesRespectCap
+--- PASS: TestPool_ConcurrentLaunchesRespectCap (0.00s)
+=== RUN   TestPool_LaunchValidatesInput
+--- PASS: TestPool_LaunchValidatesInput (0.00s)
+=== RUN   TestPool_ResizeExpandAppendsAdmissibleSlots
+--- PASS: TestPool_ResizeExpandAppendsAdmissibleSlots (0.00s)
+=== RUN   TestPool_ResizeShrinkDrainsWithoutMovingRuns
+--- PASS: TestPool_ResizeShrinkDrainsWithoutMovingRuns (0.00s)
+=== RUN   TestPool_PlainDirWorkspace
+--- PASS: TestPool_PlainDirWorkspace (0.00s)
+=== RUN   TestPool_Launch_WritesRecoveryRecord
+--- PASS: TestPool_Launch_WritesRecoveryRecord (0.00s)
+=== RUN   TestPool_PreparedWorkspaceSkipsProvisionAndRecordsHandle
+--- PASS: TestPool_PreparedWorkspaceSkipsProvisionAndRecordsHandle (0.00s)
+=== RUN   TestMonitor_FinalizeCallsCleanerForWorktreeRecord
+--- PASS: TestMonitor_FinalizeCallsCleanerForWorktreeRecord (0.00s)
+=== RUN   TestMonitor_WorktreeCleanupFailuresAreObservable
+--- PASS: TestMonitor_WorktreeCleanupFailuresAreObservable (0.00s)
+=== RUN   TestRunExecutor_EveryToolCallIsRecorded
+--- PASS: TestRunExecutor_EveryToolCallIsRecorded (0.00s)
+=== RUN   TestMonitor_DeliveryHelpersFailClosedOnUnknownInputs
+--- PASS: TestMonitor_DeliveryHelpersFailClosedOnUnknownInputs (0.09s)
+=== RUN   TestMonitor_Finalize_EagerPush_BaseUnknown_StillPushes
+--- PASS: TestMonitor_Finalize_EagerPush_BaseUnknown_StillPushes (0.65s)
+=== RUN   TestMonitor_Finalize_EagerPush_PushedStaysSucceeded
+--- PASS: TestMonitor_Finalize_EagerPush_PushedStaysSucceeded (0.67s)
+=== RUN   TestMonitor_Finalize_RecordedWorkspace_EagerPushesExpectedBranch
+--- PASS: TestMonitor_Finalize_RecordedWorkspace_EagerPushesExpectedBranch (0.61s)
+=== RUN   TestMonitor_Finalize_RecordedWorkspace_DiscoversActualPushedBranch
+--- PASS: TestMonitor_Finalize_RecordedWorkspace_DiscoversActualPushedBranch (0.69s)
+=== RUN   TestMonitor_Finalize_FailedRunDiscoversPartialOriginDelivery
+--- PASS: TestMonitor_Finalize_FailedRunDiscoversPartialOriginDelivery (0.61s)
+=== RUN   TestMonitor_Finalize_FailedRunNeverCreatesOriginDelivery
+--- PASS: TestMonitor_Finalize_FailedRunNeverCreatesOriginDelivery (0.51s)
+=== RUN   TestMonitor_Finalize_FailedRunRejectsStaleRemoteTrackingHint
+--- PASS: TestMonitor_Finalize_FailedRunRejectsStaleRemoteTrackingHint (0.69s)
+=== RUN   TestMonitor_Finalize_ExactOriginMainStillRefused
+--- PASS: TestMonitor_Finalize_ExactOriginMainStillRefused (0.46s)
+=== RUN   TestMonitor_Finalize_RecordedWorkspace_RejectsOriginAtDifferentSHA
+--- PASS: TestMonitor_Finalize_RecordedWorkspace_RejectsOriginAtDifferentSHA (0.68s)
+=== RUN   TestMonitor_Finalize_EagerPush_MainBranchRefused
+--- PASS: TestMonitor_Finalize_EagerPush_MainBranchRefused (0.55s)
+=== RUN   TestMonitor_Finalize_EagerPush_PushFailureDowngrades
+--- PASS: TestMonitor_Finalize_EagerPush_PushFailureDowngrades (0.51s)
+=== RUN   TestReconciler_RebuildsEveryDirOnce
+--- PASS: TestReconciler_RebuildsEveryDirOnce (0.00s)
+=== RUN   TestReconciler_EmptyDir
+--- PASS: TestReconciler_EmptyDir (0.00s)
+=== RUN   TestReconciler_Validation
+--- PASS: TestReconciler_Validation (0.00s)
+=== RUN   TestReconciler_LegacyBackfillStableSlots
+--- PASS: TestReconciler_LegacyBackfillStableSlots (0.00s)
+=== RUN   TestReconciler_BackfillsRecordFromInputSlot
+--- PASS: TestReconciler_BackfillsRecordFromInputSlot (0.00s)
+=== RUN   TestReconciler_TerminalDoneOutputDoesNotConflictWithRunningSameSlot
+--- PASS: TestReconciler_TerminalDoneOutputDoesNotConflictWithRunningSameSlot (0.00s)
+=== RUN   TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic
+=== RUN   TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic/duplicate
+=== RUN   TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic/out_of_range
+--- PASS: TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic (0.00s)
+    --- PASS: TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic/duplicate (0.00s)
+    --- PASS: TestReconciler_DuplicateAndOutOfRangeSlotsAreDiagnostic/out_of_range (0.00s)
+=== RUN   TestRunExecutor_SuccessWritesOutputAndDoneStatus
+--- PASS: TestRunExecutor_SuccessWritesOutputAndDoneStatus (0.00s)
+=== RUN   TestRunExecutor_LivenessHeartbeatDoesNotPopulateStatusDetail
+--- PASS: TestRunExecutor_LivenessHeartbeatDoesNotPopulateStatusDetail (0.00s)
+=== RUN   TestRunExecutor_UsesWorkspaceDirOverride
+--- PASS: TestRunExecutor_UsesWorkspaceDirOverride (0.00s)
+=== RUN   TestRunExecutor_RejectsRelativeWorkspaceDirOverride
+--- PASS: TestRunExecutor_RejectsRelativeWorkspaceDirOverride (0.00s)
+=== RUN   TestRunExecutor_FailureWritesErrorAndFailedStatus
+--- PASS: TestRunExecutor_FailureWritesErrorAndFailedStatus (0.00s)
+=== RUN   TestRunExecutor_FailurePersistErrorNotSilent
+--- PASS: TestRunExecutor_FailurePersistErrorNotSilent (0.00s)
+=== RUN   TestRunExecutor_MissingInputIsCrash
+--- PASS: TestRunExecutor_MissingInputIsCrash (0.00s)
+=== RUN   TestRunExecutor_RecordsUsageInOutput
+--- PASS: TestRunExecutor_RecordsUsageInOutput (0.00s)
+=== RUN   TestRunExecutor_ZeroUsageOmittedFromOutput
+--- PASS: TestRunExecutor_ZeroUsageOmittedFromOutput (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/executor	10.736s
+testing: warning: no tests to run
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/modelrouter	2.258s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/orchestrator	0.798s [no tests to run]
+testing: warning: no tests to run
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/reporepo	3.338s [no tests to run]
+=== RUN   TestAcquireInstance_Fresh
+--- PASS: TestAcquireInstance_Fresh (0.00s)
+=== RUN   TestAcquireInstance_Successive_BumpsGeneration
+--- PASS: TestAcquireInstance_Successive_BumpsGeneration (0.00s)
+=== RUN   TestAcquireInstance_AfterCrash_RecordsPrevCrashAt
+--- PASS: TestAcquireInstance_AfterCrash_RecordsPrevCrashAt (0.00s)
+=== RUN   TestAcquireInstance_EmptyHome_ReturnsError
+--- PASS: TestAcquireInstance_EmptyHome_ReturnsError (0.00s)
+=== RUN   TestAcquireInstance_AfterCleanRelease_NoCrashAt
+--- PASS: TestAcquireInstance_AfterCleanRelease_NoCrashAt (0.00s)
+=== RUN   TestAcquireInstance_GenerationMonotonic
+--- PASS: TestAcquireInstance_GenerationMonotonic (0.00s)
+=== RUN   TestAcquireInstance_PrevCrashAt_Timestamp
+--- PASS: TestAcquireInstance_PrevCrashAt_Timestamp (0.00s)
+=== RUN   TestAcquireInstance_FreshHome_NoPrevPID
+--- PASS: TestAcquireInstance_FreshHome_NoPrevPID (0.00s)
+=== RUN   TestAcquireInstance_CorruptExistingFile_ReturnsError
+--- PASS: TestAcquireInstance_CorruptExistingFile_ReturnsError (0.00s)
+=== RUN   TestAcquireInstance_DoesNotCarryCompletedTurn
+--- PASS: TestAcquireInstance_DoesNotCarryCompletedTurn (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/sessioninstance	1.538s
+testing: warning: no tests to run
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/skillscan	1.895s [no tests to run]
+=== RUN   TestContextRecovery_FastPath
+--- PASS: TestContextRecovery_FastPath (0.00s)
+=== RUN   TestContextRecovery_SlowPath_ReadsEvents
+--- PASS: TestContextRecovery_SlowPath_ReadsEvents (0.00s)
+=== RUN   TestContextRecovery_SlowPath_MissingFile
+--- PASS: TestContextRecovery_SlowPath_MissingFile (0.00s)
+=== RUN   TestContextRecovery_SlowPath_IgnoresArchivedSegments
+--- PASS: TestContextRecovery_SlowPath_IgnoresArchivedSegments (0.00s)
+=== RUN   TestTaskExecutionStatus_IsValid
+--- PASS: TestTaskExecutionStatus_IsValid (0.00s)
+=== RUN   TestTaskExecutionStatus_IsTerminal
+--- PASS: TestTaskExecutionStatus_IsTerminal (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/taskexec	2.627s
+testing: warning: no tests to run
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/tasklog	2.976s [no tests to run]

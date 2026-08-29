@@ -1,0 +1,41 @@
+2026-08-29T05:41:55Z
+=== RUN   TestForkExecutorDeployedBinary_AlreadyRunningTask
+--- PASS: TestForkExecutorDeployedBinary_AlreadyRunningTask (7.23s)
+=== RUN   TestE2E_RestartRecovery_DeployLevel
+    restart_recovery_e2e_test.go:71: SANDBOX=/tmp/p46-restart-recovery-2797726838
+    restart_recovery_e2e_test.go:122: server up; bootstrap token len=48
+    restart_recovery_e2e_test.go:154: seeded org=organization-p46aa001 agent=agent-p46-0001(running,worker=w-p46) empty-dm=conv-p46-dm-0001 (no directed msg yet)
+    restart_recovery_e2e_test.go:190: org-enrolled worker w-p46 → org organization-p46aa001 (control-connect precondition)
+    restart_recovery_e2e_test.go:206: ASSERT-1 PASS: completed_turn=true persisted. session.instance(gen0)={"session_id":"5bff8e84-9fdc-5263-afc3-26b434667b6e","generation":1,"pid":80119,"prev_pid":0,"prev_crash_at":"0001-01-01T00:00:00Z","completed_turn":true}
+    restart_recovery_e2e_test.go:218: posted unanswered directed DM message msg-p46-0000000001 from user:tester
+    restart_recovery_e2e_test.go:233: ASSERT-2 PASS: worker SIGKILLed before the agent replied to the directed message
+    restart_recovery_e2e_test.go:287: ASSERT-3a PASS: agent-runtime AUTONOMOUSLY RELAUNCHED + RESUMED the supervisor session at boot
+    restart_recovery_e2e_test.go:301: ASSERT-3b PASS: relaunch RESUMED prior session (RESUME_FROM=5bff8e84-9fdc-5263-afc3-26b434667b6e; gen0 session=5bff8e84-9fdc-5263-afc3-26b434667b6e)
+    restart_recovery_e2e_test.go:321: ASSERT-3c PASS: the un-answered directed message was PROACTIVELY re-injected after restart
+    restart_recovery_e2e_test.go:324: 
+        ========== RESULT: PASSED ==========
+        completed_turn=true persisted: yes (gen0 session=5bff8e84-9fdc-5263-afc3-26b434667b6e)
+        worker SIGKILLed before reply:  yes
+        relaunch RESUMED prior session: yes (RESUME_FROM=5bff8e84-9fdc-5263-afc3-26b434667b6e)
+        directed msg re-injected:       yes (reply-nudge after restart)
+        ====================================
+--- PASS: TestE2E_RestartRecovery_DeployLevel (10.24s)
+=== RUN   TestE2E_RestartRecovery_ReadoptSurvivor
+    restart_recovery_e2e_test.go:363: SANDBOX=/tmp/p46-reattach-858643043
+    restart_recovery_e2e_test.go:410: server up; bootstrap token len=48
+    restart_recovery_e2e_test.go:427: seeded org=organization-p46r001 agent=agent-p46r-0001(running,worker=w-p46r) empty-dm=conv-p46r-dm-0001 (no directed msg yet)
+    restart_recovery_e2e_test.go:454: org-enrolled worker w-p46r → org organization-p46r001 (control-connect precondition)
+    restart_recovery_e2e_test.go:466: ASSERT-1 PASS: live supervisor session up (completed_turn=true)
+    restart_recovery_e2e_test.go:475: worker SIGKILLed; supervisor+claude survivor left ALIVE (reattach precondition)
+    restart_recovery_e2e_test.go:493: ASSERT-Readopt PASS: worker RE-ADOPTED the surviving agent-runtime in place ("re-adopted surviving agent=agent-p46r-0001")
+    restart_recovery_e2e_test.go:510: ASSERT-Readopt NEGATIVE PASS: no relaunch, no new claude (survivor adopted in place, not interrupted)
+    restart_recovery_e2e_test.go:512: 
+        ========== RESULT: PASSED (worker-restart re-adopt survivor) ==========
+        live survivor across worker restart:       yes
+        worker RE-ADOPTED (not relaunched):        yes
+        claude NOT re-exec'd (adopted in place):   yes
+        boot-session reattach (agent-runtime restart): deferred to tester3 §6.10
+        =======================================================================
+--- PASS: TestE2E_RestartRecovery_ReadoptSurvivor (10.20s)
+PASS
+ok  	github.com/oopslink/agent-center/tests/e2e	28.113s

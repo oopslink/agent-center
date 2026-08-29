@@ -1,0 +1,59 @@
+{
+  "task": "T1754 evidence_only real runtime terminal determinism acceptance",
+  "verdict": "PASS",
+  "reviewed_sha": "5a18901eaea33c48247e2e8847a29f1d66038d40",
+  "reviewed_ref": "refs/remotes/origin/main",
+  "initial_stale_head": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "binary": {
+    "version": "t1754-origin-main-5a18901e",
+    "commit": "5a18901e",
+    "sha256": "23dd138f59b158730320a885167b8e74a37289d974816c06fd390e17f0716232"
+  },
+  "task_input_package": {
+    "expected_path": "task-input/v1",
+    "present": false,
+    "evidence": "raw/00-fresh-origin-main.log"
+  },
+  "evidence": [
+    {
+      "path": "raw/02-fetch-switch-exact-origin-main.log",
+      "sha256": "3a3b00e4e5ffa626baf09adc88f46569c8c0974083d5478c8f60362ecab2c234",
+      "purpose": "fresh origin/main exact SHA verification and checkout"
+    },
+    {
+      "path": "raw/03-build-fresh-origin-main.log",
+      "sha256": "19d1cb0874a581097d9f0df036257d6cc3cb17344ad76321e357217c39fd5565",
+      "purpose": "fresh build, binary version, binary sha256"
+    },
+    {
+      "path": "raw/04-deployed-smoke.log",
+      "sha256": "2b0aa9faf141d2ae0d1d2a887beb45040b0ac91139921f5fc7028cf3aa6b37b8",
+      "purpose": "real deployed server/worker/agent-runtime smoke and runtime-version assertions"
+    },
+    {
+      "path": "raw/05-real-runtime-restart-replay-fork.log",
+      "sha256": "a8c8bc9246fb23c66a94a6cf058787a8fc3519909013eac3dfba24a1547a05d0",
+      "purpose": "real runtime restart, replay, readopt survivor, fork executor"
+    },
+    {
+      "path": "raw/06-pm-terminal-frontier-history-slo.log",
+      "sha256": "176009234d23a977d67aaaeb096bc81d7e317901a26fa89f80d22bc9170c75a3",
+      "purpose": "terminal determinism, frontier, history isolation, progress SLO"
+    },
+    {
+      "path": "raw/07-migration-outbox-insight-crash.log",
+      "sha256": "b13158ba913f350de3b69b2a22a9b7f35e48681886fa8875ae91214e67b79b54",
+      "purpose": "historical migration, outbox relay, insight crash exactly-once"
+    },
+    {
+      "path": "raw/08-agentruntime-recovery-crash-duplicates.log",
+      "sha256": "f602e3b9b1b2714708d702aa5344cf18a37dd46973263b8a0afac2923cda86d5",
+      "purpose": "agentruntime recovery, crash, duplicate, finalize behavior"
+    },
+    {
+      "path": "raw/09-agentruntime-race-slo.log",
+      "sha256": "2c42904b968c0cb0a8da9c7f8a49cab4e84dfed1a2a673c77aeacd176d72590d",
+      "purpose": "agentruntime race gate and runtime SLO stability"
+    }
+  ]
+}

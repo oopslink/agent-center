@@ -1,0 +1,32 @@
+Switched to a new branch 'evidence/t1754-runtime-determinism-5a18901e'
+[evidence/t1754-runtime-determinism-5a18901e 621b6588] docs(acceptance): add T1754 runtime determinism evidence
+ 13 files changed, 1458 insertions(+)
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/REPORT.md
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/raw/00-fresh-origin-main.log
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/raw/01-switch-to-remote-main-head.log
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/raw/02-fetch-switch-exact-origin-main.log
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/raw/03-build-fresh-origin-main.log
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/raw/04-deployed-smoke.log
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/raw/05-real-runtime-restart-replay-fork.log
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/raw/06-pm-terminal-frontier-history-slo.log
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/raw/07-migration-outbox-insight-crash.log
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/raw/08-agentruntime-recovery-crash-duplicates.log
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/raw/09-agentruntime-race-slo.log
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/raw/10-commit-push.log
+ create mode 100644 docs/acceptance/t1754-runtime-determinism/verdict.json
+fatal: --mirror can't be combined with refspecs
+## evidence/t1754-runtime-determinism-5a18901e
+ M docs/acceptance/t1754-runtime-determinism/raw/10-commit-push.log
+621b6588b7245bf3bc52281a0cd422099ad001a0
+2026-08-29T05:47:56Z
+origin	git@github.com:oopslink/agent-center.git (fetch) [blob:none]
+origin	git@github.com:oopslink/agent-center.git (push)
+origin-push	git@github.com:oopslink/agent-center.git (fetch)
+origin-push	git@github.com:oopslink/agent-center.git (push)
+remote: 
+remote: Create a pull request for 'evidence/t1754-runtime-determinism-5a18901e' on GitHub by visiting:        
+remote:      https://github.com/oopslink/agent-center/pull/new/evidence/t1754-runtime-determinism-5a18901e        
+remote: 
+To github.com:oopslink/agent-center.git
+ * [new branch]        HEAD -> evidence/t1754-runtime-determinism-5a18901e
+621b6588b7245bf3bc52281a0cd422099ad001a0	refs/heads/evidence/t1754-runtime-determinism-5a18901e
