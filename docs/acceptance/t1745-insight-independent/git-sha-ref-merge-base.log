@@ -1,0 +1,11 @@
+f61c3110eb830f544b87b85d4d4d94e90633a0d5	HEAD
+75427e3d3c9c09b3535379bde5e275da2af639cf	refs/heads/immutable/insight-rebuild-75427e3d
+f61c3110eb830f544b87b85d4d4d94e90633a0d5	refs/heads/main
+reviewed_sha=75427e3d3c9c09b3535379bde5e275da2af639cf
+reviewed_parent=f61c3110eb830f544b87b85d4d4d94e90633a0d5
+reviewed_subject=immutable: integrate insight semantics
+base_sha=f61c3110eb830f544b87b85d4d4d94e90633a0d5
+base_parent=d3fadaf404731dacbd74909381f9315ea8714475
+base_subject=fix(progress): release stale blocked-on holds
+merge_base=f61c3110eb830f544b87b85d4d4d94e90633a0d5
+base_is_ancestor_exit=0

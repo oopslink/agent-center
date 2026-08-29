@@ -1,0 +1,27 @@
+{
+  "summary": "REJECT",
+  "verdict": "reject",
+  "reviewed_sha": "75427e3d3c9c09b3535379bde5e275da2af639cf",
+  "base_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "remote_ref": "refs/heads/immutable/insight-rebuild-75427e3d",
+  "merge_base": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "pass_evidence": [
+    "aggregate attempt counts and continuous quantiles reconcile to raw execution_fact for org-1",
+    "cross-org execution list and detail isolation held",
+    "zero/unknown/null API semantics held",
+    "web install, targeted vitest, typecheck, and build exited 0"
+  ],
+  "reject_evidence": [
+    {
+      "contract": "Pre-start queue commands remain visible in drilldown as command:<id> and excluded from aggregates.",
+      "actual": "queue_interval_fact contains cmd-prestart with execution_id exec-prestart, but executions API returned null/empty and execution_fact had no row.",
+      "failing_test": "TestIndependentAcceptance_PreStartQueueWithExecutionIDRemainsDrilldownVisible",
+      "log": "docs/acceptance/t1745-insight-independent/go-insight-tests-pipefail.log"
+    }
+  ],
+  "required_remediation": [
+    "In internal/insight/service.go projectQueue, insert/upsert a command:<command_id> execution_fact presentation row for pre-start queue commands even when worker_control_events.execution_id is non-empty and no real execution_fact row exists.",
+    "On later executor.start, reconcile the pseudo row with the real execution row or suppress the pseudo row once the real row exists.",
+    "Keep pseudo rows out of completed execution and percentile aggregates."
+  ]
+}
