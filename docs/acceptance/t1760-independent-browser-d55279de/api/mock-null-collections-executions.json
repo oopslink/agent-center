@@ -1,0 +1,20 @@
+{
+  "status": 200,
+  "body": {
+    "window": {
+      "kind": "rolling",
+      "duration": "24h",
+      "start": "2026-08-28T00:00:00Z",
+      "end": "2026-08-29T00:00:00Z"
+    },
+    "as_of": "2026-08-29T00:00:00Z",
+    "refreshed_at": "2026-08-29T00:00:01Z",
+    "freshness": {
+      "state": "fresh",
+      "age_ms": 1200,
+      "threshold_ms": 30000
+    },
+    "executions": null,
+    "next_cursor": null
+  }
+}

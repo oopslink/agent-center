@@ -1,0 +1,76 @@
+{
+  "candidate": "d55279debfa874ecaeff90eaac020aa62d8a7a2e",
+  "checked_at_utc": "2026-08-29T10:20:26.423Z",
+  "verdict": "REJECT",
+  "blocking": true,
+  "blocking_reasons": [
+    "task-input/v1/README.md and task-input/v1/manifest.json were absent, so the immutable reviewed SHA could not be locked from the required materialized task package",
+    "candidate d55279debfa874ecaeff90eaac020aa62d8a7a2e was inferred from local git refs immutable/t1760-insight-null-collections-v2 and ac-exec/task-11b66063/exec-a5dc2b4f"
+  ],
+  "browser_matrix_verdict": "PASS",
+  "checks": [
+    {
+      "name": "running binary commit matches candidate",
+      "status": "pass",
+      "commit": "d55279de"
+    },
+    {
+      "name": "fresh org real API returns overview without crashing backend",
+      "status": "pass"
+    },
+    {
+      "name": "fresh org UI shows user empty state",
+      "status": "pass"
+    },
+    {
+      "name": "null collections render empty states",
+      "status": "pass"
+    },
+    {
+      "name": "null drilldown collection renders empty state",
+      "status": "pass"
+    },
+    {
+      "name": "global overview summary rendered",
+      "status": "pass"
+    },
+    {
+      "name": "agent scope/window API-UI reconciliation",
+      "status": "pass",
+      "params": {
+        "window": "24h",
+        "agent_ref": "agent:browser-agent",
+        "limit": "50"
+      }
+    },
+    {
+      "name": "project scope/window API-UI reconciliation",
+      "status": "pass",
+      "params": {
+        "window": "24h",
+        "project_id": "proj-browser-1",
+        "limit": "50"
+      }
+    },
+    {
+      "name": "execution detail identity/status/time rendered",
+      "status": "pass"
+    },
+    {
+      "name": "200 null overview response renders unknown empty window",
+      "status": "pass"
+    },
+    {
+      "name": "403 renders authorization empty/error state",
+      "status": "pass"
+    },
+    {
+      "name": "503 rebuilding envelope renders dedicated state",
+      "status": "pass"
+    },
+    {
+      "name": "browser console/page errors clean",
+      "status": "pass"
+    }
+  ]
+}

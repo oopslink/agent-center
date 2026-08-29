@@ -1,0 +1,2 @@
+[server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t1760-insight-browser-gLPkD8/bootstrap_token (scope=* owner=system:bootstrap)
+agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t1760-insight-browser-gLPkD8/agent-center.db web=127.0.0.1:32531 admin=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t1760-insight-browser-gLPkD8/admin.sock (escalator running)

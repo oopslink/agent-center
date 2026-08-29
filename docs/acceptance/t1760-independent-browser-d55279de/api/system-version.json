@@ -1,0 +1,13 @@
+{
+  "status": 200,
+  "body": {
+    "branch": "HEAD",
+    "built_at": "2026-08-29T10:16:08Z",
+    "commit": "d55279de",
+    "install_path": "/tmp/t1760-insight-accept-d55279de-Cd4RkM/candidate/bin/agent-center",
+    "parent_pid": 43100,
+    "pid": 43102,
+    "started_at": "2026-08-29T10:20:21.524409Z",
+    "version": "HEAD-d55279de"
+  }
+}

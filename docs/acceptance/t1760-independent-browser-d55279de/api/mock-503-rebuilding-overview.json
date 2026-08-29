@@ -1,0 +1,20 @@
+{
+  "status": 503,
+  "body": {
+    "error": "insight_rebuilding",
+    "message": "rebuilding",
+    "window": {
+      "kind": "rolling",
+      "duration": "24h",
+      "start": "2026-08-28T00:00:00Z",
+      "end": "2026-08-29T00:00:00Z"
+    },
+    "as_of": "2026-08-29T00:00:00Z",
+    "refreshed_at": "2026-08-29T00:00:01Z",
+    "freshness": {
+      "state": "rebuilding",
+      "age_ms": 0,
+      "threshold_ms": 30000
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "status": 200,
+  "url": "http://127.0.0.1:32531/api/orgs/org-7bc8cf8e/insights/executions/exec-browser-1?window=24h",
+  "body": {
+    "window": {
+      "kind": "rolling",
+      "duration": "24h",
+      "start": "2026-08-28T00:00:00Z",
+      "end": "2026-08-29T00:00:00Z"
+    },
+    "as_of": "2026-08-29T00:00:00Z",
+    "refreshed_at": "2026-08-29T00:00:01Z",
+    "freshness": {
+      "state": "fresh",
+      "age_ms": 1200,
+      "threshold_ms": 30000
+    },
+    "execution": {
+      "execution_id": "exec-browser-1",
+      "command_id": "cmd-browser-1",
+      "task_id": "task-browser-1",
+      "task_ref": "task-browser-1",
+      "task_title": "Browser acceptance task",
+      "agent_ref": "agent:browser-agent",
+      "agent_name": "Browser Agent",
+      "project_id": "proj-browser-1",
+      "project_name": "Browser Project",
+      "worker_id": "worker-browser-1",
+      "outcome": "failed",
+      "failure_reason": "exit 1",
+      "queued_at": "2026-08-28T23:59:00Z",
+      "started_at": "2026-08-28T23:59:01Z",
+      "finished_at": "2026-08-28T23:59:06Z",
+      "queue_wait_ms": 1000,
+      "duration_ms": 5000,
+      "recovered": false,
+      "quality": "valid"
+    }
+  }
+}
