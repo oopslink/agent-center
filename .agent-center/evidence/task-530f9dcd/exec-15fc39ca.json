@@ -1,0 +1,179 @@
+{
+  "task_id": "task-530f9dcd",
+  "execution_id": "exec-15fc39ca",
+  "reviewed_sha": "93082d86bcb00464b823fafa9878dfa9c7029682",
+  "base_sha": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files task-input/v1 . | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git remote -v \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'find . -maxdepth 4 -type d -name task-input -print'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate -n 20'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"find .. -path '*/task-input/v1/README.md' -o -path '*/task-input/v1/manifest.json'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"git status --porcelain=v1 \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-parse --abbrev-ref HEAD \u0026\u0026 git show -s --format='%H%n%P%n%s%n%cI' HEAD\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"git ls-remote origin | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git fetch --prune origin'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"git worktree list --porcelain | sed -n '1,160p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"git config --get-all remote.origin.fetch \u0026\u0026 git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'\"",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*' --refmap=\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"rg --files | rg '(\"'^|/)evidence|verdict|review'\"' | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type d | rg 'evidence|reports|review' | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"git merge-base HEAD origin/main \u0026\u0026 git merge-base --is-ancestor HEAD origin/main; printf 'head_ancestor_origin_main=%s\\\\n' \"'$?; git merge-base --is-ancestor origin/main HEAD; printf '\"'origin_main_ancestor_head=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"find docs/acceptance -maxdepth 3 -type f | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t1515/verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t1510-fresh-2b531b9d/verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t1752-independent-reverify/raw'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc 'jq . docs/acceptance/t1752-independent-reverify/verdict.json \u003e/dev/null \u0026\u0026 echo json-ok'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t1752-independent-reverify -type f -maxdepth 3 -print | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/t1752-independent-reverify \u0026\u0026 git commit -m \"docs(acceptance): add T1752 fail-closed reverify evidence\" \u0026\u0026 git push origin HEAD'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"git config --get-regexp 'remote\\\\.(origin|origin-push)\\\\..*|push\\\\..*'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-530f9dcd/exec-15fc39ca'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git log --oneline -n 3'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-530f9dcd/exec-15fc39ca'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-15fc39ca/command_events.jsonl",
+  "command_event_digest": "sha256:b9e3f1959ff804afe4b2994c2b8b620b87d8f0693f73eac90bbb9d193323a1a1",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "已完成 evidence-only 交付并推送。",
+  "artifact_digest": "sha256:fd570a54a53a29089f3eb2c1f13813226eadecea3ffd1eaf3f71ddba8bc2d15f",
+  "path": ".agent-center/evidence/task-530f9dcd/exec-15fc39ca.json",
+  "branch": "ac-exec/task-530f9dcd/exec-15fc39ca"
+}
