@@ -1,0 +1,347 @@
+{
+  "task_id": "task-29806795",
+  "execution_id": "exec-72198c1b",
+  "reviewed_sha": "0854df6937030d94809bb4c37c2c8a67e06e1b85",
+  "base_sha": "5a18901eaea33c48247e2e8847a29f1d66038d40",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' /Users/oopslink/.agents/skills/agent-browser/SKILL.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1 . | head -200'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type d -name task-input -o -path './task-input/v1' -o -name manifest.json | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"rg -n \\\"T1747|task-2f50961b|75427e3d|T1748|TaskExecution|Execution details|network_error\\\" . --glob '\"'!node_modules'\"' --glob '\"'!vendor'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git remote -v \u0026\u0026 git status --porcelain=v1 \u0026\u0026 git log --oneline --decorate -20'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"find . -maxdepth 5 \\\\( -path '*/task-input/*' -o -name 'REPORT.md' -o -name '*1747*' -o -name '*1748*' -o -name '*2f50961b*' \\\\) -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git fetch --all --prune --tags'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git diff --stat origin-push/main...origin-push/ac-exec/task-2f50961b/exec-0ffcfff7 \u0026\u0026 git diff --name-only origin-push/main...origin-push/ac-exec/task-2f50961b/exec-0ffcfff7'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git show --no-patch --decorate --format=fuller origin-push/ac-exec/task-2f50961b/exec-0ffcfff7 \u0026\u0026 git rev-parse origin-push/ac-exec/task-2f50961b/exec-0ffcfff7''^ origin-push/ac-exec/task-2f50961b/exec-0ffcfff7'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"git grep -n \\\"75427e3d\\\\|immutable\\\\|candidate\\\\|T1747\\\\|network_error\\\\|Execution details\\\" origin-push/ac-exec/task-2f50961b/exec-0ffcfff7 -- . ':\"'!vendor'\"' ':\"'!node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'git merge-base origin-push/main origin-push/ac-exec/task-2f50961b/exec-0ffcfff7 \u0026\u0026 git rev-list --left-right --count origin-push/main...origin-push/ac-exec/task-2f50961b/exec-0ffcfff7 \u0026\u0026 git status --porcelain=v1 --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/immutable/t1740-insight-drilldown-bda5d14a refs/heads/ac-exec/task-2f50961b/exec-0ffcfff7 refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc 'tmpdir=$(mktemp -d /tmp/t1748-insight-candidate-bda5d14a.XXXXXX) \u0026\u0026 git worktree add --detach \"$tmpdir/candidate\" bda5d14adbe874ef829cc87085a65e84e51536e9 \u0026\u0026 printf '\"'%s/candidate\\\\n' \\\"\"'$tmpdir\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"find web -maxdepth 2 -name package.json -o -name vite.config.* -o -name '*.env*' -print \u0026\u0026 sed -n '1,220p' web/package.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/acceptance/t1722-insight/mock-api.mjs\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t1722-insight/vite.config.mjs \u0026\u0026 sed -n '1,180p' docs/acceptance/t1722-insight/REPORT.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'git status --porcelain=v1 --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git diff --check 75427e3d3c9c09b3535379bde5e275da2af639cf..HEAD -- web/src/pages/InsightOverview.tsx web/src/api/insights.ts internal/insight internal/webconsole/api/handlers_insights.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '1,420p' web/src/pages/InsightOverview.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/api/insights.ts \u0026\u0026 sed -n '1,260p' internal/webconsole/api/handlers_insights.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/insight/types.go \u0026\u0026 sed -n '1,320p' internal/insight/service.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/package.json \u0026\u0026 find web -maxdepth 1 -type f -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"sed -n '420,920p' web/src/pages/InsightOverview.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/api/client.ts \u0026\u0026 sed -n '1,220p' web/src/App.tsx \u0026\u0026 sed -n '1,220p' web/src/AppLayout.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' web/src/i18n/locales/en/insights.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc 'test -d web/node_modules \u0026\u0026 echo web_node_modules_present || echo web_node_modules_missing; test -d node_modules \u0026\u0026 echo root_node_modules_present || echo root_node_modules_missing; command -v pnpm; command -v agent-browser'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -name 'package.json' -print | sort | sed -n '1,80p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"rg -n \\\"insight|analytics|org.analytics.read|permissions/effective|effective\\\" web/src internal/webconsole/api internal/authorization -g '\"'!**/*.png'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc 'pnpm install --frozen-lockfile'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"agent-browser close \u003e/dev/null 2\u003e\u00261 || true; agent-browser open 'http://127.0.0.1:5174/organizations/acme/insights/overview' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser snapshot -i\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc 'agent-browser screenshot docs/acceptance/t1748-insight/01-global-overview.png --full \u0026\u0026 agent-browser click @e15 \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser snapshot -i'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc 'agent-browser screenshot docs/acceptance/t1748-insight/02-global-executions.png --full \u0026\u0026 agent-browser get text body \u003e docs/acceptance/t1748-insight/raw/02-global-executions-text.txt \u0026\u0026 agent-browser click @e15 \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser snapshot -i \u0026\u0026 agent-browser get text body \u003e docs/acceptance/t1748-insight/raw/03-global-detail-text.txt \u0026\u0026 agent-browser screenshot docs/acceptance/t1748-insight/03-global-detail.png --full'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc \"agent-browser open 'http://127.0.0.1:5174/organizations/acme/insights/executions?window=24h\u0026agent_ref=agent%3Abuilder' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser snapshot -i \u0026\u0026 agent-browser get text body \u003e docs/acceptance/t1748-insight/raw/04-agent-builder-text.txt \u0026\u0026 agent-browser screenshot docs/acceptance/t1748-insight/04-agent-builder-executions.png --full \u0026\u0026 agent-browser open 'http://127.0.0.1:5174/organizations/acme/insights/executions?window=24h\u0026project_id=proj-checkout' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser snapshot -i \u0026\u0026 agent-browser get text body \u003e docs/acceptance/t1748-insight/raw/05-project-checkout-text.txt \u0026\u0026 agent-browser screenshot docs/acceptance/t1748-insight/05-project-checkout-executions.png --full\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc \"agent-browser open 'http://127.0.0.1:5174/organizations/empty/insights/overview' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser get text body \u003e docs/acceptance/t1748-insight/raw/06-empty-overview-text.txt \u0026\u0026 agent-browser screenshot docs/acceptance/t1748-insight/06-empty-overview.png --full \u0026\u0026 agent-browser open 'http://127.0.0.1:5174/organizations/empty/insights/executions?window=24h\u0026agent_ref=agent%3Abuilder' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser get text body \u003e docs/acceptance/t1748-insight/raw/07-empty-filtered-text.txt \u0026\u0026 agent-browser screenshot docs/acceptance/t1748-insight/07-empty-filtered.png --full \u0026\u0026 agent-browser open 'http://127.0.0.1:5174/organizations/error/insights/overview' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser get text body \u003e docs/acceptance/t1748-insight/raw/08-unavailable-overview-text.txt \u0026\u0026 agent-browser screenshot docs/acceptance/t1748-insight/08-unavailable-overview.png --full \u0026\u0026 agent-browser open 'http://127.0.0.1:5174/organizations/denied/insights/overview' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser get text body \u003e docs/acceptance/t1748-insight/raw/09-permission-overview-text.txt \u0026\u0026 agent-browser screenshot docs/acceptance/t1748-insight/09-permission-overview.png --full\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc 'tail -n 80 docs/acceptance/t1748-insight/raw/api-observations.jsonl'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t1748-insight/raw/02-global-executions-text.txt \u0026\u0026 sed -n '1,220p' docs/acceptance/t1748-insight/raw/03-global-detail-text.txt \u0026\u0026 sed -n '1,180p' docs/acceptance/t1748-insight/raw/04-agent-builder-text.txt \u0026\u0026 sed -n '1,180p' docs/acceptance/t1748-insight/raw/05-project-checkout-text.txt \u0026\u0026 sed -n '1,160p' docs/acceptance/t1748-insight/raw/08-unavailable-overview-text.txt \u0026\u0026 sed -n '1,160p' docs/acceptance/t1748-insight/raw/09-permission-overview-text.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t1748-insight -maxdepth 2 -type f -print | sort | xargs shasum -a 256'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc 'git -C /tmp/t1748-insight-candidate-bda5d14a.9LQyQE/candidate status --porcelain=v1 --branch \u0026\u0026 git -C /tmp/t1748-insight-candidate-bda5d14a.9LQyQE/candidate rev-parse HEAD \u0026\u0026 git -C /tmp/t1748-insight-candidate-bda5d14a.9LQyQE/candidate rev-list --left-right --count origin-push/main...HEAD || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc \"agent-browser open 'http://127.0.0.1:5174/organizations/error/insights/overview' \u0026\u0026 agent-browser wait 12000 \u0026\u0026 agent-browser get text body \u003e docs/acceptance/t1748-insight/raw/08-unavailable-overview-text.txt \u0026\u0026 agent-browser screenshot docs/acceptance/t1748-insight/08-unavailable-overview.png --full \u0026\u0026 agent-browser open 'http://127.0.0.1:5174/organizations/denied/insights/overview' \u0026\u0026 agent-browser wait 12000 \u0026\u0026 agent-browser get text body \u003e docs/acceptance/t1748-insight/raw/09-permission-overview-text.txt \u0026\u0026 agent-browser screenshot docs/acceptance/t1748-insight/09-permission-overview.png --full \u0026\u0026 sed -n '1,180p' docs/acceptance/t1748-insight/raw/08-unavailable-overview-text.txt \u0026\u0026 sed -n '1,180p' docs/acceptance/t1748-insight/raw/09-permission-overview-text.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc \"agent-browser open 'http://127.0.0.1:5174/organizations/acme/insights/overview' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser snapshot -i \u0026\u0026 agent-browser click @e16 \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser get url \u003e docs/acceptance/t1748-insight/raw/04-agent-builder-url.txt \u0026\u0026 agent-browser get text body \u003e docs/acceptance/t1748-insight/raw/04-agent-builder-clickthrough-text.txt \u0026\u0026 agent-browser screenshot docs/acceptance/t1748-insight/04-agent-builder-clickthrough.png --full \u0026\u0026 agent-browser open 'http://127.0.0.1:5174/organizations/acme/insights/overview' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser snapshot -i \u0026\u0026 agent-browser click @e18 \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser get url \u003e docs/acceptance/t1748-insight/raw/05-project-checkout-url.txt \u0026\u0026 agent-browser get text body \u003e docs/acceptance/t1748-insight/raw/05-project-checkout-clickthrough-text.txt \u0026\u0026 agent-browser screenshot docs/acceptance/t1748-insight/05-project-checkout-clickthrough.png --full \u0026\u0026 sed -n '1,10p' docs/acceptance/t1748-insight/raw/04-agent-builder-url.txt \u0026\u0026 sed -n '1,10p' docs/acceptance/t1748-insight/raw/05-project-checkout-url.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'pnpm exec vitest run src/pages/InsightOverview.test.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc 'pnpm exec vitest run src/pages/InsightOverview.test.tsx 2\u003e\u00261 | tee /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-72198c1b/docs/acceptance/t1748-insight/raw/10-vitest-insight.log; git status --porcelain=v1 --branch \u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-72198c1b/docs/acceptance/t1748-insight/raw/11-candidate-status.txt; git rev-parse HEAD \u003e\u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-72198c1b/docs/acceptance/t1748-insight/raw/11-candidate-status.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_68",
+      "command": "/bin/zsh -lc \"find docs/acceptance/t1748-insight -maxdepth 2 -type f -print | sort | xargs shasum -a 256 \u003e docs/acceptance/t1748-insight/raw/SHA256SUMS \u0026\u0026 sed -n '1,260p' docs/acceptance/t1748-insight/raw/SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t1748-insight -maxdepth 2 -type f -print | sort | xargs shasum -a 256 \u003e docs/acceptance/t1748-insight/raw/SHA256SUMS \u0026\u0026 git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/acceptance/t1748-insight/REPORT.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc 'rg -n \"network_error|Failed to fetch|Observe stale workers|agent:observer|proj-ops\" docs/acceptance/t1748-insight/raw/*.txt docs/acceptance/t1748-insight/REPORT.md docs/acceptance/t1748-insight/verdict.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc \"git -C /tmp/t1748-insight-candidate-bda5d14a.9LQyQE/candidate status --porcelain=v1 --branch \u0026\u0026 git -C /tmp/t1748-insight-candidate-bda5d14a.9LQyQE/candidate rev-parse HEAD \u0026\u0026 sed -n '1,220p' docs/acceptance/t1748-insight/verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_76",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/acceptance/t1748-insight/raw/SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc \"git add docs/acceptance/t1748-insight \u0026\u0026 git commit -m 'test(insight): record t1748 browser acceptance evidence' \u0026\u0026 git push origin-push HEAD:ac-exec/task-29806795/exec-72198c1b\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc 'pnpm exec vite --host 127.0.0.1 --config ../docs/acceptance/t1722-insight/vite.config.mjs'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc 'T1748_EVIDENCE_DIR=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-72198c1b/docs/acceptance/t1748-insight/raw node /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-72198c1b/docs/acceptance/t1748-insight/mock-api.mjs'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_80",
+      "command": "/bin/zsh -lc 'git -C /tmp/t1748-insight-candidate-bda5d14a.9LQyQE/candidate status --porcelain=v1 --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc \"git worktree list | sed -n '1,80p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_82",
+      "command": "/bin/zsh -lc 'git status --porcelain=v1 --branch \u0026\u0026 git log --oneline -1 \u0026\u0026 git ls-remote origin-push refs/heads/ac-exec/task-29806795/exec-72198c1b'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_84",
+      "command": "/bin/zsh -lc \"git worktree remove /tmp/t1748-insight-candidate-bda5d14a.9LQyQE/candidate \u0026\u0026 git status --porcelain=v1 --branch \u0026\u0026 git worktree list | rg 't1748-insight-candidate|exec-72198c1b'\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-72198c1b/command_events.jsonl",
+  "command_event_digest": "sha256:e722333bfe0110789f34a80cd27622e0492f92111cb9176d3efeebef82bbaf27",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "Completed independent fail-closed browser acceptance for T1748 using `agent-browser`.",
+  "artifact_digest": "sha256:bb2ae13fbde737805f5e46b34dcdfad89303601cfd79e8118fe0fa9b6a4ef13c",
+  "path": ".agent-center/evidence/task-29806795/exec-72198c1b.json",
+  "branch": "ac-exec/task-29806795/exec-72198c1b"
+}
