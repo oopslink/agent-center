@@ -253,11 +253,7 @@ secret_management:
 		}
 	})
 	orgEnrollWorker(t, dbPath, workerID, orgID)
-	oldInfo := waitAgentInfo(t, sockDir, agentID, 40*time.Second)
-	oldPID := parsePIDFile(t, sockDir, agentID)
-	if oldInfo.PID != 0 && oldInfo.PID != oldPID {
-		t.Fatalf("old runtime pid mismatch: health=%d pidstore=%d health=%+v", oldInfo.PID, oldPID, oldInfo)
-	}
+	oldInfo, oldPID := waitAgentInfoMatchingPIDStore(t, sockDir, agentID, 40*time.Second)
 
 	wOld.sigkill(t) // direct worker kill; agent-runtime intentionally survives for adoption.
 	wOldKilled = true

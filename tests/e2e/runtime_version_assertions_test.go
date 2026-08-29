@@ -352,6 +352,35 @@ func waitAgentInfo(t *testing.T, sockDir, agentID string, within time.Duration) 
 	return agentcontrol.HealthResponse{}
 }
 
+// waitAgentInfoMatchingPIDStore waits for a coherent snapshot across the
+// runtime health socket and the worker's separately persisted PID store. The
+// worker may replace a runtime between those two reads, so a one-shot mismatch
+// is an observation race rather than proof that either source is corrupt.
+func waitAgentInfoMatchingPIDStore(t *testing.T, sockDir, agentID string, within time.Duration) (agentcontrol.HealthResponse, int) {
+	t.Helper()
+	c := agentcontrol.NewClient(filepath.Join(sockDir, agentcontrol.SocketName(agentID)), time.Second)
+	deadline := time.Now().Add(within)
+	var lastInfo agentcontrol.HealthResponse
+	var lastPID int
+	var lastErr error
+	for time.Now().Before(deadline) {
+		hr, err := c.Info(context.Background())
+		if err == nil && hr.AgentID == agentID {
+			pid, pidErr := readAgentPID(sockDir, agentID)
+			if pidErr == nil && pid > 0 && (hr.PID == 0 || hr.PID == pid) {
+				return hr, pid
+			}
+			lastInfo, lastPID, lastErr = hr, pid, pidErr
+		} else {
+			lastErr = err
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("agent-runtime health/PID store for %s did not converge within %s (health=%+v pidstore=%d last err=%v)",
+		agentID, within, lastInfo, lastPID, lastErr)
+	return agentcontrol.HealthResponse{}, 0
+}
+
 func waitFileWithContext(t *testing.T, path string, within time.Duration, context func() string) {
 	t.Helper()
 	deadline := time.Now().Add(within)
@@ -468,19 +497,26 @@ func buildVariantBinary(t *testing.T, dir, name string, id runtimeBuildIdentity)
 
 func parsePIDFile(t *testing.T, sockDir, agentID string) int {
 	t.Helper()
+	pid, err := readAgentPID(sockDir, agentID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pid <= 0 {
+		t.Fatalf("agent-pids.json missing %s", agentID)
+	}
+	return pid
+}
+
+func readAgentPID(sockDir, agentID string) (int, error) {
 	raw, err := os.ReadFile(filepath.Join(sockDir, "agent-pids.json"))
 	if err != nil {
-		t.Fatalf("read agent-pids.json: %v", err)
+		return 0, fmt.Errorf("read agent-pids.json: %w", err)
 	}
 	var pids map[string]int
 	if err := json.Unmarshal(raw, &pids); err != nil {
-		t.Fatalf("decode agent-pids.json: %v", err)
+		return 0, fmt.Errorf("decode agent-pids.json: %w", err)
 	}
-	pid := pids[agentID]
-	if pid <= 0 {
-		t.Fatalf("agent-pids.json missing %s: %s", agentID, raw)
-	}
-	return pid
+	return pids[agentID], nil
 }
 
 func envBool(name string) bool {
