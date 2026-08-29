@@ -1,0 +1,132 @@
+[debug] [vite] connecting...
+[debug] [vite] connected.
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)
+[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)
+[debug] [vite] connecting...
+[debug] [vite] connected.
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[error] %o
+
+%s
+
+%s
+ TypeError: Cannot read properties of null (reading 'map')
+    at InsightOverview (http://127.0.0.1:4179/src/pages/InsightOverview.tsx:76:40)
+    at Object.react_stack_bottom_frame (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:18509:20)
+    at renderWithHooks (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:5654:24)
+    at updateFunctionComponent (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:7475:21)
+    at beginWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:8525:20)
+    at runWithFiberInDEV (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:997:72)
+    at performUnitOfWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12561:98)
+    at workLoopSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12424:43)
+    at renderRootSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12408:13)
+    at performWorkOnRoot (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:11827:37) The above error occurred in the <InsightOverview> component. React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+[error] ErrorBoundary caught: TypeError: Cannot read properties of null (reading 'map')
+    at InsightOverview (http://127.0.0.1:4179/src/pages/InsightOverview.tsx:76:40)
+    at Object.react_stack_bottom_frame (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:18509:20)
+    at renderWithHooks (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:5654:24)
+    at updateFunctionComponent (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:7475:21)
+    at beginWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:8525:20)
+    at runWithFiberInDEV (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:997:72)
+    at performUnitOfWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12561:98)
+    at workLoopSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12424:43)
+    at renderRootSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12408:13)
+    at performWorkOnRoot (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:11827:37) {componentStack: 
+    at InsightOverview (http://127.0.0.1:4179/src…(http://127.0.0.1:4179/src/ErrorBoundary.tsx:5:8)}
+[error] %o
+
+%s
+
+%s
+ TypeError: Cannot read properties of null (reading 'map')
+    at InsightOverview (http://127.0.0.1:4179/src/pages/InsightOverview.tsx:76:40)
+    at Object.react_stack_bottom_frame (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:18509:20)
+    at renderWithHooks (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:5654:24)
+    at updateFunctionComponent (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:7475:21)
+    at beginWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:8484:199)
+    at runWithFiberInDEV (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:997:72)
+    at performUnitOfWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12561:98)
+    at workLoopSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12424:43)
+    at renderRootSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12408:13)
+    at performWorkOnRoot (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:11827:37) The above error occurred in the <InsightOverview> component. React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+[error] ErrorBoundary caught: TypeError: Cannot read properties of null (reading 'map')
+    at InsightOverview (http://127.0.0.1:4179/src/pages/InsightOverview.tsx:76:40)
+    at Object.react_stack_bottom_frame (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:18509:20)
+    at renderWithHooks (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:5654:24)
+    at updateFunctionComponent (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:7475:21)
+    at beginWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:8484:199)
+    at runWithFiberInDEV (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:997:72)
+    at performUnitOfWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12561:98)
+    at workLoopSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12424:43)
+    at renderRootSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12408:13)
+    at performWorkOnRoot (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:11827:37) {componentStack: 
+    at InsightOverview (http://127.0.0.1:4179/src…(http://127.0.0.1:4179/src/ErrorBoundary.tsx:5:8)}
+[debug] [vite] connecting...
+[debug] [vite] connected.
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[error] %o
+
+%s
+
+%s
+ TypeError: Cannot read properties of null (reading 'map')
+    at InsightOverview (http://127.0.0.1:4179/src/pages/InsightOverview.tsx:76:40)
+    at Object.react_stack_bottom_frame (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:18509:20)
+    at renderWithHooks (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:5654:24)
+    at updateFunctionComponent (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:7475:21)
+    at beginWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:8525:20)
+    at runWithFiberInDEV (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:997:72)
+    at performUnitOfWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12561:98)
+    at workLoopSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12424:43)
+    at renderRootSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12408:13)
+    at performWorkOnRoot (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:11827:37) The above error occurred in the <InsightOverview> component. React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+[error] ErrorBoundary caught: TypeError: Cannot read properties of null (reading 'map')
+    at InsightOverview (http://127.0.0.1:4179/src/pages/InsightOverview.tsx:76:40)
+    at Object.react_stack_bottom_frame (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:18509:20)
+    at renderWithHooks (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:5654:24)
+    at updateFunctionComponent (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:7475:21)
+    at beginWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:8525:20)
+    at runWithFiberInDEV (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:997:72)
+    at performUnitOfWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12561:98)
+    at workLoopSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12424:43)
+    at renderRootSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12408:13)
+    at performWorkOnRoot (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:11827:37) {componentStack: 
+    at InsightOverview (http://127.0.0.1:4179/src…(http://127.0.0.1:4179/src/ErrorBoundary.tsx:5:8)}
+[debug] [vite] connecting...
+[debug] [vite] connected.
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[debug] [vite] connecting...
+[debug] [vite] connected.
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
+[error] %o
+
+%s
+
+%s
+ TypeError: Cannot read properties of null (reading 'map')
+    at InsightOverview (http://127.0.0.1:4179/src/pages/InsightOverview.tsx:76:40)
+    at Object.react_stack_bottom_frame (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:18509:20)
+    at renderWithHooks (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:5654:24)
+    at updateFunctionComponent (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:7475:21)
+    at beginWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:8525:20)
+    at runWithFiberInDEV (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:997:72)
+    at performUnitOfWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12561:98)
+    at workLoopSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12424:43)
+    at renderRootSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12408:13)
+    at performWorkOnRoot (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:11827:37) The above error occurred in the <InsightOverview> component. React will try to recreate this component tree from scratch using the error boundary you provided, ErrorBoundary.
+[error] ErrorBoundary caught: TypeError: Cannot read properties of null (reading 'map')
+    at InsightOverview (http://127.0.0.1:4179/src/pages/InsightOverview.tsx:76:40)
+    at Object.react_stack_bottom_frame (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:18509:20)
+    at renderWithHooks (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:5654:24)
+    at updateFunctionComponent (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:7475:21)
+    at beginWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:8525:20)
+    at runWithFiberInDEV (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:997:72)
+    at performUnitOfWork (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12561:98)
+    at workLoopSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12424:43)
+    at renderRootSync (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:12408:13)
+    at performWorkOnRoot (http://127.0.0.1:4179/node_modules/.vite/deps/react-dom_client.js?v=846af404:11827:37) {componentStack: 
+    at InsightOverview (http://127.0.0.1:4179/src…(http://127.0.0.1:4179/src/ErrorBoundary.tsx:5:8)}
+[debug] [vite] connecting...
+[debug] [vite] connected.
+[info] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold
