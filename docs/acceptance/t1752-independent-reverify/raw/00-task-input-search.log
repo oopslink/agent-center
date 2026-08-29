@@ -1,0 +1,16 @@
+COMMANDS
+pwd
+rg --files task-input/v1 .
+find .. -path '*/task-input/v1/README.md' -o -path '*/task-input/v1/manifest.json'
+find . -maxdepth 4 -type d -name task-input -print
+
+OBSERVED
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-15fc39ca
+rg: task-input/v1: No such file or directory (os error 2)
+
+No task-input/v1/README.md was found under the workspace parent search.
+No task-input/v1/manifest.json was found under the workspace parent search.
+No task-input directory was found under the current workspace to maxdepth 4.
+
+RESULT
+INCOMPLETE: required self-contained task input package is absent, so the unique immutable candidate SHA and expected base SHA cannot be locked from task-input/v1.

@@ -1,0 +1,71 @@
+{
+  "task": "T1752 independent fail-closed reverify",
+  "reviewed_sha": null,
+  "base_sha": null,
+  "verdict": "reject",
+  "summary": "REJECT: required task-input/v1 package is absent, so the unique immutable candidate SHA and expected base SHA could not be locked. Full gates were not run because executing them against an inferred SHA would be non-auditable. Per contract, INCOMPLETE is reject.",
+  "reviewed_sha_source": "unavailable: task-input/v1/README.md and task-input/v1/manifest.json not found",
+  "base_sha_source": "unavailable: task-input/v1/README.md and task-input/v1/manifest.json not found",
+  "fail_closed_reason": "missing self-contained task input package",
+  "workspace_provenance": {
+    "executor_branch": "ac-exec/task-530f9dcd/exec-15fc39ca",
+    "head_sha_observed": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+    "head_subject": "fix(progress): release stale blocked-on holds",
+    "origin_main_observed": "f61c3110eb830f544b87b85d4d4d94e90633a0d5",
+    "note": "Observed HEAD/origin-main are provenance only and were not treated as reviewed_sha."
+  },
+  "git_evidence": {
+    "plain_fetch_exit_code": 128,
+    "plain_fetch_failure": "remote.origin.fetch is +refs/*:refs/* and attempted to update a local branch checked out in another worktree",
+    "safe_fresh_fetch_exit_code": 0,
+    "ls_remote_exit_code": 0,
+    "merge_base_checked": true,
+    "clean_detached_candidate_worktree": "not created: candidate SHA unavailable"
+  },
+  "gates": [
+    {
+      "name": "go test ./...",
+      "status": "incomplete",
+      "reason": "candidate SHA unavailable"
+    },
+    {
+      "name": "broad race with explicit timeout",
+      "status": "incomplete",
+      "reason": "candidate SHA unavailable"
+    },
+    {
+      "name": "terminal state-machine focused",
+      "status": "incomplete",
+      "reason": "candidate SHA unavailable"
+    },
+    {
+      "name": "historical migration focused",
+      "status": "incomplete",
+      "reason": "candidate SHA unavailable"
+    },
+    {
+      "name": "tests/integration",
+      "status": "incomplete",
+      "reason": "candidate SHA unavailable"
+    },
+    {
+      "name": "HTTP/API focused",
+      "status": "incomplete",
+      "reason": "candidate SHA unavailable"
+    }
+  ],
+  "raw_evidence": [
+    "raw/00-task-input-search.log",
+    "raw/01-git-provenance.log",
+    "raw/02-fetch-and-ls-remote.log",
+    "raw/03-merge-base-and-clean.log",
+    "raw/04-gates-not-run.log"
+  ],
+  "remediation_and_retest_contract": [
+    "Materialize task-input/v1/README.md and task-input/v1/manifest.json in the executor workspace with the unique immutable candidate exact SHA and expected base SHA.",
+    "From a fresh fetch, verify the candidate SHA using git ls-remote against the immutable ref and verify merge-base equals the expected base SHA.",
+    "Create or reset only an isolated clean detached worktree at the locked candidate SHA.",
+    "Run and persist raw output for go test ./..., a bounded broad race gate with explicit timeout over all related packages, focused terminal state-machine tests, focused historical migration tests, tests/integration, and focused HTTP/API tests.",
+    "Set verdict=pass only if every required gate exits green and no gate is incomplete; otherwise keep verdict=reject with the failing raw logs."
+  ]
+}

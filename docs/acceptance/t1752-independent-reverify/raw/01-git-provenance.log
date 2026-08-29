@@ -1,0 +1,22 @@
+COMMANDS
+git status --short --branch
+git remote -v
+git branch --show-current
+git rev-parse HEAD
+git show -s --format='%H%n%P%n%s%n%cI' HEAD
+
+OBSERVED
+## ac-exec/task-530f9dcd/exec-15fc39ca
+origin	git@github.com:oopslink/agent-center.git (fetch) [blob:none]
+origin	git@github.com:oopslink/agent-center.git (push)
+origin-push	git@github.com:oopslink/agent-center.git (fetch)
+origin-push	git@github.com:oopslink/agent-center.git (push)
+ac-exec/task-530f9dcd/exec-15fc39ca
+f61c3110eb830f544b87b85d4d4d94e90633a0d5
+f61c3110eb830f544b87b85d4d4d94e90633a0d5
+d3fadaf404731dacbd74909381f9315ea8714475
+fix(progress): release stale blocked-on holds
+2026-08-29T10:23:11+08:00
+
+RESULT
+Current executor branch is clean before artifact creation. HEAD is recorded only as workspace provenance, not as a reviewed candidate, because task-input/v1 was absent.

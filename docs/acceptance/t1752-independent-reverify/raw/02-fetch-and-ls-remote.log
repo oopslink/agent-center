@@ -1,0 +1,25 @@
+COMMANDS
+git config --get-all remote.origin.fetch
+git fetch --prune origin
+git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*' --refmap=
+git ls-remote origin
+
+OBSERVED
+remote.origin.fetch:
++refs/*:refs/*
+
+plain git fetch --prune origin:
+fatal: refusing to fetch into branch 'refs/heads/evidence/t1729-insight-3cc52ed3-independent' checked out at '/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/review-3cc52ed3'
+
+safe fresh fetch with explicit remote-tracking refspec and --refmap=:
+exit code 0
+
+ls-remote leading refs:
+f61c3110eb830f544b87b85d4d4d94e90633a0d5	HEAD
+f61c3110eb830f544b87b85d4d4d94e90633a0d5	refs/heads/main
+75427e3d3c9c09b3535379bde5e275da2af639cf	refs/heads/immutable/insight-rebuild-75427e3d
+a62d4dd6aa735c997076b4322768c99760726e8e	refs/heads/immutable/t1711-t1712-state-machine-migration-a62d4dd6
+bda5d14a4a37d6fe6422d0f867c3839514d57d0f	refs/heads/immutable/t1740-insight-drilldown-bda5d14a
+
+RESULT
+Fresh fetch evidence is complete after overriding the repository's broad fetch refspec with --refmap=. However, no task-input package was available to identify which immutable ref/SHA is the unique reviewed candidate for T1752.

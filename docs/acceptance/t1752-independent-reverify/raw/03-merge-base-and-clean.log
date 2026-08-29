@@ -1,0 +1,12 @@
+COMMANDS
+git merge-base HEAD origin/main
+git merge-base --is-ancestor HEAD origin/main
+git merge-base --is-ancestor origin/main HEAD
+
+OBSERVED
+f61c3110eb830f544b87b85d4d4d94e90633a0d5
+head_ancestor_origin_main=0
+origin_main_ancestor_head=0
+
+RESULT
+The current workspace HEAD equals origin/main at collection time. This does not satisfy the contract's candidate/base lock, because reviewed_sha and base_sha must come from task-input/v1 and the immutable candidate ref, not from inference.

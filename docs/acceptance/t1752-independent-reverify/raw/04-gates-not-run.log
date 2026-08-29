@@ -1,0 +1,16 @@
+REQUIRED GATES
+go test ./...
+broad race over the complete related package set with explicit timeout
+focused terminal state-machine tests
+focused historical migration tests
+tests/integration
+focused HTTP/API tests
+
+OBSERVED
+These gates were intentionally not executed after the fail-closed precondition failed.
+
+REASON
+task-input/v1/README.md and task-input/v1/manifest.json are absent. The unique immutable candidate SHA and expected base SHA cannot be locked. Running gates against an inferred SHA would produce non-auditable evidence and could create a pass/REJECT contradiction.
+
+RESULT
+INCOMPLETE, therefore verdict=reject.
