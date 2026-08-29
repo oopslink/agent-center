@@ -1117,13 +1117,12 @@ func (r *LocalRuntime) blockTaskOnForkFailure(ctx context.Context, agentID, task
 		return
 	}
 	body := map[string]any{
-		"agent_id":    agentID,
-		"task_id":     taskID,
-		"reason":      reason,
-		"reason_type": "obstacle",
+		"agent_id": agentID,
+		"task_id":  taskID,
+		"reason":   reason,
 	}
-	if bErr := caller.CallAgentTool(ctx, "block_task", body, nil); bErr != nil {
-		r.log("fork_executor agent=%s task=%s block_task failed: %v", agentID, taskID, bErr)
+	if bErr := caller.CallAgentTool(ctx, "fail_task", body, nil); bErr != nil {
+		r.log("fork_executor agent=%s task=%s fail_task failed: %v", agentID, taskID, bErr)
 	}
 }
 

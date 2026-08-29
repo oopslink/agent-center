@@ -218,6 +218,7 @@ func TestDiscardPlan_SkipsAlreadyDiscardedTasks(t *testing.T) {
 	}
 	h.drain(t)
 	taskID := h.seedTaskInPlan(t, pid, planID, "already-discarded", "agent:bot")
+	liveTaskID := h.seedTaskInPlan(t, pid, planID, "still-live", "agent:bot")
 	if err := h.svc.StartPlan(h.ctx, planID, "user:a"); err != nil {
 		t.Fatal(err)
 	}
@@ -244,6 +245,13 @@ func TestDiscardPlan_SkipsAlreadyDiscardedTasks(t *testing.T) {
 	}
 	if task.Status() != pm.TaskDiscarded {
 		t.Fatalf("task status=%s want discarded", task.Status())
+	}
+	liveTask, err := h.tasks.FindByID(h.ctx, liveTaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if liveTask.Status() != pm.TaskDiscarded {
+		t.Fatalf("live task status=%s want discarded", liveTask.Status())
 	}
 }
 

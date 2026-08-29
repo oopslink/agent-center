@@ -74,7 +74,7 @@ func TestSpawnExecutor_DispatchModeDefaults_StillFork(t *testing.T) {
 			// returns before start_task) — the important part for I105 is that it never
 			// routes inline. So assert on the two things that must hold for every case:
 			// no inline route, and no silent inline suppression of a legitimate fork.
-			if _, blocked := sc.callFor("block_task"); blocked {
+			if _, blocked := sc.callFor("fail_task"); blocked {
 				t.Fatalf("dispatch_mode=%v must not take the inline/block path", tc.mode)
 			}
 			switch tc.mode.(type) {
@@ -103,9 +103,9 @@ func TestSpawnExecutor_ExplicitCodeDispatchWithoutRepoFailsClosed(t *testing.T) 
 	if probs := loadRouting(t, home); len(probs) != 0 {
 		t.Fatalf("missing repo_ref must not fork: %+v", probs)
 	}
-	body, ok := sc.callFor("block_task")
+	body, ok := sc.callFor("fail_task")
 	if !ok || !strings.Contains(fmt.Sprint(body["reason"]), "repo_ref") {
-		t.Fatalf("missing repo_ref must block as non-delivery, body=%v", body)
+		t.Fatalf("missing repo_ref must fail as non-delivery, body=%v", body)
 	}
 }
 

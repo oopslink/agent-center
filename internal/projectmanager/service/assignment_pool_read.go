@@ -80,7 +80,7 @@ func (s *Service) RemoveTaskFromAssignmentPool(ctx context.Context, projectID pm
 		if task.ProjectID() != projectID {
 			return pm.ErrCrossProject
 		}
-		if task.Status() == pm.TaskRunning || task.Status() == pm.TaskBlocked {
+		if task.Status() == pm.TaskRunning {
 			return pm.ErrPlanNodeInFlight
 		}
 		pool, err := s.pools.FindByProject(txCtx, projectID)

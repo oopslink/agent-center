@@ -10,7 +10,7 @@ import "time"
 //
 // The seven distinct states (and how they derive):
 //   - done       : task terminal-done (completed / verified).
-//   - failed     : task terminal-fail (discarded).
+//   - failed     : task terminal-fail (failed).
 //   - paused     : task is running BUT the agent paused its work item (T53). The
 //                  underlying task stays `running` (pause is an execution-state
 //                  overlay, not a task-lifecycle state), so without this the node
@@ -65,14 +65,14 @@ type DecisionOutcome struct {
 // so DONE == completed (the only success-terminal state).
 func taskIsDone(s TaskStatus) bool { return s == TaskCompleted }
 
-// taskIsFailed reports the §9.2 terminal-FAIL mapping (discarded).
-func taskIsFailed(s TaskStatus) bool { return s == TaskDiscarded }
+// taskIsFailed reports the §9.2 terminal-FAIL mapping.
+func taskIsFailed(s TaskStatus) bool { return s == TaskFailed }
 
 // TaskIsDone is the exported §9.2 terminal-DONE predicate (completed), reused by the
 // B1 control-flow driver so "is this node done?" lives in ONE place.
 func TaskIsDone(s TaskStatus) bool { return taskIsDone(s) }
 
-// TaskIsFailed is the exported §9.2 terminal-FAIL predicate (discarded), reused
+// TaskIsFailed is the exported §9.2 terminal-FAIL predicate, reused
 // by the orchestrator's P2-2 failure handler so the "is this node failed?" rule
 // lives in ONE place (§9.7 — a failed node leaves its downstream blocked).
 func TaskIsFailed(s TaskStatus) bool { return taskIsFailed(s) }
@@ -87,6 +87,8 @@ func DeriveNodeStatus(taskStatus TaskStatus, upstreamAllDone bool, dispatched bo
 		return NodeDone
 	case taskIsFailed(taskStatus):
 		return NodeFailed
+	case taskStatus == TaskDiscarded:
+		return NodeSkipped
 	// `blocked` → NodePaused, NOT NodeBlocked: the node-status vocabulary already spends
 	// `blocked` on "upstream deps unsatisfied" (§9.7), and NodePaused is the exact
 	// existing meaning — set aside by its agent, an operator must resume it. Collapsing
@@ -102,7 +104,7 @@ func DeriveNodeStatus(taskStatus TaskStatus, upstreamAllDone bool, dispatched bo
 		}
 		return NodeRunning
 	case !upstreamAllDone:
-		// open / blocked / reopened with an unsatisfied upstream → blocked (§9.7).
+		// open / legacy blocked / reopened with an unsatisfied upstream → blocked (§9.7).
 		return NodeBlocked
 	case dispatched:
 		// All upstream done + mention already posted, task not yet running.

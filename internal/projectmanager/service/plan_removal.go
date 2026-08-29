@@ -169,7 +169,7 @@ func (s *Service) DiscardPlan(ctx context.Context, planID pm.PlanID, actor pm.Id
 			return err
 		}
 		for _, task := range tasks {
-			if pm.TaskIsDone(task.Status()) || pm.TaskIsFailed(task.Status()) {
+			if task.Status().IsTerminal() {
 				continue
 			}
 			prev := task.Status()

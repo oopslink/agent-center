@@ -31,7 +31,7 @@ export type ReminderEntityType = 'plan' | 'task' | 'issue';
 // this so a submitted (entity_type, event) pair is always a legal combination.
 export const REMINDER_EVENTS: Record<ReminderEntityType, readonly string[]> = {
   plan: ['completed', 'failed', 'stopped'],
-  task: ['completed', 'blocked', 'reopened', 'discarded'],
+  task: ['completed', 'failed', 'reopened', 'discarded'],
   issue: ['closed', 'reopened'],
 };
 
@@ -41,7 +41,7 @@ export const REMINDER_EVENTS: Record<ReminderEntityType, readonly string[]> = {
 export interface ReminderOnEvent {
   entity_type: string; // plan | task | issue
   entity_id: string;
-  event: string; // e.g. completed | failed | blocked | closed
+  event: string; // e.g. completed | failed | closed
   delay_seconds: number;
 }
 

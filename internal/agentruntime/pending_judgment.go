@@ -16,7 +16,7 @@ import (
 // supervisor's JUDGED completion (option b, issue-68ccb310). When a forked executor
 // finishes, the writeback injects a judgment prompt into the supervisor session and
 // records a pendingJudgment here; the supervisor reviews REAL delivery and calls
-// complete_task/block_task itself. The low-frequency Tick reconcile (reconcile_
+// complete_task/fail_task itself. The low-frequency Tick reconcile (reconcile_
 // pending_judgments) then guarantees no dropped judgment strands a task:
 //   - task no longer running (supervisor judged) → drop
 //   - still running past a grace window       → re-inject (nudge)
@@ -40,7 +40,7 @@ type pendingJudgment struct {
 	// supervisor/session restart so the final escalation cannot re-offer completion.
 	MustBlock bool `json:"must_block,omitempty"`
 	// Escalated marks that the reconcile gave the supervisor a FINAL "resolve or
-	// block_task(input_required)" nudge after exhausting the nudge budget. The entry is
+	// fail_task" nudge after exhausting the nudge budget. The entry is
 	// KEPT (not dropped) so a relaunched supervisor still re-judges from the durable set
 	// on boot, but no further nudges are sent — the strict fallback surfaces to a human
 	// via that final nudge + a WARN log, and NEVER writes task status from Go.
@@ -186,10 +186,10 @@ const (
 // reconcilePendingJudgments is the option-b heartbeat backstop (issue-68ccb310), run
 // from Tick (rate-limited). For each pending judgment it cross-checks the center's
 // in-flight task set:
-//   - task no longer in the RUNNING set (completed, or blocked so it left running) →
+//   - task no longer in the RUNNING set (completed, failed, or discarded) →
 //     the supervisor judged it → drop.
 //   - still running, grace elapsed, under budget → re-inject the judgment (nudge).
-//   - budget exhausted → ONE final "resolve or block_task(input_required)" nudge + a
+//   - budget exhausted → ONE final "resolve or fail_task" nudge + a
 //     WARN log, then mark escalated (kept for boot-recovery, no more nudges).
 //
 // STRICT (issue-68ccb310): this NEVER writes task status from Go — it only DRIVES the
@@ -214,7 +214,7 @@ func (r *LocalRuntime) reconcilePendingJudgments(ctx context.Context, now time.T
 		return
 	}
 	// "Still awaiting judgment" == still `running`. A task that has left running
-	// — completed, discarded, or blocked — has been judged, so the nudge loop stops.
+	// — completed, failed, or discarded — has been judged, so the nudge loop stops.
 	running := make(map[string]bool, len(tasks))
 	for _, t := range tasks {
 		if t.Status == "running" {
@@ -224,7 +224,7 @@ func (r *LocalRuntime) reconcilePendingJudgments(ctx context.Context, now time.T
 
 	for _, p := range r.pending.snapshot() {
 		if !running[p.TaskRef] {
-			r.pending.drop(p.TaskRef) // judged: completed / discarded / blocked
+			r.pending.drop(p.TaskRef) // judged: completed / failed / discarded
 			continue
 		}
 		if p.Escalated {
@@ -253,7 +253,7 @@ func (r *LocalRuntime) reconcilePendingJudgments(ctx context.Context, now time.T
 // never writes the status itself.
 //
 // I107 ③ — this prompt must NOT ship a canned reason. It used to hand over a ready-made
-// block_task(reason="executor finished but delivery could not be judged — needs
+// fail_task(reason="executor finished but delivery could not be judged — needs
 // attention") that only needed a nod. That default was a PRESET CONCLUSION, and usually a
 // false one: the agent had judged, item by item — the system just had no state for "judged
 // fine, waiting on external acceptance", so the only offered exit asserted a failure that
@@ -264,8 +264,8 @@ func escalationPrompt(taskRef string, mustBlock bool) string {
 	if mustBlock {
 		return fmt.Sprintf(
 			"[reminder] Task %s has a finished executor with a mechanically verified "+
-				"non_delivery result. Resolve it NOW with block_task(task_id=%q, reason=..., "+
-				"reason_type=obstacle). WRITE THE REASON YOURSELF from the recorded evidence. "+
+				"non_delivery result. Resolve it NOW with fail_task(task_id=%q, reason=...). "+
+				"WRITE THE REASON YOURSELF from the recorded evidence. "+
 				"Task completion is forbidden: zero-delivery cannot complete the task.",
 			taskRef, taskRef,
 		)
@@ -274,7 +274,7 @@ func escalationPrompt(taskRef string, mustBlock bool) string {
 		"[reminder] Task %s has a finished executor you have not resolved after several nudges. "+
 			"Resolve it NOW by picking the exit that is TRUE — do not pick by convenience:\n"+
 			"  - complete_task(task_id=%q, delivery={summary:…, outcome:…}) — you judged the assigned work finished; downstream review / verification / merge belongs in the plan DAG.\n"+
-			"  - block_task(task_id=%q, reason=…, reason_type=…) — something genuinely needs a human. "+
+			"  - fail_task(task_id=%q, reason=…) — this task cannot complete and should become failed. "+
 			"WRITE THE REASON YOURSELF, describing what is actually true right now. There is no "+
 			"default reason on purpose — if you did judge the delivery, do not say otherwise.\n"+
 			"Do not leave it pending.",

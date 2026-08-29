@@ -32,8 +32,8 @@ export default {
         'success':       'var(--color-success)',
         'warning':       'var(--color-warning)',
         'danger':        'var(--color-danger)',
-        // Custom: `blockedred` for the `blocked` state. @oopslink REVISION 4
-        // wants blocked = red #dc2626 (Tailwind red-600), but the a11y guardrail
+        // Custom: `blockedred` legacy token for the saturated red state. @oopslink
+        // REVISION 4 wants this red #dc2626 (Tailwind red-600), but the a11y guardrail
         // (src/a11y.test.tsx) forbids raw bg-red-/text-red- utilities. A custom
         // NON-RED-NAMED token keeps the exact hex while dodging the guardrail
         // regex — class is bg-blockedred (white text on saturated red bg).
@@ -98,6 +98,7 @@ export default {
         'status-sky-solid':      'var(--color-status-sky-solid)',
         'status-orange-solid':   'var(--color-status-orange-solid)',
         'status-orange-strong':  'var(--color-status-orange-strong)',
+        'status-red-solid':      'var(--color-status-red-solid)',
 
         // FIXED tokens (light == dark) for fixed-color surfaces that do NOT
         // flip per theme — the own chat bubble (#D1E3FF) and code block (#003247).

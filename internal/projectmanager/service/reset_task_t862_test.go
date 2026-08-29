@@ -135,17 +135,17 @@ func TestResetTask_CapTripsBlock(t *testing.T) {
 	if got.RecoveryResetCount() != pm.MaxRecoveryResets {
 		t.Fatalf("precondition: count=%d, want %d", got.RecoveryResetCount(), pm.MaxRecoveryResets)
 	}
-	// The (cap+1)th reset trips the breaker: BLOCK, not reset.
+	// The (cap+1)th reset trips the breaker: fail terminally for evolution triage.
 	h.clk.Advance(DefaultExecutionLeaseTTL + time.Hour)
 	if err := h.svc.ResetTask(h.ctx, tid, "agent:pd", false); err != nil {
 		t.Fatalf("cap-trip ResetTask: %v", err)
 	}
 	got, _ = h.svc.GetTask(h.ctx, tid)
-	if got.Status() != pm.TaskRunning {
-		t.Fatalf("cap trip must keep running (blocked annotation), got %s", got.Status())
+	if got.Status() != pm.TaskFailed {
+		t.Fatalf("cap trip must fail, got %s", got.Status())
 	}
-	if got.BlockedReason() == "" || got.BlockedReasonType() != pm.BlockReasonObstacle {
-		t.Fatalf("cap trip must block-for-triage, got reason=%q type=%q", got.BlockedReason(), got.BlockedReasonType())
+	if got.FailedReason() == "" || got.BlockedReason() != "" || got.BlockedReasonType() != "" {
+		t.Fatalf("cap trip failed reason/legacy block fields wrong: failed=%q reason=%q type=%q", got.FailedReason(), got.BlockedReason(), got.BlockedReasonType())
 	}
 	if got.RecoveryResetCount() != pm.MaxRecoveryResets {
 		t.Fatalf("cap trip must NOT increment past cap, got %d", got.RecoveryResetCount())

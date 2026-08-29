@@ -162,6 +162,7 @@
   /* orange */
   --color-status-orange-solid:  #f97316; /* orange-500 */
   --color-status-orange-strong: #ea580c; /* orange-600 */
+  --color-status-red-solid:     #dc2626; /* red-600 */
 
   /*
    * FIXED tokens — light AND dark are IDENTICAL on purpose. These sit on
@@ -286,6 +287,7 @@
   /* orange */
   --color-status-orange-solid:  #fb923c; /* orange-400 */
   --color-status-orange-strong: #f97316; /* orange-500 */
+  --color-status-red-solid:     #ef4444; /* red-500 */
 
   /*
    * FIXED tokens — UNCHANGED in dark (identical to light). These surfaces

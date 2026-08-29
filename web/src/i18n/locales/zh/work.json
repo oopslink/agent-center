@@ -736,6 +736,8 @@
       "titleLabel": "标题",
       "descriptionLabel": "描述",
       "statusLabel": "状态",
+      "statusReasonLabel": "原因",
+      "statusReasonRequired": "修改任务状态时必须填写原因。",
       "assigneeLabel": "负责人",
       "unassigned": "未分配",
       "tagsLabel": "标签",
@@ -778,7 +780,8 @@
       "descriptionAria": "任务描述",
       "noDescription": "暂无描述。",
       "plan": "计划",
-      "stuck": "卡住：{{reason}}"
+      "stuck": "卡住：{{reason}}",
+      "failedReason": "失败：{{reason}}"
     }
   },
   "widgets": {

@@ -12,8 +12,8 @@ import { tagColorFor } from '@/components/tagColors';
 // Status colors align with the existing StatusChip (#258) palette — no
 // cross-component drift (a big block in one hue + a chip in another would
 // confuse). @oopslink REVISION 4 lock: white text on a saturated color
-// background (bg-<color> text-white). ADR-0054: `blocked` is a task status again
-// (a real non-terminal PARK); `verified` remains deleted.
+// background (bg-<color> text-white). Task `failed` is terminal; `blocked` is
+// retained only as a legacy/stuck annotation outside the writable status set.
 export type StatusKey = IssueStatus | TaskStatus;
 
 const STATUS_BLOCK: Record<StatusKey, { label: string; cls: string }> = {
@@ -25,8 +25,8 @@ const STATUS_BLOCK: Record<StatusKey, { label: string; cls: string }> = {
   // done (green)
   resolved: { label: 'Resolved', cls: 'bg-status-green-solid text-white' },
   completed: { label: 'Completed', cls: 'bg-status-green-solid text-white' },
-  // ADR-0054 parked (blocked/needs a human).
-  blocked: { label: 'Blocked', cls: 'bg-status-orange-solid text-white' },
+  // terminal failure.
+  failed: { label: 'Failed', cls: 'bg-status-red-solid text-white' },
   // closed (Issue) → slate (terminal)
   closed: { label: 'Closed', cls: 'bg-status-slate-solid text-white' },
   // discarded (both Issue+Task; replaces canceled/withdrawn) → zinc.

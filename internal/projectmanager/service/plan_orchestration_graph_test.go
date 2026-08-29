@@ -509,7 +509,7 @@ func TestGraphDispatch_FailedTaskBlocksDownstream(t *testing.T) {
 		t.Fatal(err)
 	}
 	// A fails.
-	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.setTaskStatus(t, a, pm.TaskFailed)
 	d, err := h.svc.AdvancePlan(ctx, planID, "user:a")
 	if err != nil {
 		t.Fatalf("AdvancePlan: %v", err)

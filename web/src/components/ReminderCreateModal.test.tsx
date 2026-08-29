@@ -194,7 +194,7 @@ describe('ReminderCreateModal — on_event trigger', () => {
     fireEvent.click(screen.getByTestId('reminder-kind-on_event'));
     pickRemindee('agent-1');
     fireEvent.change(screen.getByTestId('reminder-entity-type'), { target: { value: 'task' } });
-    fireEvent.change(screen.getByTestId('reminder-event'), { target: { value: 'blocked' } });
+    fireEvent.change(screen.getByTestId('reminder-event'), { target: { value: 'failed' } });
     pickEntity('task_123');
     fireEvent.change(screen.getByTestId('reminder-delay'), { target: { value: '5m' } });
     fireEvent.change(screen.getByTestId('reminder-content'), { target: { value: 'ping' } });
@@ -205,7 +205,7 @@ describe('ReminderCreateModal — on_event trigger', () => {
       remindee_agent_id: 'agent-1',
       content: 'ping',
       delay: '5m',
-      on_event: { entity_type: 'task', entity_id: 'task_123', event: 'blocked' },
+      on_event: { entity_type: 'task', entity_id: 'task_123', event: 'failed' },
     });
     // on_event mode omits schedule.
     expect(payload.schedule).toBeUndefined();

@@ -120,7 +120,7 @@ func TestListPlanSummaries_DerivesPerPlanReadModel(t *testing.T) {
 	tFail := h.seedAssignedTask(t, pid, planA, "fail", "user:y")
 	h.seedAssignedTask(t, pid, planA, "open", "user:z")
 	h.setTaskStatus(t, tDone, pm.TaskCompleted)
-	h.setTaskStatus(t, tFail, pm.TaskDiscarded)
+	h.setTaskStatus(t, tFail, pm.TaskFailed)
 
 	// planB: empty (no tasks).
 	planB, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "beta", CreatedBy: "user:a"})
@@ -568,7 +568,7 @@ func TestAdvancePlan_FailureIsolation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h.setTaskStatus(t, a, pm.TaskDiscarded) // A failed
+	h.setTaskStatus(t, a, pm.TaskFailed)    // A failed
 	h.setTaskStatus(t, x, pm.TaskCompleted) // X done
 	dispatched, err := h.svc.AdvancePlan(h.ctx, planID, "user:a")
 	if err != nil {
@@ -595,7 +595,7 @@ func TestAdvancePlan_DoneSemantics(t *testing.T) {
 			t.Fatal(err)
 		}
 		h.setTaskStatus(t, a, pm.TaskCompleted)
-		h.setTaskStatus(t, b, pm.TaskDiscarded) // failed
+		h.setTaskStatus(t, b, pm.TaskFailed) // failed
 		if _, err := h.svc.AdvancePlan(h.ctx, planID, "user:a"); err != nil {
 			t.Fatal(err)
 		}

@@ -888,7 +888,7 @@ func TestSpawnExecutor_NonDispatchableStatesSkip(t *testing.T) {
 			}}
 			_, _, home := spawn(t, "agent-stop", "task-stop", sc)
 			for _, tool := range sc.toolsSeen() {
-				if tool == "start_task" || tool == "block_task" {
+				if tool == "start_task" || tool == "fail_task" {
 					t.Fatalf("state %q must stop after read, calls=%v", tc.status, sc.toolsSeen())
 				}
 			}
@@ -1006,7 +1006,7 @@ func TestSpawnExecutor_ForkFailsAfterAdmission(t *testing.T) {
 
 	_, _ = rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-6"}) // must not panic
 
-	if seen := sc.toolsSeen(); len(seen) != 5 || seen[1] != "list_files" || seen[2] != "start_task" || seen[3] != "get_team_rule_index" || seen[4] != "block_task" {
+	if seen := sc.toolsSeen(); len(seen) != 5 || seen[1] != "list_files" || seen[2] != "start_task" || seen[3] != "get_team_rule_index" || seen[4] != "fail_task" {
 		t.Fatalf("capacity skew must be surfaced after admission: tool calls = %v", seen)
 	}
 	if act := ee.engine.Pool().Active(); act != 2 {
@@ -1236,11 +1236,11 @@ func TestSpawnExecutor_ModelNotAllowedBlocks(t *testing.T) {
 		t.Fatalf("SpawnExecutor (model blocked) = (%v, %v), want failed/model_not_allowed", res, err)
 	}
 	seen := sc.toolsSeen()
-	if len(seen) != 5 || seen[0] != "get_task" || seen[1] != "list_files" || seen[2] != "start_task" || seen[3] != "get_team_rule_index" || seen[4] != "block_task" {
-		t.Fatalf("tool calls = %v, want [get_task list_files start_task get_team_rule_index block_task]", seen)
+	if len(seen) != 5 || seen[0] != "get_task" || seen[1] != "list_files" || seen[2] != "start_task" || seen[3] != "get_team_rule_index" || seen[4] != "fail_task" {
+		t.Fatalf("tool calls = %v, want [get_task list_files start_task get_team_rule_index fail_task]", seen)
 	}
-	if body, ok := sc.callFor("block_task"); !ok || body["reason_type"] != "obstacle" {
-		t.Errorf("block_task body = %v", body)
+	if body, ok := sc.callFor("fail_task"); !ok {
+		t.Errorf("fail_task body = %v", body)
 	}
 	// No executor was actually spawned (the fork was rejected before launch).
 	if act := ee.engine.Pool().Active(); act != 0 {

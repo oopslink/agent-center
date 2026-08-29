@@ -186,8 +186,8 @@ func MigrateV1ToV2Command() *Command {
 // 0149 adds progress fencing/watchdog diagnostics; 0150 adds durable hierarchical
 // wake buckets and suppressed-intent retry; 0151 adds human-decision progress
 // subscriptions; 0152 adds immutable ProjectManager delivery subjects and
-// acceptance ledger.
-const targetSchemaVersion = 152
+// acceptance ledger; 0153 adds terminal task failed lifecycle storage.
+const targetSchemaVersion = 153
 
 func runMigrateV1ToV2(
 	ctx context.Context,

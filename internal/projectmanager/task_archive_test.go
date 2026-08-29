@@ -146,8 +146,8 @@ func TestTask_FinalizeForArchive_Open(t *testing.T) {
 	}
 }
 
-// A blocked task is non-terminal but parked; finalization still abandons it.
-func TestTask_FinalizeForArchive_Blocked(t *testing.T) {
+// A failed task is terminal; finalization preserves it.
+func TestTask_FinalizeForArchive_FailedNoop(t *testing.T) {
 	tk := newTask(t)
 	at := t0.Add(time.Hour)
 	if err := tk.Assign("user:a", at); err != nil {
@@ -159,14 +159,15 @@ func TestTask_FinalizeForArchive_Blocked(t *testing.T) {
 	if err := tk.Block("waiting", BlockReasonObstacle, "user:a", at); err != nil {
 		t.Fatal(err)
 	}
-	if tk.Status() != TaskBlocked {
-		t.Fatalf("precondition: status = %q want blocked", tk.Status())
+	if tk.Status() != TaskFailed {
+		t.Fatalf("precondition: status = %q want failed", tk.Status())
 	}
+	v0 := tk.Version()
 	if err := tk.FinalizeForArchive(at); err != nil {
-		t.Fatalf("FinalizeForArchive(reopened): %v", err)
+		t.Fatalf("FinalizeForArchive(failed): %v", err)
 	}
-	if tk.Status() != TaskDiscarded {
-		t.Fatalf("status = %q want discarded", tk.Status())
+	if tk.Status() != TaskFailed || tk.Version() != v0 {
+		t.Fatalf("failed terminal must be preserved, status=%q version=%d/%d", tk.Status(), tk.Version(), v0)
 	}
 }
 
@@ -185,6 +186,12 @@ func TestTask_FinalizeForArchive_TerminalNoop(t *testing.T) {
 			_ = tk.Complete("user:a", at)
 			return tk
 		}, TaskCompleted},
+		{"failed", func() *Task {
+			tk := newTask(t)
+			_ = tk.Start(at)
+			_ = tk.Fail("failed during archive test", "user:a", at)
+			return tk
+		}, TaskFailed},
 		{"discarded", func() *Task {
 			tk := newTask(t)
 			_ = tk.Discard(at)
@@ -202,31 +209,6 @@ func TestTask_FinalizeForArchive_TerminalNoop(t *testing.T) {
 		if tk.Version() != v0 {
 			t.Fatalf("%s: no-op must not bump version (%d→%d)", tc.name, v0, tk.Version())
 		}
-	}
-}
-
-// TestTask_FinalizeForArchive_ClearsBlockedReason: a stuck (blocked-annotated) task
-// finalizes to discarded and clears the annotation (a discarded task is not stuck).
-func TestTask_FinalizeForArchive_ClearsBlockedReason(t *testing.T) {
-	tk := newTask(t)
-	at := t0.Add(time.Hour)
-	if err := tk.Assign("user:a", at); err != nil {
-		t.Fatal(err)
-	}
-	if err := tk.Start(at); err != nil {
-		t.Fatal(err)
-	}
-	if err := tk.Block("waiting on infra", BlockReasonObstacle, "user:a", at); err != nil {
-		t.Fatal(err)
-	}
-	if err := tk.FinalizeForArchive(at); err != nil {
-		t.Fatalf("FinalizeForArchive: %v", err)
-	}
-	if tk.Status() != TaskDiscarded {
-		t.Fatalf("status = %q want discarded", tk.Status())
-	}
-	if tk.BlockedReason() != "" {
-		t.Fatalf("blocked_reason = %q want cleared", tk.BlockedReason())
 	}
 }
 

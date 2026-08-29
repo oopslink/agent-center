@@ -63,12 +63,12 @@ const (
 )
 
 // AllowedEvents is the event vocabulary per entity type (aligned with the existing
-// pm lifecycle events — plan: completed/failed/stopped; task: completed/blocked/
+// pm lifecycle events — plan: completed/failed/stopped; task: completed/failed/
 // reopened/discarded; issue: closed/reopened). An on_event reminder may only watch
 // one of these transitions. Exported so the tool/API layers can validate + advertise.
 var AllowedEvents = map[EntityType][]string{
 	EntityPlan:  {"completed", "failed", "stopped"},
-	EntityTask:  {"completed", "blocked", "reopened", "discarded"},
+	EntityTask:  {"completed", "failed", "reopened", "discarded"},
 	EntityIssue: {"closed", "reopened"},
 }
 

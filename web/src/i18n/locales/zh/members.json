@@ -66,7 +66,7 @@
         "in_progress": "进行中",
         "paused": "已暂停",
         "pending": "待处理",
-        "blocked": "已阻塞",
+        "failed": "已失败",
         "done": "已完成"
       },
       "typeFilter": {
@@ -80,7 +80,7 @@
         "in_progress": "进行中",
         "paused": "已暂停",
         "pending": "待处理",
-        "blocked": "已阻塞",
+        "failed": "已失败",
         "done": "已完成",
         "canceled": "已取消",
         "superseded": "已替代"
@@ -90,7 +90,7 @@
         "inProgress": "{{count}} 项进行中",
         "paused": "{{count}} 项已暂停",
         "pending": "{{count}} 项待处理",
-        "blocked": "{{count}} 项已阻塞",
+        "failed": "{{count}} 项已失败",
         "done": "{{count}} 项已完成"
       },
       "columns": {

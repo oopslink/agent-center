@@ -262,10 +262,14 @@ export default function TaskDetail(): React.ReactElement {
             onEdit={() => setEditOpen(true)}
             editable={!isTerminal}
           />
-          {/* ADR-0046 D5: "stuck" is no longer a status — it's a blocked_reason
-              annotation on a RUNNING task. Show a solid amber chip (theme-
-              independent amber-100/amber-800, AA ≥4.5 in both light + dark, no
-              alpha-tint — mirrors the chip pattern in tagColors.ts). */}
+          {status === 'failed' && tk.failed_reason && (
+            <div
+              className="mt-2 rounded bg-danger/10 px-2 py-1 text-xs font-medium text-danger"
+              data-testid="task-failed-reason"
+            >
+              {t('task.detail.failedReason', { reason: tk.failed_reason })}
+            </div>
+          )}
           {status === 'running' && tk.blocked_reason && (
             <div
               className="mt-2 rounded bg-status-amber-bg px-2 py-1 text-xs font-medium text-status-amber-fg"

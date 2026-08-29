@@ -121,6 +121,8 @@ var (
 	// must use the normal Discard path, not this read-only-lock bypass.
 	ErrTaskNotArchived     = errors.New("projectmanager: task is not archived")
 	ErrBlockReasonRequired = errors.New("projectmanager: blocked requires a reason (plan §2.2)")
+	ErrTaskReasonRequired  = errors.New("projectmanager: task status change requires a reason")
+	ErrFailReasonRequired  = errors.New("projectmanager: failed requires a detailed reason")
 	// ErrInvalidBlockReasonType (v2.14.0 I14/F3, finding 01KVNFR…/§13.A): block_task
 	// must carry a reasonType ∈ {input_required, obstacle}. F1's Task.Block validates
 	// only that the reason text is non-empty (not the type), so F3's BlockTask entry

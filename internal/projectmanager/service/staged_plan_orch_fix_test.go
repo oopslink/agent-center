@@ -108,13 +108,7 @@ func TestResetTask_StructuredStagePlanNode_SelfHeals(t *testing.T) {
 	}
 }
 
-// Bug ① (self-heal, unblock path) — unblock_task on a STRUCTURED staged-plan node whose
-// graph node is wedged Running (the block terminated the prior WorkItem; the task never left
-// running) must ALSO re-dispatch it. Pre-fix unblock only cleared blocked_reason + re-woke
-// the (dead) assignee and left the node wedged Running with a stale dispatch record → the
-// node never re-entered graphReadySet (block→unblock was a name-only recovery). The shared
-// reconcile now reopens the node + clears the record so plan advance re-dispatches it.
-func TestUnblockTask_StructuredStagePlanNode_SelfHeals(t *testing.T) {
+func TestUnblockTask_RetiredDoesNotRecoverFailedStagePlanNode(t *testing.T) {
 	h, orchSvc := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
@@ -124,11 +118,8 @@ func TestUnblockTask_StructuredStagePlanNode_SelfHeals(t *testing.T) {
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
 		t.Fatalf("StartPlan: %v", err)
 	}
-	p, _ := h.plans.FindByID(ctx, planID)
-	graphID := p.GraphID()
-
-	// Dispatch a1, drive it Running (dispatch record present), then BLOCK it (obstacle):
-	// status stays running, lease cleared — the node stays Running (executor gone).
+	// Dispatch a1, drive it Running (dispatch record present), then legacy BlockTask
+	// maps it to failed terminal.
 	if d, _ := h.svc.AdvancePlan(ctx, planID, "user:a"); len(d) != 1 || d[0] != a1 {
 		t.Fatalf("dispatch #1 = %v, want [a1]", d)
 	}
@@ -137,31 +128,21 @@ func TestUnblockTask_StructuredStagePlanNode_SelfHeals(t *testing.T) {
 	if err := h.svc.BlockTask(ctx, a1, "external blocker", pm.BlockReasonObstacle, "user:a"); err != nil {
 		t.Fatalf("BlockTask a1: %v", err)
 	}
-	h.svc.AdvancePlan(ctx, planID, "user:a") // node stays Running (task still running)
+	h.svc.AdvancePlan(ctx, planID, "user:a")
 	if got := nodeStatusForTask(t, h, orchSvc, a1); got != orch.NodeRunning {
-		t.Fatalf("a1 node = %q, want running while blocked (the wedge)", got)
+		t.Fatalf("a1 engine node = %q, want running to keep downstream blocked", got)
 	}
-	if !dispatchedSet(t, h, planID)[a1] {
-		t.Fatal("a1 lost its dispatch record before unblock — bad setup")
-	}
-
-	// Unblock → the shared reconcile reopens the wedged node + clears its record.
 	if err := h.svc.UnblockTask(ctx, UnblockTaskCommand{TaskID: a1, Comment: "resolved", Actor: "user:a"}); err != nil {
 		t.Fatalf("UnblockTask a1: %v", err)
 	}
-	if got := nodeStatusForTask(t, h, orchSvc, a1); got == orch.NodeRunning {
-		t.Fatalf("a1 node still %q after unblock — wedged Running, not re-dispatched (bug ①)", got)
+	if got := nodeStatusForTask(t, h, orchSvc, a1); got != orch.NodeRunning {
+		t.Fatalf("retired unblock changed engine node to %q, want running", got)
 	}
-	if dispatchedSet(t, h, planID)[a1] {
-		t.Fatal("a1 still has a dispatch record after unblock — cannot re-enter the ready-set (bug ①)")
-	}
-	if !readyNodeTaskIDs(t, h, orchSvc, graphID)[a1] {
-		t.Fatal("a1 not in engine ready-set after unblock — the node is not re-dispatchable (bug ①)")
-	}
-	// End-to-end: plan advance re-dispatches the unblocked node.
 	h.svc.AdvancePlan(ctx, planID, "user:a")
-	if !dispatchedSet(t, h, planID)[a1] {
-		t.Fatal("a1 not re-dispatched by plan advance after unblock (bug ①)")
+	if task, err := h.svc.GetTask(ctx, a1); err != nil {
+		t.Fatal(err)
+	} else if task.Status() != pm.TaskFailed || task.FailedReason() != "external blocker" {
+		t.Fatalf("task after retired unblock: status=%s failed=%q", task.Status(), task.FailedReason())
 	}
 }
 

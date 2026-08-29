@@ -139,7 +139,7 @@ func (p *ReminderEventProjector) Project(ctx context.Context, e outbox.Event) er
 
 // classify derives the reminder on_event triple (entity_type, entity_id, event)
 // from a pm outbox event. ok=false when the event/transition is not in the on_event
-// vocabulary (plan: completed/failed/stopped; task: completed/blocked/reopened/
+// vocabulary (plan: completed/failed/stopped; task: completed/failed/reopened/
 // discarded; issue: closed/reopened).
 func (p *ReminderEventProjector) classify(e outbox.Event) (reminder.EntityType, string, string, bool) {
 	var pl eventPayload
@@ -171,12 +171,9 @@ func (p *ReminderEventProjector) classify(e outbox.Event) (reminder.EntityType, 
 
 // taskEvent maps a pm.task.state_changed payload to the on_event vocabulary.
 //
-// ADR-0054: a block now moves the status to "blocked", so that maps directly — WITHOUT
-// this arm every on_event=blocked reminder would silently stop firing, since a blocked
-// task no longer arrives here as "running". The old running+reason detection is KEPT as a
-// second arm for LEGACY events (pre-ADR-0054 rows/replays where a block left the status
-// running); it cannot double-fire, because Block clears neither field in a way that lets
-// a single payload match both arms.
+// Task failure is now explicit and terminal. Legacy running+blocked_reason replays do
+// not arm a new event-driven reminder; they are historical stuck-task annotations, not
+// the failed transition used by current plan evolution.
 //
 // `delivered` deliberately maps to NOTHING: the on_event vocabulary is about outcomes
 // people subscribe to, and a delivery is not one — it is a hand-off awaiting a verdict.
@@ -190,12 +187,8 @@ func taskEvent(status, reason string) string {
 		return "discarded"
 	case "reopened":
 		return "reopened"
-	case "blocked":
-		return "blocked"
-	case "running":
-		if strings.TrimSpace(reason) != "" {
-			return "blocked" // legacy ADR-0046 shape: parked as a running+reason annotation
-		}
+	case "failed":
+		return "failed"
 	}
 	return ""
 }

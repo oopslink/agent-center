@@ -55,13 +55,9 @@ func (s *Service) listBlockedWithSince(ctx context.Context) ([]blockedSnapshot, 
 	if s.actionLogs == nil {
 		return nil, nil // no log → no reliable block-start → nothing to sweep
 	}
-	// ADR-0054: a parked task is status=`blocked`, so this sweep MUST list that status or
-	// it silently reminds nobody — the whole overdue-block escalation would go dark on the
-	// exact tasks it exists for. `running` stays in the list for LEGACY rows parked the
-	// ADR-0046 way (status=running + a blocked_reason, written before this change); the
-	// blocked_reason filter below is what actually selects, so both shapes are covered by
-	// the same loop and no task is reminded twice.
-	candidates, err := s.tasks.ListByStatuses(ctx, []pm.TaskStatus{pm.TaskBlocked, pm.TaskRunning})
+	// New tasks fail terminally instead of parking; keep the running+blocked_reason
+	// scan only for legacy rows from before the failed-task lifecycle migration.
+	candidates, err := s.tasks.ListByStatuses(ctx, []pm.TaskStatus{pm.TaskRunning})
 	if err != nil {
 		return nil, err
 	}

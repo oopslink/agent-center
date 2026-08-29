@@ -53,7 +53,7 @@ func TestEnvAgentLeaseHeartbeat_RenewsRunningTask(t *testing.T) {
 // issue-88e32d98 P0 block-fuse: a task blocked mid-flight makes the heartbeat respond
 // revoked=true reason=blocked (the worker's signal to circuit-break the executor),
 // without renewing the lease.
-func TestEnvAgentLeaseHeartbeat_BlockedRevokes(t *testing.T) {
+func TestEnvAgentLeaseHeartbeat_FailedRevokes(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	srv := f.server(t)
@@ -72,8 +72,8 @@ func TestEnvAgentLeaseHeartbeat_BlockedRevokes(t *testing.T) {
 	if body["revoked"] != true {
 		t.Fatalf("body[revoked] = %v, want true (blocked task must revoke)", body["revoked"])
 	}
-	if body["reason"] != "blocked" {
-		t.Fatalf("body[reason] = %v, want \"blocked\"", body["reason"])
+	if body["reason"] != "terminal" {
+		t.Fatalf("body[reason] = %v, want \"terminal\"", body["reason"])
 	}
 }
 

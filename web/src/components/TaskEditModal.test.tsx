@@ -131,13 +131,14 @@ describe('TaskEditModal', () => {
     wrap(<TaskEditModal projectId="proj-a" task={baseTask} onClose={onClose} />);
     await screen.findByText('Hayang (user)');
     fireEvent.change(screen.getByTestId('task-edit-status'), { target: { value: 'running' } });
+    fireEvent.change(screen.getByTestId('task-edit-status-reason'), { target: { value: 'starting work' } });
     fireEvent.change(screen.getByTestId('task-edit-assignee'), { target: { value: 'agent:bot1' } });
     fireEvent.change(screen.getByTestId('task-edit-tags-input'), { target: { value: 'beta' } });
     fireEvent.keyDown(screen.getByTestId('task-edit-tags-input'), { key: 'Enter' });
     fireEvent.click(screen.getByTestId('task-edit-submit'));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     // status + tags go via the batch PATCH (assignee is NOT in the PATCH body)...
-    expect(cap.received()).toEqual({ status: 'running', tags: ['alpha', 'beta'] });
+    expect(cap.received()).toEqual({ status: 'running', reason: 'starting work', tags: ['alpha', 'beta'] });
     // ...and the assignment goes through the dedicated dispatching endpoint.
     expect(assignBody).toEqual({ assignee: 'agent:bot1' });
   });
@@ -160,9 +161,9 @@ describe('TaskEditModal', () => {
     const opts = Array.from(
       (screen.getByTestId('task-edit-status') as HTMLSelectElement).options,
     ).map((o) => o.value);
-    // `blocked` is a real task status; delivered is not a lifecycle status.
+    // `failed` is terminal; blocked/reopened are not writable lifecycle statuses.
     expect(opts).toEqual([
-      'open', 'running', 'blocked', 'completed', 'discarded', 'reopened',
+      'open', 'running', 'completed', 'failed', 'discarded',
     ]);
   });
 

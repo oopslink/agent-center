@@ -52,18 +52,17 @@ func addAgentMessage(t *testing.T, deps HandlerDeps, convID conversation.Convers
 	return r.MessageID
 }
 
-// blockRunningTask drives a fresh task to RUNNING then records a stuck-reason
-// annotation on it (ADR-0046: blocked is an annotation on a running task).
-func blockRunningTask(t *testing.T, deps HandlerDeps, taskID string, reason string, rt pm.BlockReasonType) {
+// failRunningTask drives a fresh task to RUNNING then fails it.
+func failRunningTask(t *testing.T, deps HandlerDeps, taskID string, reason string) {
 	t.Helper()
 	ctx := context.Background()
 	// seedPMTaskConv creates the project with CreatedBy "user:hayang", so that
 	// identity is a project member and a valid transition actor.
-	if err := deps.PM.SetTaskStatus(ctx, pm.TaskID(taskID), pm.TaskRunning, "user:hayang"); err != nil {
+	if err := deps.PM.SetTaskStatusWithReason(ctx, pm.TaskID(taskID), pm.TaskRunning, "user:hayang", "test transition"); err != nil {
 		t.Fatalf("set running: %v", err)
 	}
-	if err := deps.PM.BlockTask(ctx, pm.TaskID(taskID), reason, rt, "user:hayang"); err != nil {
-		t.Fatalf("block task: %v", err)
+	if err := deps.PM.FailTask(ctx, pm.TaskID(taskID), reason, "user:hayang"); err != nil {
+		t.Fatalf("fail task: %v", err)
 	}
 }
 
@@ -115,48 +114,21 @@ func TestAPI_Attention_AgentMentionNoHumanTask(t *testing.T) {
 	}
 }
 
-// TestAPI_Attention_StuckTaskSource_NoRegression: the pre-existing panel source
-// (actionable stuck tasks) is preserved — an input_required block ranks urgent,
-// an obstacle block ranks warning. (input_required/assigned 来源不回归)
-func TestAPI_Attention_StuckTaskSource_NoRegression(t *testing.T) {
+func TestAPI_Attention_FailedTasksDoNotCreateStuckItems(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 
-	_, irTaskID, irProj, _ := seedPMTaskConv(t, deps, sess.OrgID, "Needs my reply", 1)
-	blockRunningTask(t, deps, irTaskID, "which migration strategy?", pm.BlockReasonInputRequired)
-
-	_, obsTaskID, _, _ := seedPMTaskConv(t, deps, sess.OrgID, "Branch not pushed", 1)
-	blockRunningTask(t, deps, obsTaskID, "dev branch missing on origin", pm.BlockReasonObstacle)
+	_, taskID, _, _ := seedPMTaskConv(t, deps, sess.OrgID, "Needs my reply", 1)
+	failRunningTask(t, deps, taskID, "which migration strategy?")
 
 	s := newTestServer(t, deps)
 	defer s.Close()
 
 	items := attentionItems(t, orgScopedGet(t, s.URL+"/api/attention", sess))
-	byTask := map[string]map[string]any{}
 	for _, it := range items {
 		if it["kind"] == "task" {
-			byTask[it["task_id"].(string)] = it
+			t.Fatalf("failed tasks should not surface as stuck task attention items: %v", it)
 		}
-	}
-	ir := byTask[irTaskID]
-	if ir == nil {
-		t.Fatalf("input_required stuck task missing; items=%v", items)
-	}
-	if ir["severity"] != "urgent" || ir["reason_type"] != "input_required" {
-		t.Errorf("input_required item severity/reason=%v/%v want urgent/input_required", ir["severity"], ir["reason_type"])
-	}
-	if ir["route"] != "/projects/"+irProj+"/tasks/"+irTaskID {
-		t.Errorf("task route=%v", ir["route"])
-	}
-	if ir["snippet"] != "which migration strategy?" {
-		t.Errorf("task snippet=%v want the block reason", ir["snippet"])
-	}
-	obs := byTask[obsTaskID]
-	if obs == nil {
-		t.Fatalf("obstacle stuck task missing; items=%v", items)
-	}
-	if obs["severity"] != "warning" || obs["reason_type"] != "obstacle" {
-		t.Errorf("obstacle item severity/reason=%v/%v want warning/obstacle", obs["severity"], obs["reason_type"])
 	}
 }
 
@@ -171,7 +143,7 @@ func TestAPI_Attention_Union_Sort_Dedup(t *testing.T) {
 	// (A) A stuck input_required task — AND the agent also @mentions the human in
 	// that SAME task conversation → the mention must be deduped (task item wins).
 	stuckConv, stuckTaskID, _, _ := seedPMTaskConv(t, deps, sess.OrgID, "Stuck + mentioned", 1)
-	blockRunningTask(t, deps, stuckTaskID, "need a decision", pm.BlockReasonInputRequired)
+	failRunningTask(t, deps, stuckTaskID, "need a decision")
 	addAgentMessage(t, deps, stuckConv, "agent:AG1", "@"+handle+" also see this")
 
 	// (B) A standalone directed @mention in a different (channel) conversation.
@@ -183,41 +155,26 @@ func TestAPI_Attention_Union_Sort_Dedup(t *testing.T) {
 
 	items := attentionItems(t, orgScopedGet(t, s.URL+"/api/attention", sess))
 
-	// Dedup: the stuck task's conversation must NOT also appear as a kind=mention.
+	// Failed tasks no longer create a richer task attention item, so both directed
+	// mentions should remain visible.
 	var taskItems, mentionConvs int
-	firstTaskIdx, firstMentionIdx := -1, -1
 	for i, it := range items {
 		switch it["kind"] {
 		case "task":
 			taskItems++
-			if firstTaskIdx == -1 {
-				firstTaskIdx = i
-			}
-			if it["task_id"] != stuckTaskID {
-				t.Errorf("unexpected task item %v", it)
-			}
 		case "mention":
 			mentionConvs++
-			if firstMentionIdx == -1 {
-				firstMentionIdx = i
-			}
-			if it["conversation_id"] == string(stuckConv) {
-				t.Errorf("mention on the stuck task's own conversation should be deduped, got %v", it)
-			}
-			if it["conversation_id"] != string(chID) {
-				t.Errorf("unexpected mention conversation %v want channel %s", it["conversation_id"], chID)
+			if it["conversation_id"] != string(chID) && it["conversation_id"] != string(stuckConv) {
+				t.Errorf("unexpected mention conversation %v", it["conversation_id"])
 			}
 		}
+		_ = i
 	}
-	if taskItems != 1 {
-		t.Errorf("want exactly 1 kind=task item (the stuck task), got %d", taskItems)
+	if taskItems != 0 {
+		t.Errorf("want no kind=task items for failed tasks, got %d", taskItems)
 	}
-	if mentionConvs != 1 {
-		t.Errorf("want exactly 1 kind=mention item (the channel, dedup dropped the task-conv mention), got %d", mentionConvs)
-	}
-	// Sort: urgent task ahead of the warning mention.
-	if firstTaskIdx != -1 && firstMentionIdx != -1 && firstTaskIdx > firstMentionIdx {
-		t.Errorf("urgent stuck task (idx %d) must sort before the directed mention (idx %d)", firstTaskIdx, firstMentionIdx)
+	if mentionConvs != 2 {
+		t.Errorf("want 2 kind=mention items, got %d", mentionConvs)
 	}
 }
 

@@ -122,7 +122,8 @@ func pmTaskMap(t *pm.Task) map[string]any {
 		"id": string(t.ID()), "project_id": string(t.ProjectID()), "title": t.Title(),
 		"description": t.Description(), "status": string(t.Status()), "assignee": string(t.Assignee()),
 		"derived_from_issue": string(t.DerivedFromIssue()), "completed_by": string(t.CompletedBy()),
-		"blocked_reason": t.BlockedReason(), "blocked_reason_type": string(t.BlockedReasonType()), "version": t.Version(),
+		"blocked_reason": t.BlockedReason(), "blocked_reason_type": string(t.BlockedReasonType()),
+		"failed_reason": t.FailedReason(), "version": t.Version(),
 		"created_at": t.CreatedAt().Format(time.RFC3339Nano), "updated_at": t.UpdatedAt().Format(time.RFC3339Nano),
 		"tags": tags, "status_changed_at": rfc3339OrEmpty(t.StatusChangedAt()),
 		// creator identity ref (agent:/user: or a system sentinel). Always non-empty
@@ -940,6 +941,7 @@ func (s *Server) pmBatchUpdateTaskHandler(w http.ResponseWriter, r *http.Request
 	}
 	var req struct {
 		Status      *string   `json:"status"`
+		Reason      *string   `json:"reason"`
 		Assignee    *string   `json:"assignee"`
 		Tags        *[]string `json:"tags"`
 		Title       *string   `json:"title"`
@@ -954,7 +956,7 @@ func (s *Server) pmBatchUpdateTaskHandler(w http.ResponseWriter, r *http.Request
 		return
 	}
 	if err := d.PM.BatchUpdateTask(r.Context(), t.ID(), pmservice.BatchTaskPatch{
-		Status: req.Status, Assignee: req.Assignee, Tags: req.Tags,
+		Status: req.Status, Reason: req.Reason, Assignee: req.Assignee, Tags: req.Tags,
 		Title: req.Title, Description: req.Description,
 		DerivedFromIssue:     issueIDPtr(req.DerivedFromIssue),
 		RequiredCapabilities: req.RequiredCapabilities,
@@ -1028,7 +1030,21 @@ func (s *Server) pmBlockTaskHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	d := hd(r)
 	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error {
-		return d.PM.BlockTask(r.Context(), id, req.Reason, pm.BlockReasonObstacle, c)
+		return d.PM.FailTask(r.Context(), id, req.Reason, c)
+	})
+}
+
+func (s *Server) pmFailTaskHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	d := hd(r)
+	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error {
+		return d.PM.FailTask(r.Context(), id, req.Reason, c)
 	})
 }
 
@@ -1045,25 +1061,7 @@ func (s *Server) pmBlockTaskHandler(w http.ResponseWriter, r *http.Request) {
 // idempotent (a stray id just yields a top-level/mismatched reply, never a write
 // to another task), so the §7 easy-read validation is left as a follow-up.
 func (s *Server) pmUnblockTaskHandler(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		InputRequestMessageID string `json:"input_request_message_id"`
-		Comment               string `json:"comment"`
-	}
-	// Body is optional (empty body ⇒ obstacle unblock with no comment); only a
-	// malformed non-empty body is rejected.
-	if err := decodeJSON(r, &req); err != nil && r.ContentLength != 0 {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	d := hd(r)
-	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error {
-		return d.PM.UnblockTask(r.Context(), pmservice.UnblockTaskCommand{
-			TaskID:                id,
-			Comment:               req.Comment,
-			InputRequestMessageID: req.InputRequestMessageID,
-			Actor:                 c,
-		})
-	})
+	writeError(w, http.StatusGone, "unblock_retired", "unblock_task is retired; failed tasks are terminal")
 }
 
 func (s *Server) pmCompleteTaskHandler(w http.ResponseWriter, r *http.Request) {
@@ -1072,8 +1070,17 @@ func (s *Server) pmCompleteTaskHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) pmDiscardTaskHandler(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
 	d := hd(r)
-	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.DiscardTask(r.Context(), id, c) })
+	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error {
+		return d.PM.DiscardTaskWithReason(r.Context(), id, c, req.Reason)
+	})
 }
 
 // pmSetTaskStatusHandler — POST /tasks/{task_id}/status {status}: free status set
@@ -1090,12 +1097,13 @@ func (s *Server) pmSetTaskStatusHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	var req struct {
 		Status string `json:"status"`
+		Reason string `json:"reason"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
 		return
 	}
-	if err := d.PM.SetTaskStatus(r.Context(), t.ID(), pm.TaskStatus(req.Status), caller); err != nil {
+	if err := d.PM.SetTaskStatusWithReason(r.Context(), t.ID(), pm.TaskStatus(req.Status), caller, req.Reason); err != nil {
 		mapPMError(w, err)
 		return
 	}

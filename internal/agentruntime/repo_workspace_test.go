@@ -636,9 +636,9 @@ func TestSpawnExecutor_Repo_WorktreeSwitchOffCloneFailureFailsLoud(t *testing.T)
 	if probs := loadRouting(t, home); len(probs) != 0 {
 		t.Fatalf("failed clone must NOT fork, got %+v", probs)
 	}
-	blocked, ok := sc.callFor("block_task")
+	blocked, ok := sc.callFor("fail_task")
 	if !ok {
-		t.Fatalf("failed clone must FAIL LOUD (block_task), tools=%v", sc.toolsSeen())
+		t.Fatalf("failed clone must FAIL LOUD (fail_task), tools=%v", sc.toolsSeen())
 	}
 	if reason, _ := blocked["reason"].(string); !containsSub(reason, string(CauseRepoSourceUnavailable)) {
 		t.Fatalf("blocked_reason = %q, want [cause=%s]", reason, CauseRepoSourceUnavailable)
@@ -812,10 +812,10 @@ func TestSpawnExecutor_Repo_EnsureSourceFailNoForkFailsLoud(t *testing.T) {
 	if n := len(mat.preparedReqs()); n != 0 {
 		t.Fatalf("PrepareWorktree calls = %d, want 0 (no source)", n)
 	}
-	// Fail-loud: blocked with the machine-readable cause rather than left queued.
-	blocked, ok := sc.callFor("block_task")
+	// Fail-loud: failed with the machine-readable cause rather than left queued.
+	blocked, ok := sc.callFor("fail_task")
 	if !ok {
-		t.Fatalf("an un-materializable source must FAIL LOUD (block_task), got tools %v", sc.toolsSeen())
+		t.Fatalf("an un-materializable source must FAIL LOUD (fail_task), got tools %v", sc.toolsSeen())
 	}
 	if reason, _ := blocked["reason"].(string); !containsSub(reason, string(CauseRepoSourceUnavailable)) {
 		t.Fatalf("blocked_reason = %q, want [cause=%s]", reason, CauseRepoSourceUnavailable)

@@ -19,7 +19,7 @@ import type { AgentTask, AgentTaskStatus } from '@/api/types';
 
 // AgentTasks (v2.7.1 #228 PR(d); v2.14.0 I14 rename) — the Tasks tab body. A READ-ONLY
 // table (design4): ID / Title / Type / Priority / Status / Updated, a summary
-// strip (N Total · In Progress · Pending · Done · Blocked) and Status/Type
+// strip (N Total · In Progress · Pending · Done · Failed) and Status/Type
 // filters. There is intentionally NO "+ New" button (PD ruling A): tasks
 // are a projection of task dispatch — they have no manual create endpoint, so a
 // disabled/stub button would be a dead affordance. "+ New" returns in v2.8 #235
@@ -30,12 +30,12 @@ import type { AgentTask, AgentTaskStatus } from '@/api/types';
 
 // Status → user-facing bucket (the 4 summary buckets + a catch-all). The raw
 // AgentTaskStatus is kept on the row (data-status) for operators / tests.
-type Bucket = 'in_progress' | 'paused' | 'pending' | 'done' | 'blocked' | 'other';
+type Bucket = 'in_progress' | 'paused' | 'pending' | 'done' | 'failed' | 'other';
 
 const STATUS_DISPLAY: Record<AgentTaskStatus, { labelKey: string; cls: string; bucket: Bucket }> = {
   active: { labelKey: 'agentRuntime.tasks.status.in_progress', cls: 'bg-brand/10 text-brand', bucket: 'in_progress' },
   // v2.8.1 #278 D: agent-paused (scheduling autonomy) — a distinct bucket, not
-  // "pending" (queued, waiting to be picked) nor "blocked" (system/reconciler).
+  // "pending" (queued, waiting to be picked) nor "failed" (terminal/needs triage).
   // dark: lighter text — the fixed mid-tone (violet/orange-600) on an alpha-tint
   // over the dark page bg is dark-on-dark (FAILs AA in dark mode); the lighter
   // -400 variant restores AA (violet-400 ~5.9:1, the token-based chips below
@@ -44,8 +44,8 @@ const STATUS_DISPLAY: Record<AgentTaskStatus, { labelKey: string; cls: string; b
   // queued: double fix — orange-600 FAILed even in LIGHT (3.21:1, pre-existing
   // #228) → orange-700 (4.68 AA); + dark:orange-400 (7.03 AA) for dark mode.
   queued: { labelKey: 'agentRuntime.tasks.status.pending', cls: 'bg-orange-500/10 text-orange-700 dark:text-orange-400', bucket: 'pending' },
-  waiting_input: { labelKey: 'agentRuntime.tasks.status.blocked', cls: 'bg-danger/10 text-danger', bucket: 'blocked' },
-  failed: { labelKey: 'agentRuntime.tasks.status.blocked', cls: 'bg-danger/10 text-danger', bucket: 'blocked' },
+  waiting_input: { labelKey: 'agentRuntime.tasks.status.failed', cls: 'bg-danger/10 text-danger', bucket: 'failed' },
+  failed: { labelKey: 'agentRuntime.tasks.status.failed', cls: 'bg-danger/10 text-danger', bucket: 'failed' },
   done: { labelKey: 'agentRuntime.tasks.status.done', cls: 'bg-success/10 text-success', bucket: 'done' },
   canceled: { labelKey: 'agentRuntime.tasks.status.canceled', cls: 'bg-bg-subtle text-text-muted', bucket: 'other' },
   superseded: { labelKey: 'agentRuntime.tasks.status.superseded', cls: 'bg-bg-subtle text-text-muted', bucket: 'other' },
@@ -56,7 +56,7 @@ const STATUS_FILTERS: Array<{ value: Bucket | 'all'; labelKey: string }> = [
   { value: 'in_progress', labelKey: 'agentRuntime.tasks.statusFilter.in_progress' },
   { value: 'paused', labelKey: 'agentRuntime.tasks.statusFilter.paused' },
   { value: 'pending', labelKey: 'agentRuntime.tasks.statusFilter.pending' },
-  { value: 'blocked', labelKey: 'agentRuntime.tasks.statusFilter.blocked' },
+  { value: 'failed', labelKey: 'agentRuntime.tasks.statusFilter.failed' },
   { value: 'done', labelKey: 'agentRuntime.tasks.statusFilter.done' },
 ];
 
@@ -75,14 +75,14 @@ export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement
   const items = useMemo(() => workItems.data ?? [], [workItems.data]);
 
   const counts = useMemo(() => {
-    const c = { total: items.length, in_progress: 0, paused: 0, pending: 0, done: 0, blocked: 0 };
+    const c = { total: items.length, in_progress: 0, paused: 0, pending: 0, done: 0, failed: 0 };
     for (const w of items) {
       const b = STATUS_DISPLAY[w.status]?.bucket;
       if (b === 'in_progress') c.in_progress += 1;
       else if (b === 'paused') c.paused += 1;
       else if (b === 'pending') c.pending += 1;
       else if (b === 'done') c.done += 1;
-      else if (b === 'blocked') c.blocked += 1;
+      else if (b === 'failed') c.failed += 1;
     }
     return c;
   }, [items]);
@@ -170,13 +170,13 @@ export function AgentTasks({ agentId }: { agentId: string }): React.ReactElement
       {workItems.isSuccess && items.length > 0 && (
         <>
           {/* Summary strip (v2.8.1 #278: + Paused). Order: Total · In Progress ·
-              Paused · Pending · Blocked · Done. */}
+              Paused · Pending · Failed · Done. */}
           <dl className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" data-testid="agent-workitems-summary">
             <span className="font-medium text-text-primary">{t('agentRuntime.tasks.summary.total', { count: counts.total })}</span>
             <span className="text-brand">{t('agentRuntime.tasks.summary.inProgress', { count: counts.in_progress })}</span>
             <span className="text-violet-600 dark:text-violet-400">{t('agentRuntime.tasks.summary.paused', { count: counts.paused })}</span>
             <span className="text-orange-700 dark:text-orange-400">{t('agentRuntime.tasks.summary.pending', { count: counts.pending })}</span>
-            <span className="text-danger">{t('agentRuntime.tasks.summary.blocked', { count: counts.blocked })}</span>
+            <span className="text-danger">{t('agentRuntime.tasks.summary.failed', { count: counts.failed })}</span>
             <span className="text-success">{t('agentRuntime.tasks.summary.done', { count: counts.done })}</span>
           </dl>
 

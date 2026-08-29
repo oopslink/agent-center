@@ -35,7 +35,7 @@ func TestDeriveNodeStatus_FiveStates(t *testing.T) {
 		want            NodeStatus
 	}{
 		{"done-completed", TaskCompleted, true, true, false, NodeDone},
-		{"failed-discarded", TaskDiscarded, true, true, false, NodeFailed},
+		{"failed-failed", TaskFailed, true, true, false, NodeFailed},
 		{"running", TaskRunning, true, true, false, NodeRunning},
 		{"blocked-upstream-not-done", TaskOpen, false, false, false, NodeBlocked},
 		{"blocked-even-if-dispatched-flag", TaskOpen, false, true, false, NodeBlocked},
@@ -43,7 +43,7 @@ func TestDeriveNodeStatus_FiveStates(t *testing.T) {
 		{"dispatched-all-upstream-done-dispatched", TaskOpen, true, true, false, NodeDispatched},
 		// done/failed take precedence over upstream gating.
 		{"done-precedence-over-blocked", TaskCompleted, false, false, false, NodeDone},
-		{"failed-precedence-over-blocked", TaskDiscarded, false, false, false, NodeFailed},
+		{"failed-precedence-over-blocked", TaskFailed, false, false, false, NodeFailed},
 		// T53: a running task whose work item is paused derives `paused`, not running.
 		{"paused-running-work-item", TaskRunning, true, true, true, NodePaused},
 		// paused flag only matters for a running task — a terminal/blocked task ignores it.
@@ -138,7 +138,7 @@ func TestDerivePlanView_PausedOverlay(t *testing.T) {
 //	A(failed) → B should be blocked.
 //	X(done)   → Y should be ready (independent branch advances).
 func TestDerivePlanView_FailureIsolation(t *testing.T) {
-	a := newTaskWithStatus(t, "A", TaskDiscarded) // failed
+	a := newTaskWithStatus(t, "A", TaskFailed) // failed
 	b := newTaskWithStatus(t, "B", TaskOpen)
 	x := newTaskWithStatus(t, "X", TaskCompleted) // done
 	y := newTaskWithStatus(t, "Y", TaskOpen)
@@ -171,7 +171,7 @@ func TestDerivePlanView_FailureIsolation(t *testing.T) {
 }
 
 func TestDerivePlanView_SupersededFailedNodeIsHistoricalOnly(t *testing.T) {
-	old := newTaskWithStatus(t, "T1286", TaskDiscarded)
+	old := newTaskWithStatus(t, "T1286", TaskFailed)
 	fix := newTaskWithStatus(t, "Fix1286", TaskCompleted)
 	verify := newTaskWithStatus(t, "MainAcceptance", TaskCompleted)
 	tasks := []*Task{old, fix, verify}
@@ -186,7 +186,7 @@ func TestDerivePlanView_SupersededFailedNodeIsHistoricalOnly(t *testing.T) {
 	})
 
 	if !view.HasFailed {
-		t.Fatal("HasFailed should preserve historical failed/discarded facts")
+		t.Fatal("HasFailed should preserve historical failed/failed facts")
 	}
 	if len(view.HistoricalFailures) != 1 || view.HistoricalFailures[0] != "T1286" {
 		t.Fatalf("historical_failures=%v want [T1286]", view.HistoricalFailures)
@@ -214,7 +214,7 @@ func TestDerivePlanView_SupersededFailedNodeIsHistoricalOnly(t *testing.T) {
 
 func TestDerivePlanView_SupersededFailureKeepsFailedAuditStatusWhenBranchIsPruned(t *testing.T) {
 	decision := newTaskWithStatus(t, "Decision", TaskCompleted)
-	old := newTaskWithStatus(t, "OldFailure", TaskDiscarded)
+	old := newTaskWithStatus(t, "OldFailure", TaskFailed)
 	view := DerivePlanViewWithOptions(
 		[]*Task{decision, old},
 		[]Dependency{{PlanID: "P", FromTaskID: old.ID(), ToTaskID: decision.ID(), Kind: EdgeConditional, When: "pass"}},
@@ -230,8 +230,8 @@ func TestDerivePlanView_SupersededFailureKeepsFailedAuditStatusWhenBranchIsPrune
 	for _, node := range view.Nodes {
 		nodes[node.TaskID] = node
 	}
-	if nodes[old.ID()].NodeStatus != NodeFailed || nodes[old.ID()].TaskStatus != TaskDiscarded {
-		t.Fatalf("historical node=%+v want failed/discarded audit state", nodes[old.ID()])
+	if nodes[old.ID()].NodeStatus != NodeFailed || nodes[old.ID()].TaskStatus != TaskFailed {
+		t.Fatalf("historical node=%+v want failed/failed audit state", nodes[old.ID()])
 	}
 	if !view.HasFailed || len(view.HistoricalFailures) != 1 || view.HistoricalFailures[0] != old.ID() {
 		t.Fatalf("has_failed=%v historical_failures=%v", view.HasFailed, view.HistoricalFailures)
@@ -253,7 +253,7 @@ func TestDerivePlanView_AllDone(t *testing.T) {
 	})
 	t.Run("one failed keeps not-done", func(t *testing.T) {
 		a := newTaskWithStatus(t, "A", TaskCompleted)
-		b := newTaskWithStatus(t, "B", TaskDiscarded)
+		b := newTaskWithStatus(t, "B", TaskFailed)
 		view := DerivePlanView([]*Task{a, b}, nil, nil, nil, nil)
 		if view.AllDone {
 			t.Fatal("AllDone must be false when a node is failed (§9.1)")

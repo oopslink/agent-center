@@ -24,7 +24,7 @@ func TestDerivePlanView_AllEightStates(t *testing.T) {
 	d := newTaskWithStatus(t, "D", TaskCompleted)
 	r := newTaskWithStatus(t, "R", TaskRunning)
 	p := newTaskWithStatus(t, "P", TaskRunning)
-	f := newTaskWithStatus(t, "F", TaskDiscarded)
+	f := newTaskWithStatus(t, "F", TaskFailed)
 	y := newTaskWithStatus(t, "Y", TaskOpen)
 	z := newTaskWithStatus(t, "Z", TaskOpen)
 	b := newTaskWithStatus(t, "B", TaskOpen)
@@ -59,7 +59,7 @@ func TestDerivePlanView_AllEightStates(t *testing.T) {
 		t.Errorf("progress = %+v, want {2 9}", view.Progress)
 	}
 	if !view.HasFailed {
-		t.Error("HasFailed = false, want true (F discarded on a live branch)")
+		t.Error("HasFailed = false, want true (F failed on a live branch)")
 	}
 	if view.AllDone {
 		t.Error("AllDone = true, want false")

@@ -64,15 +64,14 @@ func TestQuery_Issues_ByOpener(t *testing.T) {
 }
 
 // TestQuery_Tasks_DefaultActiveSet pins the proj-B口径: the default `query tasks`
-// (no filter) returns the non-terminal active set {open,running,blocked} and
-// excludes terminal {completed,discarded}. ADR-0046: "blocked"/"verified" deleted
-// (blocked is now a running-task annotation). The old --priority and --blocked-by
+// (no filter) returns the non-terminal active set {open,running} and
+// excludes terminal {completed,failed,discarded}. The old --priority and --blocked-by
 // filters are removed (pm.Task has no priority and no dependency graph).
 func TestQuery_Tasks_DefaultActiveSet(t *testing.T) {
 	env := newQEnv(t)
 	env.seedTaskStatus(t, "T-open", "p", pm.TaskOpen)
 	env.seedTaskStatus(t, "T-running", "p", pm.TaskRunning)
-	env.seedTaskStatus(t, "T-blocked", "p", pm.TaskBlocked)
+	env.seedTaskStatus(t, "T-failed", "p", pm.TaskFailed)
 	env.seedTaskStatus(t, "T-completed", "p", pm.TaskCompleted)
 	env.seedTaskStatus(t, "T-canceled", "p", pm.TaskDiscarded)
 	res, err := env.svc.Query(context.Background(), "tasks", query.QueryFilter{})
@@ -83,10 +82,10 @@ func TestQuery_Tasks_DefaultActiveSet(t *testing.T) {
 	for _, it := range res.Items {
 		got[it.(map[string]any)["id"].(string)] = true
 	}
-	if len(res.Items) != 3 || !got["T-open"] || !got["T-running"] || !got["T-blocked"] {
-		t.Fatalf("default active set wrong (want open/running/blocked): %+v", res.Items)
+	if len(res.Items) != 2 || !got["T-open"] || !got["T-running"] {
+		t.Fatalf("default active set wrong (want open/running): %+v", res.Items)
 	}
-	if got["T-completed"] || got["T-canceled"] {
+	if got["T-completed"] || got["T-failed"] || got["T-canceled"] {
 		t.Fatalf("terminal task leaked into default set: %+v", res.Items)
 	}
 }

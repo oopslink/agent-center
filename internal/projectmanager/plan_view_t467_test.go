@@ -4,7 +4,7 @@ import "testing"
 
 // T467 (issue-f5067ad2): an UNTAKEN escape/fallback node that was DISCARDED (as cleanup)
 // must converge to NodeSkipped and NOT pollute has_failed — while a REAL failure (a
-// discarded node on a LIVE/taken branch, or a discarded dev node) stays NodeFailed.
+// failed node on a LIVE/taken branch, or a failed dev node) stays NodeFailed.
 
 // The cycle shape shared by the T467 cases: Dev→Review→Dec, Dec --pass--> Integ,
 // Dec --reject_exhausted--> Esc, Dec --loopback(reject)--> Dev.
@@ -21,20 +21,20 @@ func t467CycleEdges() []Dependency {
 
 // pass route + the (never-taken) escape node was DISCARDED → it must read as SKIPPED,
 // has_failed stays false, and the plan reaches AllDone (success terminal).
-func TestDerivePlanView_DiscardedUntakenEscape_IsSkippedNotFailed_T467(t *testing.T) {
+func TestDerivePlanView_FailedUntakenEscape_IsSkippedNotFailed_T467(t *testing.T) {
 	tasks := []*Task{
 		newTaskWithStatus(t, "S0", TaskCompleted),
 		newTaskWithStatus(t, "Dev", TaskCompleted),
 		newTaskWithStatus(t, "Review", TaskCompleted),
 		newTaskWithStatus(t, "Dec", TaskCompleted),
 		newTaskWithStatus(t, "Integ", TaskCompleted), // pass branch ran + done
-		newTaskWithStatus(t, "Esc", TaskDiscarded),   // untaken escape, discarded as cleanup
+		newTaskWithStatus(t, "Esc", TaskFailed),      // untaken escape, failed as cleanup
 	}
 	v := DerivePlanView(tasks, t467CycleEdges(), nil,
 		[]DecisionOutcome{{PlanID: "pl", TaskID: "Dec", Outcome: "pass"}}, nil)
 	st := nodeStatusByID(v)
 	if st["Esc"] != NodeSkipped {
-		t.Fatalf("discarded untaken escape = %s, want skipped (T467)", st["Esc"])
+		t.Fatalf("failed untaken escape = %s, want skipped (T467)", st["Esc"])
 	}
 	if v.HasFailed {
 		t.Fatalf("has_failed must be false — the only non-done node is an untaken (skipped) branch")
@@ -47,20 +47,20 @@ func TestDerivePlanView_DiscardedUntakenEscape_IsSkippedNotFailed_T467(t *testin
 // reject_exhausted route (escape TAKEN) + the escape node was then DISCARDED → a REAL
 // failure: it stays NodeFailed and sets has_failed. The pass-branch Integrate that was
 // not taken is the one that skips.
-func TestDerivePlanView_DiscardedTakenEscape_StaysFailed_T467(t *testing.T) {
+func TestDerivePlanView_FailedTakenEscape_StaysFailed_T467(t *testing.T) {
 	tasks := []*Task{
 		newTaskWithStatus(t, "S0", TaskCompleted),
 		newTaskWithStatus(t, "Dev", TaskCompleted),
 		newTaskWithStatus(t, "Review", TaskCompleted),
 		newTaskWithStatus(t, "Dec", TaskCompleted),
-		newTaskWithStatus(t, "Integ", TaskOpen),    // pass branch NOT taken
-		newTaskWithStatus(t, "Esc", TaskDiscarded), // escape WAS taken, then discarded → real fail
+		newTaskWithStatus(t, "Integ", TaskOpen), // pass branch NOT taken
+		newTaskWithStatus(t, "Esc", TaskFailed), // escape WAS taken, then failed → real fail
 	}
 	v := DerivePlanView(tasks, t467CycleEdges(), nil,
 		[]DecisionOutcome{{PlanID: "pl", TaskID: "Dec", Outcome: "reject_exhausted"}}, nil)
 	st := nodeStatusByID(v)
 	if st["Esc"] != NodeFailed {
-		t.Fatalf("discarded TAKEN escape = %s, want failed (real failure preserved)", st["Esc"])
+		t.Fatalf("failed TAKEN escape = %s, want failed (real failure preserved)", st["Esc"])
 	}
 	if !v.HasFailed {
 		t.Fatalf("has_failed must be true — the taken escape branch really failed")
@@ -72,15 +72,15 @@ func TestDerivePlanView_DiscardedTakenEscape_StaysFailed_T467(t *testing.T) {
 
 // A DISCARDED node on a plain (non-conditional) path is a real failure — pruning never
 // reaches it, so it stays NodeFailed (a dev node that truly failed).
-func TestDerivePlanView_DiscardedDevNode_StaysFailed_T467(t *testing.T) {
+func TestDerivePlanView_FailedDevNode_StaysFailed_T467(t *testing.T) {
 	tasks := []*Task{
 		newTaskWithStatus(t, "S0", TaskCompleted),
-		newTaskWithStatus(t, "Dev", TaskDiscarded), // dev truly failed
+		newTaskWithStatus(t, "Dev", TaskFailed), // dev truly failed
 	}
 	edges := []Dependency{{PlanID: "pl", FromTaskID: "Dev", ToTaskID: "S0", Kind: EdgeSeq}}
 	v := DerivePlanView(tasks, edges, nil, nil, nil)
 	if nodeStatusByID(v)["Dev"] != NodeFailed {
-		t.Fatalf("discarded dev node must stay failed (no conditional → never pruned)")
+		t.Fatalf("failed dev node must stay failed (no conditional → never pruned)")
 	}
 	if !v.HasFailed {
 		t.Fatalf("has_failed must be true for a real dev failure")

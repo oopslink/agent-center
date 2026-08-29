@@ -149,8 +149,8 @@ func TestBlockTask_ValidatesReasonType(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.BlockedReasonType() != pm.BlockReasonInputRequired {
-		t.Fatalf("blockedReasonType = %q, want input_required", got.BlockedReasonType())
+	if got.Status() != pm.TaskFailed || got.FailedReason() != "need a deploy token" || got.BlockedReasonType() != "" {
+		t.Fatalf("legacy block must fail without block type: status=%q failed=%q blockedType=%q", got.Status(), got.FailedReason(), got.BlockedReasonType())
 	}
 }
 
@@ -182,8 +182,8 @@ func TestHeartbeatTask_RenewsAndGuards(t *testing.T) {
 	if err := h.svc.BlockTask(h.ctx, tid, "waiting on owner", pm.BlockReasonObstacle, "agent:w1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.svc.HeartbeatTask(h.ctx, tid, "agent:w1"); !errors.Is(err, pm.ErrTaskBlocked) {
-		t.Fatalf("heartbeat on blocked task = %v, want ErrTaskBlocked", err)
+	if err := h.svc.HeartbeatTask(h.ctx, tid, "agent:w1"); !errors.Is(err, pm.ErrIllegalTransition) {
+		t.Fatalf("heartbeat on failed task = %v, want ErrIllegalTransition", err)
 	}
 }
 
@@ -315,7 +315,7 @@ func TestWorkerRenewLease(t *testing.T) {
 // mid-flight (ADR-0046: status stays running, blocked_reason set) makes the worker's
 // renew return revoked="blocked" — the signal the worker uses to circuit-break the
 // still-running executor instead of letting it race on to a dangerous action.
-func TestWorkerRenewLease_BlockedRevokes(t *testing.T) {
+func TestWorkerRenewLease_FailedRevokes(t *testing.T) {
 	h := planAdvanceSetup(t)
 	_, tid := startedPoolTask(t, h, "org-wrl-blk", "P", "agent:w1")
 
@@ -334,8 +334,8 @@ func TestWorkerRenewLease_BlockedRevokes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WorkerRenewLease(blocked) err = %v", err)
 	}
-	if !revoked || reason != "blocked" {
-		t.Fatalf("WorkerRenewLease(blocked) = (revoked=%v reason=%q), want (true,\"blocked\")", revoked, reason)
+	if !revoked || reason != "terminal" {
+		t.Fatalf("WorkerRenewLease(failed) = (revoked=%v reason=%q), want (true,\"terminal\")", revoked, reason)
 	}
 }
 
@@ -355,17 +355,15 @@ func TestActionLog_BlockUnblockPersisted(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var sawBlocked, sawUnblocked bool
+	var sawFailed bool
 	for _, lg := range logs {
 		switch lg.Action {
-		case pm.TaskActionBlocked:
-			sawBlocked = true
-		case pm.TaskActionUnblocked:
-			sawUnblocked = true
+		case pm.TaskActionFailed:
+			sawFailed = true
 		}
 	}
-	if !sawBlocked || !sawUnblocked {
-		t.Fatalf("action logs = %+v, want both blocked and unblocked entries", logs)
+	if !sawFailed {
+		t.Fatalf("action logs = %+v, want failed entry", logs)
 	}
 }
 
@@ -384,37 +382,18 @@ func TestOverdueBlockedReminder_EmitsOncePerEpisode(t *testing.T) {
 	if n, err := chk.Tick(h.ctx); err != nil || n != 0 {
 		t.Fatalf("tick before threshold = (%d,%v), want (0,nil)", n, err)
 	}
-	// Past the threshold → exactly one reminder.
+	// Failed terminal tasks are not parked work and do not produce overdue-blocked reminders.
 	h.clk.Advance(time.Hour + time.Minute)
-	if n, err := chk.Tick(h.ctx); err != nil || n != 1 {
-		t.Fatalf("tick after threshold = (%d,%v), want (1,nil)", n, err)
+	if n, err := chk.Tick(h.ctx); err != nil || n != 0 {
+		t.Fatalf("tick after threshold = (%d,%v), want (0,nil)", n, err)
 	}
-	// Latched: a second sweep does not re-remind the same episode.
+	// A second sweep also stays quiet.
 	if n, _ := chk.Tick(h.ctx); n != 0 {
-		t.Fatalf("second tick = %d, want 0 (latched)", n)
+		t.Fatalf("second tick = %d, want 0", n)
 	}
-	// The reminder NEVER recovers a blocked task (§13.D: not auto-recovered) — it only
-	// reminds. ADR-0054: the task must stay PARKED (status=blocked) with its reason intact;
-	// the reminder must not un-park it, and (the ADR-0054 regression this guards) the sweep
-	// must still FIND it now that a blocked task no longer sits in `running`.
 	got, _ := h.svc.GetTask(h.ctx, tid)
-	if got.Status() != pm.TaskBlocked || strings.TrimSpace(got.BlockedReason()) == "" {
-		t.Fatalf("task should stay parked (blocked) with its reason, got status=%s blocked=%q", got.Status(), got.BlockedReason())
-	}
-
-	// Unblock → latch pruned; a NEW block episode re-arms the reminder.
-	if err := h.svc.UnblockTask(h.ctx, UnblockTaskCommand{TaskID: tid, Actor: "agent:w1"}); err != nil {
-		t.Fatal(err)
-	}
-	if n, _ := chk.Tick(h.ctx); n != 0 {
-		t.Fatalf("tick after unblock = %d, want 0 (not blocked)", n)
-	}
-	if err := h.svc.BlockTask(h.ctx, tid, "stuck again", pm.BlockReasonObstacle, "agent:w1"); err != nil {
-		t.Fatal(err)
-	}
-	h.clk.Advance(time.Hour + time.Minute)
-	if n, _ := chk.Tick(h.ctx); n != 1 {
-		t.Fatalf("tick after re-block+overdue = %d, want 1 (fresh episode)", n)
+	if got.Status() != pm.TaskFailed || strings.TrimSpace(got.FailedReason()) == "" {
+		t.Fatalf("task should stay failed with its reason, got status=%s failed=%q", got.Status(), got.FailedReason())
 	}
 }
 

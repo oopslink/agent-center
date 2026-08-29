@@ -71,7 +71,7 @@ func (s *Service) maybeNotifyIssueDerivedTasksDone(ctx context.Context, t *pm.Ta
 		case pm.TaskCompleted:
 			total++
 			completed++
-		case pm.TaskDiscarded:
+		case pm.TaskFailed, pm.TaskDiscarded:
 			total++
 			discarded++
 		default:

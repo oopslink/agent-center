@@ -16,6 +16,7 @@ import i18n from '@/i18n';
 //   in_progress/running   → blue (in flight)
 //   resolved/completed    → green (done)
 //   closed (Issue)        → slate (terminal)
+//   failed                → red (terminal failure)
 //   discarded (both)      → zinc (terminal, replaces canceled/withdrawn)
 //   reopened              → amber (back in play)
 // ADR-0054: `blocked` is a task status again (a real, non-terminal PARK).
@@ -34,9 +35,7 @@ export const STATUS_BG_CLS: Record<string, string> = {
   running: 'bg-status-blue-solid',
   resolved: 'bg-status-green-solid',
   completed: 'bg-status-green-solid',
-  // ADR-0054 parked state. `blocked` takes orange (the alert end of the scale,
-  // distinct from reopened's amber).
-  blocked: 'bg-status-orange-solid',
+  failed: 'bg-status-red-solid',
   closed: 'bg-status-slate-solid',
   discarded: 'bg-status-zinc-solid',
   reopened: 'bg-status-amber-solid',

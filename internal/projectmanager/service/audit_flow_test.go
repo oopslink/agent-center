@@ -86,28 +86,18 @@ func TestAudit_TaskLifecycle(t *testing.T) {
 		t.Fatalf("status entry from/to wrong: %+v", e)
 	}
 
-	// blocked (running→blocked, human-facing) then unblocked
+	// failed terminally with a required reason.
 	if err := svc.BlockTask(ctx, tid, "needs key", pm.BlockReasonObstacle, "user:a"); err != nil {
 		t.Fatal(err)
 	}
-	blocked := false
+	failed := false
 	for _, e := range auditOf(t, svc, ctx, pm.AuditObjectTask, string(tid)) {
-		if e.ChangeType == pm.AuditTaskStatusChanged && e.ToValue == "blocked" {
-			blocked = true
+		if e.ChangeType == pm.AuditTaskStatusChanged && e.ToValue == "failed" {
+			failed = true
 		}
 	}
-	if !blocked {
-		t.Fatal("no running→blocked audit entry")
-	}
-
-	// reassigned
-	if err := svc.AssignTask(ctx, tid, "agent:AG2", "user:a"); err != nil {
-		t.Fatal(err)
-	}
-	if e := hasChange(auditOf(t, svc, ctx, pm.AuditObjectTask, string(tid)), pm.AuditTaskReassigned); e == nil {
-		t.Fatal("no reassigned entry")
-	} else if e.FromValue != "agent:AG1" || e.ToValue != "agent:AG2" {
-		t.Fatalf("reassigned from/to wrong: %+v", e)
+	if !failed {
+		t.Fatal("no running→failed audit entry")
 	}
 }
 

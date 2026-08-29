@@ -736,6 +736,8 @@
       "titleLabel": "Title",
       "descriptionLabel": "Description",
       "statusLabel": "Status",
+      "statusReasonLabel": "Reason",
+      "statusReasonRequired": "A reason is required when changing task status.",
       "assigneeLabel": "Assignee",
       "unassigned": "Unassigned",
       "tagsLabel": "Tags",
@@ -778,7 +780,8 @@
       "descriptionAria": "Task description",
       "noDescription": "No description.",
       "plan": "Plan",
-      "stuck": "Stuck: {{reason}}"
+      "stuck": "Stuck: {{reason}}",
+      "failedReason": "Failed: {{reason}}"
     }
   },
   "widgets": {

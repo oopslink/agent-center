@@ -278,12 +278,11 @@ func TestEventProjector_Idempotent_Redelivery(t *testing.T) {
 }
 
 // The transition→event vocabulary: each supported transition arms its watcher, and a
-// non-vocabulary transition (running task with no block reason) arms nothing.
+// non-vocabulary transition arms nothing.
 func TestEventProjector_Vocabulary(t *testing.T) {
 	e := newEventEnv(t)
-	// task blocked = running + a block reason (ADR-0046 — no blocked status).
-	e.createOnEvent(t, "rmd-blocked", "proj-1", "AG2",
-		reminder.OnEvent{EntityType: reminder.EntityTask, EntityID: "T1", Event: "blocked"}, "x")
+	e.createOnEvent(t, "rmd-failed", "proj-1", "AG2",
+		reminder.OnEvent{EntityType: reminder.EntityTask, EntityID: "T1", Event: "failed"}, "x")
 	e.createOnEvent(t, "rmd-discarded", "proj-1", "AG2",
 		reminder.OnEvent{EntityType: reminder.EntityTask, EntityID: "T2", Event: "discarded"}, "x")
 	e.createOnEvent(t, "rmd-planstopped", "proj-1", "AG2",
@@ -294,24 +293,23 @@ func TestEventProjector_Vocabulary(t *testing.T) {
 		reminder.OnEvent{EntityType: reminder.EntityIssue, EntityID: "I1", Event: "reopened"}, "x")
 
 	at := oe0.Add(time.Hour)
-	_ = e.proj.Project(e.ctx, taskStateEvent("e1", "T1", "proj-1", "running", "waiting on input", at))
+	_ = e.proj.Project(e.ctx, taskStateEvent("e1", "T1", "proj-1", "failed", "verification failed", at))
 	_ = e.proj.Project(e.ctx, taskStateEvent("e2", "T2", "proj-1", "discarded", "", at))
 	_ = e.proj.Project(e.ctx, planLifecycleEvent("e3", evtPlanStopped, "P1", "proj-1", at))
 	_ = e.proj.Project(e.ctx, planLifecycleEvent("e4", evtPlanFailed, "P2", "proj-1", at))
 	_ = e.proj.Project(e.ctx, issueStateEvent("e5", "I1", "proj-1", "reopened", at))
-	// A plain running transition (no reason) must NOT arm the blocked watcher — build
-	// a second blocked watcher on T3 and feed it a reasonless running event.
+	// A legacy running+reason annotation must NOT arm the failed watcher.
 	e.createOnEvent(t, "rmd-noarm", "proj-1", "AG2",
-		reminder.OnEvent{EntityType: reminder.EntityTask, EntityID: "T3", Event: "blocked"}, "x")
-	_ = e.proj.Project(e.ctx, taskStateEvent("e6", "T3", "proj-1", "running", "", at))
+		reminder.OnEvent{EntityType: reminder.EntityTask, EntityID: "T3", Event: "failed"}, "x")
+	_ = e.proj.Project(e.ctx, taskStateEvent("e6", "T3", "proj-1", "running", "legacy stuck", at))
 
-	for _, id := range []string{"rmd-blocked", "rmd-discarded", "rmd-planstopped", "rmd-planfailed", "rmd-issuereopened"} {
+	for _, id := range []string{"rmd-failed", "rmd-discarded", "rmd-planstopped", "rmd-planfailed", "rmd-issuereopened"} {
 		if got := mustGet(t, e.repo, id); got.NextRunAt() == nil {
 			t.Errorf("%s was not armed", id)
 		}
 	}
 	if got := mustGet(t, e.repo, "rmd-noarm"); got.NextRunAt() != nil {
-		t.Errorf("reasonless running transition armed a blocked watcher")
+		t.Errorf("legacy running+reason transition armed a failed watcher")
 	}
 }
 

@@ -147,7 +147,7 @@ func TestReport_Succeeded_InjectsJudgment(t *testing.T) {
 		t.Fatalf("Report: %v", err)
 	}
 	j := oneInjection(t, fc)
-	for _, want := range []string{"task-1", "succeeded", "built and tested", "complete_task", "block_task"} {
+	for _, want := range []string{"task-1", "succeeded", "built and tested", "complete_task", "fail_task"} {
 		if !strings.Contains(j, want) {
 			t.Errorf("judgment missing %q: %q", want, j)
 		}
@@ -328,7 +328,7 @@ func TestReport_Failed_BlocksTask(t *testing.T) {
 		t.Fatal(err)
 	}
 	j := oneInjection(t, fc)
-	for _, want := range []string{"task-1", "failed", "runner_failed", "boom", "block_task"} {
+	for _, want := range []string{"task-1", "failed", "runner_failed", "boom", "fail_task"} {
 		if !strings.Contains(j, want) {
 			t.Errorf("judgment missing %q: %q", want, j)
 		}

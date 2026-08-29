@@ -178,11 +178,11 @@ func (r *TaskRepo) Save(ctx context.Context, t *pm.Task) error {
 	}
 	_, err = exec.ExecContext(ctx,
 		`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, derived_from_issue,
-			completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, completed_at, plan_id, archived_at, archived_by, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities, node_id, recovery_reset_count, stage_id, delivery, fruitless_reopens, dispatch_mode, follows_task_id, origin_verdict_id, delivery_contract)
-		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			completed_by, blocked_reason, failed_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, completed_at, plan_id, archived_at, archived_by, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities, node_id, recovery_reset_count, stage_id, delivery, fruitless_reopens, dispatch_mode, follows_task_id, origin_verdict_id, delivery_contract)
+		 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		string(t.ID()), string(t.ProjectID()), t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
-		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
+		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()), t.FailedReason(),
 		string(t.CreatedBy()), ts(t.CreatedAt()), ts(t.UpdatedAt()), t.Version(), nullInt(t.OrgNumber()),
 		marshalTags(t.Tags()), ts(t.StatusChangedAt()), tsZeroNull(t.CompletedAt()), string(t.PlanID()),
 		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()),
@@ -202,10 +202,10 @@ func (r *TaskRepo) Update(ctx context.Context, t *pm.Task) error {
 	}
 	res, err := exec.ExecContext(ctx,
 		`UPDATE pm_tasks SET title=?, description=?, status=?, assignee=?, derived_from_issue=?,
-			completed_by=?, blocked_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, completed_at=?, plan_id=?, archived_at=?, archived_by=?, blocked_reason_type=?, blocked_comment=?, execution_lease_expires_at=?, model=?, required_capabilities=?, node_id=?, recovery_reset_count=?, stage_id=?, delivery=?, fruitless_reopens=?, dispatch_mode=?, follows_task_id=?, origin_verdict_id=?, delivery_contract=? WHERE id=?`,
+			completed_by=?, blocked_reason=?, failed_reason=?, updated_at=?, version=?, tags=?, status_changed_at=?, completed_at=?, plan_id=?, archived_at=?, archived_by=?, blocked_reason_type=?, blocked_comment=?, execution_lease_expires_at=?, model=?, required_capabilities=?, node_id=?, recovery_reset_count=?, stage_id=?, delivery=?, fruitless_reopens=?, dispatch_mode=?, follows_task_id=?, origin_verdict_id=?, delivery_contract=? WHERE id=?`,
 		t.Title(), nullString(t.Description()), string(t.Status()),
 		nullString(string(t.Assignee())), nullString(string(t.DerivedFromIssue())),
-		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()),
+		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()), t.FailedReason(),
 		ts(t.UpdatedAt()), t.Version(), marshalTags(t.Tags()), ts(t.StatusChangedAt()), tsZeroNull(t.CompletedAt()), string(t.PlanID()),
 		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()),
 		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()),
@@ -383,10 +383,9 @@ func (r *TaskRepo) CountByStatus(ctx context.Context, since *time.Time) (map[pm.
 }
 
 // CountActiveByAssignee returns, per assignee, the active-task split (Running
-// "doing" + Pending "open/blocked") across ALL projects in ONE grouped scan — the
+// "doing" + Pending "open") across ALL projects in ONE grouped scan — the
 // agent-load metric source (T342). Terminal tasks and unassigned rows are
-// excluded. A blocked task is still status=running (blocked_reason set), so it
-// counts as Running (the agent is on it).
+// excluded.
 //
 // T342d: tasks belonging to a TERMINAL plan (archived/done) are excluded — those
 // are dead work that will never run, so counting them inflated backlog while the
@@ -396,11 +395,11 @@ func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRe
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
 		`SELECT t.assignee, t.status, COUNT(*) FROM pm_tasks t
-		   WHERE t.assignee IS NOT NULL AND t.assignee != '' AND t.status IN (?, ?, ?)
+		   WHERE t.assignee IS NOT NULL AND t.assignee != '' AND t.status IN (?, ?)
 		     AND (t.plan_id IS NULL OR t.plan_id = ''
 		          OR t.plan_id NOT IN (SELECT id FROM pm_plans WHERE status IN (?, ?)))
 		   GROUP BY t.assignee, t.status`,
-		string(pm.TaskRunning), string(pm.TaskOpen), string(pm.TaskBlocked),
+		string(pm.TaskRunning), string(pm.TaskOpen),
 		string(pm.PlanDiscarded), string(pm.PlanDone))
 	if err != nil {
 		return nil, err
@@ -414,15 +413,10 @@ func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRe
 			return nil, err
 		}
 		l := out[pm.IdentityRef(assignee)]
-		// ADR-0054: a parked task (blocked) is still the agent's ASSIGNED work, so
-		// it counts toward the backlog — dropping it would make an agent's board look emptier
-		// than it is, hiding exactly the tasks that need a human. It counts as Pending, not
-		// Running: nothing is executing (the run slot is released — see AgentFreedFromTask),
-		// so counting it Running would make a free agent read as busy and stall dispatch.
 		switch pm.TaskStatus(status) {
 		case pm.TaskRunning:
 			l.Running += n
-		case pm.TaskOpen, pm.TaskBlocked:
+		case pm.TaskOpen:
 			l.Pending += n
 		}
 		out[pm.IdentityRef(assignee)] = l
@@ -431,7 +425,7 @@ func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRe
 }
 
 // ListActiveByAssignee returns the actual task rows that CountActiveByAssignee
-// counts for one assignee: non-terminal (open/running/blocked) tasks that are
+// counts for one assignee: non-terminal (open/running) tasks that are
 // NOT in a terminal (archived/done) plan, stable-ordered (created_at, id). It is the
 // list-shaped twin of the backlog metric, so the Agent-detail Tasks panel can
 // show EXACTLY the set the "backlog: N" badge counts — including tasks whose
@@ -442,12 +436,12 @@ func (r *TaskRepo) CountActiveByAssignee(ctx context.Context) (map[pm.IdentityRe
 func (r *TaskRepo) ListActiveByAssignee(ctx context.Context, assignee pm.IdentityRef) ([]*pm.Task, error) {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	rows, err := exec.QueryContext(ctx,
-		taskSelect+` WHERE assignee = ? AND status IN (?, ?, ?)
+		taskSelect+` WHERE assignee = ? AND status IN (?, ?)
 		     AND (plan_id IS NULL OR plan_id = ''
 		          OR plan_id NOT IN (SELECT id FROM pm_plans WHERE status IN (?, ?)))
 		   ORDER BY created_at, id`,
 		string(assignee),
-		string(pm.TaskRunning), string(pm.TaskOpen), string(pm.TaskBlocked),
+		string(pm.TaskRunning), string(pm.TaskOpen),
 		string(pm.PlanDiscarded), string(pm.PlanDone))
 	if err != nil {
 		return nil, err
@@ -496,35 +490,35 @@ func (r *TaskRepo) ListByStatuses(ctx context.Context, statuses []pm.TaskStatus)
 }
 
 const taskSelect = `SELECT id, project_id, title, description, status, assignee, derived_from_issue,
-	completed_by, blocked_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, completed_at, plan_id, archived_at, archived_by, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities, node_id, recovery_reset_count, stage_id, delivery, fruitless_reopens, dispatch_mode, follows_task_id, origin_verdict_id, delivery_contract FROM pm_tasks`
+	completed_by, blocked_reason, failed_reason, created_by, created_at, updated_at, version, org_number, tags, status_changed_at, completed_at, plan_id, archived_at, archived_by, blocked_reason_type, blocked_comment, execution_lease_expires_at, model, required_capabilities, node_id, recovery_reset_count, stage_id, delivery, fruitless_reopens, dispatch_mode, follows_task_id, origin_verdict_id, delivery_contract FROM pm_tasks`
 
 func scanTask(scan func(...any) error) (*pm.Task, error) {
 	var (
-		id, projectID, title, status, createdBy, createdAt, updatedAt string
-		desc, assignee, derived, completedBy, blockedReason           sql.NullString
-		version                                                       int
-		orgNumber                                                     sql.NullInt64
-		tags                                                          sql.NullString
-		statusChangedAt                                               sql.NullString
-		completedAt                                                   sql.NullString
-		planID                                                        sql.NullString
-		archivedAt                                                    sql.NullString
-		archivedBy                                                    sql.NullString
-		blockedReasonType, blockedComment                             sql.NullString
-		execLeaseExpiresAt                                            sql.NullString
-		model                                                         sql.NullString
-		requiredCapabilities                                          sql.NullString
-		nodeID                                                        sql.NullString
-		recoveryResetCount                                            sql.NullInt64
-		stageID                                                       sql.NullString
-		delivery                                                      sql.NullString
-		fruitlessReopens                                              sql.NullInt64
-		dispatchMode                                                  sql.NullString
-		followsTaskID, originVerdictID                                sql.NullString
-		deliveryContract                                              sql.NullString
+		id, projectID, title, status, createdBy, createdAt, updatedAt     string
+		desc, assignee, derived, completedBy, blockedReason, failedReason sql.NullString
+		version                                                           int
+		orgNumber                                                         sql.NullInt64
+		tags                                                              sql.NullString
+		statusChangedAt                                                   sql.NullString
+		completedAt                                                       sql.NullString
+		planID                                                            sql.NullString
+		archivedAt                                                        sql.NullString
+		archivedBy                                                        sql.NullString
+		blockedReasonType, blockedComment                                 sql.NullString
+		execLeaseExpiresAt                                                sql.NullString
+		model                                                             sql.NullString
+		requiredCapabilities                                              sql.NullString
+		nodeID                                                            sql.NullString
+		recoveryResetCount                                                sql.NullInt64
+		stageID                                                           sql.NullString
+		delivery                                                          sql.NullString
+		fruitlessReopens                                                  sql.NullInt64
+		dispatchMode                                                      sql.NullString
+		followsTaskID, originVerdictID                                    sql.NullString
+		deliveryContract                                                  sql.NullString
 	)
 	if err := scan(&id, &projectID, &title, &desc, &status, &assignee, &derived,
-		&completedBy, &blockedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &completedAt, &planID, &archivedAt, &archivedBy, &blockedReasonType, &blockedComment, &execLeaseExpiresAt, &model, &requiredCapabilities, &nodeID, &recoveryResetCount, &stageID, &delivery, &fruitlessReopens, &dispatchMode, &followsTaskID, &originVerdictID, &deliveryContract); err != nil {
+		&completedBy, &blockedReason, &failedReason, &createdBy, &createdAt, &updatedAt, &version, &orgNumber, &tags, &statusChangedAt, &completedAt, &planID, &archivedAt, &archivedBy, &blockedReasonType, &blockedComment, &execLeaseExpiresAt, &model, &requiredCapabilities, &nodeID, &recoveryResetCount, &stageID, &delivery, &fruitlessReopens, &dispatchMode, &followsTaskID, &originVerdictID, &deliveryContract); err != nil {
 		return nil, err
 	}
 	deliveryVal, err := pm.UnmarshalDelivery(delivery.String)
@@ -535,7 +529,7 @@ func scanTask(scan func(...any) error) (*pm.Task, error) {
 		ID: pm.TaskID(id), ProjectID: pm.ProjectID(projectID), Title: title, Description: desc.String,
 		Status: pm.TaskStatus(status), Assignee: pm.IdentityRef(assignee.String),
 		DerivedFromIssue: pm.IssueID(derived.String), CompletedBy: pm.IdentityRef(completedBy.String),
-		BlockedReason: blockedReason.String, CreatedBy: pm.IdentityRef(createdBy),
+		BlockedReason: blockedReason.String, FailedReason: failedReason.String, CreatedBy: pm.IdentityRef(createdBy),
 		CreatedAt: parseTime(createdAt), UpdatedAt: parseTime(updatedAt), Version: version,
 		OrgNumber:       int(orgNumber.Int64),
 		Tags:            unmarshalTags(tags.String),

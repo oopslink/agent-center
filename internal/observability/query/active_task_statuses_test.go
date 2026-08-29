@@ -46,20 +46,3 @@ func TestActiveTaskStatuses_MatchesIsTerminal(t *testing.T) {
 		}
 	}
 }
-
-// TestActiveTaskStatuses_IncludesParked is the read-layer guard: a PARKED task
-// (blocked) is active work awaiting a human, so it must appear in the default active
-// view. Dropping it there is how a task quietly stops being anybody's problem.
-func TestActiveTaskStatuses_IncludesParked(t *testing.T) {
-	for _, s := range []pm.TaskStatus{pm.TaskBlocked} {
-		var found bool
-		for _, a := range activeTaskStatuses {
-			if a == s {
-				found = true
-			}
-		}
-		if !found {
-			t.Errorf("parked status %q must be in the default active task view", s)
-		}
-	}
-}

@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -509,9 +510,7 @@ func TestEvolvePlanGeneration_OwnerSupersedesBlockedDispatchedNodeAtomically(t *
 	if rolledBackB.PlanID() != planID || !dispatchedSet(t, h, planID)[b] {
 		t.Fatalf("failed generation left partial supersede: plan=%s dispatched=%v", rolledBackB.PlanID(), dispatchedSet(t, h, planID)[b])
 	}
-	if _, ok, err := h.plans.GetBlockedOn(h.ctx, planID, b); err != nil || !ok {
-		t.Fatalf("failed generation lost blocked_on ok=%v err=%v", ok, err)
-	}
+	// Task failure is terminal and no longer leaves a task blocked_on descriptor.
 	if got := h.planVersion(t, planID); got != base {
 		t.Fatalf("failed generation changed version=%d want %d", got, base)
 	}
@@ -560,7 +559,7 @@ func TestEvolvePlanGeneration_OwnerSupersedesBlockedDispatchedNodeAtomically(t *
 		t.Fatal(err)
 	}
 	for _, node := range detail.View.Nodes {
-		if node.TaskID == b && (node.Effective || node.SupersededReason != "generation_supersede") {
+		if node.TaskID == b && (node.Effective || !strings.Contains(node.SupersededReason, "generation_supersede")) {
 			t.Fatalf("superseded blocked node remained effective: %+v", node)
 		}
 	}
@@ -654,7 +653,7 @@ func TestEvolvePlanGeneration_OwnerSupersedesDiscardedTerminalNode(t *testing.T)
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "owner-discarded-supersede", CreatedBy: "user:a"})
 	h.drain(t)
 	a, _ := h.startRunningPlanAB(t, pid, planID)
-	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.setTaskStatus(t, a, pm.TaskFailed)
 	oldA, err := h.tasks.FindByID(h.ctx, a)
 	if err != nil {
 		t.Fatal(err)
@@ -707,7 +706,7 @@ func TestEvolvePlanGeneration_NonOwnerCannotSupersedeSettledDispatchedNode(t *te
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "non-owner-supersede", CreatedBy: "user:a"})
 	h.drain(t)
 	a, _ := h.startRunningPlanAB(t, pid, planID)
-	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.setTaskStatus(t, a, pm.TaskFailed)
 	base := h.planVersion(t, planID)
 	_, parent := activePlanGeneration(t, h, planID)
 	_, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{

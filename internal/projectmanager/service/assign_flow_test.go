@@ -183,11 +183,7 @@ func TestCreateIssue_GatingAndUnsubscribe(t *testing.T) {
 	}
 }
 
-// TestBlockAnnotates_Unblock is the block/unblock round-trip acceptance. ADR-0054
-// amends the ADR-0046 contract it originally pinned: Block now PARKS the task (status →
-// blocked, which is what actually stops dispatch) while STILL writing the reason
-// annotation; Unblock un-parks it back to running and clears the reason.
-func TestBlockAnnotates_Unblock(t *testing.T) {
+func TestFailTask_TerminalWithReason(t *testing.T) {
 	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
@@ -195,23 +191,20 @@ func TestBlockAnnotates_Unblock(t *testing.T) {
 	_ = svc.AssignTask(ctx, tid, "agent:AG1", "user:a")
 	_ = svc.StartTask(ctx, tid, "user:a")
 
-	// Block the Task → ADR-0054 PARK: status really moves to blocked (that is what stops
-	// dispatch) AND the reason annotation is still written.
-	if err := svc.BlockTask(ctx, tid, "needs key", pm.BlockReasonObstacle, "user:a"); err != nil {
+	if err := svc.FailTask(ctx, tid, "needs key", "user:a"); err != nil {
 		t.Fatal(err)
 	}
 	tk, _ := svc.tasks.FindByID(ctx, tid)
-	if tk.Status() != pm.TaskBlocked || tk.BlockedReason() != "needs key" {
-		t.Fatalf("after block: want blocked + reason set, got %s / %q", tk.Status(), tk.BlockedReason())
+	if tk.Status() != pm.TaskFailed || tk.FailedReason() != "needs key" || tk.BlockedReason() != "" {
+		t.Fatalf("after fail: want failed + failed reason, got %s / failed=%q blocked=%q", tk.Status(), tk.FailedReason(), tk.BlockedReason())
 	}
 
-	// Unblock → un-parked back to running, reason cleared.
 	if err := svc.UnblockTask(ctx, UnblockTaskCommand{TaskID: tid, Actor: "user:a"}); err != nil {
 		t.Fatal(err)
 	}
 	tk, _ = svc.tasks.FindByID(ctx, tid)
-	if tk.Status() != pm.TaskRunning || tk.BlockedReason() != "" {
-		t.Fatalf("after unblock: want running + reason cleared, got %s / %q", tk.Status(), tk.BlockedReason())
+	if tk.Status() != pm.TaskFailed || tk.FailedReason() != "needs key" {
+		t.Fatalf("unblock must not recover failed tasks, got %s / %q", tk.Status(), tk.FailedReason())
 	}
 }
 

@@ -174,10 +174,10 @@ func TestSpawnExecutor_RealGit_UnreachableRemoteFailsLoud(t *testing.T) {
 	}
 	rt.waitSourcePrewarm()
 
-	// Fail-loud: admitted (so the center permits a block) then blocked with the cause.
-	blocked, ok := sc.callFor("block_task")
+	// Fail-loud: admitted (so the center permits a fail) then failed with the cause.
+	blocked, ok := sc.callFor("fail_task")
 	if !ok {
-		t.Fatalf("a permanently un-cloneable repo must FAIL LOUD (block_task), not sit silently queued; tools seen = %v", sc.toolsSeen())
+		t.Fatalf("a permanently un-cloneable repo must FAIL LOUD (fail_task), not sit silently queued; tools seen = %v", sc.toolsSeen())
 	}
 	reason, _ := blocked["reason"].(string)
 	if !containsSub(reason, string(CauseRepoSourceUnavailable)) {
@@ -260,7 +260,7 @@ func TestSourceGate_StaleRefreshDegradesToExistingSource(t *testing.T) {
 	rt.finishPrewarm("agent-degrade", key, nil, context.DeadlineExceeded)
 
 	// Degrade, do NOT block: the waiter is re-driven against the existing source.
-	if _, ok := sc.callFor("block_task"); ok {
+	if _, ok := sc.callFor("fail_task"); ok {
 		t.Fatalf("a failed REFRESH with a usable source on disk must degrade to it, not block the task")
 	}
 	if got := countTool(sc, "start_task"); got <= startsBefore {
@@ -307,7 +307,7 @@ func TestSourceGate_DegradeRefusesAVanishedSource(t *testing.T) {
 	// A failed refresh must NOT degrade onto the vanished path.
 	rt.finishPrewarm("agent-vanish", key, nil, context.DeadlineExceeded)
 
-	if _, ok := sc.callFor("block_task"); !ok {
+	if _, ok := sc.callFor("fail_task"); !ok {
 		t.Fatalf("a vanished source must FAIL LOUD, not degrade onto a path that no longer exists; tools = %v", sc.toolsSeen())
 	}
 	if _, fresh := rt.freshSource(key); fresh {

@@ -1,7 +1,7 @@
 // TaskEditModal — v2.8.1 #278 full Edit-Task form: batch-saves
 // title / description / status / assignee / tags in ONE atomic PATCH
 // (PATCH /projects/{pid}/tasks/{id} → pmBatchUpdateTaskHandler). Only the
-// changed (dirty) fields are sent; the backend applies all-or-none.
+// changed (dirty) fields are sent; status changes must include a reason.
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAssignTask, useUpdateTask } from '@/api/tasks';
@@ -27,10 +27,9 @@ interface Props {
 const TASK_STATUSES: TaskStatus[] = [
   'open',
   'running',
-  'blocked',
   'completed',
+  'failed',
   'discarded',
-  'reopened',
 ];
 
 // Tag validation rules (rune-16, max-10, dedup) are shared with the inline "+ Add"
@@ -48,6 +47,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
   const [title, setTitle] = useState(task.title ?? '');
   const [description, setDescription] = useState(task.description ?? '');
   const [status, setStatus] = useState<TaskStatus>(task.status ?? 'open');
+  const [statusReason, setStatusReason] = useState('');
   const [assignee, setAssignee] = useState(task.assignee ?? '');
   const [tags, setTags] = useState<string[]>(task.tags ?? []);
   const [tagDraft, setTagDraft] = useState('');
@@ -115,6 +115,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
   const titleChanged = trimmedTitle !== (task.title ?? '');
   const descChanged = description.trim() !== (task.description ?? '');
   const statusChanged = status !== (task.status ?? 'open');
+  const statusReasonMissing = statusChanged && statusReason.trim().length === 0;
   const assigneeChanged = assignee !== (task.assignee ?? '');
   const origCaps = task.required_capabilities ?? [];
   const capsChanged =
@@ -127,7 +128,7 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
     tagsChanged ||
     capsChanged;
 
-  const hasError = !!tagError || !!tagsValidationError;
+  const hasError = !!tagError || !!tagsValidationError || statusReasonMissing;
   const canSubmit =
     trimmedTitle.length > 0 && anyDirty && !hasError && !update.isPending && !assign.isPending;
 
@@ -140,13 +141,17 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
       title?: string;
       description?: string;
       status?: TaskStatus;
+      reason?: string;
       assignee?: string;
       tags?: string[];
       required_capabilities?: string[];
     } = {};
     if (titleChanged) body.title = trimmedTitle;
     if (descChanged) body.description = description.trim();
-    if (statusChanged) body.status = status;
+    if (statusChanged) {
+      body.status = status;
+      body.reason = statusReason.trim();
+    }
     if (capsChanged) body.required_capabilities = requiredCaps;
     // F-7: route a real (re)assignment through the dedicated assign endpoint below
     // (it dispatches the agent). Only fold the assignee into the batch PATCH when
@@ -192,6 +197,27 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
             X
           </button>
         </div>
+
+        {statusChanged && (
+          <div className="mb-3">
+            <label htmlFor="task-edit-status-reason" className="mb-1 block text-xs font-medium text-text-primary">
+              {t('task.edit.statusReasonLabel')}<span className="ml-1 text-danger">*</span>
+            </label>
+            <textarea
+              id="task-edit-status-reason"
+              data-testid="task-edit-status-reason"
+              className={inputClass}
+              value={statusReason}
+              onChange={(e) => setStatusReason(e.target.value)}
+              rows={3}
+            />
+            {statusReasonMissing && (
+              <p className="mt-1 text-xs text-danger" data-testid="task-edit-status-reason-error">
+                {t('task.edit.statusReasonRequired')}
+              </p>
+            )}
+          </div>
+        )}
 
         <div className="mb-3">
           <label htmlFor="task-edit-title" className="mb-1 block text-xs font-medium text-text-primary">

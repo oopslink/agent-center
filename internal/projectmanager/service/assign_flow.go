@@ -409,6 +409,13 @@ func (s *Service) WorkerRenewLease(ctx context.Context, taskID pm.TaskID, agentR
 // DiscardTask discards a non-terminal Task (terminal "discarded"; was CancelTask
 // pre-v2.8.1, uniform 废弃 semantic).
 func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	return s.DiscardTaskWithReason(ctx, taskID, actor, "discarded")
+}
+
+func (s *Service) DiscardTaskWithReason(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef, reason string) error {
+	if strings.TrimSpace(reason) == "" {
+		return pm.ErrTaskReasonRequired
+	}
 	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error {
 		// T339 escape hatch: discard_task is the operator tool to conclude a leaked
 		// open+archived dead task. Task.Discard() rejects an archived task
@@ -419,7 +426,18 @@ func (s *Service) DiscardTask(ctx context.Context, taskID pm.TaskID, actor pm.Id
 			return t.FinalizeArchived(now)
 		}
 		return t.Discard(now)
-	}, "")
+	}, reason)
+}
+
+// FailTask terminally records that a task cannot progress. The detailed reason is
+// persisted as failed_reason and becomes the input for plan evolution.
+func (s *Service) FailTask(ctx context.Context, taskID pm.TaskID, reason string, actor pm.IdentityRef) error {
+	if strings.TrimSpace(reason) == "" {
+		return pm.ErrFailReasonRequired
+	}
+	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error {
+		return t.Fail(reason, actor, now)
+	}, reason)
 }
 
 // ResetTask is the T862 tier-3 RECOVERY reset: it returns a CONFIRMED-DEAD running task
@@ -586,21 +604,8 @@ func (s *Service) BlockTask(ctx context.Context, taskID pm.TaskID, reason string
 				return err
 			}
 		}
-		// audit §5: record the block as a human-facing <prev>→blocked status change.
-		s.auditTaskBlocked(txCtx, t, prevStatus, reasonType, reason, actor)
-		// F6 §3: an input_required block needs a USER reply → emit a SECOND event in
-		// THIS tx so the TaskInputConversationProjector surfaces an interactive
-		// input_request message in the task's bound Conversation (sender=assignee).
-		// An obstacle block (owner/PM action, no user reply) emits NOTHING extra.
-		if reasonType == pm.BlockReasonInputRequired {
-			return s.emitTaskInputEvent(txCtx, EvtTaskInputRequested, taskInputEventPayload{
-				TaskID:    string(t.ID()),
-				ProjectID: string(t.ProjectID()),
-				OwnerRef:  "pm://tasks/" + string(t.ID()),
-				AgentRef:  string(agentRef),
-				Reason:    reason,
-			})
-		}
+		// audit §5: legacy block calls now record as a human-facing failure.
+		s.auditTaskStatusChange(txCtx, t, prevStatus, actor)
 		return nil
 	})
 }
@@ -990,9 +995,19 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 // participant projector + downstream stay in sync. The typed transitions
 // (Start/Complete/Block/...) remain for the agent's structured self-reports.
 func (s *Service) SetTaskStatus(ctx context.Context, taskID pm.TaskID, target pm.TaskStatus, actor pm.IdentityRef) error {
+	return s.SetTaskStatusWithReason(ctx, taskID, target, actor, "status override")
+}
+
+func (s *Service) SetTaskStatusWithReason(ctx context.Context, taskID pm.TaskID, target pm.TaskStatus, actor pm.IdentityRef, reason string) error {
+	if strings.TrimSpace(reason) == "" {
+		return pm.ErrTaskReasonRequired
+	}
 	return s.taskStateOp(ctx, taskID, actor, func(t *pm.Task, now time.Time) error {
+		if target == pm.TaskFailed {
+			return t.Fail(reason, actor, now)
+		}
 		return t.SetStatus(target, now)
-	}, "")
+	}, reason)
 }
 
 // BatchTaskPatch is the set of optionally-updated fields for BatchUpdateTask. A
@@ -1003,6 +1018,7 @@ func (s *Service) SetTaskStatus(ctx context.Context, taskID pm.TaskID, target pm
 // I109 ① frozen-description guard, so the two edit paths refuse identically.
 type BatchTaskPatch struct {
 	Status      *string
+	Reason      *string
 	Assignee    *string
 	Tags        *[]string
 	Title       *string
@@ -1054,7 +1070,15 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 			}
 		}
 		if patch.Status != nil {
-			if err := t.SetStatus(pm.TaskStatus(*patch.Status), now); err != nil {
+			if patch.Reason == nil || strings.TrimSpace(*patch.Reason) == "" {
+				return pm.ErrTaskReasonRequired
+			}
+			target := pm.TaskStatus(*patch.Status)
+			if target == pm.TaskFailed {
+				if err := t.Fail(*patch.Reason, actor, now); err != nil {
+					return err
+				}
+			} else if err := t.SetStatus(target, now); err != nil {
 				return err
 			}
 		}
@@ -1092,7 +1116,11 @@ func (s *Service) BatchUpdateTask(ctx context.Context, taskID pm.TaskID, patch B
 		if err := s.tasks.Update(txCtx, t); err != nil {
 			return err
 		}
-		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, ""); err != nil {
+		reason := ""
+		if patch.Reason != nil {
+			reason = *patch.Reason
+		}
+		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, reason); err != nil {
 			return err
 		}
 		// audit §5: BatchUpdateTask inlines its own tx (bypasses taskStateOp) and can

@@ -393,13 +393,13 @@ func judgmentPrompt(taskRef, outcome, summary string, git *executor.FinalizedGit
 			"merge-base — not merely that it is recent; a branch cut from the wrong base silently "+
 			"drops already-merged work), whether the task's objective was actually met "+
 			"— then call complete_task(task_id=%q) if this Agent TRULY delivered, or "+
-			"block_task(task_id=%q, reason=...) if it did not deliver or failed. Do NOT complete on "+
-			"exit status alone: a run that produced nothing must be blocked (retryable), never "+
+			"fail_task(task_id=%q, reason=...) if it did not deliver or failed. Do NOT complete on "+
+			"exit status alone: a run that produced nothing must be failed, never "+
 			"completed.", taskRef, taskRef)
 	if outcome == "non_delivery" {
 		resolution = fmt.Sprintf(
 			"This result is mechanically classified as non_delivery. You MUST call "+
-				"block_task(task_id=%q, reason=..., reason_type=obstacle) after recording the "+
+				"fail_task(task_id=%q, reason=...) after recording the "+
 				"actual evidence. complete_task is forbidden for this result: process exit zero "+
 				"without a valid pushed delivery cannot complete the task.", taskRef)
 	}

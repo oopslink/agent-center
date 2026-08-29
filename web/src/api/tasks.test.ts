@@ -8,8 +8,8 @@ import { server } from '../test/mswServer';
 import { qk } from './queryKeys';
 import {
   useAssignTask,
-  useBlockTask,
   useCreateTask,
+  useFailTask,
   useStartTask,
   useTask,
   useTasksList,
@@ -154,25 +154,25 @@ describe('tasks hooks', () => {
     expect(result.current.data?.status).toBe('running');
   });
 
-  it('useBlockTask requires a reason payload', async () => {
+  it('useFailTask requires a reason payload', async () => {
     let received: Record<string, unknown> | undefined;
     server.use(
-      http.post('/api/projects/proj-a/tasks/TS-1/block', async ({ request }) => {
+      http.post('/api/projects/proj-a/tasks/TS-1/fail', async ({ request }) => {
         received = (await request.json()) as Record<string, unknown>;
         return HttpResponse.json({
           id: 'TS-1',
           project_id: 'proj-a',
           title: 'x',
           description: '',
-          status: 'running',
-          blocked_reason: 'waiting',
+          status: 'failed',
+          failed_reason: 'waiting',
           version: 2,
           created_at: 'x',
           updated_at: 'x',
         });
       }),
     );
-    const { result } = renderHook(() => useBlockTask('proj-a', 'TS-1'), {
+    const { result } = renderHook(() => useFailTask('proj-a', 'TS-1'), {
       wrapper: makeWrapper(),
     });
     act(() => {

@@ -29,17 +29,14 @@ func f6MkRunningTask(t *testing.T, s string, sess testSession) (string, string) 
 	json.NewDecoder(tresp.Body).Decode(&tc)
 	tid := tc["id"].(string)
 
-	rresp := orgScopedPost(t, s+"/api/projects/"+pid+"/tasks/"+tid+"/status", `{"status":"running"}`, sess)
+	rresp := orgScopedPost(t, s+"/api/projects/"+pid+"/tasks/"+tid+"/status", `{"status":"running","reason":"test transition"}`, sess)
 	if rresp.StatusCode != http.StatusOK {
 		t.Fatalf("set running status=%d", rresp.StatusCode)
 	}
 	return pid, tid
 }
 
-// TestPM_UnblockObstacle_HTTP is the F6 obstacle path: a task blocked via the
-// /block endpoint (obstacle) is unblocked via POST /unblock with a `comment`,
-// returning 200 + the cleared-block task DTO.
-func TestPM_UnblockObstacle_HTTP(t *testing.T) {
+func TestPM_UnblockObstacle_HTTP_Retired(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
@@ -53,18 +50,15 @@ func TestPM_UnblockObstacle_HTTP(t *testing.T) {
 	}
 
 	uresp := orgScopedPost(t, s.URL+"/api/projects/"+pid+"/tasks/"+tid+"/unblock", `{"comment":"key added"}`, sess)
-	if uresp.StatusCode != http.StatusOK {
-		t.Fatalf("unblock status=%d", uresp.StatusCode)
+	if uresp.StatusCode != http.StatusGone {
+		t.Fatalf("unblock status=%d, want 410", uresp.StatusCode)
 	}
 	tk, err := deps.PM.GetTask(context.Background(), pm.TaskID(tid))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tk.BlockedReason() != "" {
-		t.Fatalf("unblock must clear the block, got %q", tk.BlockedReason())
-	}
-	if tk.BlockedComment() != "key added" {
-		t.Fatalf("unblock must record the comment, got %q", tk.BlockedComment())
+	if tk.Status() != pm.TaskFailed || tk.FailedReason() != "needs a prod key" {
+		t.Fatalf("failed task changed unexpectedly: status=%s reason=%q", tk.Status(), tk.FailedReason())
 	}
 }
 
@@ -72,7 +66,7 @@ func TestPM_UnblockObstacle_HTTP(t *testing.T) {
 // with reasonType=input_required (via the service, the agent path) is unblocked
 // via POST /unblock carrying input_request_message_id + comment, returning 200 +
 // the cleared-block task DTO.
-func TestPM_UnblockInputRequired_HTTP(t *testing.T) {
+func TestPM_UnblockInputRequired_HTTP_Retired(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	s := newTestServer(t, deps)
@@ -89,17 +83,14 @@ func TestPM_UnblockInputRequired_HTTP(t *testing.T) {
 
 	uresp := orgScopedPost(t, s.URL+"/api/projects/"+pid+"/tasks/"+tid+"/unblock",
 		`{"input_request_message_id":"01J0000000REQUEST0000000","comment":"use main"}`, sess)
-	if uresp.StatusCode != http.StatusOK {
-		t.Fatalf("unblock status=%d", uresp.StatusCode)
+	if uresp.StatusCode != http.StatusGone {
+		t.Fatalf("unblock status=%d, want 410", uresp.StatusCode)
 	}
 	tk, err := deps.PM.GetTask(context.Background(), pm.TaskID(tid))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if tk.BlockedReason() != "" || tk.BlockedReasonType() != "" {
-		t.Fatalf("unblock must clear reason+type, got %q/%q", tk.BlockedReason(), tk.BlockedReasonType())
-	}
-	if tk.BlockedComment() != "use main" {
-		t.Fatalf("unblock must record the comment, got %q", tk.BlockedComment())
+	if tk.Status() != pm.TaskFailed || tk.FailedReason() != "which branch?" {
+		t.Fatalf("failed task changed unexpectedly: status=%s reason=%q", tk.Status(), tk.FailedReason())
 	}
 }

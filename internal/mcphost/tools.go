@@ -11,10 +11,10 @@
 // internal/admin/api/agent_tools_passthrough.go + agent_tools_write.go:
 //   - assign_task / reassign_task : {task_id, assignee}
 //   - subscribe / unsubscribe     : {task_id, identity?}  (defaults to self)
-//   - block_task                  : {task_id, reason, reason_type?}
+//   - fail_task                   : {task_id, reason}
 //   - heartbeat                   : {task_id}
 //   - complete_task               : {task_id, summary?}
-//   - discard_task                : {task_id, reason?}
+//   - discard_task                : {task_id, reason}
 //   - create_task                 : {project_id, title, description?, derived_from_issue?, assignee?, dispatch?, dispatch_mode?}
 //   - update_task                 : {task_id, title?, description?, clear_description?}
 //   - fork_executor               : {task_id, model?, context?}
@@ -393,8 +393,8 @@ type listMyTasksArgs struct{}
 // makeListMyTasks backs list_my_tasks — the agent's "what do I have to do?" query
 // in the Task model (§五). It returns the open/running tasks assigned to the
 // calling agent that are RUNNABLE (their blockedBy dependencies are satisfied,
-// §13.A), each with its blocked_reason / blocked_reason_type / blocked_comment /
-// lease_expires_at so the agent sees what an Unblock left for it.
+// §13.A), each with lease_expires_at and any legacy blocked fields still present
+// on old rows.
 func makeListMyTasks(cfg Config) mcp.ToolHandlerFor[listMyTasksArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, _ listMyTasksArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{"agent_id": cfg.AgentID}
@@ -486,23 +486,21 @@ func makeListMessages(cfg Config) mcp.ToolHandlerFor[listMessagesArgs, any] {
 	}
 }
 
-// --- block_task --------------------------------------------------------------
+// --- fail_task ---------------------------------------------------------------
 
-type blockTaskArgs struct {
-	TaskID     string `json:"task_id" jsonschema:"the task to block"`
-	Reason     string `json:"reason" jsonschema:"why the task is blocked (required)"`
-	ReasonType string `json:"reason_type,omitempty" jsonschema:"why-class of the block: \"input_required\" (you need a user reply before you can continue) or \"obstacle\" (an external blocker needs owner/PM intervention). Defaults to \"obstacle\" if omitted."`
+type failTaskArgs struct {
+	TaskID string `json:"task_id" jsonschema:"the task to fail"`
+	Reason string `json:"reason" jsonschema:"detailed failure reason (required)"`
 }
 
-func makeBlockTask(cfg Config) mcp.ToolHandlerFor[blockTaskArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args blockTaskArgs) (*mcp.CallToolResult, any, error) {
+func makeFailTask(cfg Config) mcp.ToolHandlerFor[failTaskArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args failTaskArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
-			"agent_id":    cfg.AgentID,
-			"task_id":     args.TaskID,
-			"reason":      args.Reason,
-			"reason_type": args.ReasonType,
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+			"reason":   args.Reason,
 		}
-		return callAdmin(ctx, cfg, "block_task", body)
+		return callAdmin(ctx, cfg, "fail_task", body)
 	}
 }
 
@@ -526,24 +524,7 @@ func makeHeartbeat(cfg Config) mcp.ToolHandlerFor[heartbeatArgs, any] {
 	}
 }
 
-// --- unblock_task / rerun_failed_node (v2.9.1 P0 recovery) -------------------
-
-type unblockTaskArgs struct {
-	TaskID string `json:"task_id" jsonschema:"the blocked task to recover"`
-}
-
-// makeUnblockTask recovers a blocked task: blocked→running + a fresh re-dispatch
-// (re-wakes the assignee). Recovery for a task stuck blocked after a
-// restart/stale-release (reason "agent execution failed").
-func makeUnblockTask(cfg Config) mcp.ToolHandlerFor[unblockTaskArgs, any] {
-	return func(ctx context.Context, _ *mcp.CallToolRequest, args unblockTaskArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"task_id":  args.TaskID,
-		}
-		return callAdmin(ctx, cfg, "unblock_task", body)
-	}
-}
+// --- reset_task / rerun_failed_node (v2.9.1 P0 recovery) ---------------------
 
 type resetTaskArgs struct {
 	TaskID string `json:"task_id" jsonschema:"the orphaned running task to reset back to the pool"`
@@ -686,13 +667,14 @@ func makeReportManualRecoveryDelivery(cfg Config) mcp.ToolHandlerFor[reportManua
 
 type discardTaskArgs struct {
 	TaskID string `json:"task_id" jsonschema:"the task to discard (terminal)"`
-	Reason string `json:"reason,omitempty" jsonschema:"optional reason posted to the task before discarding"`
+	Reason string `json:"reason" jsonschema:"reason posted to the task before discarding (required)"`
 }
 
 // makeDiscardTask terminally discards a NON-terminal task (open/running →
 // discarded) — the correct way to retire a superseded or mis-created task. Unlike
 // complete_task it does not mark the work done (status shows Discarded, not
-// Completed), and unlike block_task it does not leave a pool task to be re-dispatched.
+// Completed). Use fail_task, not discard_task, when a task actually failed and
+// should feed plan evolution.
 func makeDiscardTask(cfg Config) mcp.ToolHandlerFor[discardTaskArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args discardTaskArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{

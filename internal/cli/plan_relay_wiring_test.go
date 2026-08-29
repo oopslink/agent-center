@@ -327,7 +327,7 @@ func TestProductionRelay_AgentCreatorFailureWake(t *testing.T) {
 
 	// The task FAILS → orchestrator @mentions the agent-creator AND emits
 	// pm.plan.creator_failure_wake → WakeProjector enqueues agent.converse on W1.
-	if err := svc.SetTaskStatus(ctx, tid, pm.TaskDiscarded, "user:a"); err != nil {
+	if err := svc.SetTaskStatusWithReason(ctx, tid, pm.TaskFailed, "user:a", "implementation failed"); err != nil {
 		t.Fatalf("SetTaskStatus(fail): %v", err)
 	}
 	drainRelay(t, relay)

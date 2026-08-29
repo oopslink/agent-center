@@ -142,11 +142,7 @@ func TestConcurrencyCap_EnabledAgentUpToN(t *testing.T) {
 	}
 }
 
-// ③ PATH unblock→running: a blocked task frees its slot; unblocking it RE-ENTERS the
-// cap (status stays running, blocked_reason cleared). For a default agent (=1) that
-// has filled its slot meanwhile, the unblock is rejected — proving the unblock path
-// re-checks the cap and does not leak a second active task behind the dropped index.
-func TestConcurrencyCap_UnblockReentersCap_DefaultAgentRejected(t *testing.T) {
+func TestConcurrencyCap_FailedTaskFreesSlot(t *testing.T) {
 	svc, ctx := capHarness(t, persistence.MemoryDSN(), capAgentDir{org: "org-1"})
 	ag := pm.IdentityRef("agent:def")
 	pid := capFixture(t, svc, ctx, ag)
@@ -156,18 +152,13 @@ func TestConcurrencyCap_UnblockReentersCap_DefaultAgentRejected(t *testing.T) {
 	if err := svc.StartTask(ctx, t1, ag); err != nil {
 		t.Fatalf("start t1: %v", err)
 	}
-	// Block t1 — a legal pause that frees its run slot.
+	// Fail t1 terminally; it frees the run slot.
 	if err := svc.BlockTask(ctx, t1, "waiting", pm.BlockReasonObstacle, ag); err != nil {
-		t.Fatalf("block t1: %v", err)
+		t.Fatalf("fail t1: %v", err)
 	}
 	// The freed slot lets t2 run.
 	if err := svc.StartTask(ctx, t2, ag); err != nil {
-		t.Fatalf("start t2 after t1 blocked = %v, want nil", err)
-	}
-	// Unblocking t1 would make TWO running+unblocked tasks for a =1 agent → rejected.
-	err := svc.UnblockTask(ctx, UnblockTaskCommand{TaskID: t1, Comment: "go", Actor: "user:a"})
-	if !errors.Is(err, pm.ErrAgentHasActiveTask) {
-		t.Fatalf("unblock t1 (slot already taken by t2) = %v, want ErrAgentHasActiveTask", err)
+		t.Fatalf("start t2 after t1 failed = %v, want nil", err)
 	}
 }
 
@@ -226,7 +217,8 @@ func TestConcurrencyCap_BatchUpdateToRunningRespectsCap(t *testing.T) {
 		t.Fatalf("start t1: %v", err)
 	}
 	// Batch-patch t2 → running for the already-full =1 agent → it would hold 2 → reject.
-	if err := svc.BatchUpdateTask(ctx, t2, BatchTaskPatch{Status: strptr("running")}, ag); !errors.Is(err, pm.ErrAgentHasActiveTask) {
+	reason := "test transition"
+	if err := svc.BatchUpdateTask(ctx, t2, BatchTaskPatch{Status: strptr("running"), Reason: &reason}, ag); !errors.Is(err, pm.ErrAgentHasActiveTask) {
 		t.Fatalf("BatchUpdate(t2, status=running) for full =1 agent = %v, want ErrAgentHasActiveTask", err)
 	}
 }

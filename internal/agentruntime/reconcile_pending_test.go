@@ -109,13 +109,13 @@ func TestReconcile_EscalateThenSilent(t *testing.T) {
 	if !strings.Contains(msgs[0], "[reminder]") {
 		t.Fatalf("escalation nudge = %q, want a [reminder]", msgs[0])
 	}
-	for _, exit := range []string{"complete_task", "block_task"} {
+	for _, exit := range []string{"complete_task", "fail_task"} {
 		if !strings.Contains(msgs[0], exit) {
 			t.Fatalf("escalation nudge must offer the %s exit, got %q", exit, msgs[0])
 		}
 	}
 	// THE regression this test exists for: the prompt used to ship a ready-made
-	// block_task(reason="executor finished but delivery could not be judged — needs
+	// fail_task(reason="executor finished but delivery could not be judged — needs
 	// attention") that only needed a nod. That default asserted a failure that usually had
 	// NOT happened (the agent had judged; the system simply had no state for "judged fine,
 	// awaiting external acceptance"), and a canned reason on a repeated escalating nudge is
@@ -143,7 +143,7 @@ func TestReconcile_ZeroDeliveryEscalationCannotOfferComplete(t *testing.T) {
 	clk := &advClock{t: time.Unix(1_700_000_000, 0)}
 	caller := &scriptedInflightCaller{resp: runningResp("task-zero")}
 	r, fs, store := reconcileRuntime(t, caller, clk)
-	store.record("task-zero", "[executor finished] outcome=non_delivery. block_task only.", clk.now())
+	store.record("task-zero", "[executor finished] outcome=non_delivery. fail_task only.", clk.now())
 	for i := 0; i < pendingMaxNudges; i++ {
 		store.bumpNudge("task-zero")
 	}
@@ -153,7 +153,7 @@ func TestReconcile_ZeroDeliveryEscalationCannotOfferComplete(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("messages=%v", msgs)
 	}
-	if strings.Contains(msgs[0], "complete_task") || !strings.Contains(msgs[0], "block_task") {
+	if strings.Contains(msgs[0], "complete_task") || !strings.Contains(msgs[0], "fail_task") {
 		t.Fatalf("zero-delivery escalation offered wrong exit: %q", msgs[0])
 	}
 }

@@ -115,11 +115,7 @@ func (h *f6Harness) runningTask(t *testing.T) pm.TaskID {
 	return tid
 }
 
-// TestF6_InputRequired_SurfacesRequestAndReply is the F6 acceptance: an
-// input_required block posts an input_request into the task conversation (sender =
-// the assignee agent); the user's unblock posts a threaded input_reply (sender =
-// the user) AND records the comment as the BlockedComment while clearing the block.
-func TestF6_InputRequired_SurfacesRequestAndReply(t *testing.T) {
+func TestF6_InputRequiredBlockRetired_NoRequestReply(t *testing.T) {
 	h := f6Setup(t)
 	tid := h.runningTask(t)
 
@@ -129,44 +125,25 @@ func TestF6_InputRequired_SurfacesRequestAndReply(t *testing.T) {
 	h.drain(t)
 
 	reqs := h.messagesByKind(t, tid, conversation.MessageContentInputRequest)
-	if len(reqs) != 1 {
-		t.Fatalf("want 1 input_request message, got %d", len(reqs))
+	if len(reqs) != 0 {
+		t.Fatalf("input_required block is retired; want 0 input_request messages, got %d", len(reqs))
 	}
-	if reqs[0].Content() != "which branch?" {
-		t.Fatalf("input_request body = %q, want %q", reqs[0].Content(), "which branch?")
-	}
-	if string(reqs[0].SenderIdentityID()) != "agent:AG1" {
-		t.Fatalf("input_request sender = %q, want agent:AG1", reqs[0].SenderIdentityID())
-	}
-	requestID := string(reqs[0].ID())
 
 	if err := h.svc.UnblockTask(h.ctx, UnblockTaskCommand{
-		TaskID: tid, Comment: "use main", InputRequestMessageID: requestID, Actor: "user:a",
+		TaskID: tid, Comment: "use main", InputRequestMessageID: "01J0000000REQUEST0000000", Actor: "user:a",
 	}); err != nil {
 		t.Fatal(err)
 	}
 	h.drain(t)
 
 	replies := h.messagesByKind(t, tid, conversation.MessageContentInputReply)
-	if len(replies) != 1 {
-		t.Fatalf("want 1 input_reply message, got %d", len(replies))
-	}
-	if replies[0].Content() != "use main" {
-		t.Fatalf("input_reply body = %q, want %q", replies[0].Content(), "use main")
-	}
-	if string(replies[0].SenderIdentityID()) != "user:a" {
-		t.Fatalf("input_reply sender = %q, want user:a", replies[0].SenderIdentityID())
-	}
-	if string(replies[0].ParentMessageID()) != requestID {
-		t.Fatalf("input_reply not threaded under request: parent=%q want=%q", replies[0].ParentMessageID(), requestID)
+	if len(replies) != 0 {
+		t.Fatalf("unblock is retired; want 0 input_reply messages, got %d", len(replies))
 	}
 
 	tk, _ := h.svc.tasks.FindByID(h.ctx, tid)
-	if tk.BlockedReason() != "" || tk.BlockedReasonType() != "" {
-		t.Fatalf("unblock must clear the block annotation, got %q/%q", tk.BlockedReason(), tk.BlockedReasonType())
-	}
-	if tk.BlockedComment() != "use main" {
-		t.Fatalf("unblock must record the comment, got %q", tk.BlockedComment())
+	if tk.Status() != pm.TaskFailed || tk.FailedReason() != "which branch?" || tk.BlockedComment() != "" {
+		t.Fatalf("task after retired unblock: status=%s failed=%q comment=%q", tk.Status(), tk.FailedReason(), tk.BlockedComment())
 	}
 }
 

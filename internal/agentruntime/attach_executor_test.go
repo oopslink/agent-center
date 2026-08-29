@@ -174,7 +174,7 @@ func TestReconcile_DeadShouldContinue_RecoversNotFinalizes(t *testing.T) {
 	}
 	// ...and did NOT finalize/block the dead should-continue executor (the P0-2 fix): it
 	// was routed to the recovery ladder, not written back as blocked/complete.
-	if caller.called("block_task") || caller.called("complete_task") {
+	if caller.called("fail_task") || caller.called("complete_task") {
 		t.Fatalf("dead should-continue executor must be RECOVERED, not finalized; calls=%v", caller.calls)
 	}
 }

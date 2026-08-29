@@ -89,6 +89,7 @@ export interface UpdateTaskInput {
   title?: string;
   description?: string;
   status?: TaskStatus;
+  reason?: string;
   assignee?: string;
   tags?: string[];
   // T566 (issue-577a7b0e): full replacement of the canonical required-capability
@@ -140,15 +141,9 @@ export function useStartTask(projectId: string, taskId: string) {
   );
 }
 
-export function useBlockTask(projectId: string, taskId: string) {
+export function useFailTask(projectId: string, taskId: string) {
   return useTaskAction<{ reason: string }>(projectId, taskId, (vars) =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/block`, vars),
-  );
-}
-
-export function useUnblockTask(projectId: string, taskId: string) {
-  return useTaskAction<void>(projectId, taskId, () =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/unblock`),
+    api.post<Task>(`${taskPath(projectId, taskId)}/fail`, vars),
   );
 }
 
@@ -159,8 +154,8 @@ export function useCompleteTask(projectId: string, taskId: string) {
 }
 
 export function useDiscardTask(projectId: string, taskId: string) {
-  return useTaskAction<void>(projectId, taskId, () =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/discard`),
+  return useTaskAction<{ reason: string }>(projectId, taskId, (vars) =>
+    api.post<Task>(`${taskPath(projectId, taskId)}/discard`, vars),
   );
 }
 

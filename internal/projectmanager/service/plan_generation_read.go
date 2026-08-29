@@ -171,7 +171,7 @@ func generationSnapshotProgress(snapshot pm.PlanGenerationSnapshot, superseded m
 		}
 		progress.Total++
 		switch task.Status {
-		case pm.TaskCompleted, pm.TaskDiscarded:
+		case pm.TaskCompleted, pm.TaskFailed, pm.TaskDiscarded:
 			progress.Done++
 		}
 	}

@@ -681,25 +681,21 @@ export interface Issue {
 
 // Task mirrors the v2.7 ProjectManager BC Task projection. Tasks are
 // project-scoped (nested under /projects/{pid}/tasks). Task state machine:
-// open | running | blocked | completed | discarded | reopened.
+// open | running | completed | failed | discarded.
 //
-// `blocked` is a NON-TERMINAL parked state: the task is still active work, but
-// nothing is executing and it will not be dispatched. The blocked_reason annotation
-// remains (see Task.blocked_reason) and carries the reason text.
+// `failed` is terminal and carries failed_reason. Historical blocked_reason fields
+// may still appear on legacy payloads, but `blocked` is no longer a writable task
+// lifecycle state.
 // `verified` remains removed.
 export type TaskStatus =
   | 'open'
   | 'running'
-  | 'blocked'
   | 'completed'
-  | 'discarded'
-  | 'reopened';
+  | 'failed'
+  | 'discarded';
 
-// BlockReasonType (v2.14.0 I14) classifies WHY a running task is blocked ("stuck"):
-//   - input_required: an agent needs a USER reply (the user answers in the task) — most urgent.
-//   - obstacle: an external blocker needs owner/PM intervention.
-//   - '' (empty): the "not blocked" sentinel.
-// Mirrors the backend pm.BlockReasonType. Drives the global Alerts rail grouping.
+// BlockReasonType is retained for legacy stuck-task payloads. New lifecycle
+// failures use failed_reason instead of blocked_reason/status=blocked.
 export type BlockReasonType = 'input_required' | 'obstacle' | '';
 
 export interface Task {
@@ -711,15 +707,11 @@ export interface Task {
   assignee?: string;
   derived_from_issue?: string;
   completed_by?: string;
-  // The block REASON. ADR-0054 restored `blocked` as a real status, but this
-  // annotation stays — it carries the reason text, and the status carries the park.
-  // Non-empty ⇒ the task is parked on something. Note it may also be non-empty on a
-  // still-`running` task for LEGACY rows parked the ADR-0046 way (annotation-only,
-  // written before ADR-0054 and deliberately not migrated), so treat
-  // `blocked_reason` — not the status alone — as "is there a reason to show".
+  // Legacy blocked/stuck reason. New terminal failures use failed_reason.
+  // Non-empty on a running task means an old row still carries stuck context.
   blocked_reason?: string;
-  // I14 classification of blocked_reason (input_required | obstacle); '' / absent
-  // when the task is not blocked. Drives the global Alerts rail prioritization.
+  failed_reason?: string;
+  // Legacy classification of blocked_reason (input_required | obstacle).
   blocked_reason_type?: BlockReasonType;
   // v2.8.1 edit-task #278: free-form label set (cleaned + deduped + bounded to
   // ≤16 runes each, ≤10 entries by the backend). The DTO always emits a non-nil

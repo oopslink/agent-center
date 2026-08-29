@@ -48,16 +48,16 @@ func TestCenterClient_CompleteTask(t *testing.T) {
 	}
 }
 
-func TestCenterClient_BlockTask(t *testing.T) {
+func TestCenterClient_BlockTaskUsesFailTool(t *testing.T) {
 	fc := &fakeToolCaller{}
 	cc := newCenterClient(fc)
 	if err := cc.BlockTask(context.Background(), "agent-1", "task-7", "broke", "obstacle"); err != nil {
 		t.Fatal(err)
 	}
-	if fc.tool != "block_task" {
+	if fc.tool != "fail_task" {
 		t.Errorf("tool = %q", fc.tool)
 	}
-	if fc.body["reason"] != "broke" || fc.body["reason_type"] != "obstacle" || fc.body["task_id"] != "task-7" {
+	if fc.body["reason"] != "broke" || fc.body["reason_type"] != nil || fc.body["task_id"] != "task-7" {
 		t.Errorf("body = %v", fc.body)
 	}
 }

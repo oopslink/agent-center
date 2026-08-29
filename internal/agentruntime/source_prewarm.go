@@ -529,13 +529,12 @@ func (r *LocalRuntime) failTaskRepoUnavailable(agentID, taskID string, cause err
 	}
 	reason := forkFailureReason(failureCause, cause)
 	body := map[string]any{
-		"agent_id":    agentID,
-		"task_id":     taskID,
-		"reason":      reason,
-		"reason_type": "obstacle",
+		"agent_id": agentID,
+		"task_id":  taskID,
+		"reason":   reason,
 	}
-	if bErr := r.toolCaller().CallAgentTool(ctx, "block_task", body, nil); bErr != nil {
-		r.log("fork_executor agent=%s task=%s repo source unavailable: block_task failed: %v", agentID, taskID, bErr)
+	if bErr := r.toolCaller().CallAgentTool(ctx, "fail_task", body, nil); bErr != nil {
+		r.log("fork_executor agent=%s task=%s repo source unavailable: fail_task failed: %v", agentID, taskID, bErr)
 	}
 }
 

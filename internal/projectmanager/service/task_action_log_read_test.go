@@ -62,14 +62,14 @@ func TestListTaskActionLogs_ReadsPersistedLifecycleWithPagination(t *testing.T) 
 	if err != nil {
 		t.Fatalf("ListTaskActionLogs: %v", err)
 	}
-	if total != 3 {
-		t.Fatalf("total = %d, want 3", total)
+	if total != 2 {
+		t.Fatalf("total = %d, want 2", total)
 	}
 	seen := map[pm.TaskAction]bool{}
 	for _, lg := range all {
 		seen[lg.Action] = true
 	}
-	for _, want := range []pm.TaskAction{pm.TaskActionAgentStarted, pm.TaskActionBlocked, pm.TaskActionUnblocked} {
+	for _, want := range []pm.TaskAction{pm.TaskActionAgentStarted, pm.TaskActionFailed} {
 		if !seen[want] {
 			t.Fatalf("all logs = %+v, missing %s", all, want)
 		}
@@ -78,7 +78,7 @@ func TestListTaskActionLogs_ReadsPersistedLifecycleWithPagination(t *testing.T) 
 	if err != nil {
 		t.Fatalf("ListTaskActionLogs page: %v", err)
 	}
-	if total != 3 || len(page) != 2 {
-		t.Fatalf("page len=%d total=%d, want len=2 total=3", len(page), total)
+	if total != 2 || len(page) != 1 {
+		t.Fatalf("page len=%d total=%d, want len=1 total=2", len(page), total)
 	}
 }

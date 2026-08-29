@@ -33,14 +33,14 @@ func (f stuckNodeFixture) bumpFruitless(t *testing.T, n int, d *pm.Delivery) {
 	}
 }
 
-// driveToBlockOrReopen advances sweeps until the task is blocked (triage) or gives up.
+// driveToBlock advances sweeps until the task fails for triage or gives up.
 func (f stuckNodeFixture) driveToBlock(t *testing.T) string {
 	t.Helper()
 	f.h.clk.Advance(DefaultExecutionLeaseTTL + time.Minute)
 	for i := 0; i < 8; i++ {
 		f.h.clk.Advance(4 * time.Minute)
 		f.sweep(t)
-		if r := f.task(t).BlockedReason(); r != "" {
+		if r := f.task(t).FailedReason(); r != "" {
 			return r
 		}
 	}
@@ -62,8 +62,8 @@ func TestStuckNode_FruitlessReopens_DurableAcrossRestart(t *testing.T) {
 	if got := f.nodeStatus(t); got == orch.NodeReopen {
 		t.Fatal("node REOPENED despite the durable count being at R_max — breaker read the reset in-memory count")
 	}
-	if tk := f.task(t); tk.BlockedReasonType() != pm.BlockReasonObstacle {
-		t.Fatalf("block reasonType = %q, want obstacle (triage)", tk.BlockedReasonType())
+	if tk := f.task(t); tk.Status() != pm.TaskFailed || tk.BlockedReasonType() != "" {
+		t.Fatalf("failure state wrong: status=%q block reasonType=%q", tk.Status(), tk.BlockedReasonType())
 	}
 }
 
@@ -347,19 +347,19 @@ func TestStuckNode_CircuitBreaker_BlocksAfterRmax(t *testing.T) {
 	for i := 0; i < 6; i++ {
 		clk.Advance(4 * time.Minute)
 		f.sweep(t)
-		if f.task(t).BlockedReason() != "" {
+		if f.task(t).FailedReason() != "" {
 			break
 		}
 	}
 	tk := f.task(t)
-	if tk.BlockedReason() == "" {
-		t.Fatalf("circuit breaker did not block after R_max=%d reopens", StuckNodeMaxAutoReopens)
+	if tk.FailedReason() == "" {
+		t.Fatalf("circuit breaker did not fail after R_max=%d reopens", StuckNodeMaxAutoReopens)
 	}
-	if tk.BlockedReasonType() != pm.BlockReasonObstacle {
-		t.Fatalf("block reasonType = %q, want obstacle (triage)", tk.BlockedReasonType())
+	if tk.BlockedReasonType() != "" {
+		t.Fatalf("legacy block reasonType = %q, want empty", tk.BlockedReasonType())
 	}
-	if tk.Status() != pm.TaskRunning {
-		t.Fatalf("blocked task status = %q, want running (block is an annotation)", tk.Status())
+	if tk.Status() != pm.TaskFailed {
+		t.Fatalf("failed task status = %q, want failed", tk.Status())
 	}
 	// The reset-exhaustion circuit-breaker log is the reused mechanism's fingerprint.
 	logs, err := f.h.actionLogs.ListByTask(f.h.ctx, f.tid)

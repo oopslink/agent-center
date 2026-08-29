@@ -139,11 +139,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	// v2.14.0 I14/F5 §五/§13.A: the SINGLE "what do I have to do?" query in the Task
 	// model — replaces get_my_work. Returns the agent's open/running tasks that are
-	// RUNNABLE (blockedBy deps satisfied), each carrying its blocked_reason /
-	// blocked_reason_type / blocked_comment / lease_expires_at.
+	// RUNNABLE (blockedBy deps satisfied), each carrying lease_expires_at and any
+	// legacy blocked_reason fields still present on old rows.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_my_tasks",
-		Description: "Your single \"what do I have to do?\" query. Returns the open/running tasks assigned to you that are runnable now (their dependencies are satisfied) — each with task_id, title, status, and blocked_reason / blocked_reason_type / blocked_comment / lease_expires_at. start_task one (by task_id) to begin it. A task waiting on you (unblocked with a comment) shows a cleared blocked_reason and the reply in blocked_comment. Call it at the start of your loop and after finishing a task.",
+		Description: "Your single \"what do I have to do?\" query. Returns the open/running tasks assigned to you that are runnable now (their dependencies are satisfied) — each with task_id, title, status, lease_expires_at, and any legacy blocked_reason fields. start_task one (by task_id) to begin it. Call it at the start of your loop and after finishing a task.",
 	}, makeListMyTasks(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -153,11 +153,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	// v2.14.0 I14/F5 §五 (pull model on Task): the agent works its OWN tasks one at a
 	// time — pick a runnable task_id from list_my_tasks, start_task it (open→running +
-	// lease), heartbeat to renew the lease while it runs, complete_task it, then
-	// start_task the next. Only ONE running (unblocked) task at a time (§13.B).
+	// lease), heartbeat to renew the lease while it runs, then complete_task or
+	// fail_task it before starting the next.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "start_task",
-		Description: "Start working on one of your runnable tasks (open→running, sets the execution lease). Pick a task_id from list_my_tasks. You may run up to your concurrency cap at once (1 by default — single-active; more if your profile opts into concurrency); start_task past the cap returns agent_busy until you finish (complete_task), block, or yield a running task. Returns task_not_runnable if the task's dependencies aren't satisfied yet.",
+		Description: "Start working on one of your runnable tasks (open→running, sets the execution lease). Pick a task_id from list_my_tasks. You may run up to your concurrency cap at once (1 by default — single-active; more if your profile opts into concurrency); start_task past the cap returns agent_busy until you complete_task, fail_task, or yield a running task. Returns task_not_runnable if the task's dependencies aren't satisfied yet.",
 	}, makeStartTask(cfg))
 
 	// T83: claim an OPEN assignment-pool task. Pool tasks are ownerless, so they are
@@ -170,10 +170,10 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	// v2.14.0 I14/F5 §五/§2.5: renew the execution lease on your running task. The
 	// background lease-checker reclaims a running task whose lease lapses (the agent
 	// presumed dead); heartbeat periodically while a long task runs so it is not
-	// reclaimed. Lease-only — no status change; rejected while the task is blocked.
+	// reclaimed. Lease-only — no status change; rejected unless the task is running.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "heartbeat",
-		Description: "Renew the execution lease on the task you are currently running so the background lease-checker does not reclaim it (it reclaims a running task whose lease lapses, presuming the agent died). Call it periodically during a long-running task. Lease-only: it does not change status, and is rejected if the task is blocked.",
+		Description: "Renew the execution lease on the task you are currently running so the background lease-checker does not reclaim it (it reclaims a running task whose lease lapses, presuming the agent died). Call it periodically during a long-running task. Lease-only: it does not change status, and is rejected unless the task is running.",
 	}, makeHeartbeat(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
@@ -330,29 +330,14 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Unsubscribe an identity (defaults to the calling agent) from a task.",
 	}, makeSubscribe(cfg, "unsubscribe"))
 
-	// block_task/unblock_task are the unified pause channel (v2.14.0 I14 §四): an
-	// agent that can't proceed calls block_task with a reason_type — input_required
-	// (it needs a user reply, surfaced as an input box in the task Conversation) or
-	// obstacle (an external blocker needs owner/PM intervention). ADR-0054: block now
-	// PARKS the task (status → blocked), which is what actually stops dispatch — under
-	// ADR-0046 it only annotated a still-running task, so a re-drive forked a fresh
-	// empty-context executor onto it. It keeps the assignee and clears the lease; an
-	// owner/PM (or the user's reply) recovers it with unblock_task (blocked→running),
-	// leaving the answer in blocked_comment. block is a self-report; unblock is
-	// operator/user recovery.
 	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "block_task",
-		Description: "Report that the task you are running is STUCK and needs outside help. Set reason_type to \"input_required\" when you need a user reply (rendered as an input box in the task's Conversation; the user's answer comes back in blocked_comment) or \"obstacle\" when an external blocker needs owner/PM intervention (defaults to obstacle). Write the reason yourself, describing what is actually true. The task stays yours and keeps its assignee, but it is PARKED: it leaves running and is not dispatched again until someone unblocks it.",
-	}, makeBlockTask(cfg))
-
-	mcp.AddTool(srv, &mcp.Tool{
-		Name:        "unblock_task",
-		Description: "Recover a BLOCKED task (the counterpart of block_task): un-park it back to running, wipe its blocked_reason — leaving your note in blocked_comment — and re-wake its assignee so it continues. The assignee is unchanged (block doesn't hand the task to anyone else); this just unsticks it. Use for an obstacle you've resolved, or to recover a task stuck blocked after a restart.",
-	}, makeUnblockTask(cfg))
+		Name:        "fail_task",
+		Description: "Terminally mark the task you are running as failed when it cannot progress. A detailed reason is required; include what failed, what you tried, and what a next plan generation needs to know. Failed is terminal: do not expect the same task to resume.",
+	}, makeFailTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "reset_task",
-		Description: "Tier-3 recovery for a task stranded RUNNING under this Agent's dead executor (its workspace/worktree is gone or its node changed, so it will never make progress): reset it back to the pool (running→open, assignee/lease cleared). Reset does NOT fork or re-dispatch an executor: after the task is assigned and work_available wakes its supervisor, that supervisor must explicitly call fork_executor for code/tooling work (or handle supervisor_inline/control work itself). Only use when you've confirmed the executor is truly gone — a task whose lease is still live is rejected (a live agent is nudged, not reset). Distinct from unblock_task (that recovers a BLOCKED task and keeps its owner); reset_task changes the owner. After repeated resets the center blocks the task for triage instead.",
+		Description: "Tier-3 recovery for a task stranded RUNNING under this Agent's dead executor (its workspace/worktree is gone or its node changed, so it will never make progress): reset it back to the pool (running→open, assignee/lease cleared). Reset does NOT fork or re-dispatch an executor: after the task is assigned and work_available wakes its supervisor, that supervisor must explicitly call fork_executor for code/tooling work (or handle supervisor_inline/control work itself). Only use when you've confirmed the executor is truly gone — a task whose lease is still live is rejected (a live agent is nudged, not reset). After repeated resets the center fails the task for evolution triage.",
 	}, makeResetTask(cfg))
 
 	// rerun_failed_node/resume_paused_node are the OPERATOR-RECOVERY half of the
@@ -382,7 +367,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "discard_task",
-		Description: "Terminally DISCARD a non-terminal task (open/running → discarded) — the right way to retire a superseded or mis-created task. Optionally posts a reason first. Unlike complete_task it does not mark the work done (shows Discarded, not Completed); unlike block_task it won't leave a pool task to be re-dispatched. A terminal task (completed/discarded) is rejected.",
+		Description: "Terminally DISCARD a non-terminal task (open/running → discarded) — the right way to retire a superseded or mis-created task. A reason is required. Unlike complete_task it does not mark the work done (shows Discarded, not Completed); unlike fail_task it does not feed failure/evolution. A terminal task (completed/failed/discarded) is rejected.",
 	}, makeDiscardTask(cfg))
 
 	// T192: (re)set or clear a task's derived_from_issue AFTER creation.
@@ -394,7 +379,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	// --- reminder tools (T206, Cognition BC) ---------------------------------
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "create_reminder",
-		Description: "Set a reminder that wakes a target agent and delivers a text. THREE trigger modes: (1) time — schedule once{once_at RFC3339}; (2) recurring — schedule cron{cron_expr, timezone} with optional end_condition (never|until|max_count); (3) EVENT-DRIVEN — pass on_event{entity_type: plan|task|issue, entity_id, event} to arm the reminder when a project entity transitions (plan: completed|failed|stopped; task: completed|blocked|reopened|discarded; issue: closed|reopened), then fire ONCE after `delay` (e.g. 5m; default 0) and @-notify `target` (defaults to remindee_agent_id). The watched entity must be in your project. remindee/target must be in your project (owner may cross projects). skip_if_overlap (default true) drops a fire while the previous one is still being handled; deliver_as_creator (default true) delivers as your identity rather than the system identity (a self-reminder always wakes via the system identity).",
+		Description: "Set a reminder that wakes a target agent and delivers a text. THREE trigger modes: (1) time — schedule once{once_at RFC3339}; (2) recurring — schedule cron{cron_expr, timezone} with optional end_condition (never|until|max_count); (3) EVENT-DRIVEN — pass on_event{entity_type: plan|task|issue, entity_id, event} to arm the reminder when a project entity transitions (plan: completed|failed|stopped; task: completed|failed|reopened|discarded; issue: closed|reopened), then fire ONCE after `delay` (e.g. 5m; default 0) and @-notify `target` (defaults to remindee_agent_id). The watched entity must be in your project. remindee/target must be in your project (owner may cross projects). skip_if_overlap (default true) drops a fire while the previous one is still being handled; deliver_as_creator (default true) delivers as your identity rather than the system identity (a self-reminder always wakes via the system identity).",
 	}, makeCreateReminder(cfg))
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_reminders",

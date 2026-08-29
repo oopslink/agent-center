@@ -35,7 +35,7 @@ func TestPM_ListTasks_ExcludesTerminalByDefault(t *testing.T) {
 		return c["id"].(string)
 	}
 	setStatus := func(tid, status string) {
-		resp := orgScopedPost(t, s.URL+"/api/projects/"+pid+"/tasks/"+tid+"/status", `{"status":"`+status+`"}`, sess)
+		resp := orgScopedPost(t, s.URL+"/api/projects/"+pid+"/tasks/"+tid+"/status", `{"status":"`+status+`","reason":"test transition"}`, sess)
 		if resp.StatusCode != http.StatusOK {
 			t.Fatalf("set %s=%s status=%d", tid, status, resp.StatusCode)
 		}
@@ -129,7 +129,7 @@ func TestListOrgTasks_StatusAll_IncludesTerminal_ForRefResolution(t *testing.T) 
 	}
 	openT := mkTask("open one")
 	doneT := mkTask("done one")
-	resp := orgScopedPost(t, s.URL+"/api/projects/"+pid+"/tasks/"+doneT+"/status", `{"status":"completed"}`, sess)
+	resp := orgScopedPost(t, s.URL+"/api/projects/"+pid+"/tasks/"+doneT+"/status", `{"status":"completed","reason":"test transition"}`, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("complete task status=%d", resp.StatusCode)
 	}

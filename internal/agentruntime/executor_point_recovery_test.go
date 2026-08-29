@@ -10,7 +10,7 @@ import (
 )
 
 // gettaskCaller scripts get_task with a fixed status/assignee/blocked_reason (for
-// should-continue vs terminal/reassigned/blocked) and records whether block_task (the
+// should-continue vs terminal/reassigned/blocked) and records whether fail_task (the
 // recovery-exhausted escalate) was called and whether get_task was queried at all.
 type gettaskCaller struct {
 	status        string
@@ -28,7 +28,7 @@ func (g *gettaskCaller) CallAgentTool(_ context.Context, tool string, _ any, out
 			rb, _ := json.Marshal(map[string]any{"id": "task-1", "status": g.status, "assignee": g.assignee, "blocked_reason": g.blockedReason})
 			*out = append((*out)[:0], rb...)
 		}
-	case "block_task":
+	case "fail_task":
 		g.blocked = true
 	}
 	return nil
@@ -122,7 +122,7 @@ func TestReconcileOneExecutor_BudgetExhausted_Escalates(t *testing.T) {
 	rt.reconcileOneExecutor(context.Background(), ee, "ex-3", comp, false, false)
 
 	if !gc.blocked {
-		t.Fatal("exhausted budget must escalate to PD via block_task")
+		t.Fatal("exhausted budget must escalate to PD via fail_task")
 	}
 }
 

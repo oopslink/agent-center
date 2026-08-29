@@ -169,25 +169,29 @@ func TestTaskRepo_BlockLeaseRoundTrip(t *testing.T) {
 	if got.BlockedReasonType() != "" || got.BlockedComment() != "" {
 		t.Fatalf("unexpected block annotation on a running task: type=%q comment=%q", got.BlockedReasonType(), got.BlockedComment())
 	}
-	// Block(input_required): reason+type persist, lease cleared.
+	// Block(input_required) is legacy-compatible fail: failed_reason persists,
+	// legacy blocked_reason/type stay clear, lease is cleared.
 	_ = got.Block("confirm target branch", pm.BlockReasonInputRequired, "agent:c", t0)
 	if err := tr.Update(ctx, got); err != nil {
 		t.Fatal(err)
 	}
 	re, _ := tr.FindByID(ctx, "T1")
-	if re.BlockedReason() != "confirm target branch" || re.BlockedReasonType() != pm.BlockReasonInputRequired {
-		t.Fatalf("block annotation lost: reason=%q type=%q", re.BlockedReason(), re.BlockedReasonType())
+	if re.Status() != pm.TaskFailed || re.FailedReason() != "confirm target branch" {
+		t.Fatalf("failed state lost: status=%q failed_reason=%q", re.Status(), re.FailedReason())
+	}
+	if re.BlockedReason() != "" || re.BlockedReasonType() != "" {
+		t.Fatalf("legacy block annotation should stay clear: reason=%q type=%q", re.BlockedReason(), re.BlockedReasonType())
 	}
 	if re.ExecutionLeaseExpiresAt() != nil {
 		t.Fatalf("Block must clear the lease, got %v", re.ExecutionLeaseExpiresAt())
 	}
-	// Unblock(comment): comment persists, reason/type cleared.
+	// Unblock is retired for failed tasks and does not recover or annotate.
 	_ = re.Unblock("approved", "user:owner", t0)
 	if err := tr.Update(ctx, re); err != nil {
 		t.Fatal(err)
 	}
 	fin, _ := tr.FindByID(ctx, "T1")
-	if fin.BlockedComment() != "approved" || fin.BlockedReason() != "" || fin.BlockedReasonType() != "" {
+	if fin.Status() != pm.TaskFailed || fin.FailedReason() != "confirm target branch" || fin.BlockedComment() != "" || fin.BlockedReason() != "" || fin.BlockedReasonType() != "" {
 		t.Fatalf("unblock round-trip wrong: comment=%q reason=%q type=%q", fin.BlockedComment(), fin.BlockedReason(), fin.BlockedReasonType())
 	}
 }

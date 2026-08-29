@@ -638,11 +638,8 @@ func TestBlockTask_OK(t *testing.T) {
 	if !found {
 		t.Fatalf("block reason not posted to task conv")
 	}
-	// ADR-0054: block PARKS the task — status really moves to blocked, which is what stops
-	// dispatch (under ADR-0046 it stayed running, so a block only marked and a re-drive
-	// could still fork a fresh executor onto it).
-	if got := f.taskStatus(t, tid); got != pm.TaskBlocked {
-		t.Fatalf("task status = %s, want blocked (block must park the task)", got)
+	if got := f.taskStatus(t, tid); got != pm.TaskFailed {
+		t.Fatalf("task status = %s, want failed", got)
 	}
 }
 
@@ -836,24 +833,16 @@ func TestDiscardTask_RunningToDiscarded_OK(t *testing.T) {
 	}
 }
 
-func TestDiscardTask_NoReason_OK(t *testing.T) {
+func TestDiscardTask_NoReason_400(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	tid := f.seedRunningTask(t)
-	before := len(f.taskMessages(t, tid))
 	srv := f.server(t)
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/discard_task", "acat_w1",
 		map[string]any{"agent_id": atAgent1, "task_id": tid})
-	if status != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body = %v", status, body)
-	}
-	// No reason → no new message.
-	if after := len(f.taskMessages(t, tid)); after != before {
-		t.Fatalf("message count changed %d → %d with no reason", before, after)
-	}
-	if got := f.taskStatus(t, tid); got != pm.TaskDiscarded {
-		t.Fatalf("task status = %s, want discarded", got)
+	if status != http.StatusBadRequest || body["error"] != "missing_reason" {
+		t.Fatalf("status = %d err=%v, want 400 missing_reason", status, body["error"])
 	}
 }
 
@@ -870,7 +859,7 @@ func TestDiscardTask_TerminalRejected(t *testing.T) {
 		t.Fatalf("precondition complete status = %d body=%v", status, body)
 	}
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/discard_task", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid})
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "reason": "already terminal"})
 	if status != http.StatusUnprocessableEntity {
 		t.Fatalf("status = %d, want 422; body = %v", status, body)
 	}
@@ -1073,7 +1062,7 @@ func TestPostTaskMessage_ReplyToCanOpenSourceThread(t *testing.T) {
 
 // --- unblock_task (v2.9.1 P0 recovery) ---------------------------------------
 
-func TestUnblockTask_OK(t *testing.T) {
+func TestUnblockTask_Retired410(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	tid := f.seedRunningTask(t)
@@ -1084,18 +1073,17 @@ func TestUnblockTask_OK(t *testing.T) {
 		map[string]any{"agent_id": atAgent1, "task_id": tid, "reason": "agent execution failed"}); status != http.StatusOK {
 		t.Fatalf("block status = %d body=%v", status, body)
 	}
-	// ADR-0054: blocked is a real, parked state again.
-	if got := f.taskStatus(t, tid); got != pm.TaskBlocked {
-		t.Fatalf("precondition: task should be parked (blocked), got %s", got)
+	if got := f.taskStatus(t, tid); got != pm.TaskFailed {
+		t.Fatalf("precondition: task should be failed, got %s", got)
 	}
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/unblock_task", "acat_w1",
 		map[string]any{"agent_id": atAgent1, "task_id": tid})
-	if status != http.StatusOK {
-		t.Fatalf("unblock status = %d, want 200; body = %v", status, body)
+	if status != http.StatusGone || body["error"] != "unblock_retired" {
+		t.Fatalf("unblock status = %d err=%v, want 410 unblock_retired; body=%v", status, body["error"], body)
 	}
-	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
-		t.Fatalf("task status = %s, want running after unblock", got)
+	if got := f.taskStatus(t, tid); got != pm.TaskFailed {
+		t.Fatalf("task status = %s, want failed after retired unblock", got)
 	}
 }
 
@@ -1103,7 +1091,7 @@ func TestUnblockTask_OK(t *testing.T) {
 // "agent execution failed" (the restart/stale-release path) must be RECOVERABLE
 // back to executable and able to complete. Guards against the whole
 // "restart → deadlocked blocked" defect class (no legal path out of blocked).
-func TestUnblockTask_RecoversAgentExecutionFailedDeadlock(t *testing.T) {
+func TestUnblockTask_DoesNotRecoverFailedTerminal(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	tid := f.seedRunningTask(t)
@@ -1114,21 +1102,13 @@ func TestUnblockTask_RecoversAgentExecutionFailedDeadlock(t *testing.T) {
 		map[string]any{"agent_id": atAgent1, "task_id": tid, "reason": "agent execution failed"}); status != http.StatusOK {
 		t.Fatalf("block status = %d", status)
 	}
-	// 2. Recovery: unblock → running.
+	// 2. Recovery is no longer supported: failed is terminal.
 	if status, body := postBearer(t, srv.URL, "/admin/agent-tools/unblock_task", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid}); status != http.StatusOK {
-		t.Fatalf("unblock status = %d body=%v", status, body)
+		map[string]any{"agent_id": atAgent1, "task_id": tid}); status != http.StatusGone {
+		t.Fatalf("unblock status = %d body=%v, want 410", status, body)
 	}
-	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
-		t.Fatalf("after unblock: status = %s, want running", got)
-	}
-	// 3. The recovered task can now complete normally (the deadlock is gone).
-	if status, body := postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1",
-		map[string]any{"agent_id": atAgent1, "task_id": tid, "summary": "recovered and finished"}); status != http.StatusOK {
-		t.Fatalf("complete status = %d body=%v", status, body)
-	}
-	if got := f.taskStatus(t, tid); got != pm.TaskCompleted {
-		t.Fatalf("recovered task should complete, got %s", got)
+	if got := f.taskStatus(t, tid); got != pm.TaskFailed {
+		t.Fatalf("after unblock: status = %s, want failed", got)
 	}
 }
 
@@ -1136,7 +1116,7 @@ func TestUnblockTask_RecoversAgentExecutionFailedDeadlock(t *testing.T) {
 // NO-OP (returns 200) — not an error. "blocked" is no longer a state, so there is
 // no illegal transition; clearing a non-existent annotation is harmless and avoids
 // a double-dispatch on an already-active task.
-func TestUnblockTask_NotBlocked_NoOp200(t *testing.T) {
+func TestUnblockTask_NotBlocked_Retired410(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
 	tid := f.seedRunningTask(t) // running, no blocked_reason
@@ -1144,8 +1124,8 @@ func TestUnblockTask_NotBlocked_NoOp200(t *testing.T) {
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/unblock_task", "acat_w1",
 		map[string]any{"agent_id": atAgent1, "task_id": tid})
-	if status != http.StatusOK {
-		t.Fatalf("unblock of a non-stuck task should be a 200 no-op, got %d body=%v", status, body)
+	if status != http.StatusGone {
+		t.Fatalf("unblock should be retired, got %d body=%v", status, body)
 	}
 	// Status unchanged — still running.
 	if got := f.taskStatus(t, tid); got != pm.TaskRunning {

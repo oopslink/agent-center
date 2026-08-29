@@ -320,7 +320,7 @@ func TestOrchestrator_NoopCases(t *testing.T) {
 }
 
 // TestOrchestrator_FailureNotifiesCreator is the v2.9 P2-2 headline test:
-// a running plan A→{B,C} where A→B and A→C; A FAILS (TaskDiscarded) →
+// a running plan A→{B,C} where A→B and A→C; A FAILS (TaskFailed) →
 //   - the plan CREATOR (user:a) is @mentioned in the plan conversation,
 //   - the downstream subtree (B, C) is NOT dispatched (stays blocked, §9.7),
 //   - the plan stays `running` (not done, never auto-terminal-failed).
@@ -348,7 +348,7 @@ func TestOrchestrator_FailureNotifiesCreator(t *testing.T) {
 	}
 
 	// A FAILS → orchestrator notifies the creator; B/C stay blocked.
-	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.setTaskStatus(t, a, pm.TaskFailed)
 	h.drain(t)
 
 	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
@@ -394,7 +394,7 @@ func TestOrchestrator_FailureIndependentBranchAdvances(t *testing.T) {
 	h.drain(t)
 
 	// A fails → B stays blocked, creator notified.
-	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.setTaskStatus(t, a, pm.TaskFailed)
 	h.drain(t)
 	// D completes → its INDEPENDENT downstream E auto-advances.
 	h.setTaskStatus(t, d, pm.TaskCompleted)
@@ -433,7 +433,7 @@ func TestOrchestrator_FailureReplayNotifiesOnce(t *testing.T) {
 	h.drain(t)
 	// Mark A failed WITHOUT draining, then capture the real failure event so we can
 	// replay the SAME event id through the projector twice.
-	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.setTaskStatus(t, a, pm.TaskFailed)
 	failEvent := h.takeEvent(t, EvtTaskStateChanged, string(a))
 
 	if err := h.orchestrator.Project(h.ctx, failEvent); err != nil {
@@ -470,7 +470,7 @@ func TestOrchestrator_FirstFailureTransitionNotifies(t *testing.T) {
 		t.Fatalf("creator mentioned %d times before failure, want 0", got)
 	}
 	// A FAILS: prev=running (not failed) → now=discarded (failed) ⇒ notify once.
-	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.setTaskStatus(t, a, pm.TaskFailed)
 	h.drain(t)
 	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
 		t.Fatalf("first failure (running→discarded transition) notified %d times, want 1", got)
@@ -496,7 +496,7 @@ func TestOrchestrator_ReDiscardDoesNotRenotify(t *testing.T) {
 	}
 	h.drain(t)
 	// First failure → creator notified once (the →failed transition).
-	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.setTaskStatus(t, a, pm.TaskFailed)
 	h.drain(t)
 	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
 		t.Fatalf("first failure notified %d times, want exactly 1", got)
@@ -511,7 +511,7 @@ func TestOrchestrator_ReDiscardDoesNotRenotify(t *testing.T) {
 		EventType: EvtTaskStateChanged,
 		Payload: mustJSON(t, taskEventPayload{
 			TaskID: string(a), ProjectID: string(pid),
-			PrevStatus: string(pm.TaskDiscarded), Status: string(pm.TaskDiscarded),
+			PrevStatus: string(pm.TaskFailed), Status: string(pm.TaskFailed),
 		}),
 		CreatedAt: h.svc.clock.Now(),
 	}
@@ -590,7 +590,7 @@ func TestOrchestrator_FailureWakesAgentCreator(t *testing.T) {
 	}
 
 	// A FAILS → orchestrator @mentions the agent-creator AND emits the wake trigger.
-	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.setTaskStatus(t, a, pm.TaskFailed)
 	h.drain(t)
 
 	if got := h.mentionCount(t, planID, "agent:bot"); got != 1 {
@@ -640,7 +640,7 @@ func TestOrchestrator_FailureHumanCreator_NoWake(t *testing.T) {
 	h.drain(t)
 
 	// A FAILS → human creator @mentioned, but NO wake trigger emitted.
-	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.setTaskStatus(t, a, pm.TaskFailed)
 	h.drain(t)
 
 	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
@@ -665,7 +665,7 @@ func TestOrchestrator_AgentCreatorWakeReplayOnce(t *testing.T) {
 	}
 	h.drain(t)
 	// Mark A failed WITHOUT draining, capture the real failure event, replay it twice.
-	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.setTaskStatus(t, a, pm.TaskFailed)
 	failEvent := h.takeEvent(t, EvtTaskStateChanged, string(a))
 
 	if err := h.orchestrator.Project(h.ctx, failEvent); err != nil {

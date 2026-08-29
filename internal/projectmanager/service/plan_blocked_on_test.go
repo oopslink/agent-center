@@ -214,21 +214,18 @@ func TestBlockedPlanNode_EmitsDurableOwnerWakeOnceAndAvoidsExecutorLiveness(t *t
 		t.Fatalf("BlockTask: %v", err)
 	}
 	bo := blockedOnByTask(t, h, planID)
-	if bo[a].WaitType != pm.WaitHumanDecision {
-		t.Fatalf("blocked task wait_type=%q, want human_decision (not executor_liveness)", bo[a].WaitType)
+	if _, ok := bo[a]; ok {
+		t.Fatalf("failed task should not keep a task blocked_on descriptor: %+v", bo[a])
 	}
 	evs := planOwnerBlockWakeEvents(t, h, planID)
-	if len(evs) != 1 {
-		t.Fatalf("owner block wake events=%d, want 1", len(evs))
-	}
-	if evs[0].OwnerRef != "agent:owner" || evs[0].TaskID != string(a) || evs[0].MessageID == "" {
-		t.Fatalf("bad owner block wake payload: %+v", evs[0])
+	if len(evs) != 0 {
+		t.Fatalf("failed task should not emit owner block wake events=%d", len(evs))
 	}
 	if err := h.svc.materializeBlockedOn(h.ctx, mustPlan(t, h, planID)); err != nil {
 		t.Fatalf("second materialize: %v", err)
 	}
-	if got := len(planOwnerBlockWakeEvents(t, h, planID)); got != 1 {
-		t.Fatalf("idempotent materialize emitted %d block wakes, want 1", got)
+	if got := len(planOwnerBlockWakeEvents(t, h, planID)); got != 0 {
+		t.Fatalf("idempotent materialize emitted %d block wakes, want 0", got)
 	}
 }
 
@@ -249,7 +246,7 @@ func TestBlockedOnClearedWhenTaskTerminalAndPlanDiscarded(t *testing.T) {
 	if bo := blockedOnByTask(t, h, planID); bo[a].WaitType != pm.WaitExecutorLiveness {
 		t.Fatalf("running task wait=%q want executor_liveness", bo[a].WaitType)
 	}
-	h.setTaskStatus(t, a, pm.TaskDiscarded)
+	h.setTaskStatus(t, a, pm.TaskFailed)
 	if _, ok, err := h.plans.GetBlockedOn(h.ctx, planID, a); err != nil || ok {
 		t.Fatalf("terminal task kept blocked_on ok=%v err=%v", ok, err)
 	}

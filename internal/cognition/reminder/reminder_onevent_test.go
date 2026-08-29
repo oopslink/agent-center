@@ -49,7 +49,7 @@ func TestOnEvent_Validate_Vocabulary(t *testing.T) {
 		wantErr bool
 	}{
 		{"task completed", OnEvent{EntityType: EntityTask, EntityID: "T1", Event: "completed"}, false},
-		{"task blocked", OnEvent{EntityType: EntityTask, EntityID: "T1", Event: "blocked"}, false},
+		{"task failed", OnEvent{EntityType: EntityTask, EntityID: "T1", Event: "failed"}, false},
 		{"task discarded", OnEvent{EntityType: EntityTask, EntityID: "T1", Event: "discarded"}, false},
 		{"task reopened", OnEvent{EntityType: EntityTask, EntityID: "T1", Event: "reopened"}, false},
 		{"plan completed", OnEvent{EntityType: EntityPlan, EntityID: "P1", Event: "completed"}, false},

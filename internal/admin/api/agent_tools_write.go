@@ -27,7 +27,7 @@ import (
 //	post_message       — append a message to a DM/channel, task, or issue   (1 write)
 //	                     (T200 WS4: target{type,id} unifies the former post_message/
 //	                     post_task_message/post_issue_message trio)
-//	block_task         — post a reason + pm.BlockTask(blocked)            (ATOMIC)
+//	fail_task/block_task compat — post a reason + pm.FailTask(failed)     (ATOMIC)
 //	complete_task      — post a summary + pm.CompleteTask(completed)      (ATOMIC)
 //
 // Every tool goes through requireAgentOnWorker (the b1 guardrail: worker proven
@@ -736,7 +736,7 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if strings.TrimSpace(req.Reason) == "" {
-		writeError(w, http.StatusBadRequest, "missing_reason", "blocked requires a reason")
+		writeError(w, http.StatusBadRequest, "missing_reason", "failed requires a detailed reason")
 		return
 	}
 	// reason_type defaults to obstacle when omitted; the pm service rejects any
@@ -761,14 +761,15 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Reason, ""); err != nil {
 			return err
 		}
-		return d.PMService.BlockTask(txCtx, pm.TaskID(req.TaskID), req.Reason, reasonType,
+		_ = reasonType // accepted only for backward-compatible callers.
+		return d.PMService.FailTask(txCtx, pm.TaskID(req.TaskID), req.Reason,
 			pm.IdentityRef(agentActor(a)))
 	})
 	if err != nil {
 		mapDomainError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "blocked"})
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "failed"})
 }
 
 // --- unblock_task (v2.9.1 P0 recovery) ---------------------------------------
@@ -788,6 +789,8 @@ type unblockTaskReq struct {
 // does NOT requireOwnTask; the pm service enforces project membership (+ rejects an
 // archived project). Unblocking a non-blocked task is an illegal transition (4xx).
 func (s *Server) unblockTaskHandler(w http.ResponseWriter, r *http.Request) {
+	writeError(w, http.StatusGone, "unblock_retired", "unblock_task is retired; failed tasks are terminal")
+	return
 	d := hd(r)
 	var req unblockTaskReq
 	if err := decodeJSON(r, &req); err != nil {
@@ -1232,7 +1235,7 @@ type discardTaskReq struct {
 
 // discardTaskHandler is the agent-facing path to DISCARD a non-terminal Task
 // (open/running → discarded), for a superseded or mis-created task. It mirrors
-// complete_task: an OPTIONAL reason is posted to the task Conversation first, then
+// complete_task: a REQUIRED reason is posted to the task Conversation first, then
 // pm.DiscardTask runs — ATOMICALLY (one outer RunInTx). The pm service rejects a
 // terminal task (completed/discarded → illegal transition → 4xx). Closes the
 // agent-tools gap (the discard capability existed in the service + Web UI only).
@@ -1264,14 +1267,16 @@ func (s *Server) discardTaskHandler(w http.ResponseWriter, r *http.Request) {
 	if !s.requireAgentTaskWrite(w, r, d, a, req.TaskID) {
 		return
 	}
+	if strings.TrimSpace(req.Reason) == "" {
+		writeError(w, http.StatusBadRequest, "missing_reason", "discard_task requires a reason")
+		return
+	}
 	err := persistence.RunInTx(r.Context(), d.DB, func(txCtx context.Context) error {
-		if strings.TrimSpace(req.Reason) != "" {
-			if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Reason, ""); err != nil {
-				return err
-			}
+		if _, err := s.postAgentMessage(txCtx, d, a, req.TaskID, req.Reason, ""); err != nil {
+			return err
 		}
-		return d.PMService.DiscardTask(txCtx, pm.TaskID(req.TaskID),
-			pm.IdentityRef(agentActor(a)))
+		return d.PMService.DiscardTaskWithReason(txCtx, pm.TaskID(req.TaskID),
+			pm.IdentityRef(agentActor(a)), req.Reason)
 	})
 	if err != nil {
 		mapDomainError(w, err)

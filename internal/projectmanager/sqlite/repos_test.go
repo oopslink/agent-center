@@ -162,7 +162,7 @@ func TestTaskRepo_RoundTripWithAllFields(t *testing.T) {
 	if err := tr.Save(ctx, tk); err != nil {
 		t.Fatal(err)
 	}
-	// drive through assignment + block + complete and persist each
+	// drive through assignment + legacy block/fail and persist it
 	_ = tk.Assign("agent:c", t0)
 	_ = tk.Start(t0)
 	_ = tk.Block("waiting", pm.BlockReasonObstacle, "agent:c", t0)
@@ -170,22 +170,11 @@ func TestTaskRepo_RoundTripWithAllFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, _ := tr.FindByID(ctx, "T1")
-	// ADR-0054: Block PARKS the task — the status really moves to `blocked` (that is what
-	// stops dispatch) AND the reason annotation is still written. Both must survive the
-	// round-trip: pm_tasks.status is a free TEXT column (no CHECK), so a status the repo
-	// failed to persist would come back silently wrong rather than as an error.
-	if got.Status() != pm.TaskBlocked || got.Assignee() != "agent:c" || got.BlockedReason() != "waiting" || got.DerivedFromIssue() != "I1" {
+	if got.Status() != pm.TaskFailed || got.Assignee() != "agent:c" || got.FailedReason() != "waiting" || got.DerivedFromIssue() != "I1" {
 		t.Fatalf("task round-trip lost fields: %+v", got)
 	}
-	if got.BlockedReasonType() != pm.BlockReasonObstacle {
-		t.Fatalf("blocked_reason_type not persisted: %q", got.BlockedReasonType())
-	}
-	_ = got.Unblock("", "agent:c", t0)
-	_ = got.Complete("agent:c", t0)
-	_ = tr.Update(ctx, got)
-	re, _ := tr.FindByID(ctx, "T1")
-	if re.Status() != pm.TaskCompleted || re.CompletedBy() != "agent:c" || re.BlockedReason() != "" {
-		t.Fatalf("completed round-trip wrong: %+v", re)
+	if got.BlockedReason() != "" || got.BlockedReasonType() != "" {
+		t.Fatalf("legacy block fields should be clear: %q/%q", got.BlockedReason(), got.BlockedReasonType())
 	}
 	// list by project + assignee
 	if l, _ := tr.ListByProject(ctx, "P1"); len(l) != 1 {
@@ -220,7 +209,7 @@ func TestTaskRepo_ListByStatuses(t *testing.T) {
 		t.Fatalf("ListByStatuses(completed) = %+v", l)
 	}
 	// multi status (the non-terminal active set excludes the completed task)
-	active := []pm.TaskStatus{pm.TaskOpen, pm.TaskRunning, pm.TaskBlocked}
+	active := []pm.TaskStatus{pm.TaskOpen, pm.TaskRunning}
 	if l, _ := tr.ListByStatuses(ctx, active); len(l) != 1 || l[0].ID() != "T-open" {
 		t.Fatalf("ListByStatuses(active) = %+v", l)
 	}
@@ -312,13 +301,13 @@ func TestTaskRepo_CountByStatus(t *testing.T) {
 	save("T1", "PA", pm.TaskRunning, t0)
 	save("T2", "PB", pm.TaskRunning, late)
 	save("T3", "PA", pm.TaskCompleted, late)
-	save("T4", "PC", pm.TaskBlocked, t0)
+	save("T4", "PC", pm.TaskFailed, t0)
 
 	got, err := tr.CountByStatus(ctx, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := map[pm.TaskStatus]int{pm.TaskRunning: 2, pm.TaskCompleted: 1, pm.TaskBlocked: 1}
+	want := map[pm.TaskStatus]int{pm.TaskRunning: 2, pm.TaskCompleted: 1, pm.TaskFailed: 1}
 	if len(got) != len(want) {
 		t.Fatalf("status classes mismatch: got %v want %v", got, want)
 	}
@@ -336,8 +325,8 @@ func TestTaskRepo_CountByStatus(t *testing.T) {
 	if got2[pm.TaskRunning] != 1 || got2[pm.TaskCompleted] != 1 {
 		t.Fatalf("since-filtered counts wrong: got %v", got2)
 	}
-	if got2[pm.TaskBlocked] != 0 {
-		t.Fatalf("since must exclude the early blocked task: got %v", got2)
+	if got2[pm.TaskFailed] != 0 {
+		t.Fatalf("since must exclude the early failed task: got %v", got2)
 	}
 }
 
@@ -418,7 +407,6 @@ func TestTaskRepo_CountActiveByAssignee(t *testing.T) {
 	save("T1", "PA", pm.TaskRunning, a1)   // a1 doing
 	save("T2", "PB", pm.TaskOpen, a1)      // a1 pending (other project)
 	save("T3", "PA", pm.TaskOpen, a1)      // a1 pending
-	save("T7", "PA", pm.TaskBlocked, a1)   // a1 pending (re-dispatchable)
 	save("T4", "PA", pm.TaskRunning, a2)   // a2 doing
 	save("T5", "PA", pm.TaskCompleted, a1) // terminal — excluded
 	save("T6", "PA", pm.TaskOpen, "")      // unassigned — excluded
@@ -427,7 +415,7 @@ func TestTaskRepo_CountActiveByAssignee(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got[a1].Running != 1 || got[a1].Pending != 3 {
+	if got[a1].Running != 1 || got[a1].Pending != 2 {
 		t.Fatalf("a1: got %+v want {Running:1 Pending:3}", got[a1])
 	}
 	if got[a2].Running != 1 || got[a2].Pending != 0 {

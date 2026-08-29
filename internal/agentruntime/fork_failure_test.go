@@ -84,19 +84,16 @@ func TestSpawnExecutor_NoModelResolvable_BlocksWithCause(t *testing.T) {
 		t.Fatalf("SpawnExecutor (no model) = (%v, %v), want failed/no_model_resolvable", res, err)
 	}
 	seen := sc.toolsSeen()
-	if len(seen) != 5 || seen[0] != "get_task" || seen[1] != "list_files" || seen[2] != "start_task" || seen[3] != "get_team_rule_index" || seen[4] != "block_task" {
-		t.Fatalf("tool calls = %v, want [get_task list_files start_task get_team_rule_index block_task] (fork-fail must fail-loud → block, not silent)", seen)
+	if len(seen) != 5 || seen[0] != "get_task" || seen[1] != "list_files" || seen[2] != "start_task" || seen[3] != "get_team_rule_index" || seen[4] != "fail_task" {
+		t.Fatalf("tool calls = %v, want [get_task list_files start_task get_team_rule_index fail_task] (fork-fail must fail-loud → fail, not silent)", seen)
 	}
-	body, ok := sc.callFor("block_task")
+	body, ok := sc.callFor("fail_task")
 	if !ok {
-		t.Fatal("block_task not called — fork-fail was silent (the P0 hole)")
-	}
-	if body["reason_type"] != "obstacle" {
-		t.Errorf("reason_type = %v, want obstacle (retryable)", body["reason_type"])
+		t.Fatal("fail_task not called — fork-fail was silent (the P0 hole)")
 	}
 	reason, _ := body["reason"].(string)
 	if !strings.Contains(reason, "[cause=no_model_resolvable]") {
-		t.Fatalf("block_task reason = %q, want machine-readable [cause=no_model_resolvable]", reason)
+		t.Fatalf("fail_task reason = %q, want machine-readable [cause=no_model_resolvable]", reason)
 	}
 }
 
@@ -113,15 +110,12 @@ func TestBlockTaskOnForkFailure_RateLimited(t *testing.T) {
 	rt.blockTaskOnForkFailure(context.Background(),
 		"agent-rl", "task-rl", errors.New("executor fork: anthropic API error: 429 Too Many Requests (rate limit)"))
 
-	body, ok := sc.callFor("block_task")
+	body, ok := sc.callFor("fail_task")
 	if !ok {
-		t.Fatal("block_task not called for a rate-limited fork failure")
-	}
-	if body["reason_type"] != "obstacle" {
-		t.Errorf("reason_type = %v, want obstacle (retryable)", body["reason_type"])
+		t.Fatal("fail_task not called for a rate-limited fork failure")
 	}
 	reason, _ := body["reason"].(string)
 	if !strings.Contains(reason, "[cause=rate_limited]") {
-		t.Fatalf("block_task reason = %q, want machine-readable [cause=rate_limited]", reason)
+		t.Fatalf("fail_task reason = %q, want machine-readable [cause=rate_limited]", reason)
 	}
 }

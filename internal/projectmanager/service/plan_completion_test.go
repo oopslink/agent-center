@@ -109,8 +109,8 @@ func TestPlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shap
 		}
 	}
 
-	h.setTaskStatus(t, oldT1286, pm.TaskDiscarded)
-	h.setTaskStatus(t, oldT1287, pm.TaskDiscarded)
+	h.setTaskStatus(t, oldT1286, pm.TaskFailed)
+	h.setTaskStatus(t, oldT1287, pm.TaskFailed)
 	completedBeforeFinalAcceptance := append([]pm.TaskID{remediate1286, remediate1287, reverify, integrate}, baseline...)
 	for _, id := range completedBeforeFinalAcceptance {
 		h.setTaskStatus(t, id, pm.TaskCompleted)
@@ -170,7 +170,7 @@ func TestPlanCompletion_RemediatedHistoricalFailuresAutoCompletePlan5a432139Shap
 		if err != nil {
 			t.Fatal(err)
 		}
-		if task.Status() != pm.TaskDiscarded {
+		if task.Status() != pm.TaskFailed {
 			t.Fatalf("historical task %s status=%s want discarded", id, task.Status())
 		}
 	}
@@ -235,8 +235,8 @@ func TestPlanCompletion_LegacyPlan5a432139CompletesWithoutLineageBackfill(t *tes
 	for _, id := range prep {
 		h.setTaskStatus(t, id, pm.TaskCompleted)
 	}
-	h.setTaskStatus(t, oldT1286, pm.TaskDiscarded)
-	h.setTaskStatus(t, oldT1287, pm.TaskDiscarded)
+	h.setTaskStatus(t, oldT1286, pm.TaskFailed)
+	h.setTaskStatus(t, oldT1287, pm.TaskFailed)
 	h.setTaskStatus(t, recovery, pm.TaskCompleted)
 	h.setTaskStatus(t, remediation, pm.TaskCompleted)
 	h.setTaskStatus(t, ship, pm.TaskCompleted)
@@ -291,7 +291,7 @@ func TestPlanCompletion_LegacyPlan5a432139CompletesWithoutLineageBackfill(t *tes
 		if err != nil {
 			t.Fatal(err)
 		}
-		if task.Status() != pm.TaskDiscarded || task.FollowsTaskID() != "" || task.OriginVerdictID() != "" {
+		if task.Status() != pm.TaskFailed || task.FollowsTaskID() != "" || task.OriginVerdictID() != "" {
 			t.Fatalf("legacy task %s mutated: status=%s follows=%s origin=%s", id, task.Status(), task.FollowsTaskID(), task.OriginVerdictID())
 		}
 	}
@@ -344,7 +344,7 @@ func TestPlanCompletion_RealLegacyPlan5a432139GraphCompletes(t *testing.T) {
 	for i, id := range ids {
 		status := pm.TaskCompleted
 		if i == 4 || i == 5 {
-			status = pm.TaskDiscarded
+			status = pm.TaskFailed
 		}
 		h.setTaskStatus(t, id, status)
 	}
@@ -385,7 +385,7 @@ func TestPlanCompletion_UnrelatedLegacyRecoveryChainDoesNotReplaceFailure(t *tes
 		h.setTaskStatus(t, id, pm.TaskCompleted)
 	}
 	for _, id := range []pm.TaskID{aFailed, bFailed} {
-		h.setTaskStatus(t, id, pm.TaskDiscarded)
+		h.setTaskStatus(t, id, pm.TaskFailed)
 	}
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
 		t.Fatal(err)
@@ -407,7 +407,7 @@ func TestPlanCompletion_ManualCompleteAcceptsRemediatedHistoricalFailure(t *test
 	if err := h.svc.AddPlanDependency(ctx, planID, fix, old, "user:a"); err != nil {
 		t.Fatal(err)
 	}
-	h.setTaskStatus(t, old, pm.TaskDiscarded)
+	h.setTaskStatus(t, old, pm.TaskFailed)
 	h.setTaskStatus(t, fix, pm.TaskCompleted)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
 		t.Fatal(err)
@@ -429,7 +429,7 @@ func TestPlanCompletion_LegacyContinuationStagesProvideReplacementLineage(t *tes
 	h.drain(t)
 	old := h.seedAssignedTask(t, pid, planID, "old failed stage task", "user:dev1")
 	replacement := h.seedAssignedTask(t, pid, planID, "replacement without follows_task_id", "user:dev2")
-	h.setTaskStatus(t, old, pm.TaskDiscarded)
+	h.setTaskStatus(t, old, pm.TaskFailed)
 	h.setTaskStatus(t, replacement, pm.TaskCompleted)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
 		t.Fatal(err)
@@ -529,7 +529,7 @@ func TestPlanCompletion_UnremediatedFailureBlocksAutoAndManualCompletion(t *test
 	if err := h.svc.AddPlanDependency(ctx, planID, accept, failed, "user:a"); err != nil {
 		t.Fatal(err)
 	}
-	h.setTaskStatus(t, failed, pm.TaskDiscarded)
+	h.setTaskStatus(t, failed, pm.TaskFailed)
 	h.setTaskStatus(t, accept, pm.TaskCompleted)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
 		t.Fatal(err)
@@ -561,7 +561,7 @@ func TestPlanCompletion_LegacyFailedLeafWithoutRecoveryChainStillBlocks(t *testi
 	h.drain(t)
 	failed := h.seedAssignedTask(t, pid, planID, "T1286 failed implementation", "user:dev")
 	finalAcceptance := h.seedAssignedTask(t, pid, planID, "final acceptance", "user:pd")
-	h.setTaskStatus(t, failed, pm.TaskDiscarded)
+	h.setTaskStatus(t, failed, pm.TaskFailed)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
 		t.Fatal(err)
 	}
@@ -594,7 +594,7 @@ func TestPlanCompletion_ForceRequiresReasonAndBypassesEligibility(t *testing.T) 
 	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "manual override", CreatedBy: "user:a"})
 	h.drain(t)
 	failed := h.seedAssignedTask(t, pid, planID, "unrecovered failure", "user:dev")
-	h.setTaskStatus(t, failed, pm.TaskDiscarded)
+	h.setTaskStatus(t, failed, pm.TaskFailed)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
 		t.Fatal(err)
 	}

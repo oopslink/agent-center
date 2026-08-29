@@ -24,7 +24,7 @@ var AgentFacingToolNames = []string{
 	"archive_plan",
 	"assign_task",
 	"attach_file",
-	"block_task",
+	"fail_task",
 	"heartbeat", // v2.14.0 I14/F5 §五/§2.5: renew the running task's execution lease
 	"complete_task",
 	"complete_plan",
@@ -40,9 +40,6 @@ var AgentFacingToolNames = []string{
 	// 2026-07-03 plan-stage-model §6: Stage authoring + read.
 	"create_stage",
 	"get_stage",
-	// v2.9.1 P0 recovery tools (deliberately agent-facing: owner/PD recover a
-	// task stuck blocked after a restart/stale-release).
-	"unblock_task",
 	"reset_task", // T862 tier-3 recovery: reset a dead-executor task back to the pool
 	"rerun_failed_node",
 	"resume_paused_node",

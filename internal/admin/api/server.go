@@ -433,6 +433,7 @@ func (s *Server) routes() {
 	// message through the same MessageWriter path as human-created DMs.
 	s.mux.HandleFunc("POST /admin/agent-tools/start_dm", s.startDMHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/block_task", s.blockTaskHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/fail_task", s.blockTaskHandler)
 	// v2.9.1 P0 recovery: pull a deadlocked-blocked task back to executable.
 	s.mux.HandleFunc("POST /admin/agent-tools/unblock_task", s.unblockTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/reset_task", s.resetTaskHandler) // T862 tier-3 recovery

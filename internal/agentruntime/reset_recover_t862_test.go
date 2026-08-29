@@ -83,12 +83,12 @@ func TestEscalateRecoveryExhausted_ClearsCurrentTaskID_T887(t *testing.T) {
 
 	rt.escalateRecoveryExhausted(context.Background(), "task-77", "exec-1", true)
 
-	body, ok := tc.callFor("block_task")
+	body, ok := tc.callFor("fail_task")
 	if !ok {
-		t.Fatalf("escalate must call block_task; tools seen: %v", tc.toolsSeen())
+		t.Fatalf("escalate must call fail_task; tools seen: %v", tc.toolsSeen())
 	}
 	if body["task_id"] != "task-77" {
-		t.Fatalf("block_task task_id = %v, want task-77", body["task_id"])
+		t.Fatalf("fail_task task_id = %v, want task-77", body["task_id"])
 	}
 	if rt.state.CurrentTaskID != "" {
 		t.Fatalf("escalate must clear CurrentTaskID (stop lease renewal), got %q", rt.state.CurrentTaskID)

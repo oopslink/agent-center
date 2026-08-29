@@ -6,12 +6,9 @@
 // unified, deduped, severity-sorted list of attention items drawn from TWO
 // sources UNIONed:
 //
-//   1. kind=task  — actionable STUCK tasks: a RUNNING task carrying a non-empty
-//      blocked_reason whose blocked_reason_type is input_required (an agent needs
-//      the user's reply) or obstacle (an external blocker needs owner/PM action).
-//      This is the panel's pre-existing source (web/src/api/stuckTasks.ts derived
-//      it client-side from GET /tasks); mirroring it server-side here means the
-//      unified endpoint never regresses it.
+//   1. kind=task  — legacy actionable STUCK tasks: old rows may still carry a
+//      non-empty blocked_reason on a running task. New work should use failed
+//      terminal state plus directed mentions/failure evolution instead.
 //
 //   2. kind=mention — the human's DIRECTED unread: every unread DM message + every
 //      unread @mention of the human in any other conversation kind (channel /
@@ -92,9 +89,10 @@ func (s *Server) listAttentionHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"items": out})
 }
 
-// collectStuckTaskItems appends one kind=task item per actionable stuck task
-// (RUNNING + non-empty blocked_reason ∈ {input_required, obstacle}) and records
-// the task ids for dedup. Fail-soft: a PM read error yields no task items.
+// collectStuckTaskItems appends one kind=task item per legacy actionable stuck
+// task (RUNNING + non-empty blocked_reason ∈ {input_required, obstacle}) and
+// records the task ids for dedup. Fail-soft: a PM read error yields no task
+// items.
 func (s *Server) collectStuckTaskItems(
 	r *http.Request, d HandlerDeps, orgID string, rows []attnRow, stuckTaskIDs map[string]bool,
 ) []attnRow {
@@ -117,13 +115,7 @@ func (s *Server) collectStuckTaskItems(
 	}
 	tasks, _, lerr := d.PM.ListTasksOrgPage(r.Context(), pm.OrgListQuery{
 		ProjectIDs: ids,
-		// ADR-0054: a stuck task is `blocked` — this list MUST include that status or the
-		// Alerts rail goes dark on exactly the tasks it exists to surface (a blocked task
-		// would silently stop being anybody's attention). `running` stays for LEGACY rows
-		// parked the ADR-0046 way (status=running + a blocked_reason, written before this
-		// change); the blocked_reason/type filter below is what actually selects, so both
-		// shapes flow through one loop and neither is listed twice.
-		Statuses: []string{string(pm.TaskBlocked), string(pm.TaskRunning)},
+		Statuses:   []string{string(pm.TaskRunning)},
 	})
 	if lerr != nil {
 		return rows

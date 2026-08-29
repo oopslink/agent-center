@@ -2,7 +2,6 @@ package projectmanager
 
 import (
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -10,23 +9,14 @@ import (
 // TaskStatus enum + state machine. ADR-0055 makes terminal facts immutable:
 //
 //	open → running → completed
-//	running → blocked → running
-//	open/running/blocked → discarded (terminal)
+//	open/running → failed/discarded (terminal)
 //
 // Migration 0120 converts legacy `reopened` rows to open. `reopened` is not a
 // valid persisted or writable Task status anymore.
 //
-// `blocked` (I107 ②) is a REAL state again, not the annotation ADR-0046 made it. The
-// annotation could not stop dispatch: block_task wrote `blocked_reason` but left
-// status=running, so it marked rather than interrupted, and any re-drive forked a
-// FRESH empty-context executor onto paused work. `blocked_reason` /
-// `blocked_reason_type` REMAIN as the reason-carrying annotation (every reason-keyed
-// consumer is unchanged) — the status is what actually stops the dispatch path.
-//
-// The T16 deadlock class ADR-0046 removed stays removed: blocked carries a forward
-// exit (blocked→running via unblock), which TestTaskStates_NoDeadlockableState pins
-// for EVERY non-terminal state. It is not terminal, so it is not reaped as concluded
-// work.
+// Migration 0153 converts persisted `blocked` rows to failed with a failed_reason.
+// `blocked` remains as a legacy constant only for defensive reads/migration code; new
+// writes must use failed for work that cannot progress.
 //
 // "verified" stays removed (unused; the "nobody self-accepts" discipline lives in
 // process — PD §-1 + Tester/Tester2 — not in a task state). The former "assigned"
@@ -36,18 +26,17 @@ type TaskStatus string
 const (
 	TaskOpen TaskStatus = "open"
 	// TaskRunning means an executor is actually in flight on this task.
-	TaskRunning TaskStatus = "running"
-	// TaskBlocked means the task is PARKED on a blocked_reason (I107 ②): dispatch is
-	// really stopped, not merely annotated. Non-terminal; recovered via unblock.
-	TaskBlocked   TaskStatus = "blocked"
+	TaskRunning   TaskStatus = "running"
+	TaskBlocked   TaskStatus = "blocked" // legacy only; migrated to failed
 	TaskCompleted TaskStatus = "completed"
+	TaskFailed    TaskStatus = "failed"
 	TaskDiscarded TaskStatus = "discarded" // was "canceled" (v2.8.1 rename)
 )
 
 // IsValid reports enum membership.
 func (s TaskStatus) IsValid() bool {
 	switch s {
-	case TaskOpen, TaskRunning, TaskBlocked, TaskCompleted, TaskDiscarded:
+	case TaskOpen, TaskRunning, TaskCompleted, TaskFailed, TaskDiscarded:
 		return true
 	}
 	return false
@@ -61,7 +50,7 @@ func (s TaskStatus) IsValid() bool {
 // IsTerminal, and no such test existed — so two new non-terminal statuses broke nothing and
 // were silently excluded from every active view.)
 func AllTaskStatuses() []TaskStatus {
-	return []TaskStatus{TaskOpen, TaskRunning, TaskBlocked, TaskCompleted, TaskDiscarded}
+	return []TaskStatus{TaskOpen, TaskRunning, TaskCompleted, TaskFailed, TaskDiscarded}
 }
 
 // taskTransitions is the allowed-transition adjacency. Start moves open→running
@@ -69,13 +58,10 @@ func AllTaskStatuses() []TaskStatus {
 // is a non-terminal state that keeps a forward exit, so the ADR-0046 "enters but
 // cannot leave" deadlock class (T16) stays unreachable.
 var taskTransitions = map[TaskStatus][]TaskStatus{
-	TaskOpen:    {TaskRunning, TaskDiscarded},
-	TaskRunning: {TaskBlocked, TaskCompleted, TaskDiscarded},
-	// blocked exits: → running is Unblock (the recovery entrypoint), → completed lets an
-	// owner conclude a parked task without an unblock hop (preserves the pre-ADR-0054
-	// "complete a blocked task" path), → discarded retires it.
-	TaskBlocked:   {TaskRunning, TaskCompleted, TaskDiscarded},
+	TaskOpen:      {TaskRunning, TaskFailed, TaskDiscarded},
+	TaskRunning:   {TaskCompleted, TaskFailed, TaskDiscarded},
 	TaskCompleted: {}, // terminal: follow-up work is a new Task/Remediation Stage
+	TaskFailed:    {}, // terminal: replacement work is produced by plan evolution
 	TaskDiscarded: {}, // terminal
 }
 
@@ -90,8 +76,8 @@ func (s TaskStatus) CanTransitionTo(to TaskStatus) bool {
 }
 
 // IsTerminal reports whether the task has reached a concluded state: work is done
-// (completed) or abandoned (discarded). Terminal tasks never become active again.
-// The active / non-terminal set is exactly {open, running, blocked}.
+// (completed), failed, or abandoned (discarded). Terminal tasks never become active again.
+// The active / non-terminal set is exactly {open, running}.
 // v2.7 #107 Phase-2 (proj-B): the observability default task-query set is the
 // non-terminal set.
 //
@@ -100,28 +86,15 @@ func (s TaskStatus) CanTransitionTo(to TaskStatus) bool {
 // IsDispatchable for the former.
 func (s TaskStatus) IsTerminal() bool {
 	switch s {
-	case TaskCompleted, TaskDiscarded:
+	case TaskCompleted, TaskFailed, TaskDiscarded:
 		return true
 	}
 	return false
 }
 
-// IsParked reports whether the task is non-terminal but carries NO live execution and
-// must NOT be (re-)dispatched: `blocked` (parked on a reason, waiting on a human).
-// It is the I107 ②/③ load-bearer
-// — the ONE named predicate every dispatch / re-drive / recovery path asks instead of
-// re-deriving "which statuses mean stop" from a literal set, so a future state cannot be
-// added to the enum and silently forgotten by one gate (the taskReassigned /
-// point-recovery misses that produced past P0s were exactly that shape).
-//
-// A parked task is still ACTIVE work (non-terminal): it keeps its assignee, stays in
-// every active/board view, and is recovered forward by unblock. It just has nothing
-// in flight to relaunch, so relaunching it forks a fresh empty-context executor.
+// IsParked is retained for older gates; the active task lifecycle no longer has a
+// parked state. Work that cannot progress is terminal failed with failed_reason.
 func (s TaskStatus) IsParked() bool {
-	switch s {
-	case TaskBlocked:
-		return true
-	}
 	return false
 }
 
@@ -244,6 +217,7 @@ const (
 	// woken to continue — the task never leaves running and the assignee never changes.
 	TaskActionLeaseNudged TaskAction = "lease_nudge"
 	TaskActionCompleted   TaskAction = "completed"
+	TaskActionFailed      TaskAction = "failed"
 	// TaskActionReset (T862) records a tier-3 recovery RESET: a confirmed-dead running
 	// task whose lease has ALSO lapsed is returned to open with the assignee cleared so
 	// the pool re-dispatches it to a FRESH executor. Distinct from lease_expired (which
@@ -300,6 +274,7 @@ type Task struct {
 	derivedFromIssue IssueID     // empty when independent
 	completedBy      IdentityRef // who set completed (enforces no self-verify)
 	blockedReason    string
+	failedReason     string
 	createdBy        IdentityRef
 	createdAt        time.Time
 	updatedAt        time.Time
@@ -480,6 +455,7 @@ type RehydrateTaskInput struct {
 	DerivedFromIssue IssueID
 	CompletedBy      IdentityRef
 	BlockedReason    string
+	FailedReason     string
 	CreatedBy        IdentityRef
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
@@ -549,6 +525,7 @@ func RehydrateTask(in RehydrateTaskInput) (*Task, error) {
 		derivedFromIssue:        in.DerivedFromIssue,
 		completedBy:             in.CompletedBy,
 		blockedReason:           in.BlockedReason,
+		failedReason:            in.FailedReason,
 		createdBy:               in.CreatedBy,
 		createdAt:               in.CreatedAt.UTC(),
 		updatedAt:               in.UpdatedAt.UTC(),
@@ -598,6 +575,7 @@ func (t *Task) Assignee() IdentityRef     { return t.assignee }
 func (t *Task) DerivedFromIssue() IssueID { return t.derivedFromIssue }
 func (t *Task) CompletedBy() IdentityRef  { return t.completedBy }
 func (t *Task) BlockedReason() string     { return t.blockedReason }
+func (t *Task) FailedReason() string      { return t.failedReason }
 func (t *Task) CreatedBy() IdentityRef    { return t.createdBy }
 
 // BlockedReasonType / BlockedComment expose the v2.14.0 I14 block annotation
@@ -971,13 +949,11 @@ func (t *Task) Unassign(at time.Time) error {
 // edge would let the very re-drive this issue exists to stop quietly un-park a task and
 // fork a fresh empty-context executor onto it. Recover a parked task through Unblock.
 func (t *Task) Start(at time.Time) error {
-	if t.status.IsParked() {
-		return ErrTaskParked
-	}
 	if err := t.simpleTransition(TaskRunning, at); err != nil {
 		return err
 	}
 	t.blockedReason = ""
+	t.failedReason = ""
 	return nil
 }
 
@@ -1025,14 +1001,40 @@ func (t *Task) Block(reason string, reasonType BlockReasonType, agentRef Identit
 	if strings.TrimSpace(reason) == "" {
 		return ErrBlockReasonRequired
 	}
-	t.status = TaskBlocked
+	t.status = TaskFailed
 	t.statusChangedAt = at.UTC()
-	t.blockedReason = reason
-	t.blockedReasonType = reasonType
+	t.blockedReason = ""
+	t.blockedReasonType = ""
+	t.blockedComment = ""
+	t.failedReason = reason
+	t.executionLeaseExpiresAt = nil
+	t.appendLog(TaskActionFailed, agentRef, agentRef, reason, at)
+	t.touch(at)
+	return nil
+}
+
+// Fail moves open/running to failed. Failed is terminal and must carry a detailed
+// failed_reason for plan evolution.
+func (t *Task) Fail(reason string, actor IdentityRef, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return ErrFailReasonRequired
+	}
+	if err := t.simpleTransition(TaskFailed, at); err != nil {
+		return err
+	}
+	t.failedReason = reason
+	t.blockedReason = ""
+	t.blockedReasonType = ""
 	t.blockedComment = ""
 	t.executionLeaseExpiresAt = nil
-	t.appendLog(TaskActionBlocked, agentRef, agentRef, fmt.Sprintf("[%s] %s", reasonType, reason), at)
-	t.touch(at)
+	t.appendLog(TaskActionFailed, actor, t.assignee, reason, at)
 	return nil
 }
 
@@ -1229,15 +1231,10 @@ func (t *Task) ResetToOpen(at time.Time, bypassLease bool) error {
 	return nil
 }
 
-// BlockForResetExhaustion trips the T862 §2B circuit breaker: a running task whose
-// recovery_reset_count has reached MaxRecoveryResets is BLOCKED (obstacle annotation,
-// lease cleared — a legal pause) for PD triage INSTEAD of being reset again, because a
-// reset loop signals a bad task or a broken environment auto-recovery cannot fix. Unlike
-// Block it is a SYSTEM action (no assignee-match requirement — the assignee is the dead
-// executor) and logs the DISTINCT reset_exhausted action so triage can tell a
-// recovery-loop trip from a normal agent block. Requires a running task + non-empty
-// reason; does NOT change status (blocked is a running annotation, ADR-0046) and does NOT
-// touch recovery_reset_count (the tally stays at the cap as the durable record).
+// BlockForResetExhaustion trips the T862 §2B circuit breaker. The old lifecycle parked
+// the task as blocked; the evolution-first lifecycle terminally fails it with a detailed
+// reason so the next generation can decide whether to retry, replace, or request human
+// intervention.
 func (t *Task) BlockForResetExhaustion(reason string, at time.Time) error {
 	if t.IsArchived() {
 		return ErrTaskArchived
@@ -1248,12 +1245,16 @@ func (t *Task) BlockForResetExhaustion(reason string, at time.Time) error {
 	if strings.TrimSpace(reason) == "" {
 		return ErrBlockReasonRequired
 	}
-	t.blockedReason = reason
-	t.blockedReasonType = BlockReasonObstacle
+	t.status = TaskFailed
+	t.statusChangedAt = at.UTC()
+	t.failedReason = strings.TrimSpace(reason)
+	t.blockedReason = ""
+	t.blockedReasonType = ""
 	t.blockedComment = ""
 	t.executionLeaseExpiresAt = nil
 	t.appendLog(TaskActionRecoveryRequired, IdentityRef("system"), t.assignee, reason, at)
 	t.appendLog(TaskActionResetExhausted, IdentityRef("system"), t.assignee, reason, at)
+	t.appendLog(TaskActionFailed, IdentityRef("system"), t.assignee, reason, at)
 	t.touch(at)
 	return nil
 }
@@ -1314,6 +1315,7 @@ func (t *Task) Complete(by IdentityRef, at time.Time) error {
 	t.statusChangedAt = at.UTC()
 	t.completedBy = by
 	t.blockedReason = ""
+	t.failedReason = ""
 	t.recoveryResetCount = 0
 	t.fruitlessReopens = 0
 	t.touch(at)
@@ -1327,6 +1329,7 @@ func (t *Task) Discard(at time.Time) error {
 		return err
 	}
 	t.blockedReason = ""
+	t.failedReason = ""
 	return nil
 }
 
@@ -1357,6 +1360,9 @@ func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
 		t.completedAt = at.UTC()
 	} else {
 		t.completedAt = time.Time{}
+	}
+	if target != TaskFailed {
+		t.failedReason = ""
 	}
 	t.touch(at)
 	return nil

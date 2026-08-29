@@ -314,10 +314,7 @@ func seedAuditedTaskForAgent(t *testing.T, svc *pmservice.Service, assignee stri
 	if err := svc.StartTask(ctx, tid, pm.IdentityRef(assignee)); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.BlockTask(ctx, tid, "token=must-not-leak", pm.BlockReasonObstacle, pm.IdentityRef(assignee)); err != nil {
-		t.Fatal(err)
-	}
-	if err := svc.UnblockTask(ctx, pmservice.UnblockTaskCommand{TaskID: tid, Actor: pm.IdentityRef(assignee), Comment: "approved"}); err != nil {
+	if err := svc.FailTask(ctx, tid, "token=must-not-leak", pm.IdentityRef(assignee)); err != nil {
 		t.Fatal(err)
 	}
 	return string(tid)
@@ -335,20 +332,19 @@ func TestGetTaskAuditReadsPersistedLogsPagedAndRedacted(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("status=%d, want 200; body=%v", status, body)
 	}
-	if body["total"] != float64(3) || body["offset"] != float64(1) || body["has_more"] != false {
-		t.Fatalf("page envelope = %v, want total=3 offset=1 has_more=false", body)
+	if body["total"] != float64(2) || body["offset"] != float64(1) || body["has_more"] != false {
+		t.Fatalf("page envelope = %v, want total=2 offset=1 has_more=false", body)
 	}
 	items, ok := body["items"].([]any)
-	if !ok || len(items) != 2 {
-		t.Fatalf("items = %#v, want 2 entries", body["items"])
+	if !ok || len(items) != 1 {
+		t.Fatalf("items = %#v, want 1 entry", body["items"])
 	}
 	first := items[0].(map[string]any)
-	second := items[1].(map[string]any)
-	if first["action"] != string(pm.TaskActionBlocked) || second["action"] != string(pm.TaskActionUnblocked) {
-		t.Fatalf("actions = %v, %v; want blocked, unblocked", first["action"], second["action"])
+	if first["action"] != string(pm.TaskActionFailed) {
+		t.Fatalf("action = %v; want failed", first["action"])
 	}
 	if first["note"] != "[redacted]" {
-		t.Fatalf("blocked note = %v, want [redacted]", first["note"])
+		t.Fatalf("failed note = %v, want [redacted]", first["note"])
 	}
 }
 

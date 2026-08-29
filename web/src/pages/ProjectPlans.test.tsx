@@ -102,7 +102,7 @@ describe('ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan)',
       { task_id: 'TS-FUTURE', title: 'future node', assignee_ref: 'agent:builder', task_status: 'open', node_status: 'blocked', depends_on: ['TS-READY'] },
       { task_id: 'TS-READY', title: 'ready node', assignee_ref: 'agent:builder', task_status: 'open', node_status: 'ready', depends_on: [] },
       { task_id: 'TS-RUNNING', title: 'running node', assignee_ref: 'agent:builder', task_status: 'running', node_status: 'running', depends_on: [] },
-      { task_id: 'TS-BLOCKED', title: 'blocked node', assignee_ref: 'agent:builder', task_status: 'blocked', node_status: 'paused', depends_on: [] },
+      { task_id: 'TS-FAILED', title: 'failed node', assignee_ref: 'agent:builder', task_status: 'failed', node_status: 'failed', depends_on: [] },
     ];
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),

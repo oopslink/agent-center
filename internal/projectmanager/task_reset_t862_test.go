@@ -96,15 +96,14 @@ func TestResetToOpen_BypassLeaseResetsLiveLease(t *testing.T) {
 	}
 }
 
-// bypassLease does NOT loosen the other guards: a blocked (paused) task is still refused
-// even with the owner's tier-3 confirmation (a block is recovered via unblock, not reset).
-func TestResetToOpen_BypassLeaseStillRejectsBlocked(t *testing.T) {
+// bypassLease does NOT loosen terminal guards: a failed task is still refused.
+func TestResetToOpen_BypassLeaseStillRejectsFailed(t *testing.T) {
 	tk := running(t, "agent:c")
 	if err := tk.Block("stuck", BlockReasonObstacle, "agent:c", t0); err != nil {
 		t.Fatalf("Block: %v", err)
 	}
-	if err := tk.ResetToOpen(t0.Add(time.Hour), true); err != ErrTaskBlocked {
-		t.Fatalf("bypass reset on a blocked task must still be ErrTaskBlocked, got %v", err)
+	if err := tk.ResetToOpen(t0.Add(time.Hour), true); err != ErrIllegalTransition {
+		t.Fatalf("bypass reset on a failed task must still be ErrIllegalTransition, got %v", err)
 	}
 }
 
@@ -115,13 +114,13 @@ func TestResetToOpen_RejectsNonRunning(t *testing.T) {
 	}
 }
 
-func TestResetToOpen_RejectsBlocked(t *testing.T) {
+func TestResetToOpen_RejectsFailed(t *testing.T) {
 	tk := running(t, "agent:c")
 	if err := tk.Block("stuck", BlockReasonObstacle, "agent:c", t0); err != nil {
 		t.Fatalf("Block: %v", err)
 	}
-	if err := tk.ResetToOpen(t0.Add(time.Hour), false); err != ErrTaskBlocked {
-		t.Fatalf("reset on a blocked (paused) task must be ErrTaskBlocked, got %v", err)
+	if err := tk.ResetToOpen(t0.Add(time.Hour), false); err != ErrIllegalTransition {
+		t.Fatalf("reset on a failed task must be ErrIllegalTransition, got %v", err)
 	}
 }
 
@@ -149,9 +148,9 @@ func TestComplete_ZeroesRecoveryResetCount(t *testing.T) {
 	}
 }
 
-// --- BlockForResetExhaustion (T862 §2B circuit breaker) ---
+// --- Reset exhaustion failure (T862 §2B circuit breaker) ---
 
-func TestBlockForResetExhaustion_BlocksWithDistinctLog(t *testing.T) {
+func TestBlockForResetExhaustion_FailsWithDistinctLog(t *testing.T) {
 	tk := running(t, "agent:dead")
 	if err := tk.RenewLease(time.Minute, t0); err != nil {
 		t.Fatalf("RenewLease: %v", err)
@@ -160,22 +159,22 @@ func TestBlockForResetExhaustion_BlocksWithDistinctLog(t *testing.T) {
 	if err := tk.BlockForResetExhaustion("reset×3 needs triage", at); err != nil {
 		t.Fatalf("BlockForResetExhaustion: %v", err)
 	}
-	if tk.Status() != TaskRunning {
-		t.Fatalf("exhaustion block keeps status running (annotation), got %s", tk.Status())
+	if tk.Status() != TaskFailed {
+		t.Fatalf("exhaustion must fail the task, got %s", tk.Status())
 	}
-	if tk.BlockedReason() != "reset×3 needs triage" || tk.BlockedReasonType() != BlockReasonObstacle {
-		t.Fatalf("block annotation wrong: %q/%q", tk.BlockedReason(), tk.BlockedReasonType())
+	if tk.FailedReason() != "reset×3 needs triage" {
+		t.Fatalf("failed_reason wrong: %q", tk.FailedReason())
 	}
 	if tk.ExecutionLeaseExpiresAt() != nil {
 		t.Fatal("exhaustion block must clear the lease")
 	}
 	lg := lastLog(t, tk)
-	if lg.Action != TaskActionResetExhausted || lg.ActorRef != "system" {
+	if lg.Action != TaskActionFailed || lg.ActorRef != "system" {
 		t.Fatalf("exhaustion log wrong: %+v", lg)
 	}
 	logs := tk.ActionLogs()
-	if len(logs) < 2 || logs[len(logs)-2].Action != TaskActionRecoveryRequired {
-		t.Fatalf("missing recovery_required log before reset_exhausted: %+v", logs)
+	if len(logs) < 3 || logs[len(logs)-3].Action != TaskActionRecoveryRequired || logs[len(logs)-2].Action != TaskActionResetExhausted {
+		t.Fatalf("missing recovery_required/reset_exhausted logs before failed: %+v", logs)
 	}
 }
 

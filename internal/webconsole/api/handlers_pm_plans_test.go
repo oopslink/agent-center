@@ -256,7 +256,7 @@ func TestPlanAPI_ListSummaries_BoardEnrich(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// planMixed: 3 tasks — one completed (done), one discarded (failed), one open.
+	// planMixed: 3 tasks — one completed (done), one failed, one open.
 	// → progress {1,3}, has_failed true, node_count 3.
 	planMixed := fx.createPlan(t, s, sess, pid, "mixed")
 	tDone := fx.seedSelectedTask(t, sess, pid, planMixed, "done-task", "user:"+sess.IdentityID)
@@ -273,7 +273,7 @@ func TestPlanAPI_ListSummaries_BoardEnrich(t *testing.T) {
 			tFail = tk.ID()
 		}
 	}
-	if err := fx.deps.PM.SetTaskStatus(ctx, tFail, pm.TaskDiscarded, caller); err != nil {
+	if err := fx.deps.PM.SetTaskStatusWithReason(ctx, tFail, pm.TaskFailed, caller, "test failure"); err != nil {
 		t.Fatal(err)
 	}
 

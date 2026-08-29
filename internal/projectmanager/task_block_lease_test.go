@@ -40,15 +40,17 @@ func TestBlock_SetsAnnotationClearsLeaseLogs(t *testing.T) {
 	if err := tk.Block("need a decision", BlockReasonInputRequired, "agent:c", at); err != nil {
 		t.Fatalf("Block: %v", err)
 	}
-	// ADR-0054: Block leaves `running` — that status change IS the circuit-breaker.
-	if tk.Status() != TaskBlocked {
-		t.Fatalf("Block must park the task (status=blocked), got %s", tk.Status())
+	if tk.Status() != TaskFailed {
+		t.Fatalf("Block must fail the task, got %s", tk.Status())
 	}
 	if tk.Assignee() != "agent:c" {
 		t.Fatalf("Block must keep assignee, got %q", tk.Assignee())
 	}
-	if tk.BlockedReason() != "need a decision" || tk.BlockedReasonType() != BlockReasonInputRequired {
+	if tk.BlockedReason() != "" || tk.BlockedReasonType() != "" {
 		t.Fatalf("block annotation wrong: %q / %q", tk.BlockedReason(), tk.BlockedReasonType())
+	}
+	if tk.FailedReason() != "need a decision" {
+		t.Fatalf("failed_reason wrong: %q", tk.FailedReason())
 	}
 	if tk.BlockedComment() != "" {
 		t.Fatalf("Block must reset comment, got %q", tk.BlockedComment())
@@ -57,14 +59,14 @@ func TestBlock_SetsAnnotationClearsLeaseLogs(t *testing.T) {
 		t.Fatal("Block must clear the execution lease")
 	}
 	lg := lastLog(t, tk)
-	if lg.Action != TaskActionBlocked || lg.ActorRef != "agent:c" || lg.AgentRef != "agent:c" {
-		t.Fatalf("blocked log wrong: %+v", lg)
+	if lg.Action != TaskActionFailed || lg.ActorRef != "agent:c" || lg.AgentRef != "agent:c" {
+		t.Fatalf("failed log wrong: %+v", lg)
 	}
-	if lg.Note != "[input_required] need a decision" {
-		t.Fatalf("blocked log note wrong: %q", lg.Note)
+	if lg.Note != "need a decision" {
+		t.Fatalf("failed log note wrong: %q", lg.Note)
 	}
 	if !lg.OccurredAt.Equal(at) {
-		t.Fatalf("blocked log time wrong: %v", lg.OccurredAt)
+		t.Fatalf("failed log time wrong: %v", lg.OccurredAt)
 	}
 }
 
@@ -92,9 +94,9 @@ func TestBlock_RejectsEmptyReason(t *testing.T) {
 	}
 }
 
-// --- Unblock (I14 §2.5) ---
+// --- Unblock legacy no-op ---
 
-func TestUnblock_ClearsReasonKeepsComment(t *testing.T) {
+func TestUnblock_DoesNotRecoverFailed(t *testing.T) {
 	tk := running(t, "agent:c")
 	if err := tk.Block("need a decision", BlockReasonInputRequired, "agent:c", t0); err != nil {
 		t.Fatalf("Block: %v", err)
@@ -103,18 +105,8 @@ func TestUnblock_ClearsReasonKeepsComment(t *testing.T) {
 	if err := tk.Unblock("go with main", "user:a", at); err != nil {
 		t.Fatalf("Unblock: %v", err)
 	}
-	if tk.Status() != TaskRunning || tk.Assignee() != "agent:c" {
-		t.Fatalf("Unblock must keep status+assignee, got %s/%s", tk.Status(), tk.Assignee())
-	}
-	if tk.BlockedReason() != "" || tk.BlockedReasonType() != "" {
-		t.Fatalf("Unblock must clear reason+type, got %q/%q", tk.BlockedReason(), tk.BlockedReasonType())
-	}
-	if tk.BlockedComment() != "go with main" {
-		t.Fatalf("Unblock must keep the comment for the agent, got %q", tk.BlockedComment())
-	}
-	lg := lastLog(t, tk)
-	if lg.Action != TaskActionUnblocked || lg.ActorRef != "user:a" || lg.AgentRef != "agent:c" || lg.Note != "go with main" {
-		t.Fatalf("unblocked log wrong: %+v", lg)
+	if tk.Status() != TaskFailed || tk.Assignee() != "agent:c" {
+		t.Fatalf("Unblock must not recover failed tasks, got %s/%s", tk.Status(), tk.Assignee())
 	}
 }
 
@@ -156,13 +148,13 @@ func TestRenewLease_RejectsNonRunning(t *testing.T) {
 	}
 }
 
-func TestRenewLease_RejectsBlocked(t *testing.T) {
+func TestRenewLease_RejectsFailed(t *testing.T) {
 	tk := running(t, "agent:c")
 	if err := tk.Block("stuck", BlockReasonObstacle, "agent:c", t0); err != nil {
 		t.Fatalf("Block: %v", err)
 	}
-	if err := tk.RenewLease(time.Minute, t0); err != ErrTaskBlocked {
-		t.Fatalf("RenewLease on blocked must be ErrTaskBlocked, got %v", err)
+	if err := tk.RenewLease(time.Minute, t0); err != ErrIllegalTransition {
+		t.Fatalf("RenewLease on failed must be ErrIllegalTransition, got %v", err)
 	}
 }
 
@@ -211,7 +203,7 @@ func TestExpireLease_NoOpCases(t *testing.T) {
 		t.Fatalf("ExpireLease with no lease must be a no-op, err=%v v=%d", err, tk2.Version())
 	}
 
-	// legally blocked → never reclaimed even with a lapsed lease
+	// failed → never reclaimed even with a lapsed lease
 	tk3 := running(t, "agent:c")
 	_ = tk3.RenewLease(time.Minute, t0)
 	_ = tk3.Block("stuck", BlockReasonObstacle, "agent:c", t0) // clears lease, but assert block wins regardless
@@ -220,8 +212,8 @@ func TestExpireLease_NoOpCases(t *testing.T) {
 	}
 	// The guarantee is unchanged (a legal pause is never lease-reclaimed); ADR-0054 only
 	// changes what "blocked" looks like — it must stay PARKED, not be forced back to open.
-	if tk3.Status() != TaskBlocked {
-		t.Fatalf("blocked task must not be reclaimed by lease (must stay parked), got %s", tk3.Status())
+	if tk3.Status() != TaskFailed {
+		t.Fatalf("failed task must not be reclaimed by lease, got %s", tk3.Status())
 	}
 }
 
@@ -277,15 +269,15 @@ func TestNudgeOnLeaseExpiry_NoOpCases(t *testing.T) {
 		t.Fatalf("no-lease must be a no-op, fired=%v err=%v v=%d", fired, err, tk2.Version())
 	}
 
-	// legally blocked → never nudged even with a (would-be) lapsed lease
+	// failed → never nudged even with a (would-be) lapsed lease
 	tk3 := running(t, "agent:c")
 	_ = tk3.RenewLease(time.Minute, t0)
-	_ = tk3.Block("stuck", BlockReasonObstacle, "agent:c", t0) // clears lease + marks blocked
+	_ = tk3.Block("stuck", BlockReasonObstacle, "agent:c", t0) // clears lease + marks failed
 	if fired, err := tk3.NudgeOnLeaseExpiry(time.Hour, t0.Add(time.Hour)); err != nil || fired {
-		t.Fatalf("blocked must be a no-op, fired=%v err=%v", fired, err)
+		t.Fatalf("failed must be a no-op, fired=%v err=%v", fired, err)
 	}
-	if tk3.Status() != TaskBlocked {
-		t.Fatalf("blocked task must stay parked and un-nudged, got %s", tk3.Status())
+	if tk3.Status() != TaskFailed {
+		t.Fatalf("failed task must stay terminal and un-nudged, got %s", tk3.Status())
 	}
 }
 
@@ -294,7 +286,6 @@ func TestNudgeOnLeaseExpiry_NoOpCases(t *testing.T) {
 func TestRecordReassignment_RetargetsAndClears(t *testing.T) {
 	tk := running(t, "agent:c")
 	_ = tk.RenewLease(time.Minute, t0)
-	_ = tk.Block("stuck", BlockReasonObstacle, "agent:c", t0)
 	at := t0.Add(time.Hour)
 	if err := tk.RecordReassignment("agent:d", "user:pm", at); err != nil {
 		t.Fatalf("RecordReassignment: %v", err)
@@ -358,16 +349,15 @@ func TestRehydrateTask_RoundTripsI14Fields(t *testing.T) {
 	in := RehydrateTaskInput{
 		ID: "T1", ProjectID: "P1", Title: "do", Status: TaskRunning, Assignee: "agent:c",
 		CreatedBy: "user:a", CreatedAt: t0, UpdatedAt: t0, Version: 4,
-		BlockedReason: "need a decision", BlockedReasonType: BlockReasonInputRequired,
-		BlockedComment: "go with main", ExecutionLeaseExpiresAt: &exp,
+		FailedReason: "need a decision", ExecutionLeaseExpiresAt: &exp,
 		ActionLogs: []TaskActionLog{{ID: "L1", OccurredAt: t0, Action: TaskActionBlocked, ActorRef: "agent:c", AgentRef: "agent:c", Note: "[input_required] need a decision"}},
 	}
 	tk, err := RehydrateTask(in)
 	if err != nil {
 		t.Fatalf("RehydrateTask: %v", err)
 	}
-	if tk.BlockedReasonType() != BlockReasonInputRequired || tk.BlockedComment() != "go with main" {
-		t.Fatalf("rehydrate lost block fields: %q / %q", tk.BlockedReasonType(), tk.BlockedComment())
+	if tk.FailedReason() != "need a decision" {
+		t.Fatalf("rehydrate lost failed reason: %q", tk.FailedReason())
 	}
 	if got := tk.ExecutionLeaseExpiresAt(); got == nil || !got.Equal(exp) {
 		t.Fatalf("rehydrate lost lease: %v", got)

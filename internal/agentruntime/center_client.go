@@ -51,16 +51,15 @@ func (a *centerClientAdapter) CompleteTask(ctx context.Context, agentID, taskID,
 	return a.caller.CallAgentTool(ctx, "complete_task", body, nil)
 }
 
-// BlockTask → POST /admin/agent-tools/block_task {agent_id, task_id, reason, reason_type}.
-// The center posts reason to the task's conversation AND blocks it in one tx.
+// BlockTask is the legacy adapter name for fail_task.
+// The center posts reason to the task's conversation AND fails it in one tx.
 func (a *centerClientAdapter) BlockTask(ctx context.Context, agentID, taskID, reason, reasonType string) error {
 	body := map[string]any{
-		"agent_id":    agentID,
-		"task_id":     taskID,
-		"reason":      reason,
-		"reason_type": reasonType,
+		"agent_id": agentID,
+		"task_id":  taskID,
+		"reason":   reason,
 	}
-	return a.caller.CallAgentTool(ctx, "block_task", body, nil)
+	return a.caller.CallAgentTool(ctx, "fail_task", body, nil)
 }
 
 // ResetTask → POST /admin/agent-tools/reset_task {agent_id, task_id, confirmed_dead}. The

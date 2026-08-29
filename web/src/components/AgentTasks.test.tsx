@@ -63,7 +63,7 @@ describe('AgentTasks (#228 PR(d); v2.14.0 I14)', () => {
     expect(screen.queryByText('+ New')).not.toBeInTheDocument();
   });
 
-  it('summarises counts by bucket (Total / In Progress / Pending / Done / Blocked)', async () => {
+  it('summarises counts by bucket (Total / In Progress / Pending / Done / Failed)', async () => {
     stub([
       wi('a1', 'active'),
       wi('a2', 'active'),
@@ -78,8 +78,8 @@ describe('AgentTasks (#228 PR(d); v2.14.0 I14)', () => {
     expect(summary).toHaveTextContent('2 In Progress');
     expect(summary).toHaveTextContent('1 Pending');
     expect(summary).toHaveTextContent('1 Done');
-    // blocked = failed + waiting_input.
-    expect(summary).toHaveTextContent('2 Blocked');
+    // failed bucket includes failed + legacy waiting_input.
+    expect(summary).toHaveTextContent('2 Failed');
   });
 
   it('maps paused → its own "Paused" bucket, count and chip (v2.8.1 #278 D scheduling)', async () => {
@@ -88,7 +88,7 @@ describe('AgentTasks (#228 PR(d); v2.14.0 I14)', () => {
     const summary = await screen.findByTestId('agent-workitems-summary');
     expect(summary).toHaveTextContent('4 Total');
     expect(summary).toHaveTextContent('1 In Progress');
-    // paused is a distinct, visible bucket — NOT collapsed into pending/blocked.
+    // paused is a distinct, visible bucket — NOT collapsed into pending/failed.
     expect(summary).toHaveTextContent('2 Paused');
     expect(summary).toHaveTextContent('1 Pending');
     // the row status chip shows the "Paused" label (not a bare "paused" fallback).
@@ -207,7 +207,7 @@ describe('AgentTasks (#228 PR(d); v2.14.0 I14)', () => {
     stub([wi('a1', 'active')]);
     wrap();
     await screen.findByTestId('agent-workitem-row');
-    fireEvent.change(screen.getByTestId('agent-workitems-filter-status'), { target: { value: 'blocked' } });
+    fireEvent.change(screen.getByTestId('agent-workitems-filter-status'), { target: { value: 'failed' } });
     await waitFor(() => expect(screen.getByTestId('agent-workitems-no-match')).toBeInTheDocument());
     expect(screen.queryByTestId('agent-workitem-row')).not.toBeInTheDocument();
   });
