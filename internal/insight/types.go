@@ -115,3 +115,17 @@ type ExecutionFilter struct {
 	Limit     int
 	AsOf      time.Time
 }
+
+func nonNilLeaderRows(rows []LeaderRow) []LeaderRow {
+	if rows == nil {
+		return []LeaderRow{}
+	}
+	return rows
+}
+
+func nonNilExecutionRows(rows []ExecutionRow) []ExecutionRow {
+	if rows == nil {
+		return []ExecutionRow{}
+	}
+	return rows
+}

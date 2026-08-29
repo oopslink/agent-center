@@ -173,6 +173,45 @@ describe('InsightOverview page', () => {
     expect(screen.getByTestId('insight-summary')).toHaveTextContent('-');
   });
 
+  it('normalizes null or missing Insight collections to empty page states', async () => {
+    const emptySummary = {
+      completed_executions: 0,
+      failed_executions: 0,
+      failure_rate: null,
+      slot_utilization: null,
+      slot_coverage_ratio: null,
+      queue_wait_ms: { p50: null, p95: null, samples: 0 },
+      execution_duration_ms: { p50: null, p95: null, samples: 0 },
+    };
+    server.use(
+      http.get('/api/orgs/:slug/insights/overview', () =>
+        HttpResponse.json({
+          ...windowEnvelope,
+          summary: emptySummary,
+          agents: null,
+          diagnostics: { invalid_facts: 0, late_events: 0 },
+        }),
+      ),
+      http.get('/api/orgs/:slug/insights/executions', () =>
+        HttpResponse.json({
+          ...windowEnvelope,
+          next_cursor: null,
+        }),
+      ),
+    );
+
+    renderOverview();
+
+    expect(await screen.findByTestId('insight-empty')).toHaveTextContent('No executions');
+    expect(screen.getByTestId('agent-leaderboard')).toHaveTextContent('No agent executions');
+    expect(screen.getByTestId('project-leaderboard')).toHaveTextContent('No project executions');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Execution details' }));
+
+    expect(await screen.findByTestId('insight-drilldown-empty')).toHaveTextContent('No matching execution attempts');
+    expect(screen.queryByTestId('insight-execution-row')).not.toBeInTheDocument();
+  });
+
   it('shows stale overview and stale empty drilldown states', async () => {
     const staleEnvelope = {
       ...windowEnvelope,

@@ -107,6 +107,18 @@ export interface InsightExecutionFilters {
   limit?: number;
 }
 
+type NullableCollection<T> = T[] | null | undefined;
+
+type InsightOverviewWire = Omit<InsightOverview, 'agents' | 'projects'> & {
+  agents?: NullableCollection<InsightLeaderboardAgent>;
+  projects?: NullableCollection<InsightLeaderboardProject>;
+};
+
+type InsightExecutionsWire = Omit<InsightExecutions, 'executions' | 'next_cursor'> & {
+  executions?: NullableCollection<InsightExecutionRow>;
+  next_cursor?: string | null;
+};
+
 function executionParams(filters: InsightExecutionFilters = {}): string {
   const params = new URLSearchParams({ window: '24h' });
   if (filters.agent_ref) params.set('agent_ref', filters.agent_ref);
@@ -119,14 +131,14 @@ function executionParams(filters: InsightExecutionFilters = {}): string {
 export function useInsightOverview() {
   return useQuery({
     queryKey: qk.insightOverview(),
-    queryFn: () => api.get<InsightOverview>('/insights/overview?window=24h'),
+    queryFn: async () => normalizeInsightOverview(await api.get<InsightOverviewWire>('/insights/overview?window=24h')),
   });
 }
 
 export function useInsightExecutions(filters: InsightExecutionFilters, enabled: boolean) {
   return useQuery({
     queryKey: qk.insightExecutions(filters),
-    queryFn: () => api.get<InsightExecutions>(`/insights/executions?${executionParams(filters)}`),
+    queryFn: async () => normalizeInsightExecutions(await api.get<InsightExecutionsWire>(`/insights/executions?${executionParams(filters)}`)),
     enabled,
   });
 }
@@ -137,4 +149,20 @@ export function useInsightExecution(executionId: string | undefined) {
     queryFn: () => api.get<InsightExecutionDetail>(`/insights/executions/${encodeURIComponent(executionId ?? '')}?window=24h`),
     enabled: Boolean(executionId),
   });
+}
+
+function normalizeInsightOverview(data: InsightOverviewWire): InsightOverview {
+  return {
+    ...data,
+    agents: Array.isArray(data.agents) ? data.agents : [],
+    projects: Array.isArray(data.projects) ? data.projects : [],
+  };
+}
+
+function normalizeInsightExecutions(data: InsightExecutionsWire): InsightExecutions {
+  return {
+    ...data,
+    executions: Array.isArray(data.executions) ? data.executions : [],
+    next_cursor: data.next_cursor ?? null,
+  };
 }

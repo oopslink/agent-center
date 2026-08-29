@@ -187,6 +187,46 @@ func TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild(t *testing.T)
 	}
 }
 
+func TestInsightFreshOrgCollectionsMarshalAsEmptyArrays(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+
+	overview, err := svc.Overview(ctx, "org-fresh", asOf)
+	if err != nil {
+		t.Fatalf("overview: %v", err)
+	}
+	if overview.Agents == nil || overview.Projects == nil {
+		t.Fatalf("overview collections = agents:%#v projects:%#v, want non-nil empty slices", overview.Agents, overview.Projects)
+	}
+	overviewJSON, err := json.Marshal(overview)
+	if err != nil {
+		t.Fatalf("marshal overview: %v", err)
+	}
+	if !jsonFieldIsEmptyArray(t, overviewJSON, "agents") || !jsonFieldIsEmptyArray(t, overviewJSON, "projects") {
+		t.Fatalf("overview json = %s, want agents/projects as []", overviewJSON)
+	}
+
+	executions, err := svc.Executions(ctx, "org-fresh", ExecutionFilter{AsOf: asOf, Limit: 10})
+	if err != nil {
+		t.Fatalf("executions: %v", err)
+	}
+	if executions.Executions == nil {
+		t.Fatalf("executions collection = %#v, want non-nil empty slice", executions.Executions)
+	}
+	executionsJSON, err := json.Marshal(executions)
+	if err != nil {
+		t.Fatalf("marshal executions: %v", err)
+	}
+	if !jsonFieldIsEmptyArray(t, executionsJSON, "executions") {
+		t.Fatalf("executions json = %s, want executions as []", executionsJSON)
+	}
+}
+
 func TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap(t *testing.T) {
 	ctx := context.Background()
 	db := migratedSQLite(t)
@@ -225,6 +265,15 @@ func TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap(t *testin
 	if openIntervals != 2 {
 		t.Fatalf("slot intervals for duplicate+change = %d, want 2", openIntervals)
 	}
+}
+
+func jsonFieldIsEmptyArray(t *testing.T, body []byte, field string) bool {
+	t.Helper()
+	var decoded map[string]json.RawMessage
+	if err := json.Unmarshal(body, &decoded); err != nil {
+		t.Fatalf("decode json %s: %v", body, err)
+	}
+	return string(decoded[field]) == "[]"
 }
 
 func TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval(t *testing.T) {

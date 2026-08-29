@@ -171,7 +171,7 @@ func (s *Service) Overview(ctx context.Context, orgID string, asOf time.Time) (O
 	if err != nil {
 		return Overview{}, err
 	}
-	return Overview{Window: win, AsOf: fmtTS(asOf), RefreshedAt: ref, Freshness: fresh, Summary: sum, Agents: agents, Projects: projects, Diagnostics: diag}, nil
+	return Overview{Window: win, AsOf: fmtTS(asOf), RefreshedAt: ref, Freshness: fresh, Summary: sum, Agents: nonNilLeaderRows(agents), Projects: nonNilLeaderRows(projects), Diagnostics: diag}, nil
 }
 
 func (s *Service) Executions(ctx context.Context, orgID string, f ExecutionFilter) (ExecutionsResponse, error) {
@@ -260,7 +260,7 @@ func (s *Service) Executions(ctx context.Context, orgID string, f ExecutionFilte
 		next = encodeCursor(cursorKey, cursorID)
 	}
 	ref, fresh := s.freshness(ctx, asOf)
-	return ExecutionsResponse{Window: makeWindow(asOf), AsOf: fmtTS(asOf), RefreshedAt: ref, Freshness: fresh, Executions: out, NextCursor: next}, nil
+	return ExecutionsResponse{Window: makeWindow(asOf), AsOf: fmtTS(asOf), RefreshedAt: ref, Freshness: fresh, Executions: nonNilExecutionRows(out), NextCursor: next}, nil
 }
 
 func (s *Service) Execution(ctx context.Context, orgID, executionID string, asOf time.Time) (ExecutionResponse, error) {

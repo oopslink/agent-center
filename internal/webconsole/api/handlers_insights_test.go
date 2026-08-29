@@ -131,6 +131,54 @@ func TestInsightsHTTPReadDoesNotTriggerProjection(t *testing.T) {
 	}
 }
 
+func TestInsightsAPI_FreshOrgCollectionsAreEmptyArrays(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	duckPath := t.TempDir() + "/insight.duckdb"
+	svc, err := insight.Open(context.Background(), db, duckPath, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+	if err := svc.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	deps.Insight = svc
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	defer ts.Close()
+
+	for _, tc := range []struct {
+		name   string
+		path   string
+		fields []string
+	}{
+		{name: "overview", path: "/insights/overview?window=24h", fields: []string{"agents", "projects"}},
+		{name: "executions", path: "/insights/executions?window=24h", fields: []string{"executions"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+tc.path, nil)
+			req.AddCookie(sess.Cookie)
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("%s status = %d, want 200", tc.name, resp.StatusCode)
+			}
+			var body map[string]json.RawMessage
+			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			for _, field := range tc.fields {
+				if string(body[field]) != "[]" {
+					t.Fatalf("%s field %s = %s, want []", tc.name, field, body[field])
+				}
+			}
+		})
+	}
+}
+
 func TestInsightsExecutionAPI_ReadsSingleProjectedExecution(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
