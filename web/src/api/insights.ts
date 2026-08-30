@@ -74,6 +74,10 @@ export interface InsightExecutionRow {
   worker_id: string | null;
   outcome: string | null;
   failure_reason: string | null;
+  failure_message: string | null;
+  command_status: string | null;
+  status_reason: string | null;
+  status_message: string | null;
   queued_at: string | null;
   started_at: string | null;
   finished_at: string | null;
@@ -222,6 +226,10 @@ function normalizeExecutionRow(value: unknown): InsightExecutionRow {
     worker_id: stringOrNull(source.worker_id),
     outcome: stringOrNull(source.outcome),
     failure_reason: stringOrNull(source.failure_reason),
+    failure_message: stringOrNull(source.failure_message),
+    command_status: stringOrNull(source.command_status),
+    status_reason: stringOrNull(source.status_reason),
+    status_message: stringOrNull(source.status_message),
     queued_at: stringOrNull(source.queued_at),
     started_at: stringOrNull(source.started_at),
     finished_at: stringOrNull(source.finished_at),
