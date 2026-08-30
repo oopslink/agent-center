@@ -188,12 +188,16 @@ func (s *Service) findSubjectForGateSHA(ctx context.Context, stage *pm.Stage, re
 		if task.StageID() != stage.ID() || task.ID() == stage.GateTaskID() {
 			continue
 		}
-		subject, found, err := s.acceptances.FindLatestDeliverySubjectByTask(ctx, stage.PlanID(), task.ID())
-		if err != nil || !found {
-			return pm.DeliverySubject{}, false, err
+		if subject, found, err := s.findSubjectForTaskSHA(ctx, stage.PlanID(), task.ID(), want); err != nil || found {
+			return subject, found, err
 		}
-		if strings.TrimPrefix(strings.ToLower(subject.CandidateSHA), "sha256:") == want {
-			return subject, true, nil
+	}
+	for _, task := range tasks {
+		if task.ID() != stage.GateTaskID() || !isManualRecoveryDelivery(task.Delivery()) {
+			continue
+		}
+		if subject, found, err := s.findSubjectForTaskSHA(ctx, stage.PlanID(), task.ID(), want); err != nil || found {
+			return subject, found, err
 		}
 	}
 	return pm.DeliverySubject{}, false, nil
@@ -209,23 +213,52 @@ func (s *Service) acceptancePassesGate(ctx context.Context, stage *pm.Stage, gat
 	}
 	contractHash := pm.ContractHash(stage.GateSpec().AcceptanceContract)
 	for _, task := range tasks {
+		if task.ID() != gateTaskID || !isManualRecoveryDelivery(task.Delivery()) {
+			continue
+		}
+		if ok, err := s.taskSubjectHasPassingAcceptance(ctx, stage.PlanID(), gateTaskID, contractHash); err != nil || ok {
+			return ok, err
+		}
+		break
+	}
+	for _, task := range tasks {
 		if task.StageID() != stage.ID() || task.ID() == gateTaskID {
 			continue
 		}
-		subject, found, err := s.acceptances.FindLatestDeliverySubjectByTask(ctx, stage.PlanID(), task.ID())
-		if err != nil || !found {
+		ok, err := s.taskSubjectHasPassingAcceptance(ctx, stage.PlanID(), task.ID(), contractHash)
+		if err != nil || !ok {
 			return false, err
-		}
-		if subject.AcceptanceContractHash != contractHash {
-			return false, nil
-		}
-		acc, found, err := s.acceptances.FindEffectiveAcceptance(ctx, subject.ID, contractHash)
-		if err != nil || !found {
-			return false, err
-		}
-		if acc.SubjectDigest != subject.Digest() || acc.Verdict != pm.AcceptancePassed {
-			return false, nil
 		}
 	}
 	return true, nil
+}
+
+func (s *Service) findSubjectForTaskSHA(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, want string) (pm.DeliverySubject, bool, error) {
+	subject, found, err := s.acceptances.FindLatestDeliverySubjectByTask(ctx, planID, taskID)
+	if err != nil || !found {
+		return pm.DeliverySubject{}, false, err
+	}
+	if strings.TrimPrefix(strings.ToLower(subject.CandidateSHA), "sha256:") != want {
+		return pm.DeliverySubject{}, false, nil
+	}
+	return subject, true, nil
+}
+
+func (s *Service) taskSubjectHasPassingAcceptance(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, contractHash string) (bool, error) {
+	subject, found, err := s.acceptances.FindLatestDeliverySubjectByTaskAndContract(ctx, planID, taskID, contractHash)
+	if err != nil || !found {
+		return false, err
+	}
+	acc, found, err := s.acceptances.FindEffectiveAcceptance(ctx, subject.ID, contractHash)
+	if err != nil || !found {
+		return false, err
+	}
+	if acc.SubjectDigest != subject.Digest() || acc.Verdict != pm.AcceptancePassed {
+		return false, nil
+	}
+	return true, nil
+}
+
+func isManualRecoveryDelivery(d *pm.Delivery) bool {
+	return d != nil && strings.TrimSpace(d.Source) == "manual_recovery"
 }

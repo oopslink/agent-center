@@ -321,6 +321,7 @@ type DeliveryAcceptanceRepository interface {
 	SaveDeliverySubject(ctx context.Context, s DeliverySubject) error
 	FindDeliverySubject(ctx context.Context, id string) (DeliverySubject, bool, error)
 	FindLatestDeliverySubjectByTask(ctx context.Context, planID PlanID, taskID TaskID) (DeliverySubject, bool, error)
+	FindLatestDeliverySubjectByTaskAndContract(ctx context.Context, planID PlanID, taskID TaskID, contractHash string) (DeliverySubject, bool, error)
 	SaveAcceptance(ctx context.Context, a Acceptance) error
 	FindEffectiveAcceptance(ctx context.Context, subjectID string, contractHash string) (Acceptance, bool, error)
 	ListAcceptances(ctx context.Context, subjectID string, contractHash string) ([]Acceptance, error)

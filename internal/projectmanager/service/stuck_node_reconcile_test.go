@@ -124,13 +124,28 @@ type stuckNodeFixture struct {
 }
 
 func setupStuckNode(t *testing.T, assignee string) stuckNodeFixture {
+	return setupStuckNodeWithDispatchMode(t, assignee, "")
+}
+
+func setupStuckNodeWithDispatchMode(t *testing.T, assignee string, dispatchMode pm.DispatchMode) stuckNodeFixture {
 	t.Helper()
 	h, orchSvc := planGraphSetup(t)
 	ctx := h.ctx
 	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stuck", CreatedBy: "user:a"})
 	h.drain(t)
-	tid := h.seedAssignedTask(t, pid, planID, "work", assignee)
+	tid, err := h.svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "work", CreatedBy: "user:a", DispatchMode: dispatchMode})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := assignee
+	if err := h.svc.BatchUpdateTask(ctx, tid, BatchTaskPatch{Assignee: &a}, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.SelectTaskIntoPlan(ctx, planID, tid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	h.drain(t)
 	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
 		t.Fatalf("StartPlan: %v", err)
 	}
@@ -282,6 +297,30 @@ func TestStuckNode_LiveOwnerIdleWithoutExecutor_AutoReopenedDespiteLeaseRenewal(
 	}
 	if got := f.nodeStatus(t); got != orch.NodeReopen {
 		t.Fatalf("node = %q after auto-reconcile, want reopen", got)
+	}
+}
+
+func TestStuckNode_SupervisorInlineGate_NotTreatedAsDeadExecutor(t *testing.T) {
+	f := setupStuckNodeWithDispatchMode(t, "agent:inline", pm.DispatchSupervisorInline)
+	store := concurrency.NewInMemoryStore()
+	f.h.svc.liveExecutors = store
+	clk := f.h.clk
+
+	store.Put("inline", concurrency.AgentSnapshot{Active: 0, Executors: nil}, clk.Now())
+	clk.Advance(StuckNodeProgressStaleTimeout + time.Minute)
+	for i := 0; i < 6; i++ {
+		f.sweep(t)
+		clk.Advance(4 * time.Minute)
+	}
+
+	if got := f.nodeStatus(t); got != orch.NodeRunning {
+		t.Fatalf("supervisor_inline task reconciled as dead executor: node=%q, want running", got)
+	}
+	if tk := f.task(t); tk.Status() != pm.TaskRunning || tk.BlockedReason() != "" || tk.FruitlessReopens() != 0 {
+		t.Fatalf("supervisor_inline task was disturbed: status=%q blocked=%q fruitless=%d", tk.Status(), tk.BlockedReason(), tk.FruitlessReopens())
+	}
+	if f.h.svc.isStuckTracked(f.tid) {
+		t.Fatal("supervisor_inline task must not retain a stuck executor tracker")
 	}
 }
 

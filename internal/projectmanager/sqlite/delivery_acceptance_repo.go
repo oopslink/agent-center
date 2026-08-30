@@ -63,6 +63,17 @@ func (r *DeliveryAcceptanceRepo) FindLatestDeliverySubjectByTask(ctx context.Con
 	return s, err == nil, err
 }
 
+func (r *DeliveryAcceptanceRepo) FindLatestDeliverySubjectByTaskAndContract(ctx context.Context, planID pm.PlanID, taskID pm.TaskID, contractHash string) (pm.DeliverySubject, bool, error) {
+	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
+	s, err := scanDeliverySubject(exec.QueryRowContext(ctx, deliverySubjectSelect+
+		` WHERE plan_id=? AND task_id=? AND acceptance_contract_hash=? ORDER BY created_at DESC, id DESC LIMIT 1`,
+		string(planID), string(taskID), contractHash).Scan)
+	if errors.Is(err, sql.ErrNoRows) {
+		return pm.DeliverySubject{}, false, nil
+	}
+	return s, err == nil, err
+}
+
 func (r *DeliveryAcceptanceRepo) SaveAcceptance(ctx context.Context, a pm.Acceptance) error {
 	exec, _ := persistence.ExecutorFromCtx(ctx, r.db)
 	_, err := exec.ExecContext(ctx, `INSERT INTO pm_acceptances
