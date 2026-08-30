@@ -67,6 +67,33 @@ func TestReconcileSpecs_PreservesPerAgentEnv(t *testing.T) {
 		t.Fatalf("on env = %v", got)
 	}
 }
+
+func TestRestartRunning_PreservesPerAgentEnv(t *testing.T) {
+	l := newFakeLauncher()
+	c, err := New(Config{Launcher: l, SockDir: t.TempDir()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	spec := agentlauncher.AgentSpec{AgentID: "on", Env: []string{"AC_EXECUTOR_GIT_WORKTREE=1"}}
+	if err := c.EnsureAgentSpec(spec); err != nil {
+		t.Fatalf("ensure: %v", err)
+	}
+	n, err := c.RestartRunning(context.Background())
+	if err != nil {
+		t.Fatalf("RestartRunning: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("restarted=%d want 1", n)
+	}
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.ensureN["on"] != 2 {
+		t.Fatalf("ensure count=%d want 2", l.ensureN["on"])
+	}
+	if got := l.lastSpec["on"].Env; len(got) != 1 || got[0] != "AC_EXECUTOR_GIT_WORKTREE=1" {
+		t.Fatalf("restart spec env=%v", got)
+	}
+}
 func (l *fakeLauncher) Stop(agentID string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()

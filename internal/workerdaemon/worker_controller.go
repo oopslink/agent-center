@@ -51,7 +51,11 @@ type controllerHandler struct {
 	// poster posts the runtime_fs read response back to the center (satisfied by
 	// *AdminClient; narrowed to an interface so gap2 is unit-testable).
 	poster runtimeFsPoster
-	log    func(string)
+	// deployer applies a verified runtime build and restarts supervised agent
+	// runtime processes. Production wires GitBuildDeployRuntime; nil is a wiring
+	// error for runtime.deploy_restart commands.
+	deployer DeployRuntime
+	log      func(string)
 }
 
 type lifecycleReporter interface {
@@ -75,6 +79,9 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 	// process. Keeping it here also means it works even when the agent process is down.
 	if cmd.CommandType == cmdTypeRuntimeFs {
 		return h.handleRuntimeFs(ctx, []byte(cmd.Payload))
+	}
+	if cmd.CommandType == cmdTypeRuntimeDeploy {
+		return h.handleRuntimeDeploy(ctx, []byte(cmd.Payload))
 	}
 	var idp struct {
 		AgentID             string `json:"agent_id"`
@@ -155,6 +162,23 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 		CreatedAt:      cmd.CreatedAt,
 		Payload:        json.RawMessage(cmd.Payload),
 	})
+}
+
+func (h controllerHandler) handleRuntimeDeploy(ctx context.Context, payload []byte) error {
+	if h.deployer == nil {
+		return errors.New("runtime_deployer_not_wired")
+	}
+	var req DeployRequest
+	if err := json.Unmarshal(payload, &req); err != nil {
+		return fmt.Errorf("runtime_deploy_bad_payload: %w", err)
+	}
+	res, err := h.deployer.DeployRestart(ctx, req)
+	if err != nil {
+		return err
+	}
+	h.log(fmt.Sprintf("runtime deploy_restart applied ref=%s sha=%s base=%s restarted=%d",
+		res.Ref, res.ResolvedSHA, res.BaseSHA, res.RestartedAgents))
+	return nil
 }
 
 func shouldSkipForkCommand(cmd ControlCommand) bool {

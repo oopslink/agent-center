@@ -211,7 +211,11 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 		reporter: client,
 		homeBase: agentHomeBase(cfg, opts.ConfigPath, opts.WorkerID),
 		poster:   client,
-		log:      logf,
+		deployer: NewGitBuildDeployRuntime(GitBuildDeployRuntimeConfig{
+			Controller: wctrl,
+			Log:        logf,
+		}),
+		log: logf,
 	}
 	logf("worker running in controller mode (process-per-agent)")
 

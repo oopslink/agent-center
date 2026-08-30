@@ -49,6 +49,7 @@ type Controller struct {
 
 	mu      sync.Mutex
 	clients map[string]controlClient // agentID → control client
+	specs   map[string]agentlauncher.AgentSpec
 }
 
 // Config wires a Controller.
@@ -94,6 +95,7 @@ func New(cfg Config) (*Controller, error) {
 		newClient: nc,
 		log:       log,
 		clients:   make(map[string]controlClient),
+		specs:     make(map[string]agentlauncher.AgentSpec),
 	}, nil
 }
 
@@ -137,7 +139,9 @@ func (c *Controller) ReconcileSpecs(desired []agentlauncher.AgentSpec) {
 		want[id] = struct{}{}
 		if err := c.launcher.Ensure(spec); err != nil {
 			c.log("workercontroller: ensure agent=%s: %v", id, err)
+			continue
 		}
+		c.rememberSpec(spec)
 	}
 	for _, id := range c.launcher.Running() {
 		if _, ok := want[id]; !ok {
@@ -146,6 +150,7 @@ func (c *Controller) ReconcileSpecs(desired []agentlauncher.AgentSpec) {
 			}
 			c.mu.Lock()
 			delete(c.clients, id)
+			delete(c.specs, id)
 			c.mu.Unlock()
 		}
 	}
@@ -178,11 +183,14 @@ func (c *Controller) ReconcileWithAdoptionSpecs(ctx context.Context, desired []a
 		}
 		want[id] = struct{}{}
 		if pid, ok := recorded[id]; ok && c.tryAdopt(ctx, spec, pid) {
+			c.rememberSpec(spec)
 			continue // survivor re-adopted — no respawn
 		}
 		if err := c.launcher.Ensure(spec); err != nil {
 			c.log("workercontroller: ensure agent=%s: %v", id, err)
+			continue
 		}
+		c.rememberSpec(spec)
 	}
 	for _, id := range c.launcher.Running() {
 		if _, ok := want[id]; !ok {
@@ -191,6 +199,7 @@ func (c *Controller) ReconcileWithAdoptionSpecs(ctx context.Context, desired []a
 			}
 			c.mu.Lock()
 			delete(c.clients, id)
+			delete(c.specs, id)
 			c.mu.Unlock()
 		}
 	}
@@ -233,7 +242,11 @@ func (c *Controller) EnsureAgentSpec(spec agentlauncher.AgentSpec) error {
 	if spec.AgentID == "" {
 		return errors.New("workercontroller: ensure requires agent_id")
 	}
-	return c.launcher.Ensure(spec)
+	if err := c.launcher.Ensure(spec); err != nil {
+		return err
+	}
+	c.rememberSpec(spec)
+	return nil
 }
 
 // Deliver proxies one command to its target agent's process. It first ensures the
@@ -255,8 +268,52 @@ func (c *Controller) StopAgent(agentID string) error {
 	err := c.launcher.Stop(agentID)
 	c.mu.Lock()
 	delete(c.clients, agentID)
+	delete(c.specs, agentID)
 	c.mu.Unlock()
 	return err
+}
+
+// RestartRunning stops and starts every currently supervised agent runtime using the
+// most recent launch spec recorded for that agent. It is used by runtime deploy so
+// subsequent agent-runtime processes exec the newly swapped worker binary.
+func (c *Controller) RestartRunning(ctx context.Context) (int, error) {
+	ids := c.Running()
+	restarted := 0
+	for _, id := range ids {
+		select {
+		case <-ctx.Done():
+			return restarted, ctx.Err()
+		default:
+		}
+		spec := c.specFor(id)
+		if err := c.launcher.Stop(id); err != nil {
+			return restarted, err
+		}
+		c.mu.Lock()
+		delete(c.clients, id)
+		c.mu.Unlock()
+		if err := c.launcher.Ensure(spec); err != nil {
+			return restarted, err
+		}
+		c.rememberSpec(spec)
+		restarted++
+	}
+	return restarted, nil
+}
+
+func (c *Controller) rememberSpec(spec agentlauncher.AgentSpec) {
+	c.mu.Lock()
+	c.specs[spec.AgentID] = spec
+	c.mu.Unlock()
+}
+
+func (c *Controller) specFor(agentID string) agentlauncher.AgentSpec {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if spec, ok := c.specs[agentID]; ok {
+		return spec
+	}
+	return agentlauncher.AgentSpec{AgentID: agentID}
 }
 
 // Running returns the launched agent ids (sorted).
