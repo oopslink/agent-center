@@ -135,8 +135,8 @@ func (p *PlanOrchestratorProjector) advance(txCtx context.Context, e outbox.Even
 // pm.task.state_changed event reports a →FAILED TRANSITION (the task's prev
 // status was NOT failed AND it is now FAILED — TaskDiscarded, the same taskIsFailed
 // semantics DerivePlanView uses, §9.2/§9.7), it posts an @mention of the Plan
-// CREATOR into the Plan conversation noting the task failed and its downstream is
-// blocked pending resolution. The creator is already a plan-conversation
+// CREATOR into the Plan conversation noting the task failed and asking them to
+// continue the plan through Evolution. The creator is already a plan-conversation
 // participant (#284 additive sync), so the mention reaches them (an agent creator
 // self-handles; a human handles — design decision 1).
 //
@@ -208,9 +208,9 @@ func (p *PlanOrchestratorProjector) notifyCreatorOnFailure(txCtx context.Context
 	// plan-conversation reminder is unambiguous; fall back to title-only when unallocated.
 	var content string
 	if ref := taskRefToken(t); ref != "" {
-		content = fmt.Sprintf("task %s %q failed — its downstream is blocked pending resolution.", ref, t.Title())
+		content = fmt.Sprintf("task %s %q failed — its downstream is blocked. Please use Evolution to continue this plan.", ref, t.Title())
 	} else {
-		content = fmt.Sprintf("task %q failed — its downstream is blocked pending resolution.", t.Title())
+		content = fmt.Sprintf("task %q failed — its downstream is blocked. Please use Evolution to continue this plan.", t.Title())
 	}
 	msgID, perr := p.svc.planDispatcher.PostMention(txCtx, plan.ConversationID(), creator, content)
 	if perr != nil {

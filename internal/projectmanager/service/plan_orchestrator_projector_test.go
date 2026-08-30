@@ -77,6 +77,23 @@ func (h *orchestratorHarness) mentionCount(t *testing.T, planID pm.PlanID, ref s
 	return n
 }
 
+func (h *orchestratorHarness) planMessageContents(t *testing.T, planID pm.PlanID) []string {
+	t.Helper()
+	conv, err := h.convRepo.FindByOwnerRef(h.ctx, conversation.NewPlanOwnerRef(string(planID)))
+	if err != nil {
+		t.Fatalf("plan conversation should exist: %v", err)
+	}
+	msgs, err := h.msgRepo.FindRecent(h.ctx, conv.ID(), 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := make([]string, 0, len(msgs))
+	for _, m := range msgs {
+		out = append(out, m.Content())
+	}
+	return out
+}
+
 // takeEvent fetches the first UNPROCESSED outbox event of the given type whose
 // payload references taskID — the REAL event (with its real id) the producer
 // emitted, so a test can replay the SAME event id through the projector.
@@ -645,6 +662,10 @@ func TestOrchestrator_FailureHumanCreator_NoWake(t *testing.T) {
 
 	if got := h.mentionCount(t, planID, "user:a"); got != 1 {
 		t.Fatalf("human creator @mentioned %d times on failure, want 1", got)
+	}
+	contents := strings.Join(h.planMessageContents(t, planID), "\n")
+	if !strings.Contains(contents, "Please use Evolution to continue this plan.") {
+		t.Fatalf("failure notice must direct the plan owner to Evolution; messages:\n%s", contents)
 	}
 	if got := len(h.creatorWakeEvents(t, planID)); got != 0 {
 		t.Fatalf("HUMAN-creator failure emitted %d creator-wake events, want 0 (@mention is their notification)", got)
