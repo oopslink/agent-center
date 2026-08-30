@@ -8,6 +8,7 @@ import { useAppStore } from '@/store/app';
 import { Avatar } from './Avatar';
 import { formatChatTime, formatLocalTime } from '@/utils/time';
 import { IconClose, IconCopy, IconDownload, IconZoomIn, IconZoomOut } from './icons';
+import { CollapsibleCodeBlock } from './CollapsibleCodeBlock';
 import { MarkdownMessage } from './MarkdownMessage';
 import { MessageCopyButton } from './MessageCopyButton';
 import { MessageQuoteButton } from './MessageQuoteButton';
@@ -888,6 +889,7 @@ function MarkdownAttachmentPreview({
   zoom: number;
 }): React.ReactElement {
   const { t } = useTranslation('chat');
+  const [viewMode, setViewMode] = useState<'rendered' | 'source'>('rendered');
   const [state, setState] = useState<
     | { status: 'loading'; content: string; error: string }
     | { status: 'loaded'; content: string; error: string }
@@ -918,23 +920,48 @@ function MarkdownAttachmentPreview({
   return (
     <div className="h-[70vh] overflow-auto p-4" data-testid="attachment-viewer-preview">
       <div
-        className="origin-top-left rounded border border-border-base bg-bg-elevated p-5 shadow-1"
+        className="origin-top-left overflow-hidden rounded border border-border-base bg-bg-elevated shadow-1"
         style={{ width: `${zoom * 100}%`, maxWidth: 'none' }}
         data-testid="attachment-viewer-markdown"
       >
-        {state.status === 'loading' && (
-          <p className="text-sm text-text-muted" data-testid="attachment-viewer-markdown-loading">
-            {t('message.attachmentViewer.loadingPreview')}
-          </p>
-        )}
-        {state.status === 'error' && (
-          <div className="text-sm text-danger" data-testid="attachment-viewer-markdown-error">
-            {state.error || t('message.attachmentViewer.previewUnavailable')}
+        <div className="sticky top-0 z-10 flex items-center justify-end border-b border-border-base bg-bg-elevated/95 px-3 py-2 backdrop-blur">
+          <div className="inline-flex rounded border border-border-base bg-bg-base p-0.5" data-testid="attachment-viewer-markdown-mode">
+            {(['rendered', 'source'] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setViewMode(mode)}
+                className={`min-h-7 rounded px-2 text-xs font-medium ${
+                  viewMode === mode
+                    ? 'bg-accent text-white'
+                    : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary'
+                }`}
+                aria-pressed={viewMode === mode}
+                data-testid={`attachment-viewer-markdown-${mode}`}
+              >
+                {t(`message.attachmentViewer.${mode}`)}
+              </button>
+            ))}
           </div>
-        )}
-        {state.status === 'loaded' && (
-          <MarkdownMessage content={state.content} textClass="text-text-primary" linkClass="text-accent" />
-        )}
+        </div>
+        <div className="p-5">
+          {state.status === 'loading' && (
+            <p className="text-sm text-text-muted" data-testid="attachment-viewer-markdown-loading">
+              {t('message.attachmentViewer.loadingPreview')}
+            </p>
+          )}
+          {state.status === 'error' && (
+            <div className="text-sm text-danger" data-testid="attachment-viewer-markdown-error">
+              {state.error || t('message.attachmentViewer.previewUnavailable')}
+            </div>
+          )}
+          {state.status === 'loaded' && viewMode === 'rendered' && (
+            <MarkdownMessage content={state.content} textClass="text-text-primary" linkClass="text-accent" />
+          )}
+          {state.status === 'loaded' && viewMode === 'source' && (
+            <CollapsibleCodeBlock code={state.content} language="markdown" contextLabel="code" collapsedThreshold={80} previewLines={40} />
+          )}
+        </div>
       </div>
     </div>
   );

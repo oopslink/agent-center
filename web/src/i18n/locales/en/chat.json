@@ -196,6 +196,8 @@
       "zoomOut": "Zoom out",
       "resetZoom": "Reset zoom",
       "close": "Close",
+      "rendered": "Rendered",
+      "source": "Source",
       "loadingPreview": "Loading preview…",
       "previewUnavailable": "Preview unavailable."
     },

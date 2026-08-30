@@ -445,9 +445,14 @@ describe('MessageList attachments (#142)', () => {
 
     expect(await screen.findByRole('heading', { name: 'Diagram' })).toBeInTheDocument();
     expect(screen.getByTestId('attachment-viewer-markdown')).toBeInTheDocument();
+    expect(screen.getByTestId('attachment-viewer-markdown-rendered')).toHaveAttribute('aria-pressed', 'true');
     expect(screen.getByTestId('mermaid-diagram')).toBeInTheDocument();
     expect(screen.queryByTestId('attachment-viewer-frame')).toBeNull();
     expect(fetch).toHaveBeenCalledWith('/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAM', expect.objectContaining({ credentials: 'same-origin' }));
+
+    fireEvent.click(screen.getByTestId('attachment-viewer-markdown-source'));
+    expect(screen.getByTestId('attachment-viewer-markdown-source')).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByTestId('collapsible-code-block')).toHaveTextContent('graph TD');
   });
 
   it('renders nothing extra for a plain message (no attachments)', () => {
