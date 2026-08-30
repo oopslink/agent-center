@@ -49,6 +49,7 @@ import {
   type TeamRAMRoleMapping,
   type TeamView,
 } from '@/api/teams';
+import { useProjects } from '@/api/projects';
 import {
   AccessMetaPill,
   AccessRiskBadge,
@@ -61,6 +62,7 @@ import {
 
 export type AccessPage = 'ram-roles' | 'subject-access';
 type AccessToast = { tone: 'success' | 'danger' | 'warning'; message: string } | null;
+type SelectOption = string | { value: string; label: string };
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
@@ -136,6 +138,7 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
     status: page === 'subject-access' ? status : 'all',
   }, currentPermissions.isSuccess && canManageAccess);
   const data = overview.data;
+  const projects = useProjects();
   const teams = useTeams();
   const mappingEntries = useAllTeamRoleRAMMappings(teams.data ?? []);
   const memberEntries = useAllTeamMembers(teams.data ?? []);
@@ -143,11 +146,21 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
     () => uniqueResources(data?.decisions ?? [], data?.grants ?? []),
     [data?.decisions, data?.grants],
   );
-  const projectOptions = useMemo(() => ['all', ...new Set(
-    (data?.decisions ?? [])
-      .filter((decision) => decision.resource.kind === 'project' || Boolean(decision.resource.project_id))
-      .map((decision) => decision.resource.project_id || decision.resource.id),
-  )], [data?.decisions]);
+  const projectNameByID = useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, project.name])), [projects.data]);
+  const projectOptions = useMemo(() => {
+    const byID = new Map<string, string>();
+    for (const decision of data?.decisions ?? []) {
+      if (decision.resource.kind !== 'project' && !decision.resource.project_id) continue;
+      const id = decision.resource.project_id || decision.resource.id;
+      byID.set(id, projectNameByID.get(id) ?? decision.resource.label ?? id);
+    }
+    return [
+      { value: 'all', label: 'All project' },
+      ...[...byID.entries()]
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .map(([value, label]) => ({ value, label })),
+    ];
+  }, [data?.decisions, projectNameByID]);
   const permissionOptions = useMemo(() => ['all', ...(data?.catalog ?? []).map((entry) => entry.key).sort()], [data?.catalog]);
 
   const subjectByRef = useMemo(() => {
@@ -382,7 +395,7 @@ function Select({
 }: {
   label: string;
   value: string;
-  options: readonly string[];
+  options: readonly SelectOption[];
   onChange: (value: string) => void;
 }): React.ReactElement {
   return (
@@ -394,11 +407,15 @@ function Select({
         onChange={(e) => onChange(e.target.value)}
         data-testid={`access-filter-${label.toLowerCase()}`}
       >
-        {options.map((option) => (
-          <option key={option} value={option}>
-            {option === 'all' ? `All ${label.toLowerCase()}` : option}
-          </option>
-        ))}
+        {options.map((option) => {
+          const value = typeof option === 'string' ? option : option.value;
+          const text = typeof option === 'string' ? (option === 'all' ? `All ${label.toLowerCase()}` : option) : option.label;
+          return (
+            <option key={value} value={value}>
+              {text}
+            </option>
+          );
+        })}
       </select>
     </label>
   );

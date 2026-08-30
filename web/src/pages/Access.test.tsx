@@ -146,7 +146,10 @@ describe('Access page', () => {
 
     fireEvent.change(screen.getByTestId('access-filter-status'), { target: { value: 'all' } });
     expect(screen.getByPlaceholderText('Subject, name, email, or ID')).toBeInTheDocument();
-    expect(screen.getByTestId('access-filter-project')).toBeInTheDocument();
+    const projectFilter = screen.getByTestId('access-filter-project');
+    expect(projectFilter).toBeInTheDocument();
+    expect(within(projectFilter).getByRole('option', { name: 'Project Alpha' })).toHaveValue('proj-a');
+    expect(within(projectFilter).queryByRole('option', { name: 'proj-a' })).not.toBeInTheDocument();
     expect(screen.getByTestId('access-filter-permission')).toBeInTheDocument();
     fireEvent.change(screen.getByTestId('access-filter-type'), { target: { value: 'agent' } });
     await waitFor(() => {
