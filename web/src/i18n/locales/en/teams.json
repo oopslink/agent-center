@@ -87,6 +87,9 @@
   "teamDetail": {
     "roles": {
       "edit": "Edit roles",
+      "add": "+ Add role",
+      "addFirst": "Add first role",
+      "delete": "Delete",
       "open": "Open Team Roles",
       "title": "Edit role definitions",
       "subtitle": "Add, configure, or remove roles. Roles assigned to members cannot be removed or renamed.",
@@ -114,6 +117,7 @@
       "reassignLabel": "Reassign affected members to",
       "confirmNameLabel": "Type {{role}} to confirm",
       "deleteConfirm": "Delete role",
+      "deleteLoading": "Calculating delete impact…",
       "previewTitle": "Save preview",
       "affectedSummary": "{{roles}} changed roles · {{members}} affected members",
       "effectiveHint": "Role config and RAM Role changes take effect immediately for new permission checks; running work keeps any already-snapshotted runtime context until it restarts.",

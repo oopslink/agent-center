@@ -7,16 +7,20 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import { OrgLink, useOptionalOrgContext } from '@/OrgContext';
 import {
+  useDeleteTeamRole,
   useAssociateProject,
   useDisassociateProject,
   useDirectoryAgents,
+  usePreviewDeleteTeamRole,
   useRemoveMember,
   useTeam,
   useTeamMemoryIndex,
   useTeamMemorySettings,
   useTeamMembers,
   useTeamProjects,
+  useUpdateTeamRoles,
   useUpdateTeamMemorySettings,
+  type RoleInput,
   type TeamMemoryPolicy,
 } from '@/api/teams';
 import { useProjects } from '@/api/projects';
@@ -26,8 +30,10 @@ import { EmptyState } from '@/components/EmptyState';
 import { Skeleton } from '@/components/Skeleton';
 import { AddMemberModal } from '@/components/teams/AddMemberModal';
 import { MemoryPane } from '@/components/teams/MemoryPane';
+import { RoleBuilder, newRole } from '@/components/teams/RoleBuilder';
 import {
   btnGhost,
+  btnPrimary,
   btnSm,
   btnSmDanger,
   btnSmPrimary,
@@ -131,34 +137,240 @@ type TabKey = (typeof TABS_KEYS)[number];
 
 function RolesPane({ team }: { team: TeamView }): React.ReactElement {
   const { t } = useTranslation('teams');
+  const updateRoles = useUpdateTeamRoles();
+  const previewDelete = usePreviewDeleteTeamRole();
+  const deleteRole = useDeleteTeamRole();
+  const [editing, setEditing] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState('');
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
+  const [deleteReassignRole, setDeleteReassignRole] = useState('');
+  const [deleteError, setDeleteError] = useState('');
+
+  const beginDelete = (role: string): void => {
+    const fallbackRole = team.roles.find((item) => item.role !== role)?.role ?? '';
+    setDeleteTarget(role);
+    setDeleteConfirmName('');
+    setDeleteReassignRole(fallbackRole);
+    setDeleteError('');
+    previewDelete.mutate({ team_id: team.id, role });
+  };
+
+  const confirmDelete = (): void => {
+    if (!deleteTarget) return;
+    deleteRole.mutate(
+      {
+        team_id: team.id,
+        role: deleteTarget,
+        expected_version: team.version,
+        reassign_role: deleteReassignRole,
+        confirm_name: deleteConfirmName,
+      },
+      {
+        onSuccess: () => {
+          setDeleteTarget('');
+          setDeleteConfirmName('');
+          setDeleteReassignRole('');
+        },
+        onError: (error) => setDeleteError(error instanceof Error ? error.message : String(error)),
+      },
+    );
+  };
+
   return (
     <Card>
-      <SectionHead title={t('teamDetail.roles.listTitle')} hint={t('teamDetail.roles.listHint')} />
+      <SectionHead
+        title={t('teamDetail.roles.listTitle')}
+        hint={t('teamDetail.roles.listHint')}
+        action={
+          <button type="button" className={btnSmPrimary} onClick={() => setEditing(true)} data-testid="team-add-role">
+            {t('teamDetail.roles.add')}
+          </button>
+        }
+      />
       {team.roles.length === 0 ? (
-        <EmptyState title={t('teamDetail.roles.emptyTitle')} body={t('teamDetail.roles.emptyBody')} testId="team-role-list-empty" />
+        <div className="rounded border border-dashed border-border-base p-6 text-center" data-testid="team-role-list-empty">
+          <EmptyState title={t('teamDetail.roles.emptyTitle')} body={t('teamDetail.roles.emptyBody')} />
+          <button type="button" className={`${btnSmPrimary} mt-4`} onClick={() => setEditing(true)} data-testid="team-empty-add-role">
+            {t('teamDetail.roles.addFirst')}
+          </button>
+        </div>
       ) : (
         <div className="divide-y divide-border-base" data-testid="team-role-list">
           {team.roles.map((role) => (
-            <OrgLink
-              key={role.role}
-              to={`/teams/${team.id}/roles/${encodeURIComponent(role.role)}`}
-              className="flex items-center justify-between gap-4 px-2 py-3 hover:bg-bg-subtle"
-              data-testid={`team-role-open-${role.role}`}
-            >
+            <div key={role.role} className="flex items-center justify-between gap-4 px-2 py-3 hover:bg-bg-subtle">
               <div>
-                <div className="font-semibold text-text-primary">{role.role}</div>
+                <OrgLink
+                  to={`/teams/${team.id}/roles/${encodeURIComponent(role.role)}`}
+                  className="font-semibold text-text-primary hover:text-brand"
+                  data-testid={`team-role-open-${role.role}`}
+                >
+                  {role.role}
+                </OrgLink>
                 <div className="mt-1 font-mono text-xs text-text-muted">{role.cli} · {role.model} · {t('teamDetail.roles.concurrency', { count: role.max_concurrency })}</div>
               </div>
-              <div className="text-right text-xs text-text-secondary">
-                <div>{t('teamDetail.roles.membersCount', { count: role.count ?? 0 })}</div>
-                <div className="mt-1">{t('teamDetail.roles.ramRolesCount', { count: role.ram_role_keys?.length ?? 0 })} →</div>
+              <div className="flex items-center gap-3">
+                <OrgLink
+                  to={`/teams/${team.id}/roles/${encodeURIComponent(role.role)}`}
+                  className="text-right text-xs text-text-secondary hover:text-text-primary"
+                >
+                  <div>{t('teamDetail.roles.membersCount', { count: role.count ?? 0 })}</div>
+                  <div className="mt-1">{t('teamDetail.roles.ramRolesCount', { count: role.ram_role_keys?.length ?? 0 })} →</div>
+                </OrgLink>
+                <button
+                  type="button"
+                  className={btnSmDanger}
+                  onClick={() => beginDelete(role.role)}
+                  disabled={team.roles.length <= 1 || previewDelete.isPending || deleteRole.isPending}
+                  title={team.roles.length <= 1 ? t('teamDetail.roles.deleteProtected') : undefined}
+                  data-testid={`team-role-delete-${role.role}`}
+                >
+                  {t('teamDetail.roles.delete')}
+                </button>
               </div>
-            </OrgLink>
+            </div>
           ))}
         </div>
       )}
+      {editing && (
+        <ManageTeamRolesModal
+          team={team}
+          saving={updateRoles.isPending}
+          error={updateRoles.error}
+          onClose={() => setEditing(false)}
+          onSave={(roles) => {
+            updateRoles.mutate(
+              { team_id: team.id, roles, expected_version: team.version },
+              { onSuccess: () => setEditing(false) },
+            );
+          }}
+        />
+      )}
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title={t('teamDetail.roles.deleteTitle', { role: deleteTarget })}
+        danger
+        busy={deleteRole.isPending}
+        confirmLabel={t('teamDetail.roles.deleteConfirm')}
+        confirmDisabled={
+          Boolean(previewDelete.data?.protected) ||
+          deleteConfirmName !== deleteTarget ||
+          !deleteReassignRole
+        }
+        onCancel={() => {
+          setDeleteTarget('');
+          setDeleteError('');
+        }}
+        onConfirm={confirmDelete}
+        message={
+          <div className="space-y-3" data-testid="team-role-delete-confirm">
+            {previewDelete.isPending && <p>{t('teamDetail.roles.deleteLoading')}</p>}
+            {previewDelete.data && (
+              <p>
+                {t('teamDetail.roles.deleteImpact', {
+                  members: previewDelete.data.affected_members,
+                  projects: previewDelete.data.affected_project_ids.length,
+                })}
+              </p>
+            )}
+            {previewDelete.data?.protected ? (
+              <p className="font-semibold text-danger">{t('teamDetail.roles.deleteProtected')}</p>
+            ) : (
+              <>
+                <label className="block text-xs font-semibold">
+                  {t('teamDetail.roles.reassignLabel')}
+                  <select
+                    className="mt-1 w-full rounded border border-border-base bg-bg-base p-2"
+                    value={deleteReassignRole}
+                    onChange={(event) => setDeleteReassignRole(event.target.value)}
+                    data-testid="team-role-delete-reassign"
+                  >
+                    {team.roles.filter((item) => item.role !== deleteTarget).map((item) => (
+                      <option key={item.role} value={item.role}>{item.role}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-xs font-semibold">
+                  {t('teamDetail.roles.confirmNameLabel', { role: deleteTarget })}
+                  <input
+                    className="mt-1 w-full rounded border border-border-base bg-bg-base p-2"
+                    value={deleteConfirmName}
+                    onChange={(event) => setDeleteConfirmName(event.target.value)}
+                    data-testid="team-role-delete-confirm-name"
+                  />
+                </label>
+              </>
+            )}
+            {previewDelete.isError && <p className="text-danger">{(previewDelete.error as Error).message}</p>}
+            {deleteError && <p className="text-danger" data-testid="team-role-delete-error">{deleteError}</p>}
+          </div>
+        }
+      />
     </Card>
   );
+}
+
+function ManageTeamRolesModal({
+  team,
+  saving,
+  error,
+  onClose,
+  onSave,
+}: {
+  team: TeamView;
+  saving: boolean;
+  error: unknown;
+  onClose: () => void;
+  onSave: (roles: RoleInput[]) => void;
+}): React.ReactElement {
+  const { t } = useTranslation('teams');
+  const [roles, setRoles] = useState<RoleInput[]>(() => {
+    if (team.roles.length === 0) return [newRole()];
+    return team.roles.map(roleViewToInput);
+  });
+  const names = roles.map((role) => role.role.trim()).filter(Boolean);
+  const invalid = names.length !== roles.length || new Set(names).size !== names.length;
+  return (
+    <ModalShell
+      open
+      onClose={onClose}
+      title={t('teamDetail.roles.title')}
+      subtitle={t('teamDetail.roles.subtitle')}
+      footer={
+        <>
+          <button type="button" className={btnGhost} onClick={onClose} disabled={saving}>
+            {t('common.cancel')}
+          </button>
+          <button
+            type="button"
+            className={btnPrimary}
+            onClick={() => onSave(roles.map((role) => ({ ...role, role: role.role.trim() })))}
+            disabled={saving || invalid}
+            data-testid="team-save-roles"
+          >
+            {t('teamDetail.roles.save')}
+          </button>
+        </>
+      }
+      testId="team-edit-roles-modal"
+    >
+      <RoleBuilder roles={roles} onChange={setRoles} idPrefix="team-edit" showCount={false} ramRoleMode="keys" />
+      {invalid && <p className="mt-2 text-xs text-danger" data-testid="team-role-validation">{t('teamDetail.roles.invalid')}</p>}
+      {Boolean(error) && <p className="mt-2 text-xs text-danger" role="alert" data-testid="team-role-save-error">{error instanceof Error ? error.message : String(error)}</p>}
+    </ModalShell>
+  );
+}
+
+function roleViewToInput(role: TeamView['roles'][number]): RoleInput {
+  return {
+    role: role.role,
+    cli: role.cli,
+    model: role.model,
+    max_concurrency: role.max_concurrency,
+    count: role.count ?? 1,
+    tags: role.capability_tags.join(', '),
+    ram_role_keys: role.ram_role_keys ?? [],
+    access_requirements: role.access_requirements ?? [],
+  };
 }
 
 function OverviewPane({ team: tv }: { team: TeamView }): React.ReactElement {

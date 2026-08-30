@@ -62,14 +62,93 @@ describe('TeamDetail', () => {
     expect(screen.getByText('Team overview')).toBeInTheDocument();
   });
 
-  it('uses the canonical Team Role page as the only role configuration entry', async () => {
+  it('links role rows to the canonical Team Role page', async () => {
     renderAt('team-7c19b0');
     const overviewEntry = await screen.findByTestId('team-open-roles');
     expect(overviewEntry).toHaveAttribute('href', '/teams/team-7c19b0/roles/planner');
-    expect(screen.queryByTestId('team-edit-roles')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByTestId('tab-rl'));
     expect(await screen.findByTestId('team-role-open-planner')).toHaveAttribute('href', '/teams/team-7c19b0/roles/planner');
+  });
+
+  it('adds the first Team Role from the empty Roles tab', async () => {
+    let saved: Record<string, unknown> | undefined;
+    let current = teamDetail({ id: 'team-empty', name: 'empty squad', roles: [], version: 7 });
+    server.use(
+      http.get('/api/teams/:id', ({ params }) => String(params.id) === 'team-empty' ? HttpResponse.json(current) : HttpResponse.json(teamDetail())),
+      http.patch('/api/teams/:id', async ({ request }) => {
+        saved = await request.json() as Record<string, unknown>;
+        current = teamDetail({
+          ...current,
+          version: 8,
+          roles: [{
+            role: 'reviewer',
+            cli: 'claude-code',
+            model: 'sonnet-5',
+            capability_tags: [],
+            max_concurrency: 1,
+            count: 0,
+            ram_role_keys: [],
+            access_requirements: [],
+          }],
+        });
+        return HttpResponse.json(current);
+      }),
+    );
+
+    renderAt('team-empty');
+    fireEvent.click(await screen.findByTestId('tab-rl'));
+    fireEvent.click(await screen.findByTestId('team-empty-add-role'));
+    const modal = await screen.findByTestId('team-edit-roles-modal');
+    fireEvent.change(within(modal).getByTestId('team-edit-role-0-name'), { target: { value: 'reviewer' } });
+    fireEvent.click(within(modal).getByTestId('team-save-roles'));
+
+    await waitFor(() => expect(saved).toBeDefined());
+    expect(saved?.expected_version).toBe(7);
+    expect(saved?.roles).toMatchObject([{ role: 'reviewer', cli: 'claude-code', model: 'sonnet-5', max_concurrency: 1 }]);
+    await waitFor(() => expect(screen.queryByTestId('team-edit-roles-modal')).not.toBeInTheDocument());
+  });
+
+  it('deletes a Team Role through the guarded Roles tab flow', async () => {
+    let deleted: Record<string, unknown> | undefined;
+    server.use(http.delete('/api/teams/:id/roles/:role', async ({ request }) => {
+      deleted = await request.json() as Record<string, unknown>;
+      return HttpResponse.json({
+        team: teamDetail({
+          roles: [{
+            role: 'planner',
+            cli: 'claude-code',
+            model: 'opus-4.8',
+            max_concurrency: 1,
+            capability_tags: [],
+            count: 1,
+            ram_role_keys: [],
+            access_requirements: [],
+          }],
+          version: 4,
+        }),
+        impact: {
+          team_id: 'team-7c19b0',
+          team_role: 'coder',
+          reassign_role: 'planner',
+          affected_members: 3,
+          affected_project_ids: ['project-c7073e48'],
+          version: 4,
+          protected: false,
+        },
+      });
+    }));
+
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('tab-rl'));
+    fireEvent.click(await screen.findByTestId('team-role-delete-coder'));
+    const confirm = await screen.findByTestId('confirm-modal');
+    expect(confirm).toHaveTextContent('This affects 3 members and 2 linked projects.');
+    fireEvent.change(within(confirm).getByTestId('team-role-delete-confirm-name'), { target: { value: 'coder' } });
+    fireEvent.click(within(confirm).getByTestId('confirm-modal-confirm'));
+
+    await waitFor(() => expect(deleted).toEqual({ expected_version: 3, reassign_role: 'planner', confirm_name: 'coder' }));
+    await waitFor(() => expect(screen.queryByTestId('team-role-open-coder')).not.toBeInTheDocument());
   });
 
   it('shows RAM role usage and member permission source scope', async () => {

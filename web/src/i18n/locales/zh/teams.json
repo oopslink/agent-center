@@ -87,6 +87,9 @@
   "teamDetail": {
     "roles": {
       "edit": "编辑角色",
+      "add": "+ 添加角色",
+      "addFirst": "添加第一个角色",
+      "delete": "删除",
       "open": "打开 Team Roles",
       "title": "编辑角色定义",
       "subtitle": "添加、配置或删除角色。已有成员使用的角色不能删除或重命名。",
@@ -114,6 +117,7 @@
       "reassignLabel": "将受影响成员改派到",
       "confirmNameLabel": "输入 {{role}} 确认",
       "deleteConfirm": "删除角色",
+      "deleteLoading": "正在计算删除影响…",
       "previewTitle": "保存预览",
       "affectedSummary": "{{roles}} 个角色变更 · {{members}} 名成员受影响",
       "effectiveHint": "角色配置和 RAM 权限映射会对新的权限判定立即生效；运行中工作继续使用已快照的运行上下文，直到重启。",
