@@ -81,6 +81,46 @@ func makeEffectiveConfig(cfg Config) mcp.ToolHandlerFor[effectiveConfigArgs, any
 	}
 }
 
+type deployRuntimeArgs struct {
+	CommitSHA        string `json:"commit_sha" jsonschema:"full 40-character git commit SHA to deploy"`
+	AncestorSHA      string `json:"ancestor_sha" jsonschema:"full 40-character known-good ancestor SHA used as deployment lineage evidence"`
+	PushedRef        string `json:"pushed_ref" jsonschema:"remote ref containing commit_sha, e.g. origin/main or refs/heads/review"`
+	ExactSHAVerified bool   `json:"exact_sha_verified" jsonschema:"must be true after verifying pushed_ref resolves to or contains commit_sha"`
+	AncestorVerified bool   `json:"ancestor_verified" jsonschema:"must be true after verifying ancestor_sha is an ancestor of commit_sha"`
+	IdempotencyKey   string `json:"idempotency_key,omitempty" jsonschema:"optional stable deployment request key; defaults to worker+commit"`
+}
+
+func makeDeployRuntime(cfg Config) mcp.ToolHandlerFor[deployRuntimeArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args deployRuntimeArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":           cfg.AgentID,
+			"commit_sha":         args.CommitSHA,
+			"ancestor_sha":       args.AncestorSHA,
+			"pushed_ref":         args.PushedRef,
+			"exact_sha_verified": args.ExactSHAVerified,
+			"ancestor_verified":  args.AncestorVerified,
+		}
+		if args.IdempotencyKey != "" {
+			body["idempotency_key"] = args.IdempotencyKey
+		}
+		return callAdmin(ctx, cfg, "deploy_runtime", body)
+	}
+}
+
+type runtimeStatusArgs struct {
+	CommandID string `json:"command_id,omitempty" jsonschema:"optional deploy command_id whose completion status should be included"`
+}
+
+func makeRuntimeStatus(cfg Config) mcp.ToolHandlerFor[runtimeStatusArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args runtimeStatusArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{"agent_id": cfg.AgentID}
+		if args.CommandID != "" {
+			body["command_id"] = args.CommandID
+		}
+		return callAdmin(ctx, cfg, "get_runtime_status", body)
+	}
+}
+
 // --- fork_executor ----------------------------------------------------------
 
 type forkExecutorArgs struct {

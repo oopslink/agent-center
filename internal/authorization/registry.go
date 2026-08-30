@@ -39,6 +39,8 @@ var definitions = []PermissionDefinition{
 	def("file.download", []string{"file"}, []string{"download"}, []string{"file_references"}),
 	def("file.attach", []string{"file"}, []string{"attach"}, []string{"file_references"}),
 	def("agent.operate.self", []string{"agent"}, []string{"manage"}, []string{"agents.worker_id"}),
+	def("runtime.status.read", []string{"worker"}, []string{"read"}, []string{"admin_tokens.owner"}),
+	def("runtime.deploy", []string{"worker"}, []string{"deploy"}, []string{"admin_tokens.owner"}),
 	def("worker.capability.report", []string{"worker"}, []string{"report"}, []string{"admin_tokens.owner"}),
 	def("worker.heartbeat", []string{"worker"}, []string{"heartbeat"}, []string{"admin_tokens.owner"}),
 	def("worker.enroll", []string{"worker"}, []string{"create"}, []string{"admin_tokens.scopes_json"}),
@@ -126,6 +128,10 @@ func PermissionForBearerScope(scope string) (PermissionKey, bool) {
 		return "task.internal.report", true
 	case "workforce:enroll":
 		return "worker.enroll", true
+	case "runtime:read":
+		return "runtime.status.read", true
+	case "runtime:deploy":
+		return "runtime.deploy", true
 	}
 	return "", false
 }

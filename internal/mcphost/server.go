@@ -244,6 +244,16 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeEffectiveConfig(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "deploy_runtime",
+		Description: "Request authenticated runtime deploy/restart of a selected pushed agent-center commit on this worker. Requires full commit_sha, pushed-ref evidence, and ancestor evidence. Accepted only means the command is enqueued; use get_runtime_status with command_id until command_status=succeeded and actual.build_commit equals commit_sha.",
+	}, makeDeployRuntime(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "get_runtime_status",
+		Description: "Authoritatively read this worker's reported running binary version/commit, service health, and optional deploy command status. Completion means command_status=succeeded plus actual.build_commit matching the requested commit.",
+	}, makeRuntimeStatus(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_tasks",
 		Description: "List all tasks in a project (board overview), optionally filtered by status and/or assignee. Requires project_id; the caller must be a project member.",
 	}, makeListTasks(cfg))

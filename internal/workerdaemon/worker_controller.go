@@ -50,8 +50,9 @@ type controllerHandler struct {
 	homeBase string
 	// poster posts the runtime_fs read response back to the center (satisfied by
 	// *AdminClient; narrowed to an interface so gap2 is unit-testable).
-	poster runtimeFsPoster
-	log    func(string)
+	poster   runtimeFsPoster
+	deployer runtimeDeployRunner
+	log      func(string)
 }
 
 type lifecycleReporter interface {
@@ -60,6 +61,10 @@ type lifecycleReporter interface {
 
 type commandStatusReporter interface {
 	ReportControlCommandStatus(ctx context.Context, agentID, commandID, taskID, status, reason, detail, executionID string, at time.Time) error
+}
+
+type runtimeDeployRunner interface {
+	DeployRuntime(ctx context.Context, payload string) error
 }
 
 // runtimeFsPoster is the subset of *AdminClient the runtime_fs local handler needs.
@@ -75,6 +80,9 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 	// process. Keeping it here also means it works even when the agent process is down.
 	if cmd.CommandType == cmdTypeRuntimeFs {
 		return h.handleRuntimeFs(ctx, []byte(cmd.Payload))
+	}
+	if cmd.CommandType == cmdTypeRuntimeDeploy {
+		return h.handleRuntimeDeploy(ctx, cmd)
 	}
 	var idp struct {
 		AgentID             string `json:"agent_id"`
@@ -155,6 +163,46 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 		CreatedAt:      cmd.CreatedAt,
 		Payload:        json.RawMessage(cmd.Payload),
 	})
+}
+
+func (h controllerHandler) handleRuntimeDeploy(ctx context.Context, cmd ControlCommand) error {
+	var payload struct {
+		RequestedByAgentID string `json:"requested_by_agent_id"`
+		AgentID            string `json:"agent_id"`
+		CommitSHA          string `json:"commit_sha"`
+	}
+	_ = json.Unmarshal([]byte(cmd.Payload), &payload)
+	agentID := strings.TrimSpace(payload.RequestedByAgentID)
+	if agentID == "" {
+		agentID = strings.TrimSpace(payload.AgentID)
+	}
+	if agentID == "" {
+		h.log(fmt.Sprintf("controller: runtime deploy command id=%s offset=%d has no requesting agent — skipping", cmd.ID, cmd.Offset))
+		return nil
+	}
+	if h.deployer == nil {
+		if rep, ok := h.reporter.(commandStatusReporter); ok && rep != nil && cmd.ID != "" {
+			return rep.ReportControlCommandStatus(ctx, agentID, cmd.ID, "",
+				environment.CommandStatusFailed, "runtime_deployer_not_wired",
+				"runtime deploy/restart executor is not wired on this worker", "", time.Now())
+		}
+		return errors.New("controller: runtime deploy/restart executor is not wired")
+	}
+	if err := h.deployer.DeployRuntime(ctx, cmd.Payload); err != nil {
+		if rep, ok := h.reporter.(commandStatusReporter); ok && rep != nil && cmd.ID != "" {
+			if rerr := rep.ReportControlCommandStatus(ctx, agentID, cmd.ID, "",
+				environment.CommandStatusFailed, "runtime_deploy_failed", err.Error(), "", time.Now()); rerr != nil {
+				return rerr
+			}
+		}
+		return nil
+	}
+	if rep, ok := h.reporter.(commandStatusReporter); ok && rep != nil && cmd.ID != "" {
+		return rep.ReportControlCommandStatus(ctx, agentID, cmd.ID, "",
+			environment.CommandStatusSucceeded, "runtime_restart_complete",
+			"deploy runner completed; confirm actual build identity with get_runtime_status", "", time.Now())
+	}
+	return nil
 }
 
 func shouldSkipForkCommand(cmd ControlCommand) bool {

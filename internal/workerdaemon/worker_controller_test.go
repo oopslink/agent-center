@@ -179,6 +179,53 @@ func TestControllerHandler_NoAgentIDIsSkipped(t *testing.T) {
 	}
 }
 
+func TestControllerHandler_RuntimeDeployFailsClosedWhenDeployerUnwired(t *testing.T) {
+	r := &fakeCommandStatusReporter{}
+	h, _, _ := newTestHandlerWithReporter(t, r)
+	err := h.Handle(context.Background(), ControlCommand{
+		ID:          "cmd-deploy",
+		CommandType: cmdTypeRuntimeDeploy,
+		Offset:      10,
+		Payload:     `{"agent_id":"a","commit_sha":"0123456789012345678901234567890123456789"}`,
+	})
+	if err != nil {
+		t.Fatalf("unwired runtime deploy should report failed and ack, got %v", err)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.commands) != 1 || r.commands[0].commandID != "cmd-deploy" ||
+		r.commands[0].agentID != "a" ||
+		r.commands[0].status != environment.CommandStatusFailed ||
+		r.commands[0].reason != "runtime_deployer_not_wired" {
+		t.Fatalf("command status reports = %+v", r.commands)
+	}
+}
+
+func TestControllerHandler_RuntimeDeployReportsSucceededAfterRunner(t *testing.T) {
+	r := &fakeCommandStatusReporter{}
+	h, _, _ := newTestHandlerWithReporter(t, r)
+	d := &fakeRuntimeDeployer{}
+	h.deployer = d
+	err := h.Handle(context.Background(), ControlCommand{
+		ID:          "cmd-deploy",
+		CommandType: cmdTypeRuntimeDeploy,
+		Offset:      10,
+		Payload:     `{"requested_by_agent_id":"a","commit_sha":"0123456789012345678901234567890123456789"}`,
+	})
+	if err != nil {
+		t.Fatalf("runtime deploy success should ack, got %v", err)
+	}
+	if d.payload != `{"requested_by_agent_id":"a","commit_sha":"0123456789012345678901234567890123456789"}` {
+		t.Fatalf("runner payload = %s", d.payload)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.commands) != 1 || r.commands[0].status != environment.CommandStatusSucceeded ||
+		r.commands[0].reason != "runtime_restart_complete" {
+		t.Fatalf("command status reports = %+v", r.commands)
+	}
+}
+
 func TestControllerHandler_ReconcileStoppedTearsDown(t *testing.T) {
 	h, l := newTestHandler(t)
 	_ = l.Ensure(agentlauncher.AgentSpec{AgentID: "a"})
@@ -361,6 +408,16 @@ func (r *fakeCommandStatusReporter) ReportControlCommandStatus(_ context.Context
 		status: status, reason: reason, detail: detail, executionID: executionID, at: at,
 	})
 	return nil
+}
+
+type fakeRuntimeDeployer struct {
+	payload string
+	err     error
+}
+
+func (d *fakeRuntimeDeployer) DeployRuntime(_ context.Context, payload string) error {
+	d.payload = payload
+	return d.err
 }
 
 // fakePoster records posted runtime_fs responses (and can be set to fail).

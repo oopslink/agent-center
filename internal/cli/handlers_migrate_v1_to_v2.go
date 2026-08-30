@@ -187,7 +187,7 @@ func MigrateV1ToV2Command() *Command {
 // wake buckets and suppressed-intent retry; 0151 adds human-decision progress
 // subscriptions; 0152 adds immutable ProjectManager delivery subjects and
 // acceptance ledger.
-const targetSchemaVersion = 152
+const targetSchemaVersion = 153
 
 func runMigrateV1ToV2(
 	ctx context.Context,

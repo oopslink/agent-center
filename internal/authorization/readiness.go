@@ -146,6 +146,7 @@ func readinessSystemRolePermissions(roleID string) []RolePermission {
 			add("admin_token.manage", "admin_token"), add("secret.resolve", "secret"), add("blob.put", "blob"),
 			add("dispatch.pull", "worker"), add("task.internal.report", "task"), add("worker.enroll", "worker"),
 			add("worker.heartbeat", "worker"), add("worker.capability.report", "worker"),
+			add("runtime.status.read", "worker"), add("runtime.deploy", "worker"),
 		}
 	}
 	return nil

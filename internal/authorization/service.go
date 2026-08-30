@@ -1545,6 +1545,13 @@ func builtinRolePermissionsFallback(roleID string) []RolePermission {
 			add("team.read", "team", false), add("team.write", "team", false), add("team.member.manage", "team", false),
 			add("team.project.link.manage", "team", false), add("team.runtime_config.manage", "team", false), add("team.memory.read", "team", false),
 		}
+	case "sys-admin-token":
+		return []RolePermission{
+			add("admin_token.manage", "admin_token", false), add("secret.resolve", "secret", false), add("blob.put", "blob", false),
+			add("dispatch.pull", "worker", false), add("task.internal.report", "task", false), add("worker.enroll", "worker", false),
+			add("worker.heartbeat", "worker", false), add("worker.capability.report", "worker", false),
+			add("runtime.status.read", "worker", false), add("runtime.deploy", "worker", false),
+		}
 	}
 	return nil
 }
@@ -2216,6 +2223,8 @@ func (s *Service) addWorkerEffective(req CheckRequest, add func(PermissionKey, D
 	}
 	add("worker.heartbeat", SourceWorkerOwner, "admin_tokens.owner:"+string(req.SubjectRef), false)
 	add("worker.capability.report", SourceWorkerOwner, "admin_tokens.owner:"+string(req.SubjectRef), false)
+	add("runtime.status.read", SourceWorkerOwner, "admin_tokens.owner:"+string(req.SubjectRef), false)
+	add("runtime.deploy", SourceWorkerOwner, "admin_tokens.owner:"+string(req.SubjectRef), false)
 	return nil
 }
 

@@ -463,6 +463,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/list_task_executions", s.taskExecutionHandler(false))
 	s.mux.HandleFunc("POST /admin/agent-tools/get_task_execution", s.taskExecutionHandler(true))
 	s.mux.HandleFunc("POST /admin/agent-tools/get_agent_runtime_effective_config", s.getAgentRuntimeEffectiveConfigHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/deploy_runtime", s.deployRuntimeHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/get_runtime_status", s.getRuntimeStatusHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_tasks", s.listTasksHandler) // v2.9.1 #T38
 	s.mux.HandleFunc("POST /admin/agent-tools/get_issue", s.getIssueHandler)
 	s.mux.HandleFunc("GET /admin/agent-tools/get_issue", s.getIssueHandler)

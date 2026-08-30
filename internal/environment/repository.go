@@ -46,16 +46,17 @@ type ControlEventRepository interface {
 }
 
 const (
-	CommandStatusPending  = "pending"
-	CommandStatusStarted  = "started"
-	CommandStatusRejected = "rejected"
-	CommandStatusFailed   = "failed"
-	CommandStatusExpired  = "expired"
+	CommandStatusPending   = "pending"
+	CommandStatusStarted   = "started"
+	CommandStatusSucceeded = "succeeded"
+	CommandStatusRejected  = "rejected"
+	CommandStatusFailed    = "failed"
+	CommandStatusExpired   = "expired"
 )
 
 func CommandStatusTerminal(status string) bool {
 	switch status {
-	case CommandStatusRejected, CommandStatusFailed, CommandStatusExpired:
+	case CommandStatusSucceeded, CommandStatusRejected, CommandStatusFailed, CommandStatusExpired:
 		return true
 	default:
 		return false

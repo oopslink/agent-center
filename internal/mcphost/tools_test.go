@@ -59,6 +59,33 @@ func TestJSONToolsForwarding(t *testing.T) {
 			wantBody: map[string]any{"agent_id": "agent-X"},
 		},
 		{
+			toolName: "deploy_runtime",
+			args: map[string]any{
+				"commit_sha":         "0123456789012345678901234567890123456789",
+				"ancestor_sha":       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"pushed_ref":         "origin/main",
+				"exact_sha_verified": true,
+				"ancestor_verified":  true,
+				"idempotency_key":    "deploy-once",
+			},
+			wantTool: "deploy_runtime",
+			wantBody: map[string]any{
+				"agent_id":           "agent-X",
+				"commit_sha":         "0123456789012345678901234567890123456789",
+				"ancestor_sha":       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"pushed_ref":         "origin/main",
+				"exact_sha_verified": true,
+				"ancestor_verified":  true,
+				"idempotency_key":    "deploy-once",
+			},
+		},
+		{
+			toolName: "get_runtime_status",
+			args:     map[string]any{"command_id": "cmd-1"},
+			wantTool: "get_runtime_status",
+			wantBody: map[string]any{"agent_id": "agent-X", "command_id": "cmd-1"},
+		},
+		{
 			toolName: "get_team_rule_index",
 			args:     map[string]any{"phase": "execute", "execution_id": "exec-1"},
 			wantTool: "get_team_rule_index",
