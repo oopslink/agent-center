@@ -43,6 +43,7 @@ const (
 	cmdTypeAgentConverse  = "agent.converse"       // v2.7 #185: DM/channel message → inject (no WorkItem)
 	cmdTypeWorkAvailable  = "agent.work_available" // v2.8.1 #278 D pull-model WAKE (PR2 emit / PR3 handle)
 	cmdTypeAgentForkExec  = "agent.fork_executor"  // supervisor fork_executor tool → explicit executor spawn
+	cmdTypeRuntimeDeploy  = "runtime.deploy_restart"
 )
 
 // mcpServerName is the `mcpServers` map key for the per-agent worker mcp-host

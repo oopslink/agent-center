@@ -27,6 +27,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/environment"
+	"github.com/oopslink/agent-center/internal/runtimedeploy"
 	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentlauncher"
@@ -51,7 +52,9 @@ type controllerHandler struct {
 	// poster posts the runtime_fs read response back to the center (satisfied by
 	// *AdminClient; narrowed to an interface so gap2 is unit-testable).
 	poster runtimeFsPoster
-	log    func(string)
+	// deployer executes runtime.deploy_restart commands locally on the worker host.
+	deployer runtimeDeployer
+	log      func(string)
 }
 
 type lifecycleReporter interface {
@@ -60,6 +63,10 @@ type lifecycleReporter interface {
 
 type commandStatusReporter interface {
 	ReportControlCommandStatus(ctx context.Context, agentID, commandID, taskID, status, reason, detail, executionID string, at time.Time) error
+}
+
+type runtimeDeployer interface {
+	DeployRestart(ctx context.Context, req runtimedeploy.Request) (runtimedeploy.Result, error)
 }
 
 // runtimeFsPoster is the subset of *AdminClient the runtime_fs local handler needs.
@@ -75,6 +82,9 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 	// process. Keeping it here also means it works even when the agent process is down.
 	if cmd.CommandType == cmdTypeRuntimeFs {
 		return h.handleRuntimeFs(ctx, []byte(cmd.Payload))
+	}
+	if cmd.CommandType == cmdTypeRuntimeDeploy {
+		return h.handleRuntimeDeploy(ctx, cmd)
 	}
 	var idp struct {
 		AgentID             string `json:"agent_id"`
@@ -176,6 +186,70 @@ func forkControlCommandExpired(cmd ControlCommand, now time.Time) bool {
 		return false
 	}
 	return now.Sub(created) > forkCommandExpireAfter
+}
+
+func (h controllerHandler) handleRuntimeDeploy(ctx context.Context, cmd ControlCommand) error {
+	rep, _ := h.reporter.(commandStatusReporter)
+	var req runtimedeploy.Request
+	if err := json.Unmarshal([]byte(cmd.Payload), &req); err != nil {
+		return h.reportRuntimeDeployStatus(ctx, rep, cmd, "", environment.CommandStatusRejected, "invalid_payload", err.Error())
+	}
+	agentID := strings.TrimSpace(req.AgentID)
+	if agentID == "" {
+		agentID = strings.TrimSpace(cmd.AgentID)
+	}
+	if agentID == "" {
+		h.log(fmt.Sprintf("controller: runtime deploy command id=%s offset=%d has no agent_id — skipping", cmd.ID, cmd.Offset))
+		return nil
+	}
+	if err := validateVerifiedRuntimeDeploy(req); err != nil {
+		return h.reportRuntimeDeployStatus(ctx, rep, cmd, agentID, environment.CommandStatusRejected, "verification_required", err.Error())
+	}
+	if h.deployer == nil {
+		return h.reportRuntimeDeployStatus(ctx, rep, cmd, agentID, environment.CommandStatusFailed, "runtime_deployer_not_wired", "controller has no runtime deployer")
+	}
+	if rep != nil && cmd.ID != "" && strings.TrimSpace(cmd.Status) == environment.CommandStatusPending {
+		if err := rep.ReportControlCommandStatus(ctx, agentID, cmd.ID, "", environment.CommandStatusStarted, "runtime_deploy_started", "", "", time.Now()); err != nil {
+			return err
+		}
+	}
+	res, err := h.deployer.DeployRestart(ctx, req)
+	if err != nil {
+		return h.reportRuntimeDeployStatus(ctx, rep, cmd, agentID, environment.CommandStatusFailed, "runtime_deploy_failed", err.Error())
+	}
+	detailBytes, _ := json.Marshal(res)
+	return h.reportRuntimeDeployStatus(ctx, rep, cmd, agentID, environment.CommandStatusSucceeded, "runtime_deploy_succeeded", string(detailBytes))
+}
+
+func validateVerifiedRuntimeDeploy(req runtimedeploy.Request) error {
+	target := strings.ToLower(strings.TrimSpace(req.TargetSHA))
+	verified := strings.ToLower(strings.TrimSpace(req.VerifiedTargetSHA))
+	switch {
+	case target == "":
+		return errors.New("target_sha required")
+	case verified == "":
+		return errors.New("verified_target_sha required")
+	case target != verified:
+		return fmt.Errorf("verified_target_sha %s does not match target_sha %s", verified, target)
+	case strings.TrimSpace(req.VerifiedBaseSHA) == "":
+		return errors.New("verified_base_sha required")
+	case strings.TrimSpace(req.VerifiedAt) == "":
+		return errors.New("verified_at required")
+	}
+	return nil
+}
+
+func (h controllerHandler) reportRuntimeDeployStatus(ctx context.Context, rep commandStatusReporter, cmd ControlCommand, agentID, status, reason, detail string) error {
+	if rep == nil || strings.TrimSpace(cmd.ID) == "" || strings.TrimSpace(agentID) == "" {
+		if status == environment.CommandStatusFailed || status == environment.CommandStatusRejected {
+			return fmt.Errorf("runtime deploy %s: %s", reason, detail)
+		}
+		return nil
+	}
+	if err := rep.ReportControlCommandStatus(ctx, agentID, cmd.ID, "", status, reason, detail, "", time.Now()); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (h controllerHandler) SnapshotConcurrency() map[string]concurrency.AgentSnapshot {

@@ -139,6 +139,10 @@ func (c *EnvControl) CommandsByAgentTask(ctx context.Context, workerID environme
 	return c.log.ListByAgentTask(ctx, workerID, commandType, agentID, taskID)
 }
 
+func (c *EnvControl) CommandByID(ctx context.Context, commandID string) (*environment.WorkerControlEvent, error) {
+	return c.log.CommandByID(ctx, commandID)
+}
+
 func (c *EnvControl) UpdateCommandStatus(ctx context.Context, in environment.UpdateCommandStatusInput) (*environment.WorkerControlEvent, error) {
 	return c.log.UpdateStatus(ctx, in)
 }

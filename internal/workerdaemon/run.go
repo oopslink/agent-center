@@ -211,6 +211,7 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 		reporter: client,
 		homeBase: agentHomeBase(cfg, opts.ConfigPath, opts.WorkerID),
 		poster:   client,
+		deployer: newSourceRuntimeDeployer(filepath.Join(workerStateDir(cfg, opts.ConfigPath, opts.WorkerID), "deploy"), opts.WorkerID, logf),
 		log:      logf,
 	}
 	logf("worker running in controller mode (process-per-agent)")

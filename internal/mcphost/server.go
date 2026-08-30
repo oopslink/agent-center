@@ -244,6 +244,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeEffectiveConfig(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "runtime_deploy_restart",
+		Description: "Deploy a pushed AgentCenter commit through this worker's authenticated control stream and wait for restart status. The server resolves target_ref from repo_url and verifies it equals target_sha, then verifies base_ref is an ancestor; caller-supplied verification claims are ignored.",
+	}, makeRuntimeDeployRestart(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_tasks",
 		Description: "List all tasks in a project (board overview), optionally filtered by status and/or assignee. Requires project_id; the caller must be a project member.",
 	}, makeListTasks(cfg))

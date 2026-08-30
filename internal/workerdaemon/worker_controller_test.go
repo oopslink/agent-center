@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/environment"
+	"github.com/oopslink/agent-center/internal/runtimedeploy"
 	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 	"github.com/oopslink/agent-center/internal/workerdaemon/agentlauncher"
@@ -361,6 +362,71 @@ func (r *fakeCommandStatusReporter) ReportControlCommandStatus(_ context.Context
 		status: status, reason: reason, detail: detail, executionID: executionID, at: at,
 	})
 	return nil
+}
+
+type fakeRuntimeDeployer struct {
+	req  runtimedeploy.Request
+	res  runtimedeploy.Result
+	err  error
+	seen bool
+}
+
+func (d *fakeRuntimeDeployer) DeployRestart(_ context.Context, req runtimedeploy.Request) (runtimedeploy.Result, error) {
+	d.req = req
+	d.seen = true
+	if d.err != nil {
+		return runtimedeploy.Result{}, d.err
+	}
+	return d.res, nil
+}
+
+func TestControllerHandler_RuntimeDeployRequiresServerVerification(t *testing.T) {
+	r := &fakeCommandStatusReporter{}
+	deployer := &fakeRuntimeDeployer{}
+	h := controllerHandler{reporter: r, deployer: deployer, log: func(string) {}}
+	err := h.Handle(context.Background(), ControlCommand{
+		ID:          "cmd-deploy",
+		CommandType: cmdTypeRuntimeDeploy,
+		Status:      environment.CommandStatusPending,
+		Payload:     `{"agent_id":"a","repo_url":"https://example.invalid/repo.git","target_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","exact_sha_verified":true,"ancestor_verified":true}`,
+	})
+	if err != nil {
+		t.Fatalf("rejected deploy should be ackable after terminal report, got %v", err)
+	}
+	if deployer.seen {
+		t.Fatal("deployer must not run from caller-asserted verification booleans")
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.commands) != 1 || r.commands[0].status != environment.CommandStatusRejected ||
+		r.commands[0].reason != "verification_required" {
+		t.Fatalf("status reports = %+v", r.commands)
+	}
+}
+
+func TestControllerHandler_RuntimeDeployReportsSucceeded(t *testing.T) {
+	r := &fakeCommandStatusReporter{}
+	sha := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	deployer := &fakeRuntimeDeployer{res: runtimedeploy.Result{TargetSHA: sha, Mode: "center"}}
+	h := controllerHandler{reporter: r, deployer: deployer, log: func(string) {}}
+	payload := `{"agent_id":"a","repo_url":"https://example.invalid/repo.git","target_ref":"refs/heads/main","target_sha":"` + sha + `","verified_target_sha":"` + sha + `","verified_base_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","verified_at":"2026-08-31T00:00:00Z"}`
+	if err := h.Handle(context.Background(), ControlCommand{
+		ID:          "cmd-deploy",
+		CommandType: cmdTypeRuntimeDeploy,
+		Status:      environment.CommandStatusPending,
+		Payload:     payload,
+	}); err != nil {
+		t.Fatalf("runtime deploy handle: %v", err)
+	}
+	if !deployer.seen || deployer.req.VerifiedTargetSHA != sha {
+		t.Fatalf("deployer request = %+v seen=%v", deployer.req, deployer.seen)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.commands) != 2 || r.commands[0].status != environment.CommandStatusStarted ||
+		r.commands[1].status != environment.CommandStatusSucceeded {
+		t.Fatalf("status reports = %+v", r.commands)
+	}
 }
 
 // fakePoster records posted runtime_fs responses (and can be set to fail).

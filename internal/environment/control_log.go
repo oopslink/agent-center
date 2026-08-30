@@ -155,6 +155,13 @@ func (l *ControlLog) ListByAgentTask(ctx context.Context, workerID WorkerID, com
 	return l.events.ListByAgentTask(ctx, workerID, commandType, agentID, taskID)
 }
 
+func (l *ControlLog) CommandByID(ctx context.Context, commandID string) (*WorkerControlEvent, error) {
+	if commandID == "" {
+		return nil, nil
+	}
+	return l.events.FindByID(ctx, commandID)
+}
+
 func (l *ControlLog) UpdateStatus(ctx context.Context, in UpdateCommandStatusInput) (*WorkerControlEvent, error) {
 	if in.StatusUpdatedAt.IsZero() {
 		in.StatusUpdatedAt = l.clock.Now()
