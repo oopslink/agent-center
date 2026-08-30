@@ -1035,6 +1035,13 @@ func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error 
 		if t == nil {
 			continue // node without a loaded task (defensive) — nothing to classify.
 		}
+		if n.NodeStatus == pm.NodeFailed && n.Effective {
+			if err := s.ensureFailedNodeDisposition(txCtx, p, t, now); err != nil {
+				return err
+			}
+		} else if err := s.resolveFailedNodeDispositionIfSuperseded(txCtx, p, t, n, now); err != nil {
+			return err
+		}
 		cls, clear, cerr := s.classifyBlockedOn(txCtx, p, t, n, edges, hasOutcome, nodeStatusByID)
 		if cerr != nil {
 			return cerr
@@ -1045,6 +1052,9 @@ func (s *Service) materializeBlockedOn(txCtx context.Context, p *pm.Plan) error 
 		}
 		if clear {
 			if hadPrev {
+				if err := s.resolveBlockedOnDispositionIfProgressing(txCtx, p, prev, n, now); err != nil {
+					return err
+				}
 				if err := s.releaseStaleBlockedOnProgress(txCtx, p, prev, now); err != nil {
 					return err
 				}

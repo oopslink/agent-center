@@ -69,6 +69,12 @@ func (s *Service) routeTimeouts(txCtx context.Context, p *pm.Plan) error {
 			}
 			continue // this node's routing failed to persist; the scan goes on.
 		}
+		if derr := s.ensureTimedOutBlockedOnDisposition(txCtx, p, b, now); derr != nil {
+			if firstErr == nil {
+				firstErr = derr
+			}
+			continue // the durable disposition write failed; leave sink routing for a later sweep.
+		}
 		if s.timeoutSink == nil {
 			continue // recorded; no external action wired.
 		}

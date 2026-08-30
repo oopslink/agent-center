@@ -106,6 +106,7 @@ const (
 	IncidentLeaseFenceConflict            ProgressIncidentKind = "lease_fence_conflict"
 	IncidentWatchdogSilent                ProgressIncidentKind = "watchdog_silent"
 	IncidentWakeAckLost                   ProgressIncidentKind = "wake_ack_lost"
+	IncidentBlockDispositionRequired      ProgressIncidentKind = "block_disposition_required"
 	ProgressIncidentWakeAckLost                                = "wake_ack_lost"
 	ProgressIncidentOperational                                = "operational_incident"
 	ProgressIncidentHoldSLOBreach                              = "hold_slo_breached"

@@ -71,6 +71,14 @@ func blockedOnSourceFactRef(b pm.BlockedOn) string {
 	return "blocked_on:" + blockedOnReasonID(b)
 }
 
+func blockedOnDispositionSourceRef(planID pm.PlanID, b pm.BlockedOn) string {
+	return "block_signature:" + string(planID) + ":" + string(b.TaskID) + ":" + blockedOnReasonID(b) + ":" + b.WaitedSince.UTC().Format(time.RFC3339Nano)
+}
+
+func failedNodeDispositionSourceRef(planID pm.PlanID, taskID pm.TaskID) string {
+	return "failed_node:" + string(planID) + ":" + string(taskID)
+}
+
 func blockedOnSourceFactRefForReason(reasonID string) string {
 	return "blocked_on:" + reasonID
 }
@@ -94,6 +102,229 @@ func blockedOnReasonNeedsExecutableReleaseFact(reasonID string) bool {
 
 func sameBlockedOnDescriptor(a, b pm.BlockedOn) bool {
 	return a.WaitType == b.WaitType && stringSlicesEqual(a.WaitKeys, b.WaitKeys)
+}
+
+func (s *Service) ensureTimedOutBlockedOnDisposition(ctx context.Context, p *pm.Plan, b pm.BlockedOn, now time.Time) error {
+	if s.progress == nil || p == nil || b.TaskID == "" {
+		return nil
+	}
+	sourceRef := blockedOnDispositionSourceRef(p.ID(), b)
+	owner := p.CreatorRef()
+	if owner == "" {
+		owner = "role:operational-owner"
+	}
+	summary := fmt.Sprintf("plan node %s is still blocked after deadline (%s): %s", b.TaskID, b.WaitType, b.TriggerCondition)
+	factRefs := []string{sourceRef, blockedOnSourceFactRef(b)}
+	if !b.Deadline.IsZero() {
+		factRefs = append(factRefs, "deadline_elapsed:"+b.Deadline.UTC().Format(time.RFC3339Nano))
+	}
+	if _, err := s.progress.UpsertObligation(ctx, pm.ProgressObligation{
+		ID:                   stableID("pcobl", string(p.ID()), string(b.TaskID), "block_disposition", sourceRef),
+		PlanID:               p.ID(),
+		TaskID:               b.TaskID,
+		NodeID:               b.NodeID,
+		Kind:                 pm.ObligationPlanProgress,
+		OwnerRef:             owner,
+		OwnerDisplay:         string(owner),
+		DeadlineAt:           now.Add(defaultHoldAckDeadline),
+		AckRequired:          true,
+		EscalateToRef:        "role:operational-owner",
+		EscalationDeadlineAt: now.Add(2 * defaultHoldAckDeadline),
+		SourceFactRefs:       factRefs,
+		Status:               pm.ResponsibilityOpen,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+		Version:              1,
+	}); err != nil {
+		return err
+	}
+	if _, err := s.progress.UpsertIncident(ctx, pm.ProgressIncident{
+		ID:           stableID("pcinc", string(p.ID()), string(b.TaskID), string(pm.IncidentBlockDispositionRequired), sourceRef),
+		PlanID:       p.ID(),
+		TaskID:       b.TaskID,
+		NodeID:       b.NodeID,
+		Kind:         pm.IncidentBlockDispositionRequired,
+		Severity:     "operational",
+		OwnerRef:     owner,
+		OwnerDisplay: string(owner),
+		Summary:      summary,
+		SourceRef:    sourceRef,
+		Status:       pm.ResponsibilityOpen,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}); err != nil {
+		return err
+	}
+	return s.recordBlockDispositionWakeRequested(ctx, p, b, sourceRef, now)
+}
+
+func (s *Service) recordBlockDispositionWakeRequested(ctx context.Context, p *pm.Plan, b pm.BlockedOn, sourceRef string, now time.Time) error {
+	if s.progress == nil || p == nil {
+		return nil
+	}
+	owner := p.CreatorRef()
+	if owner == "" {
+		owner = "role:operational-owner"
+	}
+	w := pm.ProgressWake{
+		ID:                   s.id("wake"),
+		PlanID:               p.ID(),
+		TaskID:               b.TaskID,
+		NodeID:               b.NodeID,
+		OwnerRef:             owner,
+		OwnerDisplay:         string(owner),
+		Reason:               fmt.Sprintf("plan node %s still blocked after deadline (%s): %s", b.TaskID, b.WaitType, b.TriggerCondition),
+		Status:               pm.ProgressWakeRequested,
+		IdempotencyKey:       sourceRef,
+		RequestedAt:          now,
+		DeliveredAt:          now,
+		AckDeadline:          now.Add(defaultHoldAckDeadline),
+		MaxHoldDuration:      defaultMaxHoldDuration,
+		EscalationLevel:      0,
+		NextEscalationAt:     now.Add(defaultHoldAckDeadline),
+		OrganizationOwnerRef: "role:operational-owner",
+	}
+	created, err := s.progress.RecordWake(ctx, w)
+	if err != nil {
+		return err
+	}
+	if !created {
+		return nil
+	}
+	if err := s.progress.MarkWakeDelivered(ctx, w.ID, now); err != nil {
+		return err
+	}
+	msgID := ""
+	if s.planDispatcher != nil && strings.TrimSpace(p.ConversationID()) != "" {
+		content := fmt.Sprintf("plan node %s is still blocked after deadline (%s): %s. Please choose and apply a recovery disposition; this is not resolved until the plan shows new progress.", b.TaskID, b.WaitType, b.TriggerCondition)
+		id, err := s.planDispatcher.PostMention(ctx, p.ConversationID(), string(owner), content)
+		if err != nil {
+			return err
+		}
+		msgID = id
+	}
+	orgID := ""
+	if s.projects != nil {
+		if proj, err := s.projects.FindByID(ctx, p.ProjectID()); err == nil && proj != nil {
+			orgID = proj.OrganizationID()
+		}
+	}
+	return s.emit(ctx, EvtPlanOwnerBlockWake,
+		refsJSON(map[string]string{"plan_id": string(p.ID()), "task_id": string(b.TaskID), "project_id": string(p.ProjectID())}),
+		planOwnerBlockWakePayload{
+			OwnerRef:       string(owner),
+			ConversationID: p.ConversationID(),
+			MessageID:      msgID,
+			PlanID:         string(p.ID()),
+			TaskID:         string(b.TaskID),
+			WaitType:       string(b.WaitType),
+			Reason:         b.TriggerCondition,
+			OrganizationID: orgID,
+		})
+}
+
+func (s *Service) resolveBlockedOnDispositionIfProgressing(ctx context.Context, p *pm.Plan, b pm.BlockedOn, n pm.PlanNodeView, now time.Time) error {
+	if !blockedOnResolvedByNodeStatus(n.NodeStatus) {
+		return nil
+	}
+	return s.resolveBlockedOnDispositionByFact(ctx, p, b, "block_resolved:"+string(n.NodeStatus), now)
+}
+
+func blockedOnResolvedByNodeStatus(status pm.NodeStatus) bool {
+	switch status {
+	case pm.NodeReady, pm.NodeDispatched, pm.NodeRunning, pm.NodeDone, pm.NodeSkipped:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Service) resolveBlockedOnDispositionByFact(ctx context.Context, p *pm.Plan, b pm.BlockedOn, factRef string, now time.Time) error {
+	if s.progress == nil || p == nil || b.TaskID == "" {
+		return nil
+	}
+	owner := p.CreatorRef()
+	if owner == "" {
+		owner = "role:operational-owner"
+	}
+	sourceRef := blockedOnDispositionSourceRef(p.ID(), b)
+	if _, err := s.progress.ResolveOpenObligationsBySourceRef(ctx, p.ID(), b.TaskID, owner, sourceRef, factRef, now); err != nil {
+		return err
+	}
+	_, err := s.progress.ResolveOpenIncidentsBySource(ctx, p.ID(), b.TaskID, sourceRef, factRef, now)
+	return err
+}
+
+func (s *Service) ensureFailedNodeDisposition(ctx context.Context, p *pm.Plan, t *pm.Task, now time.Time) error {
+	if s.progress == nil || p == nil || t == nil || t.ID() == "" {
+		return nil
+	}
+	owner := p.CreatorRef()
+	if owner == "" {
+		owner = "role:operational-owner"
+	}
+	sourceRef := failedNodeDispositionSourceRef(p.ID(), t.ID())
+	reason := strings.TrimSpace(t.FailedReason())
+	if reason == "" {
+		reason = "task failed"
+	}
+	summary := fmt.Sprintf("failed plan node %s requires recovery disposition: %s", t.ID(), reason)
+	if _, err := s.progress.UpsertObligation(ctx, pm.ProgressObligation{
+		ID:                   stableID("pcobl", string(p.ID()), string(t.ID()), "failed_node_disposition", sourceRef),
+		PlanID:               p.ID(),
+		TaskID:               t.ID(),
+		NodeID:               t.NodeID(),
+		Kind:                 pm.ObligationPlanProgress,
+		OwnerRef:             owner,
+		OwnerDisplay:         string(owner),
+		DeadlineAt:           now.Add(defaultHoldAckDeadline),
+		AckRequired:          true,
+		EscalateToRef:        "role:operational-owner",
+		EscalationDeadlineAt: now.Add(2 * defaultHoldAckDeadline),
+		SourceFactRefs:       []string{sourceRef, "task_failed:" + string(t.ID())},
+		Status:               pm.ResponsibilityOpen,
+		CreatedAt:            now,
+		UpdatedAt:            now,
+		Version:              1,
+	}); err != nil {
+		return err
+	}
+	_, err := s.progress.UpsertIncident(ctx, pm.ProgressIncident{
+		ID:           stableID("pcinc", string(p.ID()), string(t.ID()), string(pm.IncidentBlockDispositionRequired), sourceRef),
+		PlanID:       p.ID(),
+		TaskID:       t.ID(),
+		NodeID:       t.NodeID(),
+		Kind:         pm.IncidentBlockDispositionRequired,
+		Severity:     "operational",
+		OwnerRef:     owner,
+		OwnerDisplay: string(owner),
+		Summary:      summary,
+		SourceRef:    sourceRef,
+		Status:       pm.ResponsibilityOpen,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	})
+	return err
+}
+
+func (s *Service) resolveFailedNodeDispositionIfSuperseded(ctx context.Context, p *pm.Plan, t *pm.Task, n pm.PlanNodeView, now time.Time) error {
+	if s.progress == nil || p == nil || t == nil || t.ID() == "" {
+		return nil
+	}
+	if n.Effective && n.NodeStatus != pm.NodeSkipped {
+		return nil
+	}
+	owner := p.CreatorRef()
+	if owner == "" {
+		owner = "role:operational-owner"
+	}
+	sourceRef := failedNodeDispositionSourceRef(p.ID(), t.ID())
+	factRef := "failed_node_superseded:" + string(t.ID())
+	if _, err := s.progress.ResolveOpenObligationsBySourceRef(ctx, p.ID(), t.ID(), owner, sourceRef, factRef, now); err != nil {
+		return err
+	}
+	_, err := s.progress.ResolveOpenIncidentsBySource(ctx, p.ID(), t.ID(), sourceRef, factRef, now)
+	return err
 }
 
 func (s *Service) releaseStaleBlockedOnProgress(ctx context.Context, p *pm.Plan, b pm.BlockedOn, now time.Time) error {
@@ -433,6 +664,9 @@ func (s *Service) ReconcileProgressControl(ctx context.Context, limit int) error
 }
 
 func progressWakeMissingExecutableReleaseFact(w pm.ProgressWake) bool {
+	if strings.HasPrefix(w.IdempotencyKey, "block_signature:") || strings.HasPrefix(w.IdempotencyKey, "failed_node:") {
+		return false
+	}
 	waitType, ok := progressWakeWaitType(w)
 	if !ok {
 		return true

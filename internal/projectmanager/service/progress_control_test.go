@@ -235,6 +235,95 @@ func TestProgressHold_MaterializesOnlyForMissingExecutableReleaseFact(t *testing
 	}
 }
 
+func TestProgressControl_TimedOutBlockedOnRequiresDispositionUntilPlanProgresses(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	h.svc.progress = pmsql.NewProgressControlRepo(h.db)
+	h.svc.deadlinePolicy = pm.DeadlinePolicy{
+		Default: pm.WaitDeadline{Timeout: time.Hour, OnTimeout: pm.TimeoutEscalate},
+	}
+	_, planID, upstream, blocked := seedBlockedPlanAB(t, h, "blocked-disposition")
+
+	h.clk.Advance(2 * time.Hour)
+	if err := h.svc.ReconcileRunningPlans(h.ctx, nil); err != nil {
+		t.Fatalf("timeout sweep: %v", err)
+	}
+	snap, err := h.svc.progress.SnapshotPlan(h.ctx, planID, h.clk.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasProgressObligation(snap, blocked, pm.ObligationPlanProgress) {
+		t.Fatalf("snapshot obligations=%+v, want plan_progress for timed-out blocked node", snap.OpenObligations)
+	}
+	if !hasProgressIncident(snap, blocked, pm.IncidentBlockDispositionRequired) {
+		t.Fatalf("snapshot incidents=%+v, want block_disposition_required", snap.OpenIncidents)
+	}
+	if len(snap.OpenHolds) != 0 {
+		t.Fatalf("timed-out upstream wait should not create dispatch-blocking holds: %+v", snap.OpenHolds)
+	}
+	h.clk.Advance(defaultHoldAckDeadline + time.Minute)
+	if err := h.svc.ReconcileProgressControl(h.ctx, 10); err != nil {
+		t.Fatalf("progress-control sweep: %v", err)
+	}
+	snap, err = h.svc.progress.SnapshotPlan(h.ctx, planID, h.clk.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snap.OpenHolds) != 0 {
+		t.Fatalf("unacked disposition wake should not become a dispatch-blocking hold: %+v", snap.OpenHolds)
+	}
+
+	h.setTaskStatus(t, upstream, pm.TaskCompleted)
+	if err := h.svc.ReconcileRunningPlans(h.ctx, nil); err != nil {
+		t.Fatalf("progress sweep: %v", err)
+	}
+	snap, err = h.svc.progress.SnapshotPlan(h.ctx, planID, h.clk.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if hasProgressObligation(snap, blocked, pm.ObligationPlanProgress) || hasProgressIncident(snap, blocked, pm.IncidentBlockDispositionRequired) {
+		t.Fatalf("authoritative progress did not resolve block disposition: obligations=%+v incidents=%+v", snap.OpenObligations, snap.OpenIncidents)
+	}
+}
+
+func TestProgressControl_FailedEffectiveNodeRequiresOwnerDisposition(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	h.svc.progress = pmsql.NewProgressControlRepo(h.db)
+	_, planID, failed, _ := seedBlockedPlanAB(t, h, "failed-disposition")
+
+	h.setTaskStatus(t, failed, pm.TaskFailed)
+	if err := h.svc.ReconcileRunningPlans(h.ctx, nil); err != nil {
+		t.Fatalf("failed sweep: %v", err)
+	}
+	snap, err := h.svc.progress.SnapshotPlan(h.ctx, planID, h.clk.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hasProgressObligation(snap, failed, pm.ObligationPlanProgress) {
+		t.Fatalf("snapshot obligations=%+v, want plan_progress for failed effective node", snap.OpenObligations)
+	}
+	if !hasProgressIncident(snap, failed, pm.IncidentBlockDispositionRequired) {
+		t.Fatalf("snapshot incidents=%+v, want block_disposition_required for failed effective node", snap.OpenIncidents)
+	}
+}
+
+func hasProgressObligation(snap pm.ProgressControlSnapshot, taskID pm.TaskID, kind pm.ProgressObligationKind) bool {
+	for _, obligation := range snap.OpenObligations {
+		if obligation.TaskID == taskID && obligation.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+func hasProgressIncident(snap pm.ProgressControlSnapshot, taskID pm.TaskID, kind pm.ProgressIncidentKind) bool {
+	for _, incident := range snap.OpenIncidents {
+		if incident.TaskID == taskID && incident.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
 func TestPlanDetail_ProgressControlCannotDetermineAllowsIncidentOnly(t *testing.T) {
 	h := planAdvanceSetup(t)
 	h.svc.progress = pmsql.NewProgressControlRepo(h.db)
