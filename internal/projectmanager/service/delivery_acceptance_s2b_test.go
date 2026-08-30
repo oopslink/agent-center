@@ -65,6 +65,68 @@ func seedS2BStage(t *testing.T, verifier *fakeDeliveryVerifier) (*planAdvanceHar
 	return h, planID, stageID, work, stage.GateTaskID()
 }
 
+func seedS2BStageWithoutMemberDelivery(t *testing.T, verifier *fakeDeliveryVerifier) (*planAdvanceHarness, pm.PlanID, pm.StageID, pm.TaskID, pm.TaskID) {
+	t.Helper()
+	h, _ := planGraphSetup(t)
+	h.svc.acceptances = pmsql.NewDeliveryAcceptanceRepo(h.db)
+	h.svc.deliveryVerifier = verifier
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	ref, err := pm.NewCodeRepoRef(pm.NewCodeRepoRefInput{
+		ID: "repo-ref-1", ProjectID: pid, URL: "https://example.invalid/repo.git", AddedBy: "user:a", CreatedAt: h.clk.Now(), IsPrimary: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.codeRepoRefs.Save(ctx, ref); err != nil {
+		t.Fatal(err)
+	}
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "s2b", CreatedBy: "user:a"})
+	stageID, err := h.svc.CreateStage(ctx, CreateStageCommand{PlanID: planID, Name: "A", Actor: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	work := h.seedAssignedTask(t, pid, planID, "work", "user:dev")
+	if err := h.svc.AssignTaskToStage(ctx, planID, work, stageID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	stage, _ := h.svc.stages.FindByID(ctx, stageID)
+	h.setTaskStatus(t, work, pm.TaskCompleted)
+	h.setTaskStatus(t, stage.GateTaskID(), pm.TaskCompleted)
+	return h, planID, stageID, work, stage.GateTaskID()
+}
+
+func TestS2B_RecordStageGateVerdict_UsesManualRecoveryGateDeliverySubject(t *testing.T) {
+	verifier := &fakeDeliveryVerifier{bySHA: map[string]DeliveryVerification{
+		s2bGood: {CandidateExists: true, RefMatches: true, Pushed: true, BaseIsAncestor: true, RemoteSHA: s2bGood},
+	}}
+	h, _, stageID, _, gate := seedS2BStageWithoutMemberDelivery(t, verifier)
+	stage, err := h.svc.stages.FindByID(h.ctx, stageID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := h.svc.RecordDelivery(h.ctx, gate, "user:a", &pm.Delivery{
+		Probed: true, Pushed: true, Branch: "manual/recovered-gate", HeadSHA: s2bGood,
+		BaseRef: s2bBase, BaseKnown: true, AheadOfBase: 1, Source: "manual_recovery",
+		Reason: "recovered stale executor delivery", Evidence: "go test ./... PASS",
+	}); err != nil {
+		t.Fatalf("RecordDelivery manual recovery: %v", err)
+	}
+
+	if _, err := h.svc.RecordStageGateVerdict(h.ctx, RecordStageGateVerdictCommand{
+		GateTaskID: gate, Outcome: pm.GateVerdictPass, Evidence: "accepted recovered SHA",
+		ReviewedSHA: s2bGood, IdempotencyKey: "manual-recovery-gate-pass", Actor: "user:a",
+	}); err != nil {
+		t.Fatalf("manual recovery gate subject must satisfy verifier: %v", err)
+	}
+	if ok, err := h.svc.acceptancePassesGate(h.ctx, stage, gate); err != nil || !ok {
+		t.Fatalf("manual recovery acceptancePassesGate ok=%v err=%v, want true", ok, err)
+	}
+}
+
 func TestS2B_RecordStageGateVerdict_FailClosedOnRemoteAndAuthority(t *testing.T) {
 	verifier := &fakeDeliveryVerifier{bySHA: map[string]DeliveryVerification{
 		s2bGood: {CandidateExists: true, RefMatches: true, Pushed: true, BaseIsAncestor: true, RemoteSHA: s2bGood},
@@ -158,4 +220,44 @@ func TestS2B_AcceptanceLedgerHigherAuthorityOverride(t *testing.T) {
 	if eff.ID != "acc-high" || eff.Verdict != pm.AcceptanceRejected {
 		t.Fatalf("effective=%+v, want higher-authority reject", eff)
 	}
+}
+
+func TestS2B_DeliverySubjectLookupUsesAcceptanceContract(t *testing.T) {
+	h, _ := planGraphSetup(t)
+	ctx := h.ctx
+	da := pmsql.NewDeliveryAcceptanceRepo(h.db)
+	base := pm.DeliverySubject{
+		SubjectType: pm.DeliverySubjectCommit, PlanID: "plan-1", TaskID: "task-1",
+		Remote: "origin", Branch: "feat", BaseSHA: s2bBase, CandidateSHA: s2bGood,
+		CandidateRef: "refs/heads/feat", PushedRemote: "origin",
+		DeliveryContractHash: pm.ContractHash("code_change"), CreatedAt: h.clk.Now(),
+	}
+	unscoped, err := pm.NewDeliverySubject(withSubjectContract(base, "subject-old", pm.ContractHash("")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	scoped, err := pm.NewDeliverySubject(withSubjectContract(base, "subject-new", pm.ContractHash("gate contract")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := da.SaveDeliverySubject(ctx, scoped); err != nil {
+		t.Fatal(err)
+	}
+	if err := da.SaveDeliverySubject(ctx, unscoped); err != nil {
+		t.Fatal(err)
+	}
+
+	got, found, err := da.FindLatestDeliverySubjectByTaskAndContract(ctx, "plan-1", "task-1", pm.ContractHash("gate contract"))
+	if err != nil || !found {
+		t.Fatalf("FindLatestDeliverySubjectByTaskAndContract found=%v err=%v", found, err)
+	}
+	if got.ID != "subject-new" {
+		t.Fatalf("contract-specific subject = %q, want subject-new", got.ID)
+	}
+}
+
+func withSubjectContract(s pm.DeliverySubject, id string, contractHash string) pm.DeliverySubject {
+	s.ID = id
+	s.AcceptanceContractHash = contractHash
+	return s
 }

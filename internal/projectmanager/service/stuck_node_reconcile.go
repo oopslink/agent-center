@@ -407,6 +407,10 @@ func (s *Service) liveExecutorState(t *pm.Task, now time.Time) (known bool, miss
 // this sweep reopened the node or blocked it for triage (so the caller skips the T456
 // nudge for it). expBefore is the task's lease expiry read at the TOP of the sweep.
 func (s *Service) reconcileStuckNode(ctx context.Context, t *pm.Task, expBefore *time.Time, now time.Time) (bool, error) {
+	if t.DispatchMode().RoutesInline() {
+		s.forgetStuckNode(t.ID())
+		return false, nil
+	}
 	// Cheap gate: only a plan-mapped task can be a structured-node candidate, and only a
 	// task whose lease has lapsed OR that is already tracked can accrue a verdict. This
 	// skips the plan+node reads for the common case (a live-lease running node).
