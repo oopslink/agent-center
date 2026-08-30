@@ -116,6 +116,23 @@ func (s *pendingStore) markEscalated(taskRef string) {
 	s.persistLocked()
 }
 
+// resetForSupervisorRecovery rewinds the nudge budget before deliberately
+// restarting a stuck supervisor. The prompt remains the original executor judgment;
+// after the worker rebuilds the runtime, reconcile can re-drive it in a fresh turn.
+func (s *pendingStore) resetForSupervisorRecovery(taskRef string, now time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	p, ok := s.m[taskRef]
+	if !ok {
+		return
+	}
+	p.InjectedAt = now
+	p.NudgeCount = 0
+	p.Escalated = false
+	s.m[taskRef] = p
+	s.persistLocked()
+}
+
 // snapshot returns a stable-ordered copy of the pending set for the reconcile to
 // iterate without holding the lock across center calls.
 func (s *pendingStore) snapshot() []pendingJudgment {
@@ -189,8 +206,11 @@ const (
 //   - task no longer in the RUNNING set (completed, failed, or discarded) →
 //     the supervisor judged it → drop.
 //   - still running, grace elapsed, under budget → re-inject the judgment (nudge).
-//   - budget exhausted → ONE final "resolve or fail_task" nudge + a
-//     WARN log, then mark escalated (kept for boot-recovery, no more nudges).
+//   - budget exhausted → ONE final "resolve or fail_task" nudge + a WARN log.
+//     In production, the runtime then exits so the worker rebuilds the stuck
+//     supervisor and the durable pending judgment is re-driven in a fresh turn.
+//     In daemon-less/test mode (no OnFatal), mark escalated to avoid an infinite
+//     local nudge loop.
 //
 // STRICT (issue-68ccb310): this NEVER writes task status from Go — it only DRIVES the
 // supervisor (nudge) or surfaces to a human (escalation nudge + log). A center read
@@ -236,6 +256,11 @@ func (r *LocalRuntime) reconcilePendingJudgments(ctx context.Context, now time.T
 		if p.NudgeCount >= pendingMaxNudges {
 			r.log("WARN agent=%s task=%s: executor finished but supervisor has not judged after %d nudges — escalating", r.cfg.AgentID, p.TaskRef, p.NudgeCount)
 			_ = r.injectSession(ctx, escalationPrompt(p.TaskRef, p.MustBlock)) // best-effort; never writes status
+			if r.cfg.OnFatal != nil {
+				r.pending.resetForSupervisorRecovery(p.TaskRef, now)
+				r.cfg.OnFatal(fmt.Sprintf("pending judgment for task %s exhausted nudge budget; restarting supervisor", p.TaskRef))
+				continue
+			}
 			r.pending.markEscalated(p.TaskRef)
 			continue
 		}

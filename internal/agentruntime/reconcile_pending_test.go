@@ -139,6 +139,41 @@ func TestReconcile_EscalateThenSilent(t *testing.T) {
 	}
 }
 
+func TestReconcile_EscalationRestartsSupervisorWhenManaged(t *testing.T) {
+	clk := &advClock{t: time.Unix(1_700_000_000, 0)}
+	caller := &scriptedInflightCaller{resp: runningResp("task-1")}
+	r, fs, store := reconcileRuntime(t, caller, clk)
+	var fatalReason string
+	r.cfg.OnFatal = func(reason string) {
+		fatalReason = reason
+	}
+	store.record("task-1", "judge me", clk.now())
+	for i := 0; i < pendingMaxNudges; i++ {
+		store.bumpNudge("task-1")
+	}
+
+	clk.advance(time.Duration(pendingMaxNudges+2) * pendingNudgeInterval)
+	r.reconcilePendingJudgments(context.Background(), clk.now())
+
+	msgs := fs.msgs()
+	if len(msgs) != 1 || !strings.Contains(msgs[0], "[reminder]") {
+		t.Fatalf("escalation nudge = %v, want one reminder", msgs)
+	}
+	if !strings.Contains(fatalReason, "pending judgment for task task-1 exhausted nudge budget") {
+		t.Fatalf("fatal reason = %q, want pending-judgment supervisor restart", fatalReason)
+	}
+	snap := store.snapshot()
+	if len(snap) != 1 {
+		t.Fatalf("entry = %+v, want pending judgment kept for fresh supervisor", snap)
+	}
+	if snap[0].Escalated || snap[0].NudgeCount != 0 {
+		t.Fatalf("entry after restart request = %+v, want nudge budget reset", snap[0])
+	}
+	if !snap[0].InjectedAt.Equal(clk.now()) {
+		t.Fatalf("injected_at = %s, want reset to %s", snap[0].InjectedAt, clk.now())
+	}
+}
+
 func TestReconcile_ZeroDeliveryEscalationCannotOfferComplete(t *testing.T) {
 	clk := &advClock{t: time.Unix(1_700_000_000, 0)}
 	caller := &scriptedInflightCaller{resp: runningResp("task-zero")}
