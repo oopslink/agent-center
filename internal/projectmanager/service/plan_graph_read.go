@@ -37,15 +37,17 @@ var ErrPlanHasNoGraph = errors.New("projectmanager: plan has no orchestration gr
 // TaskStatus / TaskOrgRef / Assignee are resolved here so the DAG can label the
 // node without a second lookup (§ T769.1 "绑定 task 的状态/org_ref").
 type PlanGraphNode struct {
-	ID          string
-	Category    string
-	ControlKind string
-	Title       string
-	Status      string // raw engine node status: open|running|completed|reopen|discarded
-	TaskID      string // bound task id ("" for control nodes)
-	TaskStatus  string // bound task status ("" when unbound)
-	TaskOrgRef  string // bound task org_ref "T123" ("" when unallocated / unbound)
-	Assignee    string // bound task assignee ref ("" when unbound / unassigned)
+	ID            string
+	Category      string
+	ControlKind   string
+	Title         string
+	Status        string // raw engine node status: open|running|completed|reopen|discarded
+	TaskID        string // bound task id ("" for control nodes)
+	TaskStatus    string // bound task status ("" when unbound)
+	TaskOrgRef    string // bound task org_ref "T123" ("" when unallocated / unbound)
+	Assignee      string // bound task assignee ref ("" when unbound / unassigned)
+	StageID       string // bound task stage_id ("" when unstaged / unbound)
+	FollowsTaskID string // generation lineage source ("" when absent / unbound)
 }
 
 // PlanGraphEdge is one directed edge from→to with its derived kind:
@@ -141,6 +143,8 @@ func (s *Service) planGraph(ctx context.Context, p *pm.Plan) (*PlanGraphView, er
 					gn.TaskStatus = string(t.Status())
 					gn.TaskOrgRef = orgRef("T", t.OrgNumber())
 					gn.Assignee = string(t.Assignee())
+					gn.StageID = string(t.StageID())
+					gn.FollowsTaskID = string(t.FollowsTaskID())
 				}
 			}
 		}

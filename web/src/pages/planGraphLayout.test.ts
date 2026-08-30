@@ -229,6 +229,57 @@ describe('withStageTopologyEdges — staged visual topology', () => {
     expect(hasEdge(topology, 'gate2', 'end')).toBe(true);
     expect(hasEdge(topology, 'gateR', 'end')).toBe(true);
   });
+
+  it('inherits stage topology for generation tasks that only carry follows_task_id lineage', () => {
+    const nodes: PlanGraphNode[] = [
+      ctrl('start', 'start'),
+      { ...biz('A'), task_id: 'task-A', stage_id: 's1' },
+      { ...biz('G1'), task_id: 'task-G1', stage_id: 's1' },
+      ctrl('gate1', 'condition'),
+      { ...biz('R1'), task_id: 'task-R1', follows_task_id: 'task-G1' },
+      { ...biz('R2'), task_id: 'task-R2', follows_task_id: 'task-G1' },
+      { ...biz('B'), task_id: 'task-B', stage_id: 's2' },
+      { ...biz('G2'), task_id: 'task-G2', stage_id: 's2' },
+      ctrl('gate2', 'condition'),
+      ctrl('end', 'end'),
+    ];
+    const stages = [
+      stage({
+        id: 's1',
+        members: [member('task-A'), member('task-G1')],
+        gate_node_id: 'gate1',
+        gate_task_id: 'task-G1',
+      }),
+      stage({
+        id: 's2',
+        members: [member('task-B'), member('task-G2')],
+        gate_node_id: 'gate2',
+        gate_task_id: 'task-G2',
+        depends_on_stages: ['s1'],
+      }),
+    ];
+    const edges = [
+      seq('start', 'A'),
+      seq('A', 'G1'),
+      seq('G1', 'gate1'),
+      seq('gate1', 'end'), // stale terminal anchor from before the generation repair tasks existed.
+      seq('R1', 'R2'),
+    ];
+
+    const topology = withStageTopologyEdges(nodes, edges, stages);
+    const layout = layoutStagedGraph(nodes, topology, stages);
+    const s1Box = layout.boxes.find((box) => box.stage.id === 's1')!;
+    const r1 = layout.positioned.find((p) => p.node.id === 'R1')!;
+    const r2 = layout.positioned.find((p) => p.node.id === 'R2')!;
+
+    expect(hasEdge(topology, 'gate1', 'end')).toBe(false);
+    expect(hasEdge(topology, 'gate1', 'B')).toBe(true);
+    expect(hasEdge(topology, 'R2', 'G1')).toBe(true);
+    expect(r1.x).toBeGreaterThanOrEqual(s1Box.x);
+    expect(r1.x + r1.w).toBeLessThanOrEqual(s1Box.x + s1Box.w + 1);
+    expect(r2.x).toBeGreaterThanOrEqual(s1Box.x);
+    expect(r2.x + r2.w).toBeLessThanOrEqual(s1Box.x + s1Box.w + 1);
+  });
 });
 
 describe('stageDisplayMeta — mockup stage refs', () => {

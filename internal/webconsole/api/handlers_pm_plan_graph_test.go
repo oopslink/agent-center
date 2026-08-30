@@ -285,6 +285,27 @@ func TestPlanStagesAPI_StagedPlan_ServesProjection(t *testing.T) {
 	if !found {
 		t.Fatalf("business member %s missing; members=%v", tid, members)
 	}
+
+	graphResp := orgScopedGet(t, s.URL+"/api/projects/"+string(pid)+"/plans/"+string(planID)+"/graph", sess)
+	if graphResp.StatusCode != 200 {
+		t.Fatalf("graph status=%d want 200", graphResp.StatusCode)
+	}
+	graphBody := decodeBody(t, graphResp)
+	graphNodes, _ := graphBody["nodes"].([]any)
+	var graphMember map[string]any
+	for _, raw := range graphNodes {
+		n := raw.(map[string]any)
+		if n["task_id"] == string(tid) {
+			graphMember = n
+			break
+		}
+	}
+	if graphMember == nil {
+		t.Fatalf("graph business node for %s missing; body=%v", tid, graphBody)
+	}
+	if graphMember["stage_id"] != string(stageID) {
+		t.Fatalf("graph stage_id=%v want %s; node=%v", graphMember["stage_id"], stageID, graphMember)
+	}
 }
 
 // TestPlanStagesAPI_NoStage_EmptyShape (T981 §8 zero-regression): a plan with NO stages

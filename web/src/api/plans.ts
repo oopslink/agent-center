@@ -273,6 +273,8 @@ export interface PlanGraphNode {
   status: PlanGraphNodeStatus;
   task_id?: string;
   task_status?: string;
+  stage_id?: string;
+  follows_task_id?: string;
   org_ref?: string;
   assignee_ref?: string;
 }

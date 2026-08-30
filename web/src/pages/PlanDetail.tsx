@@ -2681,8 +2681,7 @@ export function layoutStagedGraph(
   }
 
   const nodeById = new Map(nodes.map((n) => [n.id, n]));
-  const stageIdOfTask = new Map<string, string>();
-  for (const st of stages) for (const m of st.members) stageIdOfTask.set(m.task_id, st.id);
+  const stageIdOfTask = taskStageMembership(nodes, stages);
   const gateNodeIdOfStage = new Map<string, string>();
   for (const st of stages) if (st.gate_node_id) gateNodeIdOfStage.set(st.id, st.gate_node_id);
 
@@ -3062,6 +3061,8 @@ function snapshotPlanGraph(generation: PlanGeneration | undefined): { nodes: Pla
       status: task.status as PlanGraphNodeStatus,
       task_id: task.task_id,
       task_status: task.status,
+      stage_id: task.stage_id,
+      follows_task_id: task.follows_task_id,
       assignee_ref: task.assignee_ref,
     };
   });
@@ -3077,6 +3078,33 @@ function snapshotPlanGraph(generation: PlanGeneration | undefined): { nodes: Pla
 
 function edgeKey(from: string, to: string): string {
   return `${from}->${to}`;
+}
+
+function taskStageMembership(nodes: PlanGraphNode[], stages: PlanStage[]): Map<string, string> {
+  const validStageIds = new Set(stages.map((stage) => stage.id));
+  const stageIdByTask = new Map<string, string>();
+  for (const stage of stages) {
+    for (const member of stage.members ?? []) stageIdByTask.set(member.task_id, stage.id);
+  }
+  const nodeByTask = new Map<string, PlanGraphNode>();
+  for (const node of nodes) {
+    if (node.category !== 'business' || !node.task_id) continue;
+    nodeByTask.set(node.task_id, node);
+    if (node.stage_id && validStageIds.has(node.stage_id)) stageIdByTask.set(node.task_id, node.stage_id);
+  }
+  const resolve = (taskId: string, seen = new Set<string>()): string | undefined => {
+    const direct = stageIdByTask.get(taskId);
+    if (direct) return direct;
+    if (seen.has(taskId)) return undefined;
+    seen.add(taskId);
+    const followsTaskId = nodeByTask.get(taskId)?.follows_task_id;
+    if (!followsTaskId) return undefined;
+    const inherited = resolve(followsTaskId, seen);
+    if (inherited) stageIdByTask.set(taskId, inherited);
+    return inherited;
+  };
+  for (const taskId of nodeByTask.keys()) resolve(taskId);
+  return stageIdByTask;
 }
 
 // Generation snapshots persist task dependencies, while the stage execution graph
@@ -3098,10 +3126,7 @@ export function withStageTopologyEdges(
   }
 
   const stageById = new Map(stages.map((stage) => [stage.id, stage]));
-  const stageIdByTask = new Map<string, string>();
-  for (const stage of stages) {
-    for (const member of stage.members ?? []) stageIdByTask.set(member.task_id, stage.id);
-  }
+  const stageIdByTask = taskStageMembership(nodes, stages);
 
   // In staged layouts Start/End are visual anchors for the whole stage DAG, not
   // ordinary nodes inside a specific generation. Old or partial graph snapshots
@@ -3143,9 +3168,9 @@ export function withStageTopologyEdges(
   };
 
   const nonGateMembers = (stage: PlanStage): string[] =>
-    (stage.members ?? [])
-      .map((member) => member.task_id)
-      .filter((taskId) => taskId && taskId !== stage.gate_task_id && nodeIdByTask.has(taskId));
+    [...nodeIdByTask.keys()].filter(
+      (taskId) => stageIdByTask.get(taskId) === stage.id && taskId !== stage.gate_task_id,
+    );
 
   const stageEntries = (stage: PlanStage): string[] => {
     const incoming = incomingWithinStage.get(stage.id) ?? new Set();

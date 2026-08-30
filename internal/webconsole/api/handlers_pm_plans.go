@@ -621,6 +621,12 @@ func pmPlanGraphMap(v *pmservice.PlanGraphView) map[string]any {
 			node["task_id"] = n.TaskID
 			node["task_status"] = n.TaskStatus
 			node["assignee_ref"] = n.Assignee
+			if n.StageID != "" {
+				node["stage_id"] = n.StageID
+			}
+			if n.FollowsTaskID != "" {
+				node["follows_task_id"] = n.FollowsTaskID
+			}
 		}
 		if n.TaskOrgRef != "" {
 			node["org_ref"] = n.TaskOrgRef
