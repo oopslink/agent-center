@@ -807,6 +807,10 @@ function AttachmentPreview({
   const { t } = useTranslation('chat');
   const mode = attachmentPreviewMode(attachment, href);
 
+  if (mode === 'markdown') {
+    return <MarkdownAttachmentPreview href={href} zoom={zoom} />;
+  }
+
   if (mode === 'image') {
     return (
       <div className="flex h-[70vh] min-h-0 items-start justify-center overflow-auto p-4" data-testid="attachment-viewer-preview">
@@ -876,6 +880,66 @@ function AttachmentPreview({
   );
 }
 
+function MarkdownAttachmentPreview({
+  href,
+  zoom,
+}: {
+  href: string;
+  zoom: number;
+}): React.ReactElement {
+  const { t } = useTranslation('chat');
+  const [state, setState] = useState<
+    | { status: 'loading'; content: string; error: string }
+    | { status: 'loaded'; content: string; error: string }
+    | { status: 'error'; content: string; error: string }
+  >({ status: 'loading', content: '', error: '' });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setState({ status: 'loading', content: '', error: '' });
+    void fetch(href, { credentials: 'same-origin', signal: controller.signal }).then(
+      async (res) => {
+        if (!res.ok) throw new Error(`${res.status} ${res.statusText}`.trim());
+        const text = await res.text();
+        setState({ status: 'loaded', content: text, error: '' });
+      },
+      (err: unknown) => {
+        if (controller.signal.aborted) return;
+        setState({
+          status: 'error',
+          content: '',
+          error: err instanceof Error ? err.message : t('message.attachmentViewer.previewUnavailable'),
+        });
+      },
+    );
+    return () => controller.abort();
+  }, [href, t]);
+
+  return (
+    <div className="h-[70vh] overflow-auto p-4" data-testid="attachment-viewer-preview">
+      <div
+        className="origin-top-left rounded border border-border-base bg-bg-elevated p-5 shadow-1"
+        style={{ width: `${zoom * 100}%`, maxWidth: 'none' }}
+        data-testid="attachment-viewer-markdown"
+      >
+        {state.status === 'loading' && (
+          <p className="text-sm text-text-muted" data-testid="attachment-viewer-markdown-loading">
+            {t('message.attachmentViewer.loadingPreview')}
+          </p>
+        )}
+        {state.status === 'error' && (
+          <div className="text-sm text-danger" data-testid="attachment-viewer-markdown-error">
+            {state.error || t('message.attachmentViewer.previewUnavailable')}
+          </div>
+        )}
+        {state.status === 'loaded' && (
+          <MarkdownMessage content={state.content} textClass="text-text-primary" linkClass="text-accent" />
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AttachmentViewerIconButton({
   label,
   testId,
@@ -907,13 +971,16 @@ function AttachmentViewerIconButton({
 function attachmentPreviewMode(
   attachment: MessageAttachment,
   href: string,
-): 'image' | 'video' | 'audio' | 'frame' | 'none' {
+): 'image' | 'video' | 'audio' | 'markdown' | 'frame' | 'none' {
   if (href === '#') return 'none';
   const mime = attachment.mime_type.toLowerCase();
   const name = attachment.filename.toLowerCase();
   if (mime.startsWith('image/')) return 'image';
   if (mime.startsWith('video/')) return 'video';
   if (mime.startsWith('audio/')) return 'audio';
+  if (mime === 'text/markdown' || mime === 'text/x-markdown' || /\.(md|markdown|mdown|mkdn)$/i.test(name)) {
+    return 'markdown';
+  }
   if (
     mime === 'application/pdf' ||
     mime === 'text/html' ||

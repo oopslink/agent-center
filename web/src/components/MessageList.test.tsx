@@ -319,7 +319,10 @@ describe('MessageList', () => {
 });
 
 describe('MessageList attachments (#142)', () => {
-  afterEach(() => cleanup());
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
 
   const withAtts = (id: string, atts: Message['attachments']): Message => ({
     ...sample(id, 'see attached'),
@@ -408,6 +411,43 @@ describe('MessageList attachments (#142)', () => {
     const frame = screen.getByTestId('attachment-viewer-frame');
     expect(frame).toHaveAttribute('src', '/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAH');
     expect(frame).toHaveAttribute('sandbox', '');
+  });
+
+  it('renders markdown attachments through MarkdownMessage so Mermaid fences become diagrams', async () => {
+    class TestIntersectionObserver {
+      disconnect = vi.fn();
+      observe = vi.fn();
+      takeRecords = () => [];
+      unobserve = vi.fn();
+    }
+    vi.stubGlobal('IntersectionObserver', TestIntersectionObserver);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: () => Promise.resolve('# Diagram\n\n```mermaid\ngraph TD\n  A --> B\n```'),
+      }),
+    );
+
+    render(
+      <MessageList
+        messages={[
+          withAtts('m-md', [
+            { uri: 'ac://files/01ARZ3NDEKTSV4RRFFQ69G5FAM', filename: 'spark-dgx-tactical-uml.md', mime_type: 'text/markdown', size: 13_100 },
+          ]),
+        ]}
+      />,
+    );
+
+    fireEvent.click(screen.getByTestId('attachment-link'));
+
+    expect(await screen.findByRole('heading', { name: 'Diagram' })).toBeInTheDocument();
+    expect(screen.getByTestId('attachment-viewer-markdown')).toBeInTheDocument();
+    expect(screen.getByTestId('mermaid-diagram')).toBeInTheDocument();
+    expect(screen.queryByTestId('attachment-viewer-frame')).toBeNull();
+    expect(fetch).toHaveBeenCalledWith('/api/files/01ARZ3NDEKTSV4RRFFQ69G5FAM', expect.objectContaining({ credentials: 'same-origin' }));
   });
 
   it('renders nothing extra for a plain message (no attachments)', () => {

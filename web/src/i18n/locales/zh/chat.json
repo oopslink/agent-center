@@ -191,6 +191,7 @@
       "zoomOut": "缩小",
       "resetZoom": "重置缩放",
       "close": "关闭",
+      "loadingPreview": "正在加载预览…",
       "previewUnavailable": "无法预览。"
     },
     "quote": {

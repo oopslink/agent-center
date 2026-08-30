@@ -196,6 +196,7 @@
       "zoomOut": "Zoom out",
       "resetZoom": "Reset zoom",
       "close": "Close",
+      "loadingPreview": "Loading preview…",
       "previewUnavailable": "Preview unavailable."
     },
     "quote": {
