@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -32,6 +34,12 @@ func TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership(t *testing.T
 		t.Fatalf("EvolvePlanGeneration: %v", err)
 	}
 	c := generationTaskByTitle(t, result.Generation, "C").TaskID
+	if generationTaskByTitle(t, result.Generation, "C").OrgRef == "" {
+		t.Fatal("new generation snapshots must persist task org_ref")
+	}
+
+	clearPersistedGenerationOrgRefs(t, h.svc.db, g0.ID)
+	clearPersistedGenerationOrgRefs(t, h.svc.db, result.Generation.ID)
 
 	read, err := h.svc.GetPlanGenerations(h.ctx, planID)
 	if err != nil {
@@ -56,6 +64,11 @@ func TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership(t *testing.T
 	if len(evolved.Generation.Snapshot.Tasks) != 3 || evolved.Progress.Total != 2 || len(evolved.Generation.Diff.Tasks) != 1 || len(evolved.Generation.Diff.NodeDecisions) != 2 || len(evolved.Generation.Diff.Edges) != 1 {
 		t.Fatalf("G1 snapshot/diff incomplete: snapshot=%+v diff=%+v", evolved.Generation.Snapshot, evolved.Generation.Diff)
 	}
+	for _, task := range evolved.Generation.Snapshot.Tasks {
+		if task.OrgRef == "" {
+			t.Fatalf("read model must backfill missing snapshot org_ref for %s", task.TaskID)
+		}
+	}
 
 	owners := make(map[pm.TaskID]PlanGenerationNodeOwnership)
 	for _, node := range read.Nodes {
@@ -69,6 +82,28 @@ func TestGetPlanGenerations_ReadsPersistedG0GnSnapshotsAndOwnership(t *testing.T
 	}
 	if owners[c].GenerationID != result.Generation.ID || owners[c].Revision != 1 || !owners[c].PresentInActive {
 		t.Fatalf("C ownership=%+v want active G1", owners[c])
+	}
+}
+
+func clearPersistedGenerationOrgRefs(t *testing.T, db *sql.DB, generationID pm.PlanGenerationID) {
+	t.Helper()
+	var raw string
+	if err := db.QueryRow(`SELECT snapshot_json FROM pm_plan_generations WHERE id = ?`, string(generationID)).Scan(&raw); err != nil {
+		t.Fatalf("query generation snapshot: %v", err)
+	}
+	var snapshot pm.PlanGenerationSnapshot
+	if err := json.Unmarshal([]byte(raw), &snapshot); err != nil {
+		t.Fatalf("unmarshal generation snapshot: %v", err)
+	}
+	for i := range snapshot.Tasks {
+		snapshot.Tasks[i].OrgRef = ""
+	}
+	next, err := json.Marshal(snapshot)
+	if err != nil {
+		t.Fatalf("marshal generation snapshot: %v", err)
+	}
+	if _, err := db.Exec(`UPDATE pm_plan_generations SET snapshot_json = ? WHERE id = ?`, string(next), string(generationID)); err != nil {
+		t.Fatalf("clear generation snapshot org_ref: %v", err)
 	}
 }
 

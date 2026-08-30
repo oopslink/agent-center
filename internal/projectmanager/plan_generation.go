@@ -69,6 +69,7 @@ type PlanGenerationDiff struct {
 // edges, or dispatch records later change.
 type PlanGenerationTaskSnapshot struct {
 	TaskID           TaskID           `json:"task_id"`
+	OrgRef           string           `json:"org_ref,omitempty"`
 	StageID          StageID          `json:"stage_id,omitempty"`
 	NodeID           string           `json:"node_id,omitempty"`
 	Title            string           `json:"title"`

@@ -66,6 +66,9 @@ func (s *Service) GetPlanGenerations(ctx context.Context, planID pm.PlanID) (*Pl
 	if err != nil {
 		return nil, err
 	}
+	if err := s.enrichGenerationSnapshotOrgRefs(ctx, lineage); err != nil {
+		return nil, err
+	}
 	activeTasks := make(map[pm.TaskID]bool)
 	for _, task := range lineage[len(lineage)-1].Snapshot.Tasks {
 		activeTasks[task.TaskID] = true
@@ -113,6 +116,42 @@ func (s *Service) GetPlanGenerations(ctx context.Context, planID pm.PlanID) (*Pl
 		return read.Nodes[i].TaskID < read.Nodes[j].TaskID
 	})
 	return read, nil
+}
+
+func (s *Service) enrichGenerationSnapshotOrgRefs(ctx context.Context, lineage []*pm.PlanGeneration) error {
+	if len(lineage) == 0 {
+		return nil
+	}
+	need := make(map[pm.TaskID]bool)
+	for _, generation := range lineage {
+		for _, task := range generation.Snapshot.Tasks {
+			if task.OrgRef == "" {
+				need[task.TaskID] = true
+			}
+		}
+	}
+	if len(need) == 0 {
+		return nil
+	}
+	refs := make(map[pm.TaskID]string, len(need))
+	for taskID := range need {
+		task, err := s.tasks.FindByID(ctx, taskID)
+		if err != nil {
+			if errors.Is(err, pm.ErrTaskNotFound) {
+				continue
+			}
+			return err
+		}
+		refs[taskID] = orgRef("T", task.OrgNumber())
+	}
+	for _, generation := range lineage {
+		for i, task := range generation.Snapshot.Tasks {
+			if task.OrgRef == "" {
+				generation.Snapshot.Tasks[i].OrgRef = refs[task.TaskID]
+			}
+		}
+	}
+	return nil
 }
 
 func (s *Service) planGenerationLineage(ctx context.Context, p *pm.Plan) ([]*pm.PlanGeneration, error) {

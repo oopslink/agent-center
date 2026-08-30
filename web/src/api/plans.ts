@@ -338,6 +338,7 @@ export interface PlanGenerationDiff {
 
 export interface PlanGenerationTaskSnapshot {
   task_id: string;
+  org_ref?: string;
   stage_id?: string;
   node_id?: string;
   title: string;

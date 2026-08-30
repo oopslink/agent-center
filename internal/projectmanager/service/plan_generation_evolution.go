@@ -723,6 +723,7 @@ func planGenerationSnapshot(
 	for _, t := range tasks {
 		snap.Tasks = append(snap.Tasks, pm.PlanGenerationTaskSnapshot{
 			TaskID:           t.ID(),
+			OrgRef:           orgRef("T", t.OrgNumber()),
 			StageID:          t.StageID(),
 			NodeID:           t.NodeID(),
 			Title:            t.Title(),

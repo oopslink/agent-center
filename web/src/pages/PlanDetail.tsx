@@ -3038,6 +3038,7 @@ function snapshotPlanNodes(generation: PlanGeneration | undefined): PlanNode[] {
     })) nodeStatus = 'ready';
     return {
       task_id: task.task_id,
+      org_ref: task.org_ref,
       title: task.title,
       assignee_ref: task.assignee_ref ?? '',
       task_status: task.status,
@@ -3061,6 +3062,7 @@ function snapshotPlanGraph(generation: PlanGeneration | undefined): { nodes: Pla
       status: task.status as PlanGraphNodeStatus,
       task_id: task.task_id,
       task_status: task.status,
+      org_ref: task.org_ref,
       stage_id: task.stage_id,
       follows_task_id: task.follows_task_id,
       assignee_ref: task.assignee_ref,

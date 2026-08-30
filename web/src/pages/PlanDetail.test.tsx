@@ -2349,8 +2349,8 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
             snapshot: {
               plan_id: 'PL-1', plan_version: 7, active_generation_id: 'generation-g0',
               tasks: [
-                { task_id: 'n1', node_id: 'snapshot-node-1', title: 'immutable G0 design', assignee_ref: 'agent:dev', status: 'completed' },
-                { task_id: 'n2', title: 'immutable G0 api', assignee_ref: 'agent:dev', status: 'open' },
+                { task_id: 'n1', org_ref: 'T501', node_id: 'snapshot-node-1', title: 'immutable G0 design', assignee_ref: 'agent:dev', status: 'completed' },
+                { task_id: 'n2', org_ref: 'T502', title: 'immutable G0 api', assignee_ref: 'agent:dev', status: 'open' },
               ],
               edges: [{ from_task_id: 'n2', to_task_id: 'n1', kind: 'seq' }],
               dispatch_records: [{ task_id: 'n1', dispatched_at: '2026-06-01T00:00:00Z' }],
@@ -2405,7 +2405,10 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     fireEvent.click(within(panel).getByTestId('plan-dag-evolution-revision-1'));
     await waitFor(() => expect(screen.getAllByText('immutable G0 design').length).toBeGreaterThan(0));
     expect(dag.querySelector('[data-testid="plan-graph-node"][data-task-id="n3"]')).not.toBeInTheDocument();
-    expect(dag.querySelector('[data-testid="plan-graph-node"][data-node-id="snapshot:n2"]')).toBeInTheDocument();
+    const snapshotNode = dag.querySelector('[data-testid="plan-graph-node"][data-node-id="snapshot:n2"]') as HTMLElement;
+    expect(snapshotNode).toBeInTheDocument();
+    expect(within(snapshotNode).getByTestId('plan-graph-node-taskid')).toHaveTextContent('T502');
+    expect(within(snapshotNode).getByTestId('plan-graph-node-taskid')).not.toHaveTextContent('n2');
   });
 
   it('connects staged orchestration-graph history revisions through gate topology', async () => {
