@@ -1,0 +1,103 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-center.dev/schemas/insight-v2.schema.json",
+  "title": "Insight aggregation API v2",
+  "type": "object",
+  "required": ["metric_version", "time_window", "as_of", "health", "meta"],
+  "properties": {
+    "metric_version": { "const": "insight.metrics.v2" },
+    "time_window": { "$ref": "#/$defs/window" },
+    "as_of": { "type": "string", "format": "date-time" },
+    "health": { "$ref": "#/$defs/health" },
+    "meta": { "$ref": "#/$defs/meta" },
+    "project_id": { "type": "string", "minLength": 1 },
+    "plan_id": { "type": "string", "minLength": 1 },
+    "delivery": { "type": "object" },
+    "funnel": { "$ref": "#/$defs/funnel" },
+    "evolution": { "type": "object" },
+    "generations": { "type": "array", "items": { "$ref": "#/$defs/generation" } }
+  },
+  "additionalProperties": true,
+  "$defs": {
+    "window": {
+      "type": "object",
+      "required": ["kind", "duration", "start", "end"],
+      "properties": {
+        "kind": { "const": "rolling" },
+        "duration": { "const": "24h" },
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "freshness": {
+      "type": "object",
+      "required": ["state", "age_ms", "threshold_ms"],
+      "properties": {
+        "state": { "enum": ["fresh", "stale", "rebuilding", "unavailable", "unknown"] },
+        "age_ms": { "type": "integer", "minimum": 0 },
+        "threshold_ms": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "required": ["metric_version", "sample_count", "coverage", "freshness", "unknown_count", "known"],
+      "properties": {
+        "metric_version": { "const": "insight.metrics.v2" },
+        "sample_count": { "type": "integer", "minimum": 0 },
+        "coverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "freshness": { "$ref": "#/$defs/freshness" },
+        "unknown_count": { "type": "integer", "minimum": 0 },
+        "known": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "health": {
+      "type": "object",
+      "required": ["status", "reason_codes", "evidence"],
+      "properties": {
+        "status": { "enum": ["healthy", "elevated", "degraded", "unknown"] },
+        "reason_codes": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+        "evidence": { "type": "array", "items": { "type": "object" } }
+      },
+      "additionalProperties": false
+    },
+    "countMetric": {
+      "type": "object",
+      "required": ["value", "meta"],
+      "properties": { "value": { "type": ["integer", "null"], "minimum": 0 }, "meta": { "$ref": "#/$defs/meta" } },
+      "additionalProperties": false
+    },
+    "funnel": {
+      "type": "object",
+      "required": ["issues", "tasks", "plans", "done", "breaks"],
+      "properties": {
+        "issues": { "$ref": "#/$defs/countMetric" },
+        "tasks": { "$ref": "#/$defs/countMetric" },
+        "plans": { "$ref": "#/$defs/countMetric" },
+        "done": { "$ref": "#/$defs/countMetric" },
+        "breaks": { "type": "array", "items": { "type": "object", "required": ["kind", "count", "drilldown"], "properties": { "kind": { "enum": ["issue_without_task", "task_without_plan", "task_multiple_containers", "done_plan_non_terminal_task", "done_plan_open_issue", "evolution_old_generation_residue", "delivery_sha_lineage_mismatch"] }, "count": { "$ref": "#/$defs/countMetric" }, "drilldown": { "type": "object" } }, "additionalProperties": false } }
+      },
+      "additionalProperties": false
+    },
+    "generation": {
+      "type": "object",
+      "required": ["generation", "created_at", "triggered_by", "reason", "evidence", "node_changes", "recovery_duration_ms", "recovery_outcome"],
+      "properties": {
+        "generation": { "type": "integer", "minimum": 0 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "triggered_by": { "type": "string" },
+        "reason": { "enum": ["blocked", "review_reject", "requirement_change", "execution_failure", "manual_adjustment", "unknown"] },
+        "evidence": { "type": "array", "items": { "type": "object" } },
+        "node_changes": { "type": "array", "items": { "type": "object" } },
+        "recovery_duration_ms": { "type": ["integer", "null"], "minimum": 0 },
+        "recovery_outcome": { "type": "string" },
+        "delivery_branch": { "type": "string" },
+        "delivery_sha": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+        "acceptance_verdict": { "enum": ["pass", "reject", "pending"] }
+      },
+      "additionalProperties": false
+    }
+  }
+}
