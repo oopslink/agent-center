@@ -564,7 +564,7 @@ func TestGenerateMCPConfig_DisableToolTiering(t *testing.T) {
 }
 
 func TestRequireTools_TieredCatalogIncludesSupervisorCore(t *testing.T) {
-	if err := RequireTools(context.Background(), Config{AgentID: "agent-x", TierTools: true}, "post_message", "list_my_tasks", "search_tools"); err != nil {
+	if err := RequireTools(context.Background(), Config{AgentID: "agent-x", TierTools: true}, "post_message", "list_my_tasks", "search_tools", "runtime_deploy_restart"); err != nil {
 		t.Fatalf("RequireTools tiered supervisor core: %v", err)
 	}
 }

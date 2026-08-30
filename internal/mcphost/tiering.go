@@ -39,7 +39,9 @@ var secondaryTools = []struct{ name, summary string }{
 	{"list_task_executions", "list executor runs linked to a task"},
 	{"get_task_execution", "inspect one executor run linked to a task"},
 	{"get_agent_runtime_effective_config", "compare desired and effective runtime configuration without secrets"},
-	{"runtime_deploy_restart", "deploy a verified pushed AgentCenter commit and wait for restart status"},
+	// Runtime Control is Supervisor bootstrap-critical. Keep deploy/restart directly
+	// advertised so native MCP registries that index the startup ListTools response
+	// can call it without a prior mcp-host-local search_tools hop.
 	// reminders (T206 Cognition) are CORE — kept OUT of this deferred manifest
 	// (T252, issue-c438cde1). They were deferred, but that DOUBLE-hid them: in a
 	// harness whose own tool-search only surfaces tools the MCP server has already

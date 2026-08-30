@@ -1095,6 +1095,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		"get_my_profile",
 		"get_plan",
 		"list_task_executions",
+		"runtime_deploy_restart",
 	}); err != nil {
 		return err
 	}

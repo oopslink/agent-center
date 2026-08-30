@@ -119,7 +119,7 @@ func TestStartCodex_PreflightsFullCatalogForNativeToolSearch(t *testing.T) {
 	if gotTierTools {
 		t.Fatal("codex supervisor preflight must use TierTools=false so every MCP tool is in the startup catalog")
 	}
-	for _, want := range []string{"post_message", "list_my_tasks", "get_my_profile", "get_plan", "list_task_executions"} {
+	for _, want := range []string{"post_message", "list_my_tasks", "get_my_profile", "get_plan", "list_task_executions", "runtime_deploy_restart"} {
 		if !slices.Contains(gotRequired, want) {
 			t.Fatalf("codex preflight required tools missing %q: %v", want, gotRequired)
 		}

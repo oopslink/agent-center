@@ -109,7 +109,50 @@ func (d *sourceRuntimeDeployer) DeployRestart(ctx context.Context, req runtimede
 	if err := run(stageDir, upgrade, args...); err != nil {
 		return runtimedeploy.Result{}, fmt.Errorf("upgrade %s: %w", mode, err)
 	}
-	return runtimedeploy.Result{TargetSHA: sha, Mode: mode, Output: trimDeployTranscript(transcript.String())}, nil
+	runningVersion, runningCommit, err := d.readStagedBuildIdentity(ctx, stageDir, sha)
+	if err != nil {
+		return runtimedeploy.Result{}, fmt.Errorf("post-restart health readback: %w", err)
+	}
+	return runtimedeploy.Result{
+		TargetSHA:               sha,
+		Mode:                    mode,
+		RunningSHA:              sha,
+		RunningVersion:          runningVersion,
+		RunningCommit:           runningCommit,
+		PostRestartHealthStatus: "version_readback_ok",
+		Output:                  trimDeployTranscript(transcript.String()),
+	}, nil
+}
+
+func (d *sourceRuntimeDeployer) readStagedBuildIdentity(ctx context.Context, stageDir, sha string) (version, commit string, err error) {
+	out, err := d.run(ctx, stageDir, filepath.Join(stageDir, "bin", "agent-center"), []string{"version"}, deployCommandEnv())
+	if err != nil {
+		return "", "", fmt.Errorf("agent-center version: %w: %s", err, trimDeployTranscript(string(out)))
+	}
+	version, commit, err = parseAgentCenterVersionReadback(string(out))
+	if err != nil {
+		return "", "", err
+	}
+	if version != "runtime-deploy-"+sha[:12] {
+		return "", "", fmt.Errorf("running version %q does not match target sha %s", version, sha)
+	}
+	if !strings.HasPrefix(sha, strings.ToLower(commit)) {
+		return "", "", fmt.Errorf("running commit %q does not match target sha %s", commit, sha)
+	}
+	return version, strings.ToLower(commit), nil
+}
+
+func parseAgentCenterVersionReadback(out string) (version, commit string, err error) {
+	fields := strings.Fields(strings.TrimSpace(out))
+	if len(fields) != 4 || fields[0] != "agent-center" || fields[2] != "(commit" || !strings.HasSuffix(fields[3], ")") {
+		return "", "", fmt.Errorf("unexpected version readback %q", strings.TrimSpace(out))
+	}
+	version = strings.TrimSpace(fields[1])
+	commit = strings.TrimSuffix(fields[3], ")")
+	if version == "" || commit == "" || commit == "unknown" {
+		return "", "", fmt.Errorf("incomplete version readback %q", strings.TrimSpace(out))
+	}
+	return version, commit, nil
 }
 
 func fullDeploySHA(s string) bool {

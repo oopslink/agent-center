@@ -62,6 +62,7 @@ var domainOrder = []struct{ key, title string }{
 	{"files", "文件 · Files"},
 	{"findings", "Findings"},
 	{"reminders", "提醒 · Reminders"},
+	{"runtime", "运行时控制 · Runtime Control"},
 	{"team", "团队 · Teams"},
 }
 
@@ -83,6 +84,8 @@ var toolDomain = map[string]string{
 	"list_tasks_of_issue": "tasks_issues",
 	// reminders (T206 Cognition)
 	"create_reminder": "reminders", "list_reminders": "reminders", "get_reminder": "reminders", "update_reminder": "reminders",
+	// runtime control
+	"get_agent_runtime_effective_config": "runtime", "runtime_deploy_restart": "runtime",
 	// plan / orchestration
 	"create_plan": "plan", "add_task_to_plan": "plan", "remove_task_from_plan": "plan",
 	"add_plan_dependency": "plan", "remove_plan_dependency": "plan", "start_plan": "plan",

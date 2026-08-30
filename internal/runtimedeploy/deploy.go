@@ -36,9 +36,13 @@ type VerifiedRef struct {
 }
 
 type Result struct {
-	TargetSHA string `json:"target_sha"`
-	Mode      string `json:"mode"`
-	Output    string `json:"output,omitempty"`
+	TargetSHA               string `json:"target_sha"`
+	Mode                    string `json:"mode"`
+	RunningSHA              string `json:"running_sha,omitempty"`
+	RunningVersion          string `json:"running_version,omitempty"`
+	RunningCommit           string `json:"running_commit,omitempty"`
+	PostRestartHealthStatus string `json:"post_restart_health_status,omitempty"`
+	Output                  string `json:"output,omitempty"`
 }
 
 var fullSHARe = regexp.MustCompile(`^[0-9a-fA-F]{40}$`)

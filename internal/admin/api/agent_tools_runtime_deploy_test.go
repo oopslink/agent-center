@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/oopslink/agent-center/internal/admintoken"
 	"github.com/oopslink/agent-center/internal/environment"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	envsqlite "github.com/oopslink/agent-center/internal/environment/sqlite"
@@ -80,6 +81,46 @@ func TestRuntimeDeployRestartHandler_RejectsMismatchedRemoteSHA(t *testing.T) {
 	})
 	if st != http.StatusUnprocessableEntity || body["error"] != "remote_ref_verification_failed" {
 		t.Fatalf("status=%d body=%v", st, body)
+	}
+}
+
+func TestRuntimeDeployRestartHandler_RejectsNonWorkerToken(t *testing.T) {
+	fx := newAgentToolsFixture(t)
+	fx.addOwnerToken(t, "acat_user", admintoken.Owner("user:user-1"))
+	fx.deps.EnvControlSvc = envservice.New(envservice.Deps{
+		DB: fx.db, Workers: envsqlite.NewWorkerRepo(fx.db), Events: envsqlite.NewControlEventRepo(fx.db),
+		IDGen: idgen.NewGenerator(fx.clk), Clock: fx.clk,
+	})
+	srv := fx.server(t)
+
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/runtime_deploy_restart", "acat_user", map[string]any{
+		"agent_id":   atAgent1,
+		"repo_url":   "https://example.invalid/repo.git",
+		"target_ref": "refs/heads/main",
+		"target_sha": strings.Repeat("a", 40),
+	})
+	if st != http.StatusForbidden || body["error"] != "not_a_worker_token" {
+		t.Fatalf("status=%d body=%v, want 403 not_a_worker_token", st, body)
+	}
+}
+
+func TestRuntimeDeployRestartHandler_RejectsWrongWorkerAgent(t *testing.T) {
+	fx := newAgentToolsFixture(t)
+	fx.addWorkerToken(t, "acat_w1", atWorker1)
+	fx.deps.EnvControlSvc = envservice.New(envservice.Deps{
+		DB: fx.db, Workers: envsqlite.NewWorkerRepo(fx.db), Events: envsqlite.NewControlEventRepo(fx.db),
+		IDGen: idgen.NewGenerator(fx.clk), Clock: fx.clk,
+	})
+	srv := fx.server(t)
+
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/runtime_deploy_restart", "acat_w1", map[string]any{
+		"agent_id":   atAgent2,
+		"repo_url":   "https://example.invalid/repo.git",
+		"target_ref": "refs/heads/main",
+		"target_sha": strings.Repeat("a", 40),
+	})
+	if st != http.StatusForbidden || body["error"] != "agent_not_bound_to_worker" {
+		t.Fatalf("status=%d body=%v, want 403 agent_not_bound_to_worker", st, body)
 	}
 }
 
