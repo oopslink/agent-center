@@ -543,6 +543,26 @@ func TestOnEvent_CodexAssistantTextAgentCenterToolsUnavailableIsFatal(t *testing
 	}
 }
 
+func TestOnEvent_CodexAssistantTextCodeModeHostMissingIsFatal(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "assistant_text",
+		Text: "agent-center MCP 当前加载失败（code-mode host 缺失），因此无法把回复写入任务会话。",
+	})
+	if !*fatal {
+		t.Fatal("assistant text saying agent-center MCP code-mode host is missing must mark Codex session fatal")
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "mcp_registry_missing" {
+		t.Fatalf("activity = %v, want mcp_registry_missing", rep.activity)
+	}
+}
+
 func TestOnEvent_CodexAssistantTextGetMyProfileNotFunctionIsFatal(t *testing.T) {
 	rt, rep, fatal := fullRuntime(t)
 	rt.withState(func(s *SessionState) {

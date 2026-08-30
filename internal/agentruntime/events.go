@@ -339,14 +339,15 @@ func codexAgentCenterRegistryMissing(ev claudestream.StreamEvent) bool {
 		return !strings.Contains(raw, "mcp__agent_center")
 	case "assistant_text":
 		text := strings.ToLower(ev.Text)
-		if !mentionsAgentCenterCoreTool(text) {
+		if !mentionsAgentCenterCoreTool(text) && !mentionsAgentCenterMCPHost(text) {
 			return false
 		}
 		for _, sig := range []string{
 			"搜索结果为 0", "search results were 0", "0 results",
+			"加载失败", "load failed", "failed to load", "host missing",
 			"not provided", "missing", "not found", "could not find", "cannot find", "unavailable", "not available",
 			"is not a function", "not a function", "direct call failed",
-			"未提供", "找不到", "未找到", "未发现", "未暴露", "未加载", "未挂载", "不可调用", "不可用", "没有", "直接调用失败",
+			"未提供", "找不到", "未找到", "未发现", "未暴露", "未加载", "未挂载", "缺失", "不可调用", "不可用", "没有", "直接调用失败",
 		} {
 			if strings.Contains(text, sig) {
 				return true
@@ -367,6 +368,21 @@ func mentionsAgentCenterCoreTool(s string) bool {
 	}
 	for _, tool := range []string{"get_my_profile", "post_message", "list_my_tasks", "list_messages", "search_tools", "get_plan"} {
 		if strings.Contains(s, tool) {
+			return true
+		}
+	}
+	return false
+}
+
+func mentionsAgentCenterMCPHost(s string) bool {
+	if !strings.Contains(s, "agent-center") && !strings.Contains(s, "agent_center") {
+		return false
+	}
+	if !strings.Contains(s, "mcp") {
+		return false
+	}
+	for _, marker := range []string{"host", "tool", "registry", "工具", "注册表"} {
+		if strings.Contains(s, marker) {
 			return true
 		}
 	}
