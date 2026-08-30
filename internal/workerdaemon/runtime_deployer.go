@@ -39,13 +39,11 @@ func (d *sourceRuntimeDeployer) DeployRestart(ctx context.Context, req runtimede
 	ctx, cancel = context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	sha := strings.ToLower(strings.TrimSpace(req.VerifiedTargetSHA))
-	if sha == "" {
-		sha = strings.ToLower(strings.TrimSpace(req.TargetSHA))
+	verified, err := runtimedeploy.VerifyRemote(ctx, req)
+	if err != nil {
+		return runtimedeploy.Result{}, err
 	}
-	if !fullDeploySHA(sha) {
-		return runtimedeploy.Result{}, fmt.Errorf("invalid verified sha %q", sha)
-	}
+	sha := verified.TargetSHA
 	mode := strings.ToLower(strings.TrimSpace(req.Mode))
 	if mode == "" {
 		mode = "center"

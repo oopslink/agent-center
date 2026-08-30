@@ -394,7 +394,7 @@ func TestControllerHandler_RuntimeDeployRequiresServerVerification(t *testing.T)
 		t.Fatalf("rejected deploy should be ackable after terminal report, got %v", err)
 	}
 	if deployer.seen {
-		t.Fatal("deployer must not run from caller-asserted verification booleans")
+		t.Fatal("deployer must not run from caller-asserted verification booleans without exact_sha")
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -409,7 +409,7 @@ func TestControllerHandler_RuntimeDeployReportsSucceeded(t *testing.T) {
 	sha := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	deployer := &fakeRuntimeDeployer{res: runtimedeploy.Result{TargetSHA: sha, Mode: "center"}}
 	h := controllerHandler{reporter: r, deployer: deployer, log: func(string) {}}
-	payload := `{"agent_id":"a","repo_url":"https://example.invalid/repo.git","target_ref":"refs/heads/main","target_sha":"` + sha + `","verified_target_sha":"` + sha + `","verified_base_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","verified_at":"2026-08-31T00:00:00Z"}`
+	payload := `{"agent_id":"a","repo_url":"https://example.invalid/repo.git","target_ref":"refs/heads/main","exact_sha":"` + sha + `","verified_target_sha":"` + sha + `","verified_base_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","verified_at":"2026-08-31T00:00:00Z"}`
 	if err := h.Handle(context.Background(), ControlCommand{
 		ID:          "cmd-deploy",
 		CommandType: cmdTypeRuntimeDeploy,
@@ -418,7 +418,7 @@ func TestControllerHandler_RuntimeDeployReportsSucceeded(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("runtime deploy handle: %v", err)
 	}
-	if !deployer.seen || deployer.req.VerifiedTargetSHA != sha {
+	if !deployer.seen || deployer.req.ExactSHA != sha {
 		t.Fatalf("deployer request = %+v seen=%v", deployer.req, deployer.seen)
 	}
 	r.mu.Lock()
@@ -426,6 +426,20 @@ func TestControllerHandler_RuntimeDeployReportsSucceeded(t *testing.T) {
 	if len(r.commands) != 2 || r.commands[0].status != environment.CommandStatusStarted ||
 		r.commands[1].status != environment.CommandStatusSucceeded {
 		t.Fatalf("status reports = %+v", r.commands)
+	}
+}
+
+func TestControllerHandler_RuntimeDeployProductionWiringReachable(t *testing.T) {
+	body, err := os.ReadFile("run.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(body)
+	if !strings.Contains(src, "rtCfg.ControlHandler = controllerHandler{") {
+		t.Fatal("worker runtime does not construct controllerHandler in production run path")
+	}
+	if !strings.Contains(src, "deployer: newSourceRuntimeDeployer(") {
+		t.Fatal("production controllerHandler must wire the real source runtime deployer")
 	}
 }
 

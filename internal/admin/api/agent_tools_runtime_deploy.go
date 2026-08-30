@@ -16,7 +16,7 @@ type runtimeDeployRestartReq struct {
 	AgentID   string `json:"agent_id"`
 	RepoURL   string `json:"repo_url"`
 	TargetRef string `json:"target_ref"`
-	TargetSHA string `json:"target_sha"`
+	ExactSHA  string `json:"exact_sha"`
 	BaseRef   string `json:"base_ref,omitempty"`
 	Mode      string `json:"mode,omitempty"`
 	Prefix    string `json:"prefix,omitempty"`
@@ -48,7 +48,7 @@ func (s *Server) runtimeDeployRestartHandler(w http.ResponseWriter, r *http.Requ
 	}
 	verifyCtx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
 	verified, err := runtimedeploy.VerifyRemote(verifyCtx, runtimedeploy.Request{
-		RepoURL: req.RepoURL, TargetRef: req.TargetRef, TargetSHA: req.TargetSHA, BaseRef: req.BaseRef,
+		RepoURL: req.RepoURL, TargetRef: req.TargetRef, ExactSHA: req.ExactSHA, BaseRef: req.BaseRef,
 	})
 	cancel()
 	if err != nil {
@@ -59,7 +59,7 @@ func (s *Server) runtimeDeployRestartHandler(w http.ResponseWriter, r *http.Requ
 		AgentID:           string(a.ID()),
 		RepoURL:           strings.TrimSpace(req.RepoURL),
 		TargetRef:         strings.TrimSpace(req.TargetRef),
-		TargetSHA:         strings.ToLower(strings.TrimSpace(req.TargetSHA)),
+		ExactSHA:          strings.ToLower(strings.TrimSpace(req.ExactSHA)),
 		BaseRef:           strings.TrimSpace(req.BaseRef),
 		Mode:              mode,
 		Prefix:            strings.TrimSpace(req.Prefix),

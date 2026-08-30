@@ -202,7 +202,7 @@ func (h controllerHandler) handleRuntimeDeploy(ctx context.Context, cmd ControlC
 		h.log(fmt.Sprintf("controller: runtime deploy command id=%s offset=%d has no agent_id — skipping", cmd.ID, cmd.Offset))
 		return nil
 	}
-	if err := validateVerifiedRuntimeDeploy(req); err != nil {
+	if err := validateRuntimeDeployExactSHA(req); err != nil {
 		return h.reportRuntimeDeployStatus(ctx, rep, cmd, agentID, environment.CommandStatusRejected, "verification_required", err.Error())
 	}
 	if h.deployer == nil {
@@ -215,28 +215,45 @@ func (h controllerHandler) handleRuntimeDeploy(ctx context.Context, cmd ControlC
 	}
 	res, err := h.deployer.DeployRestart(ctx, req)
 	if err != nil {
-		return h.reportRuntimeDeployStatus(ctx, rep, cmd, agentID, environment.CommandStatusFailed, "runtime_deploy_failed", err.Error())
+		status := environment.CommandStatusFailed
+		reason := "runtime_deploy_failed"
+		if isRuntimeDeployVerificationError(err) {
+			status = environment.CommandStatusRejected
+			reason = "verification_required"
+		}
+		return h.reportRuntimeDeployStatus(ctx, rep, cmd, agentID, status, reason, err.Error())
 	}
 	detailBytes, _ := json.Marshal(res)
 	return h.reportRuntimeDeployStatus(ctx, rep, cmd, agentID, environment.CommandStatusSucceeded, "runtime_deploy_succeeded", string(detailBytes))
 }
 
-func validateVerifiedRuntimeDeploy(req runtimedeploy.Request) error {
-	target := strings.ToLower(strings.TrimSpace(req.TargetSHA))
-	verified := strings.ToLower(strings.TrimSpace(req.VerifiedTargetSHA))
-	switch {
-	case target == "":
-		return errors.New("target_sha required")
-	case verified == "":
-		return errors.New("verified_target_sha required")
-	case target != verified:
-		return fmt.Errorf("verified_target_sha %s does not match target_sha %s", verified, target)
-	case strings.TrimSpace(req.VerifiedBaseSHA) == "":
-		return errors.New("verified_base_sha required")
-	case strings.TrimSpace(req.VerifiedAt) == "":
-		return errors.New("verified_at required")
+func validateRuntimeDeployExactSHA(req runtimedeploy.Request) error {
+	exact := strings.TrimSpace(req.ExactSHA)
+	if exact == "" {
+		return errors.New("exact_sha required")
+	}
+	if len(exact) != 40 {
+		return errors.New("exact_sha must be exactly 40 hexadecimal characters")
+	}
+	for _, r := range exact {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') && (r < 'A' || r > 'F') {
+			return errors.New("exact_sha must be exactly 40 hexadecimal characters")
+		}
 	}
 	return nil
+}
+
+func isRuntimeDeployVerificationError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "exact_sha") ||
+		strings.Contains(msg, "target_ref") ||
+		strings.Contains(msg, "base_ref") ||
+		strings.Contains(msg, "repo_url") ||
+		strings.Contains(msg, "git ls-remote") ||
+		strings.Contains(msg, "git fetch verified refs")
 }
 
 func (h controllerHandler) reportRuntimeDeployStatus(ctx context.Context, rep commandStatusReporter, cmd ControlCommand, agentID, status, reason, detail string) error {

@@ -790,32 +790,6 @@ type unblockTaskReq struct {
 // archived project). Unblocking a non-blocked task is an illegal transition (4xx).
 func (s *Server) unblockTaskHandler(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusGone, "unblock_retired", "unblock_task is retired; failed tasks are terminal")
-	return
-	d := hd(r)
-	var req unblockTaskReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
-	if !ok {
-		return
-	}
-	if d.PMService == nil {
-		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
-		return
-	}
-	if !s.requireAgentTaskWrite(w, r, d, a, req.TaskID) {
-		return
-	}
-	if err := d.PMService.UnblockTask(r.Context(), pmservice.UnblockTaskCommand{
-		TaskID: pm.TaskID(req.TaskID),
-		Actor:  pm.IdentityRef(agentActor(a)),
-	}); err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "running"})
 }
 
 // --- reset_task (T862 tier-3 recovery) ---------------------------------------

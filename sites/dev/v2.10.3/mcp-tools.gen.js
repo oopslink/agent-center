@@ -1952,7 +1952,7 @@ window.__MCP_TOOLS__ = {
         {
           "name": "runtime_deploy_restart",
           "summary": "Deploy a pushed AgentCenter commit through this worker's authenticated control stream and wait for restart status.",
-          "description": "Deploy a pushed AgentCenter commit through this worker's authenticated control stream and wait for restart status. The server resolves target_ref from repo_url and verifies it equals target_sha, then verifies base_ref is an ancestor; caller-supplied verification claims are ignored.",
+          "description": "Deploy a pushed AgentCenter commit through this worker's authenticated control stream and wait for restart status. The server resolves target_ref from repo_url and verifies it equals exact_sha, then verifies base_ref is an ancestor; caller-supplied verification claims are ignored.",
           "params": [
             {
               "name": "repo_url",
@@ -1963,7 +1963,7 @@ window.__MCP_TOOLS__ = {
               "required": true
             },
             {
-              "name": "target_sha",
+              "name": "exact_sha",
               "required": true
             },
             {

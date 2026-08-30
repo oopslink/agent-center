@@ -9,10 +9,10 @@ import (
 	"testing"
 )
 
-func TestVerifyRemoteRequiresExactTargetSHAAndAncestor(t *testing.T) {
+func TestVerifyRemoteAcceptsExactSHAAndAncestor(t *testing.T) {
 	remote, mainSHA, featureSHA, _ := seedDeployRemote(t)
 	got, err := VerifyRemote(context.Background(), Request{
-		RepoURL: remote, TargetRef: "refs/heads/feature", TargetSHA: featureSHA, BaseRef: "refs/heads/main",
+		RepoURL: remote, TargetRef: "refs/heads/feature", ExactSHA: featureSHA, BaseRef: "refs/heads/main",
 	})
 	if err != nil {
 		t.Fatalf("VerifyRemote: %v", err)
@@ -20,22 +20,76 @@ func TestVerifyRemoteRequiresExactTargetSHAAndAncestor(t *testing.T) {
 	if got.TargetSHA != featureSHA || got.BaseSHA != mainSHA {
 		t.Fatalf("verified refs = %+v, want target=%s base=%s", got, featureSHA, mainSHA)
 	}
+}
 
-	_, err = VerifyRemote(context.Background(), Request{
-		RepoURL: remote, TargetRef: "refs/heads/feature", TargetSHA: mainSHA, BaseRef: "refs/heads/main",
+func TestVerifyRemoteRejectsMissingExactSHA(t *testing.T) {
+	remote, _, _, _ := seedDeployRemote(t)
+	_, err := VerifyRemote(context.Background(), Request{
+		RepoURL: remote, TargetRef: "refs/heads/feature", BaseRef: "refs/heads/main",
 	})
-	if err == nil || !strings.Contains(err.Error(), "not requested target_sha") {
+	if err == nil || !strings.Contains(err.Error(), "exact_sha required") {
+		t.Fatalf("missing exact_sha should fail closed, got %v", err)
+	}
+}
+
+func TestVerifyRemoteRejectsShortPrefixExactSHA(t *testing.T) {
+	remote, _, featureSHA, _ := seedDeployRemote(t)
+	_, err := VerifyRemote(context.Background(), Request{
+		RepoURL: remote, TargetRef: "refs/heads/feature", ExactSHA: featureSHA[:12], BaseRef: "refs/heads/main",
+	})
+	if err == nil || !strings.Contains(err.Error(), "exact_sha must be exactly 40 hexadecimal characters") {
+		t.Fatalf("short exact_sha should fail closed, got %v", err)
+	}
+}
+
+func TestVerifyRemoteRejectsMalformedExactSHA(t *testing.T) {
+	remote, _, _, _ := seedDeployRemote(t)
+	_, err := VerifyRemote(context.Background(), Request{
+		RepoURL: remote, TargetRef: "refs/heads/feature", ExactSHA: "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz", BaseRef: "refs/heads/main",
+	})
+	if err == nil || !strings.Contains(err.Error(), "exact_sha must be exactly 40 hexadecimal characters") {
+		t.Fatalf("malformed exact_sha should fail closed, got %v", err)
+	}
+}
+
+func TestVerifyRemoteRejectsExactSHAMismatch(t *testing.T) {
+	remote, mainSHA, _, _ := seedDeployRemote(t)
+	_, err := VerifyRemote(context.Background(), Request{
+		RepoURL: remote, TargetRef: "refs/heads/feature", ExactSHA: mainSHA, BaseRef: "refs/heads/main",
+	})
+	if err == nil || !strings.Contains(err.Error(), "not requested exact_sha") {
 		t.Fatalf("exact SHA mismatch should fail closed, got %v", err)
+	}
+}
+
+func TestVerifyRemoteRejectsMissingTargetRef(t *testing.T) {
+	remote, _, featureSHA, _ := seedDeployRemote(t)
+	_, err := VerifyRemote(context.Background(), Request{
+		RepoURL: remote, TargetRef: "refs/heads/missing", ExactSHA: featureSHA, BaseRef: "refs/heads/main",
+	})
+	if err == nil || !strings.Contains(err.Error(), "git ls-remote target_ref") {
+		t.Fatalf("missing target ref should fail closed, got %v", err)
 	}
 }
 
 func TestVerifyRemoteRejectsNonAncestor(t *testing.T) {
 	remote, mainSHA, _, orphanSHA := seedDeployRemote(t)
 	_, err := VerifyRemote(context.Background(), Request{
-		RepoURL: remote, TargetRef: "refs/heads/orphan", TargetSHA: orphanSHA, BaseRef: "refs/heads/main",
+		RepoURL: remote, TargetRef: "refs/heads/orphan", ExactSHA: orphanSHA, BaseRef: "refs/heads/main",
 	})
 	if err == nil || !strings.Contains(err.Error(), "is not an ancestor") {
 		t.Fatalf("non-ancestor should fail closed, got %v (main=%s orphan=%s)", err, mainSHA, orphanSHA)
+	}
+}
+
+func TestVerifyRemoteIgnoresCallerVerificationFields(t *testing.T) {
+	remote, _, featureSHA, _ := seedDeployRemote(t)
+	_, err := VerifyRemote(context.Background(), Request{
+		RepoURL: remote, TargetRef: "refs/heads/feature", TargetSHA: featureSHA, BaseRef: "refs/heads/main",
+		VerifiedTargetSHA: featureSHA, VerifiedBaseSHA: featureSHA, VerifiedAt: "2026-08-31T00:00:00Z",
+	})
+	if err == nil || !strings.Contains(err.Error(), "exact_sha required") {
+		t.Fatalf("caller verification fields must be ignored, got %v", err)
 	}
 }
 

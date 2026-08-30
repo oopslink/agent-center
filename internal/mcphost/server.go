@@ -245,7 +245,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "runtime_deploy_restart",
-		Description: "Deploy a pushed AgentCenter commit through this worker's authenticated control stream and wait for restart status. The server resolves target_ref from repo_url and verifies it equals target_sha, then verifies base_ref is an ancestor; caller-supplied verification claims are ignored.",
+		Description: "Deploy a pushed AgentCenter commit through this worker's authenticated control stream and wait for restart status. The server resolves target_ref from repo_url and verifies it equals exact_sha, then verifies base_ref is an ancestor; caller-supplied verification claims are ignored.",
 	}, makeRuntimeDeployRestart(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{

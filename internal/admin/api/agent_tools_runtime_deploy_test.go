@@ -35,7 +35,7 @@ func TestRuntimeDeployRestartHandler_VerifiesRemoteBeforeEnqueue(t *testing.T) {
 		"agent_id":           atAgent1,
 		"repo_url":           remote,
 		"target_ref":         "refs/heads/feature",
-		"target_sha":         targetSHA,
+		"exact_sha":          targetSHA,
 		"base_ref":           "refs/heads/main",
 		"timeout_ms":         1,
 		"pushed_ref":         "refs/heads/feature",
@@ -56,7 +56,7 @@ func TestRuntimeDeployRestartHandler_VerifiesRemoteBeforeEnqueue(t *testing.T) {
 	if err := json.Unmarshal([]byte(cmds[0].Payload()), &payload); err != nil {
 		t.Fatal(err)
 	}
-	if payload.VerifiedTargetSHA != targetSHA || payload.VerifiedBaseSHA != baseSHA || payload.VerifiedAt == "" {
+	if payload.ExactSHA != targetSHA || payload.VerifiedTargetSHA != targetSHA || payload.VerifiedBaseSHA != baseSHA || payload.VerifiedAt == "" {
 		t.Fatalf("payload verification fields = %+v", payload)
 	}
 }
@@ -75,7 +75,7 @@ func TestRuntimeDeployRestartHandler_RejectsMismatchedRemoteSHA(t *testing.T) {
 		"agent_id":   atAgent1,
 		"repo_url":   remote,
 		"target_ref": "refs/heads/feature",
-		"target_sha": baseSHA,
+		"exact_sha":  baseSHA,
 		"base_ref":   "refs/heads/main",
 	})
 	if st != http.StatusUnprocessableEntity || body["error"] != "remote_ref_verification_failed" {
