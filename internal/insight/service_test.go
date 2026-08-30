@@ -417,8 +417,8 @@ func TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce(t *testing.T) {
 	if err := svc.duck.QueryRowContext(ctx, `SELECT source_cursor, state FROM projector_checkpoint WHERE source_kind=?`, SourceActivity).Scan(&cursor, &state); err != nil {
 		t.Fatal(err)
 	}
-	if cursor != "stop-crash" || state != "fresh" {
-		t.Fatalf("checkpoint after replay = (%q,%q), want (stop-crash,fresh)", cursor, state)
+	if parsed := parseSourceCursor(cursor); !parsed.OK || parsed.ID != "stop-crash" || state != "fresh" {
+		t.Fatalf("checkpoint after replay = (%q,%q), want parseable cursor for stop-crash and fresh", cursor, state)
 	}
 	overview, err := svc.Overview(ctx, "org-1", asOf)
 	if err != nil {
@@ -460,8 +460,8 @@ func TestInsightPostCommitCrashRestartDoesNotDuplicate(t *testing.T) {
 	if err := svc.duck.QueryRowContext(ctx, `SELECT source_cursor FROM projector_checkpoint WHERE source_kind=?`, SourceActivity).Scan(&cursor); err != nil {
 		t.Fatal(err)
 	}
-	if cursor != "stop-post" {
-		t.Fatalf("checkpoint cursor after post-commit crash = %q, want stop-post", cursor)
+	if parsed := parseSourceCursor(cursor); !parsed.OK || parsed.ID != "stop-post" {
+		t.Fatalf("checkpoint cursor after post-commit crash = %q, want parseable cursor for stop-post", cursor)
 	}
 	path := svc.path
 	if err := svc.Close(); err != nil {

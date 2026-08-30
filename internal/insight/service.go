@@ -409,17 +409,27 @@ func (s *Service) ensureSchema(ctx context.Context) error {
 }
 
 func (s *Service) projectQueue(ctx context.Context) error {
-	rows, err := s.sqlite.QueryContext(ctx, `SELECT id, worker_id, command_type, COALESCE(agent_id,''), COALESCE(task_id,''),
-		COALESCE(status,''), COALESCE(status_reason,''), COALESCE(execution_id,''), COALESCE(status_updated_at,''), created_at
-		FROM worker_control_events WHERE command_type = 'agent.fork_executor' ORDER BY created_at, id`)
+	cursor := s.checkpointCursor(ctx, SourceQueue)
+	query := `SELECT id, worker_id, command_type, COALESCE(agent_id,''), COALESCE(task_id,''),
+		COALESCE(status,''), COALESCE(status_reason,''), COALESCE(execution_id,''), COALESCE(status_updated_at,''), created_at,
+		COALESCE(NULLIF(status_updated_at,''), created_at) AS cursor_at
+		FROM worker_control_events WHERE command_type = 'agent.fork_executor'`
+	args := []any{}
+	if cursor.OK {
+		cursorAt := cursor.At.Add(-replayOverlap)
+		query += ` AND COALESCE(NULLIF(status_updated_at,''), created_at) > ?`
+		args = append(args, fmtTS(cursorAt))
+	}
+	query += ` ORDER BY COALESCE(NULLIF(status_updated_at,''), created_at), id`
+	rows, err := s.sqlite.QueryContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
-	type queueRow struct{ id, workerID, typ, agentID, taskID, status, reason, execID, statusAt, createdAt string }
+	type queueRow struct{ id, workerID, typ, agentID, taskID, status, reason, execID, statusAt, createdAt, cursorAt string }
 	var all []queueRow
 	for rows.Next() {
 		var r queueRow
-		if err := rows.Scan(&r.id, &r.workerID, &r.typ, &r.agentID, &r.taskID, &r.status, &r.reason, &r.execID, &r.statusAt, &r.createdAt); err != nil {
+		if err := rows.Scan(&r.id, &r.workerID, &r.typ, &r.agentID, &r.taskID, &r.status, &r.reason, &r.execID, &r.statusAt, &r.createdAt, &r.cursorAt); err != nil {
 			return err
 		}
 		all = append(all, r)
@@ -430,12 +440,16 @@ func (s *Service) projectQueue(ctx context.Context) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	lastCursor := cursor
 	for _, r := range all {
 		id, workerID, agentID, taskID, status, reason, execID, statusAt, createdAt := r.id, r.workerID, r.agentID, r.taskID, r.status, r.reason, r.execID, r.statusAt, r.createdAt
 		queuedAt, _ := parseTS(createdAt)
 		observedAt := queuedAt
 		if t, ok := parseTS(statusAt); ok {
 			observedAt = t
+		}
+		if at, ok := parseTS(r.cursorAt); ok {
+			lastCursor = sourceCursor{At: at, ID: r.id, OK: true}
 		}
 		sourceID := "queue:" + id + ":" + status + ":" + fmtTS(observedAt)
 		d, _ := s.dimensions(ctx, taskID, agentID)
@@ -500,12 +514,21 @@ func (s *Service) projectQueue(ctx context.Context) error {
 			return err
 		}
 	}
-	return nil
+	return s.touchCheckpoint(ctx, SourceQueue, lastCursor)
 }
 
 func (s *Service) projectActivity(ctx context.Context) error {
-	rows, err := s.sqlite.QueryContext(ctx, `SELECT id, agent_id, COALESCE(task_ref,''), COALESCE(interaction_ref,''), payload, occurred_at
-		FROM agent_activity_events WHERE interaction_ref LIKE 'executor:%' ORDER BY occurred_at, id`)
+	cursor := s.checkpointCursor(ctx, SourceActivity)
+	query := `SELECT id, agent_id, COALESCE(task_ref,''), COALESCE(interaction_ref,''), payload, occurred_at
+		FROM agent_activity_events WHERE interaction_ref LIKE 'executor:%'`
+	args := []any{}
+	if cursor.OK {
+		cursorAt := cursor.At.Add(-replayOverlap)
+		query += ` AND occurred_at > ?`
+		args = append(args, fmtTS(cursorAt))
+	}
+	query += ` ORDER BY occurred_at, id`
+	rows, err := s.sqlite.QueryContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -524,9 +547,13 @@ func (s *Service) projectActivity(ctx context.Context) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	lastCursor := cursor
 	for _, r := range all {
 		id, agentID, taskID, interaction, payload, occurredRaw := r.id, r.agentID, r.taskID, r.interaction, r.payload, r.occurredRaw
 		occurred, _ := parseTS(occurredRaw)
+		if !occurred.IsZero() {
+			lastCursor = sourceCursor{At: occurred, ID: id, OK: true}
+		}
 		var p map[string]any
 		if err := json.Unmarshal([]byte(payload), &p); err != nil {
 			continue
@@ -623,11 +650,19 @@ func (s *Service) projectActivity(ctx context.Context) error {
 			return err
 		}
 	}
-	return nil
+	return s.touchCheckpoint(ctx, SourceActivity, lastCursor)
 }
 
 func (s *Service) projectSlots(ctx context.Context) error {
-	rows, err := s.sqlite.QueryContext(ctx, `SELECT id, worker_id, agent_id, snapshot, observed_at FROM agent_concurrency_observations ORDER BY observed_at, id`)
+	cursor := s.checkpointCursor(ctx, SourceSlotObservation)
+	query := `SELECT id, worker_id, agent_id, snapshot, observed_at FROM agent_concurrency_observations`
+	args := []any{}
+	if cursor.OK {
+		query += ` WHERE observed_at > ? OR (observed_at = ? AND id > ?)`
+		args = append(args, fmtTS(cursor.At), fmtTS(cursor.At), cursor.ID)
+	}
+	query += ` ORDER BY observed_at, id`
+	rows, err := s.sqlite.QueryContext(ctx, query, args...)
 	if err != nil {
 		return err
 	}
@@ -646,9 +681,13 @@ func (s *Service) projectSlots(ctx context.Context) error {
 	if err := rows.Err(); err != nil {
 		return err
 	}
+	lastCursor := cursor
 	for _, r := range all {
 		id, workerID, agentID, raw, observedRaw := r.id, r.workerID, r.agentID, r.raw, r.observedRaw
 		observed, _ := parseTS(observedRaw)
+		if !observed.IsZero() {
+			lastCursor = sourceCursor{At: observed, ID: id, OK: true}
+		}
 		var snap concurrency.AgentSnapshot
 		if err := json.Unmarshal([]byte(raw), &snap); err != nil {
 			continue
@@ -711,5 +750,5 @@ func (s *Service) projectSlots(ctx context.Context) error {
 			return err
 		}
 	}
-	return nil
+	return s.touchCheckpoint(ctx, SourceSlotObservation, lastCursor)
 }

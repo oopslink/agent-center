@@ -20,6 +20,69 @@ type queueDim struct {
 	CommandID, OrgID, ProjectID, WorkerID, QueuedAt, StartedAt string
 }
 
+type sourceCursor struct {
+	At time.Time
+	ID string
+	OK bool
+}
+
+func encodeSourceCursor(at time.Time, id string) string {
+	if id == "" || at.IsZero() {
+		return ""
+	}
+	return fmtTS(at) + "\t" + id
+}
+
+func parseSourceCursor(raw string) sourceCursor {
+	parts := strings.SplitN(raw, "\t", 2)
+	if len(parts) != 2 || parts[1] == "" {
+		return sourceCursor{}
+	}
+	at, ok := parseTS(parts[0])
+	if !ok {
+		return sourceCursor{}
+	}
+	return sourceCursor{At: at, ID: parts[1], OK: true}
+}
+
+func (s *Service) checkpointCursor(ctx context.Context, kind string) sourceCursor {
+	var raw string
+	err := s.duck.QueryRowContext(ctx, `SELECT source_cursor FROM projector_checkpoint WHERE source_kind=?`, kind).Scan(&raw)
+	if err == nil {
+		if c := parseSourceCursor(raw); c.OK {
+			return c
+		}
+	}
+
+	var occurred, cursor string
+	err = s.duck.QueryRowContext(ctx, `SELECT CAST(occurred_at AS VARCHAR), COALESCE(source_cursor,'')
+		FROM projected_event WHERE source_kind=? ORDER BY occurred_at DESC, source_cursor DESC LIMIT 1`, kind).Scan(&occurred, &cursor)
+	if err != nil {
+		return sourceCursor{}
+	}
+	at, ok := parseTS(occurred)
+	if !ok || cursor == "" {
+		return sourceCursor{}
+	}
+	if c := parseSourceCursor(cursor); c.OK {
+		return c
+	}
+	return sourceCursor{At: at, ID: cursor, OK: true}
+}
+
+func (s *Service) touchCheckpoint(ctx context.Context, kind string, cursor sourceCursor) error {
+	now := time.Now().UTC()
+	raw := ""
+	if cursor.OK {
+		raw = encodeSourceCursor(cursor.At, cursor.ID)
+	}
+	_, err := s.duck.ExecContext(ctx, `INSERT INTO projector_checkpoint (source_kind, source_cursor, refreshed_at, state, last_error)
+		VALUES (?,?,?,?,NULL)
+		ON CONFLICT (source_kind) DO UPDATE SET source_cursor=?, refreshed_at=?, state='fresh', last_error=NULL`,
+		kind, raw, fmtTS(now), "fresh", raw, fmtTS(now))
+	return err
+}
+
 func (s *Service) dimensions(ctx context.Context, taskID, agentID string) (dims, error) {
 	var d dims
 	if taskID != "" {
@@ -61,6 +124,7 @@ func projected(ctx context.Context, tx *sql.Tx, id string) (bool, error) {
 
 func markProjected(ctx context.Context, tx *sql.Tx, id, kind, cursor string, occurred time.Time) error {
 	now := time.Now().UTC()
+	checkpoint := encodeSourceCursor(occurred, cursor)
 	if _, err := tx.ExecContext(ctx, `INSERT INTO projected_event (source_event_id, source_kind, source_cursor, occurred_at, projected_at)
 		VALUES (?,?,?,?,?)`, id, kind, cursor, fmtTS(occurred), fmtTS(now)); err != nil {
 		return err
@@ -68,7 +132,7 @@ func markProjected(ctx context.Context, tx *sql.Tx, id, kind, cursor string, occ
 	_, err := tx.ExecContext(ctx, `INSERT INTO projector_checkpoint (source_kind, source_cursor, refreshed_at, state, last_error)
 		VALUES (?,?,?,?,NULL)
 		ON CONFLICT (source_kind) DO UPDATE SET source_cursor=?, refreshed_at=?, state='fresh', last_error=NULL`,
-		kind, cursor, fmtTS(now), "fresh", cursor, fmtTS(now))
+		kind, checkpoint, fmtTS(now), "fresh", checkpoint, fmtTS(now))
 	return err
 }
 

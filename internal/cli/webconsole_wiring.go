@@ -26,6 +26,7 @@ import (
 	"github.com/oopslink/agent-center/internal/files"
 	filesservice "github.com/oopslink/agent-center/internal/files/service"
 	filessql "github.com/oopslink/agent-center/internal/files/sqlite"
+	"github.com/oopslink/agent-center/internal/insight"
 	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
@@ -796,7 +797,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 
 	insightProjectorCancel := func() {}
 	if a.InsightSvc != nil {
-		insightProjectorCancel = a.InsightSvc.StartProjector(ctx, time.Second, func(err error) {
+		insightProjectorCancel = a.InsightSvc.StartProjector(ctx, insight.DefaultProjectorTick, func(err error) {
 			logger("webconsole insight projector: " + err.Error())
 		})
 	}

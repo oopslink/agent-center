@@ -8,6 +8,7 @@ import (
 const (
 	Window24h             = "24h"
 	DefaultFreshnessSLA   = 2 * time.Minute
+	DefaultProjectorTick  = 30 * time.Second
 	SchemaVersion         = 1
 	SourceActivity        = "agent_activity_events"
 	SourceQueue           = "worker_control_events"
