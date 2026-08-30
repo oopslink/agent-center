@@ -83,7 +83,8 @@ export interface RAMRole {
   description: string;
   permissions: string[];
   risk: AccessRisk;
-  scope: AccessResourceKind | 'mixed' | string;
+  scope?: AccessResourceKind | 'mixed' | string;
+  scope_kind?: AccessResourceKind | 'mixed' | string;
   revoked_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -179,6 +180,7 @@ export interface AccessFilters {
 
 export interface AccessBatchRequest {
   subject_refs: string[];
+  role_ids?: string[];
   permission_keys: string[];
   resources: AccessResourceScope[];
   expires_at?: string | null;
@@ -189,6 +191,8 @@ export interface AccessBatchItem {
   id: string;
   subject_ref: string;
   subject_name: string;
+  role_id?: string;
+  role_name?: string;
   permission: string;
   resource: AccessResourceScope;
   status: AccessStatus;

@@ -144,6 +144,7 @@ type accessGrantDTO struct {
 
 type accessBatchRequestDTO struct {
 	SubjectRefs      []string                 `json:"subject_refs"`
+	RoleIDs          []string                 `json:"role_ids,omitempty"`
 	PermissionKeys   []string                 `json:"permission_keys"`
 	Resources        []accessResourceScopeDTO `json:"resources"`
 	ExpiresAt        *string                  `json:"expires_at"`
@@ -155,6 +156,8 @@ type accessBatchItemDTO struct {
 	ID          string                 `json:"id"`
 	SubjectRef  string                 `json:"subject_ref"`
 	SubjectName string                 `json:"subject_name"`
+	RoleID      string                 `json:"role_id,omitempty"`
+	RoleName    string                 `json:"role_name,omitempty"`
 	Permission  string                 `json:"permission"`
 	Resource    accessResourceScopeDTO `json:"resource"`
 	Status      string                 `json:"status"`
@@ -180,6 +183,7 @@ type accessDerivedState struct {
 	subjects        []accessSubjectDTO
 	subjectByRef    map[string]accessSubjectDTO
 	roles           []accessRoleDTO
+	roleByID        map[string]accessRoleDTO
 	catalog         []accessPermissionDefinitionDTO
 	catalogByKey    map[string]accessPermissionDefinitionDTO
 	decisions       []accessDecisionDTO
@@ -1230,8 +1234,12 @@ func (s *Server) accessDerivedState(ctx context.Context, d HandlerDeps, orgID st
 		catalog:      catalog,
 		catalogByKey: catalogByKey,
 		subjectByRef: map[string]accessSubjectDTO{},
+		roleByID:     map[string]accessRoleDTO{},
 	}
 	state.roles = accessRolesForOrg(ctx, d, orgID, catalogByKey)
+	for _, role := range state.roles {
+		state.roleByID[role.ID] = role
+	}
 	members, err := d.MemberRepo.ListByOrganization(ctx, orgID)
 	if err != nil {
 		return state, err
@@ -1956,6 +1964,13 @@ func accessBatchItems(ctx context.Context, svc *authz.Service, orgID string, act
 	items := []accessBatchItemDTO{}
 	expiresAt, expiresErr := parseAccessExpiry(body.ExpiresAt)
 	for _, subjectRef := range body.SubjectRefs {
+		for _, roleID := range body.RoleIDs {
+			for _, resource := range body.Resources {
+				idx := len(items) + 1
+				item := accessEvaluateBatchRoleItem(ctx, svc, orgID, actor, roleID, body, state, idx, subjectRef, resource, expiresAt, expiresErr, applied)
+				items = append(items, item)
+			}
+		}
 		for _, permission := range body.PermissionKeys {
 			for _, resource := range body.Resources {
 				idx := len(items) + 1
@@ -1965,6 +1980,99 @@ func accessBatchItems(ctx context.Context, svc *authz.Service, orgID string, act
 		}
 	}
 	return items
+}
+
+func accessEvaluateBatchRoleItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, roleID string, body accessBatchRequestDTO, state accessDerivedState, idx int, subjectRef string, resource accessResourceScopeDTO, expiresAt *time.Time, expiresErr error, applied bool) accessBatchItemDTO {
+	subj, subjectFound := state.subjectByRef[subjectRef]
+	role, roleFound := state.roleByID[roleID]
+	item := accessBatchItemDTO{
+		ID:          fmt.Sprintf("item-%d", idx),
+		SubjectRef:  subjectRef,
+		SubjectName: fallback(subj.Name, subjectRef),
+		RoleID:      roleID,
+		RoleName:    role.Name,
+		Permission:  "role:" + roleID,
+		Resource:    resource,
+		Status:      "denied",
+		Risk:        accessRoleRisk(role, state.catalogByKey),
+		HighRisk:    role.HighRisk,
+		Reason:      "role assignment denied by unified authorization service",
+	}
+	item.HighRisk = item.HighRisk || item.Risk == "high"
+	switch {
+	case expiresErr != nil:
+		item.Reason = "invalid expiry: " + expiresErr.Error()
+		return item
+	case !subjectFound || subj.Status != string(identity.MemberJoined):
+		item.Status = "unauthorized"
+		item.Reason = "subject is unavailable or outside this organization"
+		return item
+	case !roleFound:
+		item.Reason = "RAM Role is not registered"
+		item.EvidenceRef = "authorization_roles:missing"
+		return item
+	case role.ScopeKind != "" && role.ScopeKind != "mixed" && role.ScopeKind != resource.Kind:
+		item.Status = "not_applicable"
+		item.Reason = fmt.Sprintf("%s does not apply to %s resources", role.Name, resource.Kind)
+		item.EvidenceRef = "authorization_roles:" + roleID
+		return item
+	}
+	req := accessBatchRoleAuthorizationRequest(orgID, actor, body, item, expiresAt)
+	var (
+		res authz.BatchResult
+		err error
+	)
+	if applied {
+		res, err = svc.ApplyBatch(ctx, req)
+	} else {
+		res, err = svc.PreviewBatch(ctx, req)
+	}
+	if err != nil {
+		item.Status = accessBatchStatusForError(err)
+		item.Code = accessBatchCodeForError(err)
+		item.Reason = err.Error()
+		return item
+	}
+	for _, op := range res.Operations {
+		if op.Reason != "" || op.Status == "denied" {
+			item.Status = accessBatchStatusForReason(op.Reason)
+			if strings.Contains(strings.ToLower(op.Reason), "conflict") || strings.Contains(strings.ToLower(op.Reason), "already") {
+				item.Code = "409 conflict"
+			} else {
+				item.Code = "403 forbidden"
+			}
+			item.Reason = fallback(op.Reason, op.Status)
+			return item
+		}
+		if op.AssignmentID != "" {
+			item.GrantID = op.AssignmentID
+		}
+	}
+	item.Status = "allowed"
+	if applied {
+		item.Reason = "RAM Role assigned by unified authorization API"
+		item.EvidenceRef = "authorization_batch:" + req.IdempotencyKey
+	} else {
+		item.Reason = "RAM Role can be assigned by unified authorization API"
+		item.EvidenceRef = "authorization_preview:" + item.ID
+	}
+	return item
+}
+
+func accessRoleRisk(role accessRoleDTO, catalog map[string]accessPermissionDefinitionDTO) string {
+	risk := "low"
+	for _, permission := range role.Permissions {
+		switch catalog[permission].Risk {
+		case "high":
+			return "high"
+		case "medium":
+			risk = "medium"
+		}
+	}
+	if role.HighRisk {
+		return "high"
+	}
+	return risk
 }
 
 func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, state accessDerivedState, idx int, subjectRef, permission string, resource accessResourceScopeDTO, expiresAt *time.Time, expiresErr error, applied bool) accessBatchItemDTO {
@@ -2073,6 +2181,27 @@ func accessBatchAuthorizationRequest(orgID string, actor authz.SubjectRef, body 
 					PermissionKey: authz.PermissionKey(item.Permission),
 					Resource:      resource,
 					ExpiresAt:     expiresAt,
+				},
+			},
+		},
+	}
+}
+
+func accessBatchRoleAuthorizationRequest(orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, item accessBatchItemDTO, expiresAt *time.Time) authz.BatchRequest {
+	resource := accessAuthzResource(item.Resource)
+	return authz.BatchRequest{
+		IdempotencyKey: accessBatchIdempotencyKey("assign-role", orgID, actor, body.PreviewRequestID, item),
+		ActorRef:       actor,
+		OrgID:          orgID,
+		Operations: []authz.BatchOperation{
+			{
+				ID:   item.ID,
+				Type: "assign_role",
+				Assignment: authz.AssignmentInput{
+					SubjectRef: authz.SubjectRef(item.SubjectRef),
+					RoleID:     item.RoleID,
+					Resource:   resource,
+					ExpiresAt:  expiresAt,
 				},
 			},
 		},

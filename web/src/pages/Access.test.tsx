@@ -150,6 +150,12 @@ describe('Access page', () => {
     expect(projectFilter).toBeInTheDocument();
     expect(within(projectFilter).getByRole('option', { name: 'Project Alpha' })).toHaveValue('proj-a');
     expect(within(projectFilter).queryByRole('option', { name: 'proj-a' })).not.toBeInTheDocument();
+    fireEvent.change(projectFilter, { target: { value: 'proj-a' } });
+    await waitFor(() => {
+      expect(screen.getByTestId('access-subject-row-agent:builder')).toBeInTheDocument();
+      expect(screen.queryByTestId('access-subject-row-user:hayang')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('access-subject-row-user:ops')).not.toBeInTheDocument();
+    });
     expect(screen.getByTestId('access-filter-permission')).toBeInTheDocument();
     fireEvent.change(screen.getByTestId('access-filter-type'), { target: { value: 'agent' } });
     await waitFor(() => {
@@ -342,6 +348,106 @@ describe('Access page', () => {
 
     expect(await within(drawer).findByTestId('access-result')).toHaveTextContent('Authorization result');
     expect(await screen.findByTestId('access-toast')).toHaveTextContent('Direct binding granted');
+  });
+
+  it('assigns RAM Roles to a subject through the access grant drawer', async () => {
+    type BatchBody = { role_ids?: string[]; permission_keys?: string[]; resources?: Array<{ kind: string; id: string }> };
+    const previewBodies: BatchBody[] = [];
+    const applyBodies: BatchBody[] = [];
+    server.use(
+      http.get('*/api/orgs/:slug/access/overview', () => HttpResponse.json({
+        generated_at: '2026-08-14T08:00:00Z',
+        subjects: [
+          { ref: 'agent:builder', kind: 'agent', name: 'Builder', role: 'member', status: 'joined', team_names: [] },
+        ],
+        roles: [
+          { id: 'role-project-member', name: 'Project member', scope_kind: 'project', description: 'Reusable project access role', permissions: ['project.write'], editable: true, source: 'custom_role' },
+        ],
+        catalog: [
+          { key: 'project.write', label: 'Write project', description: 'Create and update project work items.', resource_kinds: ['project'], actions: ['write'], risk: 'medium', category: 'access', legacy_sources: ['project_member'] },
+        ],
+        decisions: [
+          { allowed: true, subject_ref: 'agent:builder', permission: 'project.write', resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' }, source: 'custom_role', reason: 'matched unified authorization service', evidence_ref: 'authorization_role_assignments:grant-custom-1', status: 'allowed', risk: 'medium' },
+        ],
+        grants: [],
+        summary: { allowed: 1, high_risk: 0, expiring: 0, denied: 0, not_applicable: 0 },
+      })),
+      http.post('*/api/orgs/:slug/access/batch/preview', async ({ request }) => {
+        previewBodies.push((await request.json()) as BatchBody);
+        return HttpResponse.json({
+          request_id: 'preview-role-assignment',
+          expires_at: null,
+          items: [{
+            id: 'item-1',
+            subject_ref: 'agent:builder',
+            subject_name: 'Builder',
+            role_id: 'role-project-member',
+            role_name: 'Project member',
+            permission: 'role:role-project-member',
+            resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
+            status: 'allowed',
+            risk: 'medium',
+            high_risk: false,
+            reason: 'RAM Role can be assigned by unified authorization API',
+          }],
+          summary: { total: 1, grantable: 1, high_risk: 0, unauthorized: 0, not_applicable: 0 },
+        });
+      }),
+      http.post('*/api/orgs/:slug/access/batch/apply', async ({ request }) => {
+        applyBodies.push((await request.json()) as BatchBody);
+        return HttpResponse.json({
+          operation_id: 'apply-role-assignment',
+          applied_at: '2026-08-31T00:00:00Z',
+          items: [{
+            id: 'item-1',
+            subject_ref: 'agent:builder',
+            subject_name: 'Builder',
+            role_id: 'role-project-member',
+            role_name: 'Project member',
+            permission: 'role:role-project-member',
+            resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
+            status: 'allowed',
+            risk: 'medium',
+            high_risk: false,
+            reason: 'RAM Role assigned by unified authorization API',
+            grant_id: 'asgn-project-member',
+          }],
+          summary: { total: 1, succeeded: 1, failed: 0, unauthorized: 0, not_applicable: 0, partial_failure: false },
+        });
+      }),
+    );
+    renderPage('/organizations/test/access/subject-access');
+    await screen.findByTestId('access-subject-view');
+    fireEvent.click(screen.getByTestId('access-open-direct-binding'));
+
+    const drawer = await screen.findByTestId('access-batch-drawer');
+    fireEvent.click(within(drawer).getByRole('button', { name: /Project member/ }));
+    fireEvent.click(within(drawer).getByRole('button', { name: /Project Alpha/ }));
+    fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'grant project membership role' } });
+    fireEvent.click(within(drawer).getByTestId('access-run-preview'));
+
+    const preview = await within(drawer).findByTestId('access-batch-items');
+    expect(preview).toHaveTextContent('Project member');
+    expect(previewBodies[0]?.role_ids).toEqual(['role-project-member']);
+    expect(previewBodies[0]?.permission_keys).toEqual([]);
+    fireEvent.click(within(drawer).getByTestId('access-preview-continue'));
+    fireEvent.click(within(drawer).getByTestId('access-apply-batch'));
+
+    expect(await within(drawer).findByTestId('access-result')).toHaveTextContent('Authorization result');
+    expect(applyBodies[0]?.role_ids).toEqual(['role-project-member']);
+    expect(await screen.findByTestId('access-toast')).toHaveTextContent('Direct binding granted');
+  });
+
+  it('explains why the access preview action is disabled', async () => {
+    renderPage('/organizations/test/access/subject-access');
+    await screen.findByTestId('access-subject-view');
+    fireEvent.click(screen.getByTestId('access-open-batch'));
+    const drawer = await screen.findByTestId('access-batch-drawer');
+    expect(within(drawer).getByTestId('access-run-preview')).toBeDisabled();
+    expect(within(drawer).getByTestId('access-preview-disabled-reason')).toHaveTextContent('Select at least one subject');
+
+    fireEvent.click(within(drawer).getByRole('button', { name: /Builder/ }));
+    expect(within(drawer).getByTestId('access-preview-disabled-reason')).toHaveTextContent('Select at least one RAM Role or direct permission');
   });
 
   it('keeps the selected subject context and surfaces a 409 apply conflict as a toast', async () => {

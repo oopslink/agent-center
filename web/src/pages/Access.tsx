@@ -8,6 +8,7 @@ import {
   type AccessBatchResult,
   type AccessDecision,
   type AccessGrant,
+  type AccessRole,
   type RAMRole,
   type RAMRoleDetail,
   type AccessPermissionDefinition,
@@ -70,6 +71,7 @@ const SUBJECT_OPTIONS: Array<AccessSubjectKind | 'all'> = ['all', 'human', 'agen
 function emptyBatchRequest(subjectRef = ''): AccessBatchRequest {
   return {
     subject_refs: subjectRef ? [subjectRef] : [],
+    role_ids: [],
     permission_keys: [],
     resources: [],
     expires_at: '',
@@ -100,11 +102,33 @@ function filterResourcesForPermissions(
   return resources.filter((resource) => resourceCompatibleWithPermissions(resource, selectedPermissions));
 }
 
+function resourceCompatibleWithRoles(resource: AccessResourceScope, selectedRoles: AccessRole[]): boolean {
+  return selectedRoles.length === 0 || selectedRoles.some((role) => ramRoleScope(role) === 'mixed' || ramRoleScope(role) === resource.kind);
+}
+
+function filterResourcesForRoles(resources: AccessResourceScope[], selectedRoles: AccessRole[]): AccessResourceScope[] {
+  if (selectedRoles.length === 0) return resources;
+  return resources.filter((resource) => resourceCompatibleWithRoles(resource, selectedRoles));
+}
+
 function uniqueResources(decisions: AccessDecision[], grants: AccessGrant[]): AccessResourceScope[] {
   const byKey = new Map<string, AccessResourceScope>();
   for (const d of decisions) byKey.set(accessResourceKey(d.resource), d.resource);
   for (const g of grants) byKey.set(accessResourceKey(g.resource), g.resource);
   return [...byKey.values()].sort((a, b) => accessResourceLabel(a).localeCompare(accessResourceLabel(b)));
+}
+
+function projectIDForAccessResource(resource: AccessResourceScope): string {
+  if (resource.project_id) return resource.project_id;
+  return resource.kind === 'project' ? resource.id : '';
+}
+
+function ramRoleScope(role: AccessRole): string {
+  return role.scope_kind ?? 'mixed';
+}
+
+function assignableRAMRoles(roles: AccessRole[]): AccessRole[] {
+  return roles.filter((role) => role.source === 'custom_role' || role.id.startsWith('sys-'));
 }
 
 export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): React.ReactElement {
@@ -149,10 +173,18 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
   const projectNameByID = useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, project.name])), [projects.data]);
   const projectOptions = useMemo(() => {
     const byID = new Map<string, string>();
+    for (const project of projects.data ?? []) {
+      byID.set(project.id, project.name);
+    }
     for (const decision of data?.decisions ?? []) {
-      if (decision.resource.kind !== 'project' && !decision.resource.project_id) continue;
-      const id = decision.resource.project_id || decision.resource.id;
+      const id = projectIDForAccessResource(decision.resource);
+      if (!id) continue;
       byID.set(id, projectNameByID.get(id) ?? decision.resource.label ?? id);
+    }
+    for (const grant of data?.grants ?? []) {
+      const id = projectIDForAccessResource(grant.resource);
+      if (!id) continue;
+      byID.set(id, projectNameByID.get(id) ?? grant.resource.label ?? id);
     }
     return [
       { value: 'all', label: 'All project' },
@@ -160,7 +192,7 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
         .sort((a, b) => a[1].localeCompare(b[1]))
         .map(([value, label]) => ({ value, label })),
     ];
-  }, [data?.decisions, projectNameByID]);
+  }, [data?.decisions, data?.grants, projectNameByID, projects.data]);
   const permissionOptions = useMemo(() => ['all', ...(data?.catalog ?? []).map((entry) => entry.key).sort()], [data?.catalog]);
 
   const subjectByRef = useMemo(() => {
@@ -306,6 +338,7 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
       {drawerOpen && data && (
         <BatchGrantDrawer
           subjects={data.subjects}
+          roles={data.roles}
           permissions={data.catalog}
           resources={resources}
           canManageAccess={canManageAccess}
@@ -1588,6 +1621,7 @@ function GrantRevoke({ grants, subjectRef, canManageAccess, onToast }: { grants:
 
 function BatchGrantDrawer({
   subjects,
+  roles,
   permissions,
   resources,
   canManageAccess,
@@ -1597,6 +1631,7 @@ function BatchGrantDrawer({
   onClose,
 }: {
   subjects: AccessSubject[];
+  roles: AccessRole[];
   permissions: AccessPermissionDefinition[];
   resources: AccessResourceScope[];
   canManageAccess: boolean;
@@ -1614,11 +1649,14 @@ function BatchGrantDrawer({
   const [result, setResult] = useState<AccessBatchResult | null>(null);
   const [highRiskAck, setHighRiskAck] = useState(false);
   const title = mode === 'direct' ? 'Add direct binding' : 'Batch authorization';
-
+  const assignableRoles = useMemo(() => assignableRAMRoles(roles), [roles]);
+  const selectedRoles = selectedRAMRoles(assignableRoles, request.role_ids ?? []);
+  const selectedPermissions = selectedPermissionDefinitions(permissions, request.permission_keys);
+  const previewMissing = previewDisabledReason(canManageAccess, request);
   const canPreview =
     canManageAccess &&
     request.subject_refs.length > 0 &&
-    request.permission_keys.length > 0 &&
+    ((request.role_ids?.length ?? 0) > 0 || request.permission_keys.length > 0) &&
     request.resources.length > 0 &&
     request.reason.trim().length > 0;
   const canConfirm = canManageAccess && !!preview && (preview.summary.high_risk === 0 || highRiskAck);
@@ -1633,14 +1671,26 @@ function BatchGrantDrawer({
       return {
         ...prev,
         permission_keys: permissionKeys,
-        resources: filterResourcesForPermissions(prev.resources, selectedPermissions),
+        resources: filterResourcesForRoles(filterResourcesForPermissions(prev.resources, selectedPermissions), selectedRoles),
+      };
+    });
+  };
+  const toggleRole = (roleID: string): void => {
+    setRequest((prev) => {
+      const roleIDs = toggleValue(prev.role_ids ?? [], roleID);
+      const nextRoles = selectedRAMRoles(roles, roleIDs);
+      return {
+        ...prev,
+        role_ids: roleIDs,
+        resources: filterResourcesForRoles(prev.resources, nextRoles),
       };
     });
   };
   const toggleResource = (resource: AccessResourceScope): void => {
     setRequest((prev) => {
       const selectedPermissions = selectedPermissionDefinitions(permissions, prev.permission_keys);
-      if (!resourceCompatibleWithPermissions(resource, selectedPermissions)) return prev;
+      const selectedRoles = selectedRAMRoles(roles, prev.role_ids ?? []);
+      if (!resourceCompatibleWithPermissions(resource, selectedPermissions) || !resourceCompatibleWithRoles(resource, selectedRoles)) return prev;
       const keys = new Set(prev.resources.map(accessResourceKey));
       const next = keys.has(accessResourceKey(resource))
         ? prev.resources.filter((r) => accessResourceKey(r) !== accessResourceKey(resource))
@@ -1736,6 +1786,19 @@ function BatchGrantDrawer({
                   />
                 ))}
               </Picker>
+              <Picker title="RAM Roles">
+                {assignableRoles.map((role) => (
+                  <ChoiceRow
+                    key={role.id}
+                    checked={(request.role_ids ?? []).includes(role.id)}
+                    disabled={!canManageAccess}
+                    onChange={() => toggleRole(role.id)}
+                    label={role.name}
+                    detail={`${ramRoleScope(role)} scope · ${role.permissions.length} permissions`}
+                    badge={<AccessRiskBadge risk={role.high_risk ? 'high' : 'low'} />}
+                  />
+                ))}
+              </Picker>
               <Picker title="Permissions">
                 {permissions.map((permission) => (
                   <ChoiceRow
@@ -1751,8 +1814,7 @@ function BatchGrantDrawer({
               </Picker>
               <Picker title="Resources">
                 {resources.map((resource) => {
-                  const selectedPermissions = selectedPermissionDefinitions(permissions, request.permission_keys);
-                  const compatible = resourceCompatibleWithPermissions(resource, selectedPermissions);
+                  const compatible = resourceCompatibleWithPermissions(resource, selectedPermissions) && resourceCompatibleWithRoles(resource, selectedRoles);
                   return (
                     <ChoiceRow
                       key={accessResourceKey(resource)}
@@ -1760,7 +1822,7 @@ function BatchGrantDrawer({
                       disabled={!canManageAccess || !compatible}
                       onChange={() => toggleResource(resource)}
                       label={accessResourceLabel(resource)}
-                      detail={compatible ? resource.kind : `${resource.kind} - incompatible with selected permission`}
+                      detail={compatible ? resource.kind : `${resource.kind} - incompatible with selected grant`}
                     />
                   );
                 })}
@@ -1789,6 +1851,11 @@ function BatchGrantDrawer({
                 </label>
               </div>
               {previewMutation.isError && <p className="text-sm text-danger" role="alert">{(previewMutation.error as Error).message}</p>}
+              {!canPreview && (
+                <p className="rounded border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-secondary" data-testid="access-preview-disabled-reason">
+                  {previewMissing}
+                </p>
+              )}
             </div>
           )}
 
@@ -1835,6 +1902,7 @@ function BatchGrantDrawer({
                 type="button"
                 className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90 disabled:opacity-50"
                 disabled={!canPreview || previewMutation.isPending}
+                title={!canPreview ? previewMissing : undefined}
                 onClick={runPreview}
                 data-testid="access-run-preview"
               >
@@ -1881,6 +1949,23 @@ function BatchGrantDrawer({
 
 function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
+}
+
+function selectedRAMRoles(roles: AccessRole[], selectedRoleIDs: string[]): AccessRole[] {
+  const byID = new Map(roles.map((role) => [role.id, role]));
+  return selectedRoleIDs.flatMap((id) => {
+    const role = byID.get(id);
+    return role ? [role] : [];
+  });
+}
+
+function previewDisabledReason(canManageAccess: boolean, request: AccessBatchRequest): string {
+  if (!canManageAccess) return 'Preview unavailable: current subject cannot manage access.';
+  if (request.subject_refs.length === 0) return 'Select at least one subject to preview changes.';
+  if ((request.role_ids?.length ?? 0) === 0 && request.permission_keys.length === 0) return 'Select at least one RAM Role or direct permission.';
+  if (request.resources.length === 0) return 'Select at least one compatible resource.';
+  if (request.reason.trim().length === 0) return 'Enter a reason before previewing.';
+  return 'Ready to preview.';
 }
 
 function roleIDFromEvidence(evidenceRef: string): string {
@@ -1970,7 +2055,16 @@ function BatchItemsTable({ items }: { items: AccessBatchItem[] }): React.ReactEl
           {items.map((item) => (
             <tr key={item.id} className="border-b border-border-base last:border-0">
               <td className="px-3 py-2">{item.subject_name}</td>
-              <td className="px-3 py-2 font-mono text-xs">{item.permission}</td>
+              <td className="px-3 py-2">
+                {item.role_id ? (
+                  <span>
+                    <span className="block text-xs font-semibold text-text-primary">{item.role_name || item.role_id}</span>
+                    <span className="block font-mono text-xs text-text-muted">{item.role_id}</span>
+                  </span>
+                ) : (
+                  <span className="font-mono text-xs">{item.permission}</span>
+                )}
+              </td>
               <td className="px-3 py-2">{accessResourceLabel(item.resource)}</td>
               <td className="px-3 py-2"><AccessStatusBadge status={item.status} /></td>
               <td className="px-3 py-2 font-mono text-xs" data-testid="access-batch-item-code">{item.code || (item.status === 'denied' ? '403 denied' : '—')}</td>

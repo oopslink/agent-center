@@ -180,6 +180,69 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		t.Fatalf("mixed org/project item mapping mismatch: %+v", mixed.Items)
 	}
 
+	roleBody := `{
+		"subject_refs":["user:` + sess.IdentityID + `"],
+		"role_ids":["role-web-batch-member"],
+		"permission_keys":[],
+		"resources":[{"kind":"org","id":"` + sess.OrgID + `","org_id":"` + sess.OrgID + `","label":"Test Org"}],
+		"reason":"temporary role assignment"
+	}`
+	if _, err := db.Exec(`
+		INSERT INTO authorization_roles (id, org_id, kind, visibility, stable_key, name, description, scope_kind, created_by, created_at, updated_at, version)
+		VALUES ('role-web-batch-member', ?, 'custom', 'reusable', 'web-batch-member', 'Web batch member', '', 'org', 'system', datetime('now'), datetime('now'), 1)`, sess.OrgID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+		VALUES ('role-web-batch-member', 'org.read', 'org', 0, datetime('now'))`); err != nil {
+		t.Fatal(err)
+	}
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/preview", roleBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("role preview status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var rolePreview struct {
+		Summary struct {
+			Total     int `json:"total"`
+			Grantable int `json:"grantable"`
+		} `json:"summary"`
+		Items []struct {
+			Permission string `json:"permission"`
+			RoleID     string `json:"role_id"`
+			RoleName   string `json:"role_name"`
+			Status     string `json:"status"`
+			Reason     string `json:"reason"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&rolePreview); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if rolePreview.Summary.Total != 1 || rolePreview.Summary.Grantable != 1 || len(rolePreview.Items) != 1 || rolePreview.Items[0].RoleID != "role-web-batch-member" || rolePreview.Items[0].RoleName != "Web batch member" || rolePreview.Items[0].Permission != "role:role-web-batch-member" {
+		t.Fatalf("role preview did not expose RAM Role item: summary=%+v items=%+v", rolePreview.Summary, rolePreview.Items)
+	}
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", roleBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("role apply status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var roleApply struct {
+		Summary struct {
+			Succeeded int `json:"succeeded"`
+		} `json:"summary"`
+		Items []struct {
+			RoleID  string `json:"role_id"`
+			GrantID string `json:"grant_id"`
+			Status  string `json:"status"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&roleApply); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if roleApply.Summary.Succeeded != 1 || len(roleApply.Items) != 1 || roleApply.Items[0].RoleID != "role-web-batch-member" || roleApply.Items[0].GrantID == "" || roleApply.Items[0].Status != "allowed" {
+		t.Fatalf("role apply did not assign RAM Role: summary=%+v items=%+v", roleApply.Summary, roleApply.Items)
+	}
+
 	grantID := "grant:org_role:user:" + sess.IdentityID + ":org.member.role.manage:org:" + sess.OrgID
 	for _, url := range []string{
 		server.URL + "/api/permissions/batch/revoke",
