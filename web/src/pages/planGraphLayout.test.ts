@@ -273,8 +273,13 @@ describe('withStageTopologyEdges — staged visual topology', () => {
     const r2 = layout.positioned.find((p) => p.node.id === 'R2')!;
 
     expect(hasEdge(topology, 'gate1', 'end')).toBe(false);
-    expect(hasEdge(topology, 'gate1', 'B')).toBe(true);
-    expect(hasEdge(topology, 'R2', 'G1')).toBe(true);
+    expect(hasEdge(topology, 'gate1', 'B')).toBe(false);
+    expect(hasEdge(topology, 'G1', 'R1')).toBe(true);
+    expect(hasEdge(topology, 'G1', 'R2')).toBe(false);
+    expect(hasEdge(topology, 'R1', 'R2')).toBe(true);
+    expect(hasEdge(topology, 'R2', 'B')).toBe(true);
+    expect(hasEdge(topology, 'R2', 'G1')).toBe(false);
+    expect(hasEdge(topology, 'start', 'R1')).toBe(false);
     expect(r1.x).toBeGreaterThanOrEqual(s1Box.x);
     expect(r1.x + r1.w).toBeLessThanOrEqual(s1Box.x + s1Box.w + 1);
     expect(r2.x).toBeGreaterThanOrEqual(s1Box.x);

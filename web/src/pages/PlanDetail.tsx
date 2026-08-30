@@ -3129,6 +3129,10 @@ export function withStageTopologyEdges(
 
   const stageById = new Map(stages.map((stage) => [stage.id, stage]));
   const stageIdByTask = taskStageMembership(nodes, stages);
+  const explicitStageMemberTaskIds = new Set<string>();
+  for (const stage of stages) {
+    for (const member of stage.members ?? []) explicitStageMemberTaskIds.add(member.task_id);
+  }
 
   // In staged layouts Start/End are visual anchors for the whole stage DAG, not
   // ordinary nodes inside a specific generation. Old or partial graph snapshots
@@ -3169,21 +3173,57 @@ export function withStageTopologyEdges(
     return stage.gate_task_id ? nodeIdByTask.get(stage.gate_task_id) : undefined;
   };
 
-  const nonGateMembers = (stage: PlanStage): string[] =>
+  const explicitNonGateMembers = (stage: PlanStage): string[] =>
+    (stage.members ?? [])
+      .map((member) => member.task_id)
+      .filter((taskId) => nodeIdByTask.has(taskId) && taskId !== stage.gate_task_id);
+
+  const effectiveMembers = (stage: PlanStage): string[] =>
     [...nodeIdByTask.keys()].filter(
       (taskId) => stageIdByTask.get(taskId) === stage.id && taskId !== stage.gate_task_id,
     );
 
+  const followsTaskInStage = (taskId: string, stageId: string): boolean => {
+    const followsTaskId = nodeById.get(nodeIdByTask.get(taskId)!)?.follows_task_id;
+    return !!followsTaskId && stageIdByTask.get(followsTaskId) === stageId;
+  };
+
   const stageEntries = (stage: PlanStage): string[] => {
     const incoming = incomingWithinStage.get(stage.id) ?? new Set();
-    const entries = nonGateMembers(stage).filter((taskId) => !incoming.has(taskId));
-    return entries.length > 0 ? entries : nonGateMembers(stage);
+    const entries = effectiveMembers(stage).filter((taskId) => !incoming.has(taskId) && !followsTaskInStage(taskId, stage.id));
+    return entries.length > 0 ? entries : effectiveMembers(stage);
+  };
+
+  const followerTasksFor = (sourceTaskId: string | undefined): string[] => {
+    if (!sourceTaskId) return [];
+    return [...nodeIdByTask.keys()].filter((taskId) => {
+      if (explicitStageMemberTaskIds.has(taskId)) return false;
+      return nodeById.get(nodeIdByTask.get(taskId)!)?.follows_task_id === sourceTaskId;
+    });
+  };
+
+  const chainTails = (taskIds: string[]): string[] => {
+    if (taskIds.length === 0) return [];
+    const taskSet = new Set(taskIds);
+    const hasDownstream = new Set<string>();
+    for (const edge of out) {
+      const fromTask = nodeById.get(edge.from)?.task_id;
+      const toTask = nodeById.get(edge.to)?.task_id;
+      if (fromTask && toTask && taskSet.has(fromTask) && taskSet.has(toTask)) {
+        hasDownstream.add(fromTask);
+      }
+    }
+    return taskIds.filter((taskId) => !hasDownstream.has(taskId));
   };
 
   const stageExitTargets = (stage: PlanStage): string[] => {
+    const gateFollowerTails = chainTails(followerTasksFor(stage.gate_task_id))
+      .map((taskId) => nodeIdByTask.get(taskId))
+      .filter((nodeId): nodeId is string => !!nodeId);
+    if (gateFollowerTails.length > 0) return gateFollowerTails;
     const gateTarget = gateTargetOf(stage);
     if (gateTarget) return [gateTarget];
-    return nonGateMembers(stage)
+    return effectiveMembers(stage)
       .map((taskId) => nodeIdByTask.get(taskId))
       .filter((nodeId): nodeId is string => !!nodeId);
   };
@@ -3206,16 +3246,27 @@ export function withStageTopologyEdges(
     const gateTaskNode = stage.gate_task_id ? nodeIdByTask.get(stage.gate_task_id) : undefined;
     const gateTarget = gateTargetOf(stage);
     if (gateTaskNode) {
-      for (const memberTask of nonGateMembers(stage)) add(nodeIdByTask.get(memberTask), gateTaskNode);
+      for (const memberTask of explicitNonGateMembers(stage)) add(nodeIdByTask.get(memberTask), gateTaskNode);
       if (stage.gate_node_id && nodeById.has(stage.gate_node_id)) add(gateTaskNode, stage.gate_node_id);
     } else if (gateTarget) {
-      for (const memberTask of nonGateMembers(stage)) add(nodeIdByTask.get(memberTask), gateTarget);
+      for (const memberTask of explicitNonGateMembers(stage)) add(nodeIdByTask.get(memberTask), gateTarget);
+    }
+
+    for (const memberTask of effectiveMembers(stage)) {
+      if (explicitStageMemberTaskIds.has(memberTask)) continue;
+      if (incomingWithinStage.get(stage.id)?.has(memberTask)) continue;
+      const followsTaskId = nodeById.get(nodeIdByTask.get(memberTask)!)?.follows_task_id;
+      if (followsTaskId && stageIdByTask.get(followsTaskId) === stage.id) {
+        add(nodeIdByTask.get(followsTaskId), nodeIdByTask.get(memberTask));
+      }
     }
 
     for (const upstreamStageId of stage.depends_on_stages ?? []) {
       const upstreamStage = stageById.get(upstreamStageId);
-      const upstreamGate = upstreamStage ? gateTargetOf(upstreamStage) : undefined;
-      for (const entryTask of stageEntries(stage)) add(upstreamGate, nodeIdByTask.get(entryTask));
+      const upstreamExits = upstreamStage ? stageExitTargets(upstreamStage) : [];
+      for (const upstreamExit of upstreamExits) {
+        for (const entryTask of stageEntries(stage)) add(upstreamExit, nodeIdByTask.get(entryTask));
+      }
     }
   }
 
