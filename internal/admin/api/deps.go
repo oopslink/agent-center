@@ -89,7 +89,8 @@ type HandlerDeps struct {
 	// Environment BC (v2.7 D1, ADR-0050, task #102) — worker-initiated
 	// control channel riding this same admin API + bearer auth. WorkerRepo
 	// (above) supplies org provenance on connect.
-	EnvControlSvc *envservice.EnvControl
+	EnvControlSvc         *envservice.EnvControl
+	RuntimeDeployVerifier RuntimeDeployVerifier
 
 	// ControlStreamBus is the OPTIONAL center-side SSE down-push bus (v2.7 D5
 	// slice-1). When wired, GET /admin/environment/worker/commands/stream

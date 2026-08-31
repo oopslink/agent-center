@@ -162,6 +162,13 @@ func (l *ControlLog) CommandByID(ctx context.Context, commandID string) (*Worker
 	return l.events.FindByID(ctx, commandID)
 }
 
+func (l *ControlLog) CommandByIdempotencyKey(ctx context.Context, workerID WorkerID, key string) (*WorkerControlEvent, error) {
+	if workerID == "" || key == "" {
+		return nil, nil
+	}
+	return l.events.FindByIdempotencyKey(ctx, workerID, key)
+}
+
 func (l *ControlLog) UpdateStatus(ctx context.Context, in UpdateCommandStatusInput) (*WorkerControlEvent, error) {
 	if in.StatusUpdatedAt.IsZero() {
 		in.StatusUpdatedAt = l.clock.Now()

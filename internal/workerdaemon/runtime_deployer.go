@@ -92,7 +92,7 @@ func (d *sourceRuntimeDeployer) DeployRestart(ctx context.Context, req runtimede
 		return runtimedeploy.Result{}, fmt.Errorf("checkout verified sha: %w", err)
 	}
 	version := "runtime-deploy-" + sha[:12]
-	if err := run(sourceDir, "make", "release-dir", "VERSION="+version, "OUT="+stageDir); err != nil {
+	if err := run(sourceDir, "make", "release-dir", "VERSION="+version, "COMMIT="+sha, "OUT="+stageDir); err != nil {
 		return runtimedeploy.Result{}, fmt.Errorf("build release: %w", err)
 	}
 	upgrade := filepath.Join(stageDir, "upgrade")
@@ -109,7 +109,7 @@ func (d *sourceRuntimeDeployer) DeployRestart(ctx context.Context, req runtimede
 	if err := run(stageDir, upgrade, args...); err != nil {
 		return runtimedeploy.Result{}, fmt.Errorf("upgrade %s: %w", mode, err)
 	}
-	runningVersion, runningCommit, err := d.readStagedBuildIdentity(ctx, stageDir, sha)
+	runningVersion, runningCommit, err := d.readInstalledBuildIdentity(ctx, mode, req.Prefix, sha)
 	if err != nil {
 		return runtimedeploy.Result{}, fmt.Errorf("post-restart health readback: %w", err)
 	}
@@ -124,8 +124,12 @@ func (d *sourceRuntimeDeployer) DeployRestart(ctx context.Context, req runtimede
 	}, nil
 }
 
-func (d *sourceRuntimeDeployer) readStagedBuildIdentity(ctx context.Context, stageDir, sha string) (version, commit string, err error) {
-	out, err := d.run(ctx, stageDir, filepath.Join(stageDir, "bin", "agent-center"), []string{"version"}, deployCommandEnv())
+func (d *sourceRuntimeDeployer) readInstalledBuildIdentity(ctx context.Context, mode, prefix, sha string) (version, commit string, err error) {
+	bin, err := d.installedAgentCenterBin(mode, prefix)
+	if err != nil {
+		return "", "", err
+	}
+	out, err := d.run(ctx, filepath.Dir(bin), bin, []string{"version"}, deployCommandEnv())
 	if err != nil {
 		return "", "", fmt.Errorf("agent-center version: %w: %s", err, trimDeployTranscript(string(out)))
 	}
@@ -136,10 +140,47 @@ func (d *sourceRuntimeDeployer) readStagedBuildIdentity(ctx context.Context, sta
 	if version != "runtime-deploy-"+sha[:12] {
 		return "", "", fmt.Errorf("running version %q does not match target sha %s", version, sha)
 	}
-	if !strings.HasPrefix(sha, strings.ToLower(commit)) {
+	if !strings.EqualFold(sha, strings.ToLower(commit)) {
 		return "", "", fmt.Errorf("running commit %q does not match target sha %s", commit, sha)
 	}
 	return version, strings.ToLower(commit), nil
+}
+
+func (d *sourceRuntimeDeployer) installedAgentCenterBin(mode, prefix string) (string, error) {
+	prefix = strings.TrimSpace(prefix)
+	if prefix == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("resolve install prefix: %w", err)
+		}
+		switch strings.ToLower(strings.TrimSpace(mode)) {
+		case "worker":
+			if strings.TrimSpace(d.workerID) == "" {
+				return "", errors.New("worker deploy requires worker id")
+			}
+			prefix = filepath.Join(home, ".agent-center", "workers", sanitizeRuntimeDeployPathPart(d.workerID))
+		default:
+			prefix = filepath.Join(home, ".agent-center")
+		}
+	}
+	return filepath.Join(prefix, "current", "bin", "agent-center"), nil
+}
+
+func sanitizeRuntimeDeployPathPart(s string) string {
+	s = strings.TrimSpace(s)
+	var b strings.Builder
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('-')
+		}
+	}
+	if b.Len() == 0 {
+		return "worker"
+	}
+	return b.String()
 }
 
 func parseAgentCenterVersionReadback(out string) (version, commit string, err error) {

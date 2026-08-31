@@ -84,13 +84,14 @@ func makeEffectiveConfig(cfg Config) mcp.ToolHandlerFor[effectiveConfigArgs, any
 // --- runtime_deploy_restart -------------------------------------------------
 
 type runtimeDeployRestartArgs struct {
-	RepoURL   string `json:"repo_url" jsonschema:"git remote URL to fetch for deployment verification"`
-	TargetRef string `json:"target_ref" jsonschema:"remote ref that must resolve exactly to target_sha, e.g. refs/heads/main"`
-	TargetSHA string `json:"target_sha" jsonschema:"full 40 character commit SHA to deploy"`
-	BaseRef   string `json:"base_ref,omitempty" jsonschema:"remote base ref that must be an ancestor of target_sha; defaults to refs/heads/main"`
-	Mode      string `json:"mode,omitempty" jsonschema:"install target to upgrade: center or worker; defaults to center"`
-	Prefix    string `json:"prefix,omitempty" jsonschema:"optional install prefix; omit to use installer defaults"`
-	TimeoutMS int    `json:"timeout_ms,omitempty" jsonschema:"optional time to wait for the worker to report terminal deploy status, in milliseconds"`
+	RepoURL        string `json:"repo_url" jsonschema:"canonical HTTPS git remote URL to fetch for deployment verification"`
+	TargetRef      string `json:"target_ref" jsonschema:"remote ref that must resolve exactly to target_sha, e.g. refs/heads/main"`
+	TargetSHA      string `json:"target_sha" jsonschema:"full 40 character commit SHA to deploy"`
+	BaseRef        string `json:"base_ref,omitempty" jsonschema:"remote base ref that must be an ancestor of target_sha; defaults to refs/heads/main"`
+	Mode           string `json:"mode,omitempty" jsonschema:"install target to upgrade: center or worker; defaults to center"`
+	Prefix         string `json:"prefix,omitempty" jsonschema:"optional install prefix; omit to use installer defaults"`
+	TimeoutMS      int    `json:"timeout_ms,omitempty" jsonschema:"worker execution deadline in milliseconds; use runtime_deploy_status to read terminal status"`
+	IdempotencyKey string `json:"idempotency_key,omitempty" jsonschema:"stable caller key for this deploy attempt; reuse it to read the same terminal status without creating another mutation"`
 }
 
 func makeRuntimeDeployRestart(cfg Config) mcp.ToolHandlerFor[runtimeDeployRestartArgs, any] {
@@ -105,7 +106,24 @@ func makeRuntimeDeployRestart(cfg Config) mcp.ToolHandlerFor[runtimeDeployRestar
 			"prefix":     args.Prefix,
 			"timeout_ms": args.TimeoutMS,
 		}
+		if args.IdempotencyKey != "" {
+			body["idempotency_key"] = args.IdempotencyKey
+		}
 		return callAdmin(ctx, cfg, "runtime_deploy_restart", body)
+	}
+}
+
+type runtimeDeployStatusArgs struct {
+	IdempotencyKey string `json:"idempotency_key" jsonschema:"stable deploy attempt key previously passed to runtime_deploy_restart"`
+}
+
+func makeRuntimeDeployStatus(cfg Config) mcp.ToolHandlerFor[runtimeDeployStatusArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args runtimeDeployStatusArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id":        cfg.AgentID,
+			"idempotency_key": args.IdempotencyKey,
+		}
+		return callAdmin(ctx, cfg, "runtime_deploy_status", body)
 	}
 }
 

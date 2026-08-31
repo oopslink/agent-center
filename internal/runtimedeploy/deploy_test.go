@@ -11,9 +11,9 @@ import (
 
 func TestVerifyRemoteRequiresExactTargetSHAAndAncestor(t *testing.T) {
 	remote, mainSHA, featureSHA, _ := seedDeployRemote(t)
-	got, err := VerifyRemote(context.Background(), Request{
+	got, err := verifyRemote(context.Background(), Request{
 		RepoURL: remote, TargetRef: "refs/heads/feature", TargetSHA: featureSHA, BaseRef: "refs/heads/main",
-	})
+	}, true)
 	if err != nil {
 		t.Fatalf("VerifyRemote: %v", err)
 	}
@@ -21,9 +21,9 @@ func TestVerifyRemoteRequiresExactTargetSHAAndAncestor(t *testing.T) {
 		t.Fatalf("verified refs = %+v, want target=%s base=%s", got, featureSHA, mainSHA)
 	}
 
-	_, err = VerifyRemote(context.Background(), Request{
+	_, err = verifyRemote(context.Background(), Request{
 		RepoURL: remote, TargetRef: "refs/heads/feature", TargetSHA: mainSHA, BaseRef: "refs/heads/main",
-	})
+	}, true)
 	if err == nil || !strings.Contains(err.Error(), "not requested target_sha") {
 		t.Fatalf("exact SHA mismatch should fail closed, got %v", err)
 	}
@@ -31,11 +31,20 @@ func TestVerifyRemoteRequiresExactTargetSHAAndAncestor(t *testing.T) {
 
 func TestVerifyRemoteRejectsNonAncestor(t *testing.T) {
 	remote, mainSHA, _, orphanSHA := seedDeployRemote(t)
-	_, err := VerifyRemote(context.Background(), Request{
+	_, err := verifyRemote(context.Background(), Request{
 		RepoURL: remote, TargetRef: "refs/heads/orphan", TargetSHA: orphanSHA, BaseRef: "refs/heads/main",
-	})
+	}, true)
 	if err == nil || !strings.Contains(err.Error(), "is not an ancestor") {
 		t.Fatalf("non-ancestor should fail closed, got %v (main=%s orphan=%s)", err, mainSHA, orphanSHA)
+	}
+}
+
+func TestVerifyRemoteRequiresCanonicalHTTPSRemote(t *testing.T) {
+	_, err := VerifyRemote(context.Background(), Request{
+		RepoURL: "/tmp/repo.git", TargetRef: "refs/heads/main", TargetSHA: strings.Repeat("a", 40), BaseRef: "refs/heads/main",
+	})
+	if err == nil || !strings.Contains(err.Error(), "canonical HTTPS") {
+		t.Fatalf("non-HTTPS remote should fail closed, got %v", err)
 	}
 }
 

@@ -82,6 +82,7 @@ var AgentFacingToolNames = []string{
 	"get_task_execution",
 	"get_agent_runtime_effective_config",
 	"runtime_deploy_restart",
+	"runtime_deploy_status",
 	"list_findings",
 	"list_plans",
 	"list_tasks",

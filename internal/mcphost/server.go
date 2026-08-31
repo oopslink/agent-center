@@ -245,8 +245,13 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "runtime_deploy_restart",
-		Description: "Deploy a pushed AgentCenter commit through this worker's authenticated control stream and wait for restart status. The server resolves target_ref from repo_url and verifies it equals target_sha, then verifies base_ref is an ancestor; caller-supplied verification claims are ignored.",
+		Description: "Start an idempotency-keyed deploy/restart attempt through this worker's authenticated control stream. The server requires a canonical HTTPS repo_url, resolves target_ref, verifies it equals the full 40-character target_sha, verifies base_ref ancestry, and then returns an attempt_id immediately; use runtime_deploy_status for terminal readback.",
 	}, makeRuntimeDeployRestart(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "runtime_deploy_status",
+		Description: "Read the current or terminal status for a prior runtime_deploy_restart attempt by idempotency_key. This is durable across center restart/reconnect and does not create a new deploy mutation.",
+	}, makeRuntimeDeployStatus(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "list_tasks",

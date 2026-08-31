@@ -85,7 +85,7 @@ var toolDomain = map[string]string{
 	// reminders (T206 Cognition)
 	"create_reminder": "reminders", "list_reminders": "reminders", "get_reminder": "reminders", "update_reminder": "reminders",
 	// runtime control
-	"get_agent_runtime_effective_config": "runtime", "runtime_deploy_restart": "runtime",
+	"get_agent_runtime_effective_config": "runtime", "runtime_deploy_restart": "runtime", "runtime_deploy_status": "runtime",
 	// plan / orchestration
 	"create_plan": "plan", "add_task_to_plan": "plan", "remove_task_from_plan": "plan",
 	"add_plan_dependency": "plan", "remove_plan_dependency": "plan", "start_plan": "plan",

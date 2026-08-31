@@ -177,7 +177,7 @@ var wantTools = []string{
 	"propose_team_memory_change", "list_team_memory_proposals",
 	"get_team_memory_proposal", "review_team_memory_proposal",
 	"get_task_audit", "list_task_executions", "get_task_execution",
-	"get_agent_runtime_effective_config", "runtime_deploy_restart",
+	"get_agent_runtime_effective_config", "runtime_deploy_restart", "runtime_deploy_status",
 	// v2.10.3 T170: agent issue management
 	"create_issue", "update_issue", "close_issue", "reopen_issue",
 	"list_issues", "list_tasks_of_issue",

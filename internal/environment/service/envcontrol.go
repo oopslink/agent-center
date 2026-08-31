@@ -143,6 +143,10 @@ func (c *EnvControl) CommandByID(ctx context.Context, commandID string) (*enviro
 	return c.log.CommandByID(ctx, commandID)
 }
 
+func (c *EnvControl) CommandByIdempotencyKey(ctx context.Context, workerID environment.WorkerID, key string) (*environment.WorkerControlEvent, error) {
+	return c.log.CommandByIdempotencyKey(ctx, workerID, key)
+}
+
 func (c *EnvControl) UpdateCommandStatus(ctx context.Context, in environment.UpdateCommandStatusInput) (*environment.WorkerControlEvent, error) {
 	return c.log.UpdateStatus(ctx, in)
 }

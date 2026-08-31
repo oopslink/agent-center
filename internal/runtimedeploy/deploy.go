@@ -30,6 +30,25 @@ type Request struct {
 	VerifiedAt        string `json:"verified_at,omitempty"`
 }
 
+type StatusRequest struct {
+	AgentID        string `json:"agent_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
+type AttemptStatus struct {
+	Accepted          bool   `json:"accepted"`
+	AttemptID         string `json:"attempt_id"`
+	CommandID         string `json:"command_id"`
+	Offset            int64  `json:"offset"`
+	CommandStatus     string `json:"command_status"`
+	StatusReason      string `json:"status_reason,omitempty"`
+	StatusDetail      string `json:"status_detail,omitempty"`
+	IdempotencyKey    string `json:"idempotency_key"`
+	VerifiedTargetSHA string `json:"verified_target_sha,omitempty"`
+	VerifiedBaseSHA   string `json:"verified_base_sha,omitempty"`
+	Terminal          bool   `json:"terminal"`
+}
+
 type VerifiedRef struct {
 	TargetSHA string
 	BaseSHA   string
@@ -48,6 +67,10 @@ type Result struct {
 var fullSHARe = regexp.MustCompile(`^[0-9a-fA-F]{40}$`)
 
 func VerifyRemote(ctx context.Context, req Request) (VerifiedRef, error) {
+	return verifyRemote(ctx, req, false)
+}
+
+func verifyRemote(ctx context.Context, req Request, allowLocal bool) (VerifiedRef, error) {
 	repoURL := strings.TrimSpace(req.RepoURL)
 	targetRef := normalizeRef(req.TargetRef)
 	baseRef := normalizeRef(req.BaseRef)
@@ -55,8 +78,12 @@ func VerifyRemote(ctx context.Context, req Request) (VerifiedRef, error) {
 	if repoURL == "" {
 		return VerifiedRef{}, errors.New("repo_url required")
 	}
-	if _, err := url.Parse(repoURL); err != nil {
+	u, err := url.Parse(repoURL)
+	if err != nil {
 		return VerifiedRef{}, fmt.Errorf("invalid repo_url: %w", err)
+	}
+	if !allowLocal && (u.Scheme != "https" || u.Host == "") {
+		return VerifiedRef{}, errors.New("repo_url must be canonical HTTPS")
 	}
 	if targetRef == "" {
 		return VerifiedRef{}, errors.New("target_ref required")

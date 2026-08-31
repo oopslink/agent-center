@@ -13,14 +13,30 @@ import (
 )
 
 type runtimeDeployRestartReq struct {
-	AgentID   string `json:"agent_id"`
-	RepoURL   string `json:"repo_url"`
-	TargetRef string `json:"target_ref"`
-	TargetSHA string `json:"target_sha"`
-	BaseRef   string `json:"base_ref,omitempty"`
-	Mode      string `json:"mode,omitempty"`
-	Prefix    string `json:"prefix,omitempty"`
-	TimeoutMS int    `json:"timeout_ms,omitempty"`
+	AgentID        string `json:"agent_id"`
+	RepoURL        string `json:"repo_url"`
+	TargetRef      string `json:"target_ref"`
+	TargetSHA      string `json:"target_sha"`
+	BaseRef        string `json:"base_ref,omitempty"`
+	Mode           string `json:"mode,omitempty"`
+	Prefix         string `json:"prefix,omitempty"`
+	TimeoutMS      int    `json:"timeout_ms,omitempty"`
+	IdempotencyKey string `json:"idempotency_key,omitempty"`
+}
+
+type runtimeDeployStatusReq struct {
+	AgentID        string `json:"agent_id"`
+	IdempotencyKey string `json:"idempotency_key"`
+}
+
+type RuntimeDeployVerifier interface {
+	VerifyRemote(ctx context.Context, req runtimedeploy.Request) (runtimedeploy.VerifiedRef, error)
+}
+
+type defaultRuntimeDeployVerifier struct{}
+
+func (defaultRuntimeDeployVerifier) VerifyRemote(ctx context.Context, req runtimedeploy.Request) (runtimedeploy.VerifiedRef, error) {
+	return runtimedeploy.VerifyRemote(ctx, req)
 }
 
 func (s *Server) runtimeDeployRestartHandler(w http.ResponseWriter, r *http.Request) {
@@ -46,8 +62,16 @@ func (s *Server) runtimeDeployRestartHandler(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusBadRequest, "invalid_mode", "mode must be center or worker")
 		return
 	}
+	idempotencyKey := strings.TrimSpace(req.IdempotencyKey)
+	if idempotencyKey == "" {
+		idempotencyKey = legacyRuntimeDeployIdempotencyKey(a.WorkerID(), mode, req.TargetRef, req.TargetSHA)
+	}
 	verifyCtx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
-	verified, err := runtimedeploy.VerifyRemote(verifyCtx, runtimedeploy.Request{
+	verifier := d.RuntimeDeployVerifier
+	if verifier == nil {
+		verifier = defaultRuntimeDeployVerifier{}
+	}
+	verified, err := verifier.VerifyRemote(verifyCtx, runtimedeploy.Request{
 		RepoURL: req.RepoURL, TargetRef: req.TargetRef, TargetSHA: req.TargetSHA, BaseRef: req.BaseRef,
 	})
 	cancel()
@@ -73,7 +97,7 @@ func (s *Server) runtimeDeployRestartHandler(w http.ResponseWriter, r *http.Requ
 		writeError(w, http.StatusInternalServerError, "internal", err.Error())
 		return
 	}
-	key := fmt.Sprintf("runtime.deploy_restart:%s:%s:%s:%s", a.WorkerID(), mode, payload.TargetRef, verified.TargetSHA)
+	key := runtimeDeployIdempotencyKey(a.WorkerID(), string(a.ID()), idempotencyKey)
 	evt, err := d.EnvControlSvc.EnqueueCommand(r.Context(), environment.AppendCommandInput{
 		WorkerID:       environment.WorkerID(a.WorkerID()),
 		CommandType:    runtimedeploy.CommandType,
@@ -86,38 +110,79 @@ func (s *Server) runtimeDeployRestartHandler(w http.ResponseWriter, r *http.Requ
 		mapDomainError(w, err)
 		return
 	}
-	finalEvt := evt
-	wait := runtimedeploy.Timeout(payload, 0)
-	if wait > 0 {
-		deadline := time.Now().Add(wait)
-		for time.Now().Before(deadline) {
-			got, gerr := d.EnvControlSvc.CommandByID(r.Context(), evt.ID())
-			if gerr != nil {
-				mapDomainError(w, gerr)
-				return
-			}
-			if got != nil {
-				finalEvt = got
-				if environment.CommandStatusTerminal(got.Status()) {
-					break
-				}
-			}
-			time.Sleep(250 * time.Millisecond)
-		}
+	if !runtimeDeploySamePayload(evt.Payload(), payload) {
+		writeError(w, http.StatusConflict, "idempotency_conflict", "idempotency_key was already used for a different runtime deploy request")
+		return
 	}
-	out := map[string]any{
-		"accepted":            true,
-		"command_id":          evt.ID(),
-		"offset":              evt.Offset(),
-		"command_status":      finalEvt.Status(),
-		"verified_target_sha": verified.TargetSHA,
-		"verified_base_sha":   verified.BaseSHA,
+	writeJSON(w, http.StatusAccepted, runtimeDeployAttemptStatus(evt, idempotencyKey))
+}
+
+func (s *Server) runtimeDeployStatusHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	if d.EnvControlSvc == nil {
+		writeError(w, http.StatusNotImplemented, "env_control_svc_not_wired", "")
+		return
 	}
-	if finalEvt.StatusReason() != "" {
-		out["status_reason"] = finalEvt.StatusReason()
+	var req runtimeDeployStatusReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
 	}
-	if finalEvt.StatusDetail() != "" {
-		out["status_detail"] = finalEvt.StatusDetail()
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
 	}
-	writeJSON(w, http.StatusOK, out)
+	idempotencyKey := strings.TrimSpace(req.IdempotencyKey)
+	if idempotencyKey == "" {
+		writeError(w, http.StatusBadRequest, "invalid_request", "idempotency_key is required")
+		return
+	}
+	evt, err := d.EnvControlSvc.CommandByIdempotencyKey(r.Context(), environment.WorkerID(a.WorkerID()), runtimeDeployIdempotencyKey(a.WorkerID(), string(a.ID()), idempotencyKey))
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	if evt == nil {
+		writeError(w, http.StatusNotFound, "runtime_deploy_attempt_not_found", "unknown runtime deploy attempt")
+		return
+	}
+	writeJSON(w, http.StatusOK, runtimeDeployAttemptStatus(evt, idempotencyKey))
+}
+
+func runtimeDeployIdempotencyKey(workerID, agentID, key string) string {
+	return fmt.Sprintf("runtime.deploy_restart:%s:%s:%s", strings.TrimSpace(workerID), strings.TrimSpace(agentID), strings.TrimSpace(key))
+}
+
+func legacyRuntimeDeployIdempotencyKey(workerID, mode, targetRef, targetSHA string) string {
+	return fmt.Sprintf("%s:%s:%s:%s", strings.TrimSpace(workerID), strings.TrimSpace(mode), strings.TrimSpace(targetRef), strings.ToLower(strings.TrimSpace(targetSHA)))
+}
+
+func runtimeDeploySamePayload(existingPayload string, payload runtimedeploy.Request) bool {
+	var existing runtimedeploy.Request
+	if err := json.Unmarshal([]byte(existingPayload), &existing); err != nil {
+		return false
+	}
+	existing.VerifiedAt = ""
+	payload.VerifiedAt = ""
+	return existing == payload
+}
+
+func runtimeDeployAttemptStatus(evt *environment.WorkerControlEvent, idempotencyKey string) runtimedeploy.AttemptStatus {
+	out := runtimedeploy.AttemptStatus{
+		Accepted:       true,
+		AttemptID:      evt.ID(),
+		CommandID:      evt.ID(),
+		Offset:         evt.Offset(),
+		CommandStatus:  evt.Status(),
+		StatusReason:   evt.StatusReason(),
+		StatusDetail:   evt.StatusDetail(),
+		IdempotencyKey: strings.TrimSpace(idempotencyKey),
+		Terminal:       environment.CommandStatusTerminal(evt.Status()),
+	}
+	var payload runtimedeploy.Request
+	if err := json.Unmarshal([]byte(evt.Payload()), &payload); err == nil {
+		out.VerifiedTargetSHA = payload.VerifiedTargetSHA
+		out.VerifiedBaseSHA = payload.VerifiedBaseSHA
+	}
+	return out
 }
