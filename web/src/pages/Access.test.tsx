@@ -241,6 +241,11 @@ describe('Access page', () => {
     expect(page).toHaveClass('overflow-hidden');
     const drawer = await screen.findByTestId('access-batch-drawer');
     expect(drawer).toHaveClass('overflow-hidden');
+    expect(drawer).toHaveClass('flex-1', 'min-h-0');
+    expect(drawer).not.toHaveClass('h-full');
+    const backdrop = await screen.findByTestId('access-batch-drawer-backdrop');
+    expect(backdrop).toHaveClass('flex-1', 'min-h-0', 'overflow-hidden');
+    expect(backdrop).not.toHaveClass('h-full');
 
     const picker = within(drawer).getByTestId('access-permission-picker');
     const list = within(drawer).getByTestId('access-grant-list');
