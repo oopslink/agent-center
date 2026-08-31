@@ -17,6 +17,7 @@ import (
 	"github.com/oopslink/agent-center/internal/admin/clienttransport"
 	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/runtimedeploy"
+	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 type sourceRuntimeDeployer struct {
@@ -24,7 +25,7 @@ type sourceRuntimeDeployer struct {
 	workerID string
 	log      func(string)
 	run      func(context.Context, string, string, []string, []string) ([]byte, error)
-	readback func(context.Context, string, string, string) (runtimeBuildReadback, error)
+	readback func(context.Context, string, string, string, string) (runtimeBuildReadback, error)
 }
 
 type runtimeBuildReadback struct {
@@ -122,7 +123,7 @@ func (d *sourceRuntimeDeployer) DeployRestart(ctx context.Context, req runtimede
 	if err := run(stageDir, upgrade, args...); err != nil {
 		return runtimedeploy.Result{}, fmt.Errorf("upgrade %s: %w", mode, err)
 	}
-	rb, err := d.readback(ctx, mode, req.Prefix, d.workerID)
+	rb, err := d.readback(ctx, mode, req.Prefix, d.workerID, sha)
 	if err != nil {
 		return runtimedeploy.Result{}, fmt.Errorf("post-restart health readback: %w", err)
 	}
@@ -142,7 +143,7 @@ func (d *sourceRuntimeDeployer) DeployRestart(ctx context.Context, req runtimede
 	return res, nil
 }
 
-func defaultRuntimeBuildReadback(ctx context.Context, mode, prefix, workerID string) (runtimeBuildReadback, error) {
+func defaultRuntimeBuildReadback(ctx context.Context, mode, prefix, workerID, expectedSHA string) (runtimeBuildReadback, error) {
 	switch strings.ToLower(strings.TrimSpace(mode)) {
 	case "worker":
 		return runtimeBuildReadback{}, errors.New("worker process readback not configured")
@@ -185,6 +186,7 @@ func readCenterAdminHealth(ctx context.Context, prefix string) (runtimeBuildRead
 	}
 	var doc struct {
 		OK      bool   `json:"ok"`
+		Health  string `json:"health,omitempty"`
 		Version string `json:"version"`
 		Commit  string `json:"commit"`
 	}
@@ -194,7 +196,86 @@ func readCenterAdminHealth(ctx context.Context, prefix string) (runtimeBuildRead
 	if !doc.OK {
 		return runtimeBuildReadback{}, errors.New("admin health readback not ok")
 	}
-	return runtimeBuildReadback{Version: doc.Version, Commit: doc.Commit, Health: "healthy"}, nil
+	health := strings.TrimSpace(doc.Health)
+	if health == "" && doc.OK {
+		health = "healthy"
+	}
+	return runtimeBuildReadback{Version: doc.Version, Commit: doc.Commit, Health: health}, nil
+}
+
+func readWorkerAdminReadback(ctx context.Context, targetSpec, fingerprint, tokenPath, workerID, expectedSHA string) (runtimeBuildReadback, error) {
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return runtimeBuildReadback{}, errors.New("worker readback requires worker id")
+	}
+	expectedSHA = strings.ToLower(strings.TrimSpace(expectedSHA))
+	if !fullDeploySHA(expectedSHA) {
+		return runtimeBuildReadback{}, fmt.Errorf("worker readback requires full expected sha, got %q", expectedSHA)
+	}
+	target, err := clienttransport.ParseTarget(targetSpec)
+	if err != nil {
+		return runtimeBuildReadback{}, err
+	}
+	deadline := time.NewTimer(30 * time.Second)
+	defer deadline.Stop()
+	tick := time.NewTicker(500 * time.Millisecond)
+	defer tick.Stop()
+	var lastErr error
+	for {
+		rb, err := readWorkerAdminReadbackOnce(ctx, target, fingerprint, tokenPath, workerID)
+		if err == nil {
+			commit := strings.ToLower(strings.TrimSpace(rb.Commit))
+			switch {
+			case commit == expectedSHA:
+				return rb, nil
+			case commit == "":
+				lastErr = errors.New("worker readback missing running sha")
+			default:
+				lastErr = fmt.Errorf("worker readback stale running sha %s, want %s", commit, expectedSHA)
+			}
+		} else {
+			lastErr = err
+		}
+		select {
+		case <-ctx.Done():
+			return runtimeBuildReadback{}, fmt.Errorf("worker readback timeout: %w (last=%v)", ctx.Err(), lastErr)
+		case <-deadline.C:
+			return runtimeBuildReadback{}, fmt.Errorf("worker readback timeout waiting for %s (last=%v)", expectedSHA, lastErr)
+		case <-tick.C:
+		}
+	}
+}
+
+func readWorkerAdminReadbackOnce(ctx context.Context, target clienttransport.Target, fingerprint, tokenPath, workerID string) (runtimeBuildReadback, error) {
+	token, err := readWorkerTokenFile(tokenPath)
+	if err != nil {
+		return runtimeBuildReadback{}, fmt.Errorf("worker readback token unavailable: %w", err)
+	}
+	client, err := NewAdminClientFromTarget(target, fingerprint, 5*time.Second)
+	if err != nil {
+		return runtimeBuildReadback{}, fmt.Errorf("worker readback admin client: %w", err)
+	}
+	client = client.WithToken(token)
+	info, err := client.WorkerFindByID(ctx, workerID)
+	if err != nil {
+		return runtimeBuildReadback{}, fmt.Errorf("worker readback unavailable: %w", err)
+	}
+	if strings.TrimSpace(info.WorkerID) != workerID {
+		return runtimeBuildReadback{}, fmt.Errorf("worker readback identity mismatch: got %q want %q", info.WorkerID, workerID)
+	}
+	if strings.TrimSpace(info.Status) != string(workforce.WorkerOnline) {
+		return runtimeBuildReadback{}, fmt.Errorf("worker readback unhealthy status %q", info.Status)
+	}
+	sys := info.SystemInfo
+	version := strings.TrimSpace(sys.WorkerVersion)
+	commit := strings.ToLower(strings.TrimSpace(sys.BuildCommit))
+	switch {
+	case version == "":
+		return runtimeBuildReadback{}, errors.New("worker readback missing running version")
+	case !fullDeploySHA(commit):
+		return runtimeBuildReadback{}, fmt.Errorf("worker readback running sha must be full 40 character commit SHA, got %q", commit)
+	}
+	return runtimeBuildReadback{Version: version, Commit: commit, Health: "healthy"}, nil
 }
 
 func loadRuntimeDeployConfig(prefix string) (config.Config, error) {

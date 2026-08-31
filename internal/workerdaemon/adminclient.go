@@ -237,6 +237,35 @@ func (c *AdminClient) ReportCapabilities(ctx context.Context, workerID string, c
 	return c.doJSON(ctx, http.MethodPost, "/admin/workforce/worker/capabilities", body, nil)
 }
 
+// WorkerInfo is the authenticated admin projection returned by
+// /admin/workforce/worker/find-by-id. Worker-mode runtime deploy readback uses
+// this supported control-plane surface after restart, instead of trusting the
+// pre-restart process options or the installed artifact on disk.
+type WorkerInfo struct {
+	WorkerID        string               `json:"worker_id"`
+	Status          string               `json:"status"`
+	Capabilities    []string             `json:"capabilities"`
+	Version         int                  `json:"version"`
+	EnrolledAt      string               `json:"enrolled_at"`
+	LastHeartbeatAt string               `json:"last_heartbeat_at,omitempty"`
+	SystemInfo      workforce.SystemInfo `json:"system_info,omitempty"`
+}
+
+// WorkerFindByID reads the center's current worker projection over the same
+// authenticated admin transport the daemon uses for heartbeat/capability
+// reporting. The server is the authority for whether the restarted worker has
+// actually come online and reported its own build identity.
+func (c *AdminClient) WorkerFindByID(ctx context.Context, workerID string) (WorkerInfo, error) {
+	if strings.TrimSpace(workerID) == "" {
+		return WorkerInfo{}, errors.New("adminclient: worker_id required")
+	}
+	var out WorkerInfo
+	if err := c.doJSON(ctx, http.MethodGet, "/admin/workforce/worker/find-by-id?id="+url.QueryEscape(workerID), nil, &out); err != nil {
+		return WorkerInfo{}, err
+	}
+	return out, nil
+}
+
 // Heartbeat asserts liveness for an already-enrolled worker.
 //
 // v2.3-1 (task #24): now POSTs to the dedicated
