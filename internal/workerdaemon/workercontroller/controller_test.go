@@ -20,6 +20,7 @@ type fakeLauncher struct {
 	mu        sync.Mutex
 	running   map[string]bool
 	ensureN   map[string]int
+	stopN     map[string]int
 	adoptN    map[string]int
 	ensERR    map[string]error
 	adoptPIDs map[string]int // returned by AdoptablePIDs
@@ -31,6 +32,7 @@ func newFakeLauncher() *fakeLauncher {
 	return &fakeLauncher{
 		running:   map[string]bool{},
 		ensureN:   map[string]int{},
+		stopN:     map[string]int{},
 		adoptN:    map[string]int{},
 		ensERR:    map[string]error{},
 		adoptPIDs: map[string]int{},
@@ -70,6 +72,7 @@ func TestReconcileSpecs_PreservesPerAgentEnv(t *testing.T) {
 func (l *fakeLauncher) Stop(agentID string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	l.stopN[agentID]++
 	delete(l.running, agentID)
 	return nil
 }
@@ -225,6 +228,59 @@ func TestDeliver_LaunchFailureIsError(t *testing.T) {
 	c, _ := New(Config{Launcher: l, SockDir: "/tmp/acs", NewClient: func(string) controlClient { return &fakeClient{} }})
 	if err := c.Deliver(context.Background(), agentcontrol.Command{Type: "work", AgentID: "a"}); err == nil {
 		t.Error("a launch failure must surface as a delivery error (retry, don't drop)")
+	}
+}
+
+func TestRecycleAgent_PreservesSpecAndDropsStaleClient(t *testing.T) {
+	l := newFakeLauncher()
+	var clients []*fakeClient
+	c, err := New(Config{
+		Launcher: l,
+		SockDir:  "/tmp/acs",
+		NewClient: func(string) controlClient {
+			fc := &fakeClient{}
+			clients = append(clients, fc)
+			return fc
+		},
+	})
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	c.ReconcileSpecs([]agentlauncher.AgentSpec{{
+		AgentID: "a",
+		Env:     []string{"AC_EXECUTOR_GIT_WORKTREE=1"},
+	}})
+	if err := c.Deliver(context.Background(), agentcontrol.Command{Type: "work", AgentID: "a", Seq: 1}); err != nil {
+		t.Fatalf("first deliver: %v", err)
+	}
+	if len(clients) != 1 {
+		t.Fatalf("clients after first deliver = %d, want 1", len(clients))
+	}
+	if err := c.RecycleAgent("a"); err != nil {
+		t.Fatalf("RecycleAgent: %v", err)
+	}
+	{
+		l.mu.Lock()
+		if l.stopN["a"] != 1 {
+			l.mu.Unlock()
+			t.Fatalf("Stop(a) = %d, want 1", l.stopN["a"])
+		}
+		got := append([]string(nil), l.lastSpec["a"].Env...)
+		l.mu.Unlock()
+		if len(got) != 1 || got[0] != "AC_EXECUTOR_GIT_WORKTREE=1" {
+			t.Fatalf("relaunch spec env = %v, want preserved git worktree env", got)
+		}
+	}
+	if err := c.Deliver(context.Background(), agentcontrol.Command{Type: "work", AgentID: "a", Seq: 2}); err != nil {
+		t.Fatalf("second deliver: %v", err)
+	}
+	if len(clients) != 2 {
+		t.Fatalf("clients after recycle deliver = %d, want stale client replaced", len(clients))
+	}
+	clients[1].mu.Lock()
+	defer clients[1].mu.Unlock()
+	if len(clients[1].got) != 1 || clients[1].got[0].Seq != 2 {
+		t.Fatalf("new client got = %+v, want seq=2", clients[1].got)
 	}
 }
 

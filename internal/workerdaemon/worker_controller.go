@@ -65,6 +65,10 @@ type commandStatusReporter interface {
 	ReportControlCommandStatus(ctx context.Context, agentID, commandID, taskID, status, reason, detail, executionID string, at time.Time) error
 }
 
+type converseErrorReporter interface {
+	ReportConverseError(ctx context.Context, agentID, conversationID, summary string, at time.Time) error
+}
+
 type runtimeDeployer interface {
 	DeployRestart(ctx context.Context, req runtimedeploy.Request) (runtimedeploy.Result, error)
 }
@@ -155,7 +159,7 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 	// (reconcile-running, work, wake, converse, work_available) is proxied to the
 	// agent process — reconcile-running also ensures the process is up + brings up the
 	// session via the agent's rt.Start.
-	return h.ctrl.Deliver(ctx, agentcontrol.Command{
+	acmd := agentcontrol.Command{
 		Type:           cmd.CommandType,
 		AgentID:        agentID,
 		Seq:            cmd.Offset,
@@ -164,7 +168,91 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 		Status:         cmd.Status,
 		CreatedAt:      cmd.CreatedAt,
 		Payload:        json.RawMessage(cmd.Payload),
-	})
+	}
+	return h.deliverWithRuntimeRecovery(ctx, cmd, acmd, strings.TrimSpace(idp.TaskID))
+}
+
+func (h controllerHandler) deliverWithRuntimeRecovery(ctx context.Context, cmd ControlCommand, acmd agentcontrol.Command, taskID string) error {
+	err := h.ctrl.Deliver(ctx, acmd)
+	if err == nil {
+		return nil
+	}
+	if !isAgentRuntimeTransportError(err) {
+		return err
+	}
+	h.log(fmt.Sprintf("controller: runtime transport failed agent=%s command=%s offset=%d: %v; recycling runtime and retrying once",
+		acmd.AgentID, acmd.Type, acmd.Seq, err))
+	if rerr := h.ctrl.RecycleAgent(acmd.AgentID); rerr != nil {
+		return fmt.Errorf("controller: recycle agent=%s after runtime transport failure: %w (delivery: %v)", acmd.AgentID, rerr, err)
+	}
+	retryErr := h.ctrl.Deliver(ctx, acmd)
+	if retryErr == nil {
+		h.log(fmt.Sprintf("controller: runtime transport recovered agent=%s command=%s offset=%d after recycle",
+			acmd.AgentID, acmd.Type, acmd.Seq))
+		return nil
+	}
+	if !isAgentRuntimeTransportError(retryErr) {
+		return retryErr
+	}
+	detail := retryErr.Error()
+	if detail == "" {
+		detail = err.Error()
+	}
+	if rerr := h.reportRuntimeDeliveryParked(ctx, cmd, acmd.AgentID, taskID, detail); rerr != nil {
+		return rerr
+	}
+	h.log(fmt.Sprintf("controller: RUNTIME-PARKED — command id=%s offset=%d type=%s agent=%s remained runtime-unreachable after recycle+retry; SKIPPING it so the worker cursor can advance: %v",
+		cmd.ID, acmd.Seq, acmd.Type, acmd.AgentID, retryErr))
+	return nil
+}
+
+func (h controllerHandler) reportRuntimeDeliveryParked(ctx context.Context, cmd ControlCommand, agentID, taskID, detail string) error {
+	if cmd.CommandType == cmdTypeAgentForkExec {
+		rep, _ := h.reporter.(commandStatusReporter)
+		if rep == nil || strings.TrimSpace(cmd.ID) == "" {
+			return nil
+		}
+		return rep.ReportControlCommandStatus(ctx, agentID, cmd.ID, taskID, environment.CommandStatusFailed,
+			"agent_runtime_unreachable", detail, "", time.Now())
+	}
+	if cmd.CommandType == cmdTypeAgentConverse {
+		rep, _ := h.reporter.(converseErrorReporter)
+		if rep == nil {
+			return nil
+		}
+		var pl conversePayload
+		_ = json.Unmarshal([]byte(cmd.Payload), &pl)
+		if strings.TrimSpace(pl.ConversationID) == "" {
+			return nil
+		}
+		return rep.ReportConverseError(ctx, agentID, pl.ConversationID,
+			"agent runtime was unreachable after recycle; converse command was skipped", time.Now())
+	}
+	return nil
+}
+
+func isAgentRuntimeTransportError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	if !strings.Contains(msg, "agentcontrol: deliver") || strings.Contains(msg, "agent returned") {
+		return false
+	}
+	for _, needle := range []string{
+		"no such file or directory",
+		"connection refused",
+		"connection reset by peer",
+		"broken pipe",
+		"unexpected eof",
+		": eof",
+		"server closed idle connection",
+	} {
+		if strings.Contains(msg, needle) {
+			return true
+		}
+	}
+	return false
 }
 
 func shouldSkipForkCommand(cmd ControlCommand) bool {

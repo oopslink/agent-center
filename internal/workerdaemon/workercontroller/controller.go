@@ -5,9 +5,10 @@
 //
 // Command delivery is cursor-gated for the PD reliability ruling: Deliver returns an
 // error whenever the agent process has not accepted the command, and the worker's
-// control loop leaves that command un-acked (no center cursor advance) and retries —
-// so a command issued while an agent is down/restarting is not lost. The launcher
-// concurrently rebuilds the process; the retry lands once it is back up.
+// control loop normally leaves that command un-acked (no center cursor advance) and
+// retries. The higher-level worker handler may classify deterministic runtime
+// transport failures (stale/missing unix sockets) as an agent-local recycle+retry path
+// so one bad socket cannot head-of-line block every other agent on the worker.
 package workercontroller
 
 import (
@@ -49,6 +50,7 @@ type Controller struct {
 
 	mu      sync.Mutex
 	clients map[string]controlClient // agentID → control client
+	specs   map[string]agentlauncher.AgentSpec
 }
 
 // Config wires a Controller.
@@ -94,6 +96,7 @@ func New(cfg Config) (*Controller, error) {
 		newClient: nc,
 		log:       log,
 		clients:   make(map[string]controlClient),
+		specs:     make(map[string]agentlauncher.AgentSpec),
 	}, nil
 }
 
@@ -135,18 +138,16 @@ func (c *Controller) ReconcileSpecs(desired []agentlauncher.AgentSpec) {
 			continue
 		}
 		want[id] = struct{}{}
+		c.rememberSpec(spec)
 		if err := c.launcher.Ensure(spec); err != nil {
 			c.log("workercontroller: ensure agent=%s: %v", id, err)
 		}
 	}
 	for _, id := range c.launcher.Running() {
 		if _, ok := want[id]; !ok {
-			if err := c.launcher.Stop(id); err != nil {
+			if err := c.stopAgent(id, true); err != nil {
 				c.log("workercontroller: stop agent=%s: %v", id, err)
 			}
-			c.mu.Lock()
-			delete(c.clients, id)
-			c.mu.Unlock()
 		}
 	}
 }
@@ -177,6 +178,7 @@ func (c *Controller) ReconcileWithAdoptionSpecs(ctx context.Context, desired []a
 			continue
 		}
 		want[id] = struct{}{}
+		c.rememberSpec(spec)
 		if pid, ok := recorded[id]; ok && c.tryAdopt(ctx, spec, pid) {
 			continue // survivor re-adopted — no respawn
 		}
@@ -186,12 +188,9 @@ func (c *Controller) ReconcileWithAdoptionSpecs(ctx context.Context, desired []a
 	}
 	for _, id := range c.launcher.Running() {
 		if _, ok := want[id]; !ok {
-			if err := c.launcher.Stop(id); err != nil {
+			if err := c.stopAgent(id, true); err != nil {
 				c.log("workercontroller: stop agent=%s: %v", id, err)
 			}
-			c.mu.Lock()
-			delete(c.clients, id)
-			c.mu.Unlock()
 		}
 	}
 }
@@ -225,7 +224,10 @@ func (c *Controller) tryAdopt(ctx context.Context, spec agentlauncher.AgentSpec,
 // agent the controller hasn't reconciled yet — e.g. a work_available arriving before
 // the reconcile). Idempotent.
 func (c *Controller) EnsureAgent(agentID string) error {
-	return c.EnsureAgentSpec(agentlauncher.AgentSpec{AgentID: agentID})
+	if agentID == "" {
+		return errors.New("workercontroller: ensure requires agent_id")
+	}
+	return c.launcher.Ensure(c.specForAgent(agentID))
 }
 
 // EnsureAgentSpec ensures one agent with its process-start configuration.
@@ -233,6 +235,7 @@ func (c *Controller) EnsureAgentSpec(spec agentlauncher.AgentSpec) error {
 	if spec.AgentID == "" {
 		return errors.New("workercontroller: ensure requires agent_id")
 	}
+	c.rememberSpec(spec)
 	return c.launcher.Ensure(spec)
 }
 
@@ -252,9 +255,47 @@ func (c *Controller) Deliver(ctx context.Context, cmd agentcontrol.Command) erro
 
 // StopAgent tears down one agent's process (desired-stopped) and drops its client.
 func (c *Controller) StopAgent(agentID string) error {
+	return c.stopAgent(agentID, true)
+}
+
+// RecycleAgent tears down one agent runtime after a deterministic transport failure,
+// drops the stale control client, and relaunches with the last desired spec. This path
+// is for commands that did not reach the agent process, not commands rejected by an
+// agent handler.
+func (c *Controller) RecycleAgent(agentID string) error {
+	if agentID == "" {
+		return errors.New("workercontroller: recycle requires agent_id")
+	}
+	spec := c.specForAgent(agentID)
+	c.log("workercontroller: recycle agent=%s after runtime transport failure", agentID)
+	if err := c.stopAgent(agentID, false); err != nil {
+		return err
+	}
+	return c.EnsureAgentSpec(spec)
+}
+
+func (c *Controller) rememberSpec(spec agentlauncher.AgentSpec) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.specs[spec.AgentID] = spec
+}
+
+func (c *Controller) specForAgent(agentID string) agentlauncher.AgentSpec {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if spec, ok := c.specs[agentID]; ok {
+		return spec
+	}
+	return agentlauncher.AgentSpec{AgentID: agentID}
+}
+
+func (c *Controller) stopAgent(agentID string, forgetSpec bool) error {
 	err := c.launcher.Stop(agentID)
 	c.mu.Lock()
 	delete(c.clients, agentID)
+	if forgetSpec {
+		delete(c.specs, agentID)
+	}
 	c.mu.Unlock()
 	return err
 }

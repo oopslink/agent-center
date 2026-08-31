@@ -89,28 +89,31 @@ func newTestHandlerWithReporter(t *testing.T, r lifecycleReporter) (controllerHa
 	return controllerHandler{ctrl: ctrl, reporter: r, log: func(string) {}}, l, r
 }
 
-func TestControllerHandler_UndeliveredCommandErrors(t *testing.T) {
+func TestControllerHandler_RuntimeTransportErrorRecyclesThenSkips(t *testing.T) {
 	h, l := newTestHandler(t)
-	// A work command for an agent whose process is not actually listening (fake
-	// launcher spawns nothing) → the real agentcontrol client dials a dead socket →
-	// Deliver errors → Handle returns error → the control loop leaves it un-acked
-	// (no cursor advance) and retries. This is the no-lost-command guarantee.
+	// A work command for an agent whose process is not actually listening used to
+	// head-of-line block the worker cursor. A deterministic runtime transport failure
+	// now recycles only that agent and, if the retry still cannot reach the socket,
+	// skips this command so other agents' control commands can proceed.
 	err := h.Handle(context.Background(), ControlCommand{
 		CommandType: cmdTypeAgentWork,
 		Offset:      5,
 		Payload:     `{"agent_id":"a","task_id":"t1"}`,
 	})
-	if err == nil {
-		t.Error("an undelivered command MUST return an error (cursor not advanced)")
+	if err != nil {
+		t.Fatalf("runtime transport failure should be parked/skipped after recycle retry, got %v", err)
 	}
-	// It still ensured the agent was launched (so the retry lands once it is up).
 	if !l.running["a"] {
-		t.Error("Deliver must ensure the target agent is launched")
+		t.Error("recycle retry must leave the target agent launched")
+	}
+	if len(l.stopped) != 1 || l.stopped[0] != "a" {
+		t.Fatalf("runtime transport failure must recycle only agent a, stopped=%v", l.stopped)
 	}
 }
 
-func TestControllerHandler_ForkDeliveryErrorRetriesWithoutAck(t *testing.T) {
-	h, l := newTestHandler(t)
+func TestControllerHandler_ForkRuntimeTransportErrorReportsFailedAndSkips(t *testing.T) {
+	r := &fakeCommandStatusReporter{}
+	h, l, _ := newTestHandlerWithReporter(t, r)
 	err := h.Handle(context.Background(), ControlCommand{
 		ID:          "cmd-fork",
 		CommandType: cmdTypeAgentForkExec,
@@ -119,11 +122,29 @@ func TestControllerHandler_ForkDeliveryErrorRetriesWithoutAck(t *testing.T) {
 		CreatedAt:   time.Now().UTC().Format(time.RFC3339Nano),
 		Payload:     `{"agent_id":"a","task_id":"t1"}`,
 	})
-	if err == nil {
-		t.Fatal("an undelivered fork command must return an error so the cursor is not acked")
+	if err != nil {
+		t.Fatalf("fork runtime transport failure should be reportable and ackable, got %v", err)
 	}
 	if !l.running["a"] {
-		t.Fatal("fork delivery retry path must ensure the target agent is launched")
+		t.Fatal("fork recycle retry path must leave the target agent launched")
+	}
+	if len(l.stopped) != 1 || l.stopped[0] != "a" {
+		t.Fatalf("fork runtime transport failure must recycle only agent a, stopped=%v", l.stopped)
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if len(r.commands) != 1 || r.commands[0].status != environment.CommandStatusFailed ||
+		r.commands[0].reason != "agent_runtime_unreachable" || r.commands[0].taskID != "t1" {
+		t.Fatalf("command status reports = %+v", r.commands)
+	}
+}
+
+func TestAgentRuntimeTransportErrorClassifierKeepsHandlerErrorsHOL(t *testing.T) {
+	if !isAgentRuntimeTransportError(errors.New(`agentcontrol: deliver type=agent.work: Post "http://agent/control": dial unix /tmp/acs-x.sock: connect: no such file or directory`)) {
+		t.Fatal("missing unix socket must be classified as runtime transport")
+	}
+	if isAgentRuntimeTransportError(errors.New("agentcontrol: deliver type=agent.work: agent returned 503 Service Unavailable")) {
+		t.Fatal("agent handler 5xx must not be classified as runtime transport")
 	}
 }
 
