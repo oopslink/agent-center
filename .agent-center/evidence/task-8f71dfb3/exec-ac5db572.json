@@ -1,0 +1,215 @@
+{
+  "task_id": "task-8f71dfb3",
+  "execution_id": "exec-ac5db572",
+  "reviewed_sha": "173fdb0913450370fae51831f0008d2f10165f8c",
+  "base_sha": "173fdb0913450370fae51831f0008d2f10165f8c",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1 | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 git log -1 --oneline'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f | sed 's#\"'^./##'\"' | sort | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'git branch --show-current \u0026\u0026 git remote -v \u0026\u0026 git show --stat --oneline --decorate --no-renames HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"ls -la \u0026\u0026 find .. -maxdepth 3 -path '*task-input*' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"find .agent-center/evidence -type f -maxdepth 3 -print -exec wc -c {} \\\\;\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'rg -n \"Runtime Control|idempotency|idempotency key|attempt|restart terminal|exact SHA|staged artifact|health|ancestry|timeout|deadline|deploy|deployment\" internal cmd docs tests scripts web -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"rg --files | rg 'runtime|control|deploy|acceptance|t1685|t1510|t1515|evidence|gate|health'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/rules/acceptance-evidence-spec.md \u0026\u0026 sed -n '1,260p' docs/rules/acceptance-methodology.md \u0026\u0026 sed -n '1,260p' docs/rules/acceptance-checklist.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/reports/t1802-runtime-control-integration.md \u0026\u0026 sed -n '1,260p' internal/admin/api/agent_tools_runtime_deploy.go \u0026\u0026 sed -n '1,320p' internal/runtimedeploy/deploy.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"sed -n '1,360p' internal/workerdaemon/runtime_deployer.go \u0026\u0026 sed -n '1,360p' internal/workerdaemon/control_loop.go \u0026\u0026 sed -n '1,260p' internal/agentruntime/control_command_status.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"sed -n '1,420p' internal/admin/api/agent_tools_runtime_deploy_test.go \u0026\u0026 sed -n '1,420p' internal/runtimedeploy/deploy_test.go \u0026\u0026 sed -n '1,420p' internal/workerdaemon/runtime_deployer_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"sed -n '1,360p' internal/environment/service/envcontrol.go \u0026\u0026 sed -n '1,320p' internal/environment/sqlite/control_event_repo.go \u0026\u0026 sed -n '1,260p' internal/environment/control_event.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'rg -n \"IdempotencyKey|CommandByID|ReportControlCommandStatus|CommandStatusTerminal|AppendCommandInput|runtime.deploy_restart|CommandStatus\" internal/environment internal/admin/api internal/workerdaemon -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"sed -n '1,320p' internal/workerdaemon/agentcontrol/agentcontrol.go \u0026\u0026 sed -n '1,360p' internal/workerdaemon/agent_controller.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"sed -n '140,270p' internal/workerdaemon/worker_controller.go \u0026\u0026 sed -n '384,435p' internal/workerdaemon/worker_controller_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"sed -n '75,270p' internal/environment/control_log.go \u0026\u0026 sed -n '55,95p' internal/environment/repository.go \u0026\u0026 sed -n '150,190p' internal/environment/service/envcontrol_test.go \u0026\u0026 sed -n '127,158p' internal/environment/control_log_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' internal/persistence/migrations/0123_worker_control_command_status.up.sql \u0026\u0026 sed -n '1,220p' internal/persistence/migrations/0075_control_events_gc_index.up.sql \u0026\u0026 rg -n \\\"worker_control_events\\\" internal/persistence/migrations -S\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc 'for f in .agent-center/evidence/*/*.json; do echo $f; rg -n \"61b217|runtime.deploy|runtime_deploy|Runtime Control|reviewed|sha|timeout|idempotency|staged|identity\" $f || true; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'git cat-file -t 61b217ff7d88e88fdfeaca04c754de67807ae155 2\u003e/dev/null \u0026\u0026 git show --stat --oneline --decorate 61b217ff7d88e88fdfeaca04c754de67807ae155 || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"git log --all --oneline --decorate --grep='runtime' -n 50\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"git show b9c002eb:internal/admin/api/agent_tools_runtime_deploy.go | sed -n '1,260p' \u0026\u0026 git show b9c002eb:internal/workerdaemon/runtime_deployer.go | sed -n '1,360p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"git show --stat --oneline --decorate b9c002eb \u0026\u0026 git show --name-only --format=fuller b9c002eb | sed -n '1,160p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"git show b9c002eb:internal/admin/api/agent_tools_runtime_deploy_test.go | sed -n '1,520p' \u0026\u0026 git show b9c002eb:internal/workerdaemon/runtime_deployer_test.go | sed -n '1,520p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"git show b9c002eba17fb3e6588f372fbfea9b72925b339d:internal/runtimedeploy/deploy.go | sed -n '1,220p' \u0026\u0026 git show b9c002eba17fb3e6588f372fbfea9b72925b339d:internal/runtimedeploy/deploy_test.go | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"git grep -n \\\"readInstalledBuildIdentity\\\\|installedAgentCenterBin\\\\|/health\\\\|version_readback_ok\\\\|runtimeDeployStatusHandler\\\\|CommandByIdempotencyKey\\\" b9c002eba17fb3e6588f372fbfea9b72925b339d -- internal/workerdaemon internal/admin/api internal/environment internal/runtimedeploy\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc 'git show b9c002eba17fb3e6588f372fbfea9b72925b339d:internal/admin/api/server.go | rg -n \"runtime_deploy\" -C 2 \u0026\u0026 git show b9c002eba17fb3e6588f372fbfea9b72925b339d:internal/admin/api/deps.go | rg -n \"RuntimeDeployVerifier\" -C 2 \u0026\u0026 git show b9c002eba17fb3e6588f372fbfea9b72925b339d:internal/mcphost/tools.go | rg -n \"runtime_deploy|timeout|idempotency\" -C 3'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc 'review_dir=/tmp/ac-review-b9c002eb-$$\ngit worktree add --detach \"$review_dir\" b9c002eba17fb3e6588f372fbfea9b72925b339d\ncd \"$review_dir\"\nprintf '\"'REVIEW_DIR=%s\\\\n' \\\"\"'$review_dir\"\ngit rev-parse HEAD\ngo test ./internal/admin/api ./internal/runtimedeploy ./internal/workerdaemon ./internal/mcphost'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"git show-ref | rg 'b9c002eba17fb3e6588f372fbfea9b72925b339d|t1831-runtime-deploy-async-readback|61b217ff7d88e88fdfeaca04c754de67807ae155|runtime-control' \u0026\u0026 git merge-base --is-ancestor 61b217ff7d88e88fdfeaca04c754de67807ae155 b9c002eba17fb3e6588f372fbfea9b72925b339d; printf '61b217_is_ancestor_of_b9=%s\\\\n' \"'$? \u0026\u0026 git merge-base --is-ancestor b9c002eba17fb3e6588f372fbfea9b72925b339d 173fdb0913450370fae51831f0008d2f10165f8c; printf '\"'b9_is_ancestor_of_HEAD=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"git show b9c002eba17fb3e6588f372fbfea9b72925b339d:internal/workerdaemon/runtime_deployer.go | nl -ba | sed -n '85,175p' \u0026\u0026 git show b9c002eba17fb3e6588f372fbfea9b72925b339d:internal/admin/api/agent_tools_runtime_deploy.go | nl -ba | sed -n '55,165p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"cd /tmp/ac-review-b9c002eb-62617 \u0026\u0026 go test ./internal/runtimedeploy -run 'TestVerifyRemote' -count=1 -v \u0026\u0026 go test ./internal/workerdaemon -run 'TestSourceRuntimeDeployer(ReportsAuthoritativeReadback|RejectsNonExactInstalledCommitReadback)|TestParseAgentCenterVersionReadbackRejectsUnknownCommit' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"cd /tmp/ac-review-b9c002eb-62617 \u0026\u0026 go test ./internal/admin/api -run 'TestRuntimeDeployRestartHandler_(LongTimeoutReturnsBeforeTerminal|IdempotencyKeyDoesNotDoubleMutate|IdempotencyConflictDifferentPayload)|TestRuntimeDeployStatusHandler_(ReadsTerminalAttemptByIdempotencyKey|UnknownAttempt)' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc \"git show b9c002eba17fb3e6588f372fbfea9b72925b339d:internal/admin/api/agent_tools_runtime_deploy.go | nl -ba | sed -n '160,210p' \u0026\u0026 git show b9c002eba17fb3e6588f372fbfea9b72925b339d:internal/environment/control_log.go | nl -ba | sed -n '75,175p'\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-ac5db572/command_events.jsonl",
+  "command_event_digest": "sha256:7bd86a1c3268c8c5e225ec0ad1b2280b22c4f201e5b23370eabf7d2a2f130c17",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "{",
+  "artifact_digest": "sha256:a02dae66c168703d7083e1fcb65b08448e3da61bbb8309bf7bbeadf380578cf1",
+  "path": ".agent-center/evidence/task-8f71dfb3/exec-ac5db572.json",
+  "branch": "ac-exec/task-8f71dfb3/exec-ac5db572"
+}
