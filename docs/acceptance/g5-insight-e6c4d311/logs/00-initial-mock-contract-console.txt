@@ -1,0 +1,23 @@
+[error] TypeError: (y.data ?? []).filter is not a function
+    at Pv (http://127.0.0.1:4177/assets/index-B50XzmdA.js:105:119514)
+    at yu (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:47869)
+    at ac (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:70555)
+    at rg (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:80854)
+    at Ng (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:116419)
+    at Zx (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:115479)
+    at to (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:115314)
+    at Eg (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:112155)
+    at km (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:123875)
+    at js (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:122443)
+[error] ErrorBoundary caught: TypeError: (y.data ?? []).filter is not a function
+    at Pv (http://127.0.0.1:4177/assets/index-B50XzmdA.js:105:119514)
+    at yu (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:47869)
+    at ac (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:70555)
+    at rg (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:80854)
+    at Ng (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:116419)
+    at Zx (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:115479)
+    at to (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:115314)
+    at Eg (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:112155)
+    at km (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:123875)
+    at js (http://127.0.0.1:4177/assets/index-B50XzmdA.js:49:122443) {componentStack: 
+    at Pv (http://127.0.0.1:4177/assets/index-B50…7.0.0.1:4177/assets/index-B50XzmdA.js:105:148047)}

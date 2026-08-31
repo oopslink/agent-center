@@ -1,0 +1,19 @@
+{
+  "verdict": "REJECT",
+  "candidate_sha": "e6c4d311652b1f7676900d4a9bc0283a1cacd29c",
+  "remote_candidate_ref": "refs/heads/candidate/g4-insight-i1-i5-e6c4d311",
+  "served_head": "e6c4d311652b1f7676900d4a9bc0283a1cacd29c",
+  "reason": "Insight agent detail and plan lineage pages expose raw enum values in user-facing copy.",
+  "failures": [
+    {
+      "artifact": "screenshots/10-agent-detail.png",
+      "text_artifact": "logs/10-agent-detail.txt",
+      "observed": ["unknown_status", "raw_future_enum"]
+    },
+    {
+      "artifact": "screenshots/13-plan-lineage.png",
+      "text_artifact": "logs/13-plan-lineage.txt",
+      "observed": ["future_outcome"]
+    }
+  ]
+}

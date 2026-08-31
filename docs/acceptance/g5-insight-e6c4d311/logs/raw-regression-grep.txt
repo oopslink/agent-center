@@ -1,0 +1,4 @@
+docs/acceptance/g5-insight-e6c4d311/logs/03-execution-detail-invalid-quality.txt:7:  "quality": "invalid_time_order"
+docs/acceptance/g5-insight-e6c4d311/logs/10-agent-detail.txt:2:    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightBuilderagent:builderView executionsInsight overview/AgentsDegradedunknown_statusraw_future_enumExecutions7Open issues2Blocked tasks—Active plans3Metric confidenceCoverage91%Unknown1Sample count14WorkChatTeamsAccessInsightRemindSys
+docs/acceptance/g5-insight-e6c4d311/logs/00-initial-mock-contract-error.txt:2:    Something went wrong.(y.data ?? []).filter is not a functionReload
+docs/acceptance/g5-insight-e6c4d311/logs/13-plan-lineage.txt:14:]G5Aug 31, 5:00 AMLineage anomalyTriggered by—Trigger reasonUnknownRecovery durationInvalid time dataRecovery outcomefuture_outcomeDelivery branch—Delivery SHA—VerdictPendingEvidence[

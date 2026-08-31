@@ -1,0 +1,11 @@
+
+    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightTaskExecution detailbad-timeRefreshInsight overview/Task executionsPast 24 hours (rolling)8/30, 08:00 AM–8/31, 08:00 AMLocal time · UTC+08:00Refreshed 08:00:01 AMFresh dataFailedShip Insight UILaunch · BuilderExecution timelineQueued07:00:00 AMQueue wait1 sStarted07:00:01 AMDuration5 sFinished07:00:06 AMResultFailedProcess exited with code 1.TaskShip Insight UIProjectLaunchAgentBuilderWorkerworker-1Execution IDbad-timeCommand IDcmd-1Invalid time dataThis record is visible, but invalid intervals are excluded from queue and duration percentiles.Technical details{
+  "outcome": "failed",
+  "failure_reason": "nonzero_exit",
+  "command_status": "started",
+  "status_reason": null,
+  "quality": "invalid_time_order"
+}WorkChatTeamsAccessInsightRemindSys
+  
+
+

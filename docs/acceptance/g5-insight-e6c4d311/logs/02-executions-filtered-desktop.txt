@@ -1,0 +1,5 @@
+
+    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightTask executionsEach row is one execution attemptPast 24 hours (rolling)Agent: agent:builder ×Project: proj-1 ×Clear filtersPast 24 hours (rolling)8/30, 08:00 AM–8/31, 08:00 AMLocal time · UTC+08:00Refreshed 08:00:01 AMFresh dataStatusTask / ProjectAgentQueuedStartedFinishedQueue waitDurationData hintCompletedShip Insight UILaunchBuilderRecovered by system07:00:00 AM07:00:01 AM07:00:06 AM1 s5 sInterruptedShip Insight UILaunchBuilder07:00:00 AM07:00:01 AM07:00:06 AM1 s5 sEnded during recoveryShip Insight UILaunchBuilder07:00:00 AM07:00:01 AM07:00:06 AM1 s5 sRunningShip Insight UILaunchBuilder07:00:00 AM07:00:01 AMNot finished1 s—Did not startShip Insight UILaunchBuilder07:00:00 AMNot startedNot finished1 s—FailedShip Insight UILaunchBuilder07:00:00 AM07:00:01 AM07:00:06 AM1 s5 sInvalid time dataOutcome unavailabletask-1LaunchBuilder07:00:00 AM07:00:01 AM07:00:06 AM1 s5 sData needs reviewPrevious pageNext pageWorkChatTeamsAccessInsightRemindSys
+  
+
+

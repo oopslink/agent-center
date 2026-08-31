@@ -1,0 +1,23 @@
+
+    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightLineage plan-1G0..Gn generation lineage with trigger, evidence, node changes, delivery SHA, and verdict.Back to project InsightPast 24 hours (rolling)Aug 30, 8:00 AM–Aug 31, 8:00 AMAs of Aug 31, 8:00 AMFresh dataBackend health decisionElevatedknown · samples 14 · coverage 91% · unknown 1Backend-defined reasonBackend-defined reasonG4Aug 31, 4:00 AMTriggered byownerTrigger reasonReview rejectedRecovery duration12.3 sRecovery outcomesucceededDelivery branchcandidate/g4-insight-i1-i5-e6c4d311Delivery SHAe6c4d311652b1f7676900d4a9bc0283a1cacd29cVerdictPassEvidence[
+  {
+    "note": "object remains in JSON block only",
+    "raw": {
+      "nested": true
+    }
+  }
+]Node changes[
+  {
+    "op": "replace",
+    "path": "/status"
+  }
+]G5Aug 31, 5:00 AMLineage anomalyTriggered by—Trigger reasonUnknownRecovery durationInvalid time dataRecovery outcomefuture_outcomeDelivery branch—Delivery SHA—VerdictPendingEvidence[
+  {
+    "future": [
+      "x"
+    ]
+  }
+]Node changes[]WorkChatTeamsAccessInsightRemindSys
+  
+
+
