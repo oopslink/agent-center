@@ -1,0 +1,131 @@
+{
+  "task_id": "task-3e5d72c8",
+  "execution_id": "exec-70d045fe",
+  "reviewed_sha": "ccf4acb3262edbb86bfe3f467df67a2eaf64e0c3",
+  "base_sha": "ccf4acb3262edbb86bfe3f467df67a2eaf64e0c3",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type d | sort | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'rg --files'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'find .agent-center/evidence -maxdepth 3 -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'find .agent-center/evidence -maxdepth 2 -type d | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"find docs/reports docs/acceptance -maxdepth 3 -type f \\\\( -iname '*g37*' -o -iname '*insight*' -o -iname '*runtime-control*' -o -iname '*e3c62f03*' \\\\) | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' .agent-center/evidence/task-10e532df/exec-be668465.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' docs/reports/t1802-runtime-control-integration.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' docs/reports/t1578-s3-insight-phase1-integration.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'shasum -a 256 task-input/v1/README.md task-input/v1/manifest.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc 'date -u +%Y-%m-%dT%H:%M:%SZ'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc 'mkdir -p .agent-center/evidence/task-3e5d72c8'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/reports/g37-insight-non-deployment-evidence.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"jq . .agent-center/evidence/task-3e5d72c8/exec-70d045fe.json \u003e/dev/null \u0026\u0026 sed -n '1,220p' .agent-center/evidence/task-3e5d72c8/exec-70d045fe.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-70d045fe/command_events.jsonl",
+  "command_event_digest": "sha256:feb95d5307714ddc7158ef2fcf5aafea9d41e82251b4124ff45bd67d47d7c17e",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "Fail-closed. I did not deploy G37 Insight, did not create a runtime mutation, and did not use `aaa525ea...` as provenance.",
+  "artifact_digest": "sha256:69c4646536f3d84b9d2d4d8a47097f5c4d315c6199ec9d3f3b514727f8090021",
+  "path": ".agent-center/evidence/task-3e5d72c8/exec-70d045fe.json",
+  "branch": "ac-exec/task-3e5d72c8/exec-70d045fe"
+}
