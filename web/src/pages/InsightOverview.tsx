@@ -69,6 +69,82 @@ export default function InsightOverview(): React.ReactElement {
   );
 }
 
+export function InsightAgentsPage(): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const { slug = '' } = useParams<{ slug: string }>();
+  const base = `/organizations/${encodeURIComponent(slug)}/insights`;
+  const overview = useInsightOverview();
+  const unavailableEnvelope = envelopeFromError(overview.error);
+
+  return (
+    <section className="space-y-4" data-testid="page-InsightAgents">
+      <InsightHeader title={t('insight.agents.title')} subtitle={t('insight.agents.subtitle')} />
+      {overview.isLoading && <StatePanel testId="insight-agents-loading" title={t('insight.state.loadingOverview')} />}
+      {overview.data && (
+        <>
+          <WindowBar data={overview.data} />
+          <FreshnessNotice data={overview.data} />
+          <DimensionTable
+            kind="agent"
+            title={t('insight.overview.byAgent')}
+            rows={overview.data.agents.map((a) => ({ id: a.agent_ref, name: a.display_name ?? a.agent_ref, summary: a.summary, to: `${base}/executions?window=24h&agent_ref=${encodeURIComponent(a.agent_ref)}` }))}
+          />
+        </>
+      )}
+      {overview.isError && !unavailableEnvelope && <InsightError testIdPrefix="insight-agents" error={overview.error} fallbackTitle={t('insight.state.overviewFailed')} />}
+      {unavailableEnvelope && (
+        <>
+          <WindowBar data={unavailableEnvelope} />
+          <StatePanel
+            testId={unavailableEnvelope.freshness.state === 'rebuilding' ? 'insight-agents-rebuilding' : 'insight-agents-unavailable'}
+            tone="danger"
+            title={unavailableEnvelope.freshness.state === 'rebuilding' ? t('insight.state.rebuilding') : t('insight.state.unavailable')}
+            body={overview.error instanceof Error ? overview.error.message : undefined}
+          />
+        </>
+      )}
+    </section>
+  );
+}
+
+export function InsightProjectsPage(): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const { slug = '' } = useParams<{ slug: string }>();
+  const base = `/organizations/${encodeURIComponent(slug)}/insights`;
+  const overview = useInsightOverview();
+  const unavailableEnvelope = envelopeFromError(overview.error);
+
+  return (
+    <section className="space-y-4" data-testid="page-InsightProjects">
+      <InsightHeader title={t('insight.projects.title')} subtitle={t('insight.projects.subtitle')} />
+      {overview.isLoading && <StatePanel testId="insight-projects-loading" title={t('insight.state.loadingOverview')} />}
+      {overview.data && (
+        <>
+          <WindowBar data={overview.data} />
+          <FreshnessNotice data={overview.data} />
+          <DimensionTable
+            kind="project"
+            title={t('insight.overview.byProject')}
+            rows={overview.data.projects.map((p) => ({ id: p.project_id, name: p.name ?? p.project_id, summary: p.summary, to: `${base}/executions?window=24h&project_id=${encodeURIComponent(p.project_id)}` }))}
+          />
+        </>
+      )}
+      {overview.isError && !unavailableEnvelope && <InsightError testIdPrefix="insight-projects" error={overview.error} fallbackTitle={t('insight.state.overviewFailed')} />}
+      {unavailableEnvelope && (
+        <>
+          <WindowBar data={unavailableEnvelope} />
+          <StatePanel
+            testId={unavailableEnvelope.freshness.state === 'rebuilding' ? 'insight-projects-rebuilding' : 'insight-projects-unavailable'}
+            tone="danger"
+            title={unavailableEnvelope.freshness.state === 'rebuilding' ? t('insight.state.rebuilding') : t('insight.state.unavailable')}
+            body={overview.error instanceof Error ? overview.error.message : undefined}
+          />
+        </>
+      )}
+    </section>
+  );
+}
+
 export function InsightExecutionsPage(): React.ReactElement {
   const { t } = useTranslation('insights');
   const { slug = '' } = useParams<{ slug: string }>();

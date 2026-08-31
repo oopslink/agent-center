@@ -5,7 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
 import i18n from '@/i18n';
 import { server } from '@/test/mswServer';
-import InsightOverview, { InsightExecutionDetailPage, InsightExecutionsPage } from './InsightOverview';
+import InsightOverview, { InsightAgentsPage, InsightExecutionDetailPage, InsightExecutionsPage, InsightProjectsPage } from './InsightOverview';
 
 const windowEnvelope = {
   window: {
@@ -74,6 +74,8 @@ function renderAt(path: string) {
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/organizations/:slug/insights/overview" element={<InsightOverview />} />
+          <Route path="/organizations/:slug/insights/agents" element={<InsightAgentsPage />} />
+          <Route path="/organizations/:slug/insights/projects" element={<InsightProjectsPage />} />
           <Route path="/organizations/:slug/insights/executions" element={<InsightExecutionsPage />} />
           <Route path="/organizations/:slug/insights/executions/:executionId" element={<InsightExecutionDetailPage />} />
         </Routes>
@@ -103,6 +105,23 @@ describe('Insight pages', () => {
     expect(screen.getByRole('link', { name: 'View all executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h');
     expect(within(screen.getByTestId('insight-agent-table')).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');
     expect(within(screen.getByTestId('insight-project-table')).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&project_id=proj-1');
+  });
+
+  it('renders agent and project Insight nav pages with drilldowns into task executions', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/overview', () => HttpResponse.json(overview())));
+
+    renderAt('/organizations/acme/insights/agents');
+    expect(screen.getByTestId('page-InsightAgents')).toHaveTextContent('Insight agents');
+    const agentTable = await screen.findByTestId('insight-agent-table');
+    expect(agentTable).toHaveTextContent('Builder');
+    expect(within(agentTable).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');
+    cleanup();
+
+    renderAt('/organizations/acme/insights/projects');
+    expect(screen.getByTestId('page-InsightProjects')).toHaveTextContent('Insight projects');
+    const projectTable = await screen.findByTestId('insight-project-table');
+    expect(projectTable).toHaveTextContent('Launch');
+    expect(within(projectTable).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&project_id=proj-1');
   });
 
   it('treats null, zero, low, partial, and representative coverage without guessing missing data as zero', async () => {

@@ -4,6 +4,7 @@ import { RemindersSecondaryNav } from '@/shell/nav/RemindersSecondaryNav'; // T2
 import { SystemSecondaryNav } from '@/shell/nav/SystemSecondaryNav'; // T716 (dev1) — localized System nav
 import WorkspaceSecondaryNav from '@/shell/nav/WorkspaceSecondaryNav'; // T4 (dev2)
 import TeamUISecondaryNav from '@/shell/nav/TeamUISecondaryNav'; // Team WebUI (Phase-1)
+import { InsightSecondaryNav } from '@/shell/nav/InsightSecondaryNav';
 
 // ============================================================================
 // v2.10.0 [T1] — col② per-module secondary-nav registry.
@@ -50,6 +51,7 @@ export const SECONDARY_NAV_REGISTRY: Partial<Record<ShellModuleId, ModuleSeconda
   // T248: Reminders filter rail (search + Scope + Status) lives in col②, not as
   // a page-internal aside — restores the three-column layout (issue-c438cde1).
   reminders: RemindersSecondaryNav,
+  insight: InsightSecondaryNav,
   // T716 (dev1): localized System nav — single source for the System col②,
   // labels via admin:systemNav.* (replaces AppLayout's hardcoded-English fallback).
   system: SystemSecondaryNav,

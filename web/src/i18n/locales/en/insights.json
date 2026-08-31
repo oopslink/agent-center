@@ -1,11 +1,26 @@
 {
   "insight": {
     "breadcrumb": "Breadcrumb",
+    "nav": {
+      "section": "Insight",
+      "overview": "Overview",
+      "agents": "Agents",
+      "projects": "Projects",
+      "executions": "Task executions"
+    },
     "overview": {
       "title": "Insight overview",
       "byAgent": "By agent",
       "byProject": "By project",
       "tableSubtitle": "Sorted by completed executions descending, then by ID; up to 20 items."
+    },
+    "agents": {
+      "title": "Insight agents",
+      "subtitle": "Agent execution efficiency over the same 24-hour window"
+    },
+    "projects": {
+      "title": "Insight projects",
+      "subtitle": "Project execution efficiency over the same 24-hour window"
     },
     "executions": {
       "title": "Task executions",

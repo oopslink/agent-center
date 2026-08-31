@@ -27,6 +27,10 @@ function renderShell(initial = '/projects') {
             <Route path="/issues" element={<div data-testid="page-Issues">issues</div>} />
             <Route path="/tasks" element={<div data-testid="page-Tasks">tasks</div>} />
             <Route path="/plans" element={<div data-testid="page-Plans">plans</div>} />
+            <Route path="/insights/overview" element={<div data-testid="page-InsightOverview">overview</div>} />
+            <Route path="/insights/agents" element={<div data-testid="page-InsightAgents">agents</div>} />
+            <Route path="/insights/projects" element={<div data-testid="page-InsightProjects">projects</div>} />
+            <Route path="/insights/executions" element={<div data-testid="page-InsightExecutions">executions</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -61,6 +65,22 @@ describe('Mobile module nav sheet — col② reflowed into a bottom sheet', () =
     // Route-change effect dismisses the sheet so it doesn't cover the new screen.
     await waitFor(() => expect(screen.queryByTestId('mobile-nav-sheet')).toBeNull());
     expect(screen.getByTestId('page-Tasks')).toBeInTheDocument();
+  });
+
+  it('Insight sheet exposes Overview, Agents, Projects, and Task executions with route-change dismissal', async () => {
+    renderShell('/insights/overview');
+    expect(screen.getByTestId('mobile-nav-toggle')).toHaveTextContent('Insight');
+    fireEvent.click(screen.getByTestId('mobile-nav-toggle'));
+    const sheet = await screen.findByTestId('mobile-nav-sheet');
+    const nav = within(sheet).getByTestId('insight-secondary-nav');
+    expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/insights/overview');
+    expect(within(nav).getByRole('link', { name: 'Agents' })).toHaveAttribute('href', '/insights/agents');
+    expect(within(nav).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/insights/projects');
+    expect(within(nav).getByRole('link', { name: 'Task executions' })).toHaveAttribute('href', '/insights/executions?window=24h');
+
+    fireEvent.click(within(nav).getByRole('link', { name: 'Agents' }));
+    await waitFor(() => expect(screen.queryByTestId('mobile-nav-sheet')).toBeNull());
+    expect(screen.getByTestId('page-InsightAgents')).toBeInTheDocument();
   });
 });
 

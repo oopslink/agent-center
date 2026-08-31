@@ -1,11 +1,26 @@
 {
   "insight": {
     "breadcrumb": "面包屑",
+    "nav": {
+      "section": "洞察",
+      "overview": "概览",
+      "agents": "智能体",
+      "projects": "项目",
+      "executions": "Task executions"
+    },
     "overview": {
       "title": "Insight 概览",
       "byAgent": "按智能体查看",
       "byProject": "按项目查看",
       "tableSubtitle": "按已结束执行次数降序；同数时按 ID 排序；最多显示 20 项。"
+    },
+    "agents": {
+      "title": "Insight 智能体",
+      "subtitle": "同一 24 小时窗口内的智能体执行效率"
+    },
+    "projects": {
+      "title": "Insight 项目",
+      "subtitle": "同一 24 小时窗口内的项目执行效率"
     },
     "executions": {
       "title": "Task executions",
