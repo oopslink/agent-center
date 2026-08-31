@@ -150,7 +150,17 @@
       "fresh": "数据最新",
       "stale": "数据延迟",
       "rebuilding": "正在重建",
-      "unavailable": "暂不可用"
+      "unavailable": "暂不可用",
+      "unknown": "新鲜度未知"
+    },
+    "duration": {
+      "invalid": "时间数据异常",
+      "ms": "{{count}} ms",
+      "seconds": "{{value}} 秒",
+      "minutesOnly": "{{minutes}}分",
+      "minutesSeconds": "{{minutes}}分 {{seconds}}秒",
+      "hoursMinutes": "{{hours}}小时 {{minutes}}分",
+      "daysHours": "{{days}}天 {{hours}}小时"
     },
     "state": {
       "loadingOverview": "正在加载 Insight 概览",
@@ -206,7 +216,11 @@
       "queue": "排队 P50 / P95",
       "duration": "耗时 P50 / P95",
       "action": "操作",
-      "completedValue": "{{count}} 次已结束"
+      "completedValue": "{{count}} 次已结束",
+      "failureValue": "{{failed}}/{{completed}}（{{rate}}）",
+      "noCompletedFailure": "—（0 次已结束）",
+      "percentileValue": "P50 {{p50}} / P95 {{p95}} · {{samples}} 个样本",
+      "noPercentileSamples": "—（0 个有效样本）"
     },
     "filters": {
       "agent": "智能体：{{value}}",
