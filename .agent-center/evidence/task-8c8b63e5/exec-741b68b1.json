@@ -1,0 +1,533 @@
+{
+  "task_id": "task-8c8b63e5",
+  "execution_id": "exec-741b68b1",
+  "reviewed_sha": "f488ca7d564fea6934f863a73269d5c534fe2746",
+  "base_sha": "ad7959c60ea0d3004c44d65cfbe2c93de34c9406",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1 . | head -200'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'find task-input/v1/attachments -maxdepth 3 -type f -print'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'git cat-file -t e6c4d311652b1f7676900d4a9bc0283a1cacd29c \u0026\u0026 git show --no-patch --format=fuller e6c4d311652b1f7676900d4a9bc0283a1cacd29c'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'rg -n \"Insight|insight|T1850|e6c4d311|G4|G5|served HEAD|raw enum|object Object|state matrix|drilldown|drilldowns\" -S .'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git branch --contains e6c4d311652b1f7676900d4a9bc0283a1cacd29c --all \u0026\u0026 git log --oneline --decorate --max-count=20 --all --grep=T1850'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' /Users/oopslink/.agents/skills/agent-browser/SKILL.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"git ls-remote origin 'refs/heads/candidate/g4-insight-i1-i5-e6c4d311' 'refs/heads/main' \u0026\u0026 git log --graph --oneline --decorate -n 12 e6c4d311652b1f7676900d4a9bc0283a1cacd29c\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'git switch --detach e6c4d311652b1f7676900d4a9bc0283a1cacd29c \u0026\u0026 git switch -c ac-exec/g5-insight-reacceptance-e6c4d311'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/pages/InsightOverview.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/api/insights.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"sed -n '1,280p' web/src/pages/InsightOverview.test.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"sed -n '260,620p' web/src/pages/InsightOverview.tsx \u0026\u0026 sed -n '260,620p' web/src/api/insights.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc 'pnpm --dir web install --frozen-lockfile \u0026\u0026 pnpm --dir web exec vitest run src/pages/InsightOverview.test.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"node -e \\\"try{console.log(require.resolve('playwright'))}catch(e){console.error('missing');process.exit(1)}\\\"\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git diff --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' web/src/api/client.ts \u0026\u0026 sed -n '1,220p' web/src/App.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/OrgContext.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"sed -n '1,300p' web/src/AppLayout.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/pages/InsightAgents.tsx \u0026\u0026 sed -n '1,320p' web/src/pages/InsightProjects.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"sed -n '320,760p' web/src/pages/InsightProjects.tsx \u0026\u0026 sed -n '220,520p' web/src/api/insights.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc 'pnpm --dir web build'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"sed -n '1,160p' web/vite.config.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/g5-insight-e6c4d311/screenshots docs/acceptance/g5-insight-e6c4d311/logs \u0026\u0026 agent-browser open http://127.0.0.1:4177/__head \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser get text body'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"agent-browser --help | sed -n '1,160p' \u0026\u0026 agent-browser screenshot --help | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc 'PORT=4177 node docs/acceptance/g5-insight-e6c4d311/mock-server.mjs'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc 'agent-browser close || true \u0026\u0026 agent-browser set viewport 1440 1000 \u0026\u0026 agent-browser open http://127.0.0.1:4177/organizations/acme/insights/overview \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/01-overview-desktop.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/01-overview-desktop.txt \u0026\u0026 agent-browser console \u003e docs/acceptance/g5-insight-e6c4d311/logs/01-overview-console.txt \u0026\u0026 agent-browser errors \u003e docs/acceptance/g5-insight-e6c4d311/logs/01-overview-errors.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' docs/acceptance/g5-insight-e6c4d311/logs/01-overview-desktop.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/g5-insight-e6c4d311/logs/01-overview-errors.txt docs/acceptance/g5-insight-e6c4d311/logs/01-overview-console.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc \"rg -n \\\"\\\\.filter\\\\(\\\" web/src web/src/AppLayout.tsx | head -80\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc \"sed -n '1,180p' web/src/api/conversations.ts \u0026\u0026 sed -n '1,160p' web/src/api/projects.ts \u0026\u0026 sed -n '1,160p' web/src/api/attention.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/src/api/permissions.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc 'rg -n \"function hasEffectivePermission|hasEffectivePermission\" web/src/api/permissions.ts web/src/AppLayout.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc \"sed -n '200,260p' web/src/api/permissions.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc 'PORT=4177 node docs/acceptance/g5-insight-e6c4d311/mock-server.mjs'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc 'mv docs/acceptance/g5-insight-e6c4d311/screenshots/01-overview-desktop.png docs/acceptance/g5-insight-e6c4d311/screenshots/00-initial-mock-contract-error.png \u0026\u0026 mv docs/acceptance/g5-insight-e6c4d311/logs/01-overview-desktop.txt docs/acceptance/g5-insight-e6c4d311/logs/00-initial-mock-contract-error.txt \u0026\u0026 mv docs/acceptance/g5-insight-e6c4d311/logs/01-overview-console.txt docs/acceptance/g5-insight-e6c4d311/logs/00-initial-mock-contract-console.txt \u0026\u0026 mv docs/acceptance/g5-insight-e6c4d311/logs/01-overview-errors.txt docs/acceptance/g5-insight-e6c4d311/logs/00-initial-mock-contract-errors.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc 'agent-browser errors --clear \u0026\u0026 agent-browser console --clear \u0026\u0026 agent-browser set viewport 1440 1000 \u0026\u0026 agent-browser open http://127.0.0.1:4177/organizations/acme/insights/overview \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/01-overview-desktop.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/01-overview-desktop.txt \u0026\u0026 agent-browser console \u003e docs/acceptance/g5-insight-e6c4d311/logs/01-overview-console.txt \u0026\u0026 agent-browser errors \u003e docs/acceptance/g5-insight-e6c4d311/logs/01-overview-errors.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc \"agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/executions?window=24h\u0026agent_ref=agent%3Abuilder\u0026project_id=proj-1\u0026cursor=old' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/02-executions-filtered-desktop.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/02-executions-filtered-desktop.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/executions/bad-time?window=24h\u0026agent_ref=agent%3Abuilder\u0026project_id=proj-1\u0026cursor=old' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/03-execution-detail-invalid-quality.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/03-execution-detail-invalid-quality.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/executions/missing' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/04-execution-detail-not-found.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/04-execution-detail-not-found.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc \"agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/overview?case=rebuilding' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/05-overview-rebuilding.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/05-overview-rebuilding.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/overview?case=forbidden' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/06-overview-forbidden.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/06-overview-forbidden.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/overview?case=empty' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/07-overview-empty.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/07-overview-empty.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/executions?case=rebuilding' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/08-executions-rebuilding.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/08-executions-rebuilding.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc \"agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/agents' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/09-agents-list.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/09-agents-list.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/agents/agent%3Abuilder' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/10-agent-detail.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/10-agent-detail.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/projects' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/11-projects-list.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/11-projects-list.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_68",
+      "command": "/bin/zsh -lc \"agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/projects/proj-1?plan_id=plan-1' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/12-project-detail-delivery-evolution.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/12-project-detail-delivery-evolution.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/projects/proj-1/plans/plan-1/lineage' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/13-plan-lineage.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/13-plan-lineage.txt \u0026\u0026 agent-browser set viewport 390 844 \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/overview' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/14-overview-mobile.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/14-overview-mobile.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_70",
+      "command": "/bin/zsh -lc \"cat docs/acceptance/g5-insight-e6c4d311/logs/02-executions-filtered-desktop.txt docs/acceptance/g5-insight-e6c4d311/logs/12-project-detail-delivery-evolution.txt docs/acceptance/g5-insight-e6c4d311/logs/13-plan-lineage.txt | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc \"rg -n \\\"\\\\[object Object\\\\]|quiet_finalized|invalid_time_order|new_enum|future_quality|future_status|future_reason_code|future_break_kind|future_reason|future_outcome|future_verdict|raw_object|\\\\{\\\\\\\"|\\\\{ raw|Structured filter\\\" docs/acceptance/g5-insight-e6c4d311/logs\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc 'agent-browser errors \u003e docs/acceptance/g5-insight-e6c4d311/logs/final-browser-errors.txt \u0026\u0026 agent-browser console \u003e docs/acceptance/g5-insight-e6c4d311/logs/final-browser-console.txt \u0026\u0026 curl -sS http://127.0.0.1:4177/__requests \u003e docs/acceptance/g5-insight-e6c4d311/logs/served-requests.json \u0026\u0026 curl -sS http://127.0.0.1:4177/__head \u003e docs/acceptance/g5-insight-e6c4d311/logs/served-head.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc \"cat docs/acceptance/g5-insight-e6c4d311/logs/final-browser-errors.txt docs/acceptance/g5-insight-e6c4d311/logs/final-browser-console.txt | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' docs/acceptance/g5-insight-e6c4d311/logs/served-requests.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc \"for f in docs/acceptance/g5-insight-e6c4d311/logs/[0-9]*.txt; do printf '%s: ' \\\"\"'$f\"; head -c 80 \"$f\"; printf '\"'\\\\n'; done\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_76",
+      "command": "/bin/zsh -lc \"nl -ba web/src/AppLayout.tsx | sed -n '880,940p' \u0026\u0026 rg -n \\\"useMembers|members\\\" web/src/api web/src/AppLayout.tsx | head -80\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'PORT=4177 node docs/acceptance/g5-insight-e6c4d311/mock-server.mjs'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc \"agent-browser close || true \u0026\u0026 agent-browser errors --clear \u0026\u0026 agent-browser console --clear \u0026\u0026 agent-browser set viewport 1440 1000 \u0026\u0026 agent-browser open http://127.0.0.1:4177/organizations/acme/insights/overview \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/01-overview-desktop.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/01-overview-desktop.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/executions?window=24h\u0026agent_ref=agent%3Abuilder\u0026project_id=proj-1\u0026cursor=old' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/02-executions-filtered-desktop.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/02-executions-filtered-desktop.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/executions/bad-time?window=24h\u0026agent_ref=agent%3Abuilder\u0026project_id=proj-1\u0026cursor=old' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/03-execution-detail-invalid-quality.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/03-execution-detail-invalid-quality.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/executions/missing' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/04-execution-detail-not-found.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/04-execution-detail-not-found.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_82",
+      "command": "/bin/zsh -lc \"agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/overview?case=rebuilding' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/05-overview-rebuilding.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/05-overview-rebuilding.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/overview?case=forbidden' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/06-overview-forbidden.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/06-overview-forbidden.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/overview?case=empty' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/07-overview-empty.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/07-overview-empty.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/executions?case=rebuilding' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/08-executions-rebuilding.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/08-executions-rebuilding.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_84",
+      "command": "/bin/zsh -lc \"agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/agents' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/09-agents-list.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/09-agents-list.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/agents/agent%3Abuilder' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/10-agent-detail.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/10-agent-detail.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/projects' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/11-projects-list.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/11-projects-list.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/projects/proj-1?plan_id=plan-1' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/12-project-detail-delivery-evolution.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/12-project-detail-delivery-evolution.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/projects/proj-1/plans/plan-1/lineage' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/13-plan-lineage.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/13-plan-lineage.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_86",
+      "command": "/bin/zsh -lc \"agent-browser set viewport 390 844 \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/overview' \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/14-overview-mobile.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/14-overview-mobile.txt \u0026\u0026 agent-browser errors \u003e docs/acceptance/g5-insight-e6c4d311/logs/final-browser-errors.txt \u0026\u0026 agent-browser console \u003e docs/acceptance/g5-insight-e6c4d311/logs/final-browser-console.txt \u0026\u0026 curl -sS http://127.0.0.1:4177/__requests \u003e docs/acceptance/g5-insight-e6c4d311/logs/served-requests.json \u0026\u0026 curl -sS http://127.0.0.1:4177/__head \u003e docs/acceptance/g5-insight-e6c4d311/logs/served-head.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_87",
+      "command": "/bin/zsh -lc \"rg -n \\\"Something went wrong|\\\\[object Object\\\\]|quiet_finalized|invalid_time_order|new_enum|future_quality|future_status|future_reason_code|future_break_kind|future_reason|future_outcome|future_verdict|raw_object|\\\\{\\\\\\\"|\\\\{ raw|Structured filter\\\" docs/acceptance/g5-insight-e6c4d311/logs/[0-9]*.txt docs/acceptance/g5-insight-e6c4d311/logs/final-browser-*.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_88",
+      "command": "/bin/zsh -lc \"for f in docs/acceptance/g5-insight-e6c4d311/logs/[0-9]*.txt; do printf '\\\\n--- %s ---\\\\n' \\\"\"'$f\"; sed -n '\"'1,160p' \\\"\"'$f\"; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/g5-insight-e6c4d311/logs/final-browser-errors.txt docs/acceptance/g5-insight-e6c4d311/logs/final-browser-console.txt docs/acceptance/g5-insight-e6c4d311/logs/served-head.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_90",
+      "command": "/bin/zsh -lc \"sed -n '1,120p' web/src/sse/useSSE.ts \u0026\u0026 rg -n \\\"new EventSource|/sse\\\" web/src\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_79",
+      "command": "/bin/zsh -lc 'PORT=4177 node docs/acceptance/g5-insight-e6c4d311/mock-server.mjs'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_96",
+      "command": "/bin/zsh -lc \"agent-browser close || true \u0026\u0026 agent-browser errors --clear \u0026\u0026 agent-browser console --clear \u0026\u0026 agent-browser set viewport 1440 1000 \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/executions/missing' \u0026\u0026 agent-browser wait 6000 \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/04-execution-detail-not-found.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/04-execution-detail-not-found.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/overview?case=rebuilding' \u0026\u0026 agent-browser wait 6000 \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/05-overview-rebuilding.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/05-overview-rebuilding.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/overview?case=forbidden' \u0026\u0026 agent-browser wait 6000 \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/06-overview-forbidden.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/06-overview-forbidden.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/executions?case=rebuilding' \u0026\u0026 agent-browser wait 6000 \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/08-executions-rebuilding.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/08-executions-rebuilding.txt \u0026\u0026 agent-browser open 'http://127.0.0.1:4177/organizations/acme/insights/executions/bad-time?case=unavailable' \u0026\u0026 agent-browser wait 6000 \u0026\u0026 agent-browser screenshot --full docs/acceptance/g5-insight-e6c4d311/screenshots/15-execution-detail-unavailable.png \u0026\u0026 agent-browser get text body \u003e docs/acceptance/g5-insight-e6c4d311/logs/15-execution-detail-unavailable.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_98",
+      "command": "/bin/zsh -lc \"agent-browser errors \u003e docs/acceptance/g5-insight-e6c4d311/logs/final-browser-errors.txt \u0026\u0026 agent-browser console \u003e docs/acceptance/g5-insight-e6c4d311/logs/final-browser-console.txt \u0026\u0026 curl -sS http://127.0.0.1:4177/__requests \u003e docs/acceptance/g5-insight-e6c4d311/logs/served-requests.json \u0026\u0026 curl -sS http://127.0.0.1:4177/__head \u003e docs/acceptance/g5-insight-e6c4d311/logs/served-head.json \u0026\u0026 rg -n \\\"Something went wrong|\\\\[object Object\\\\]|quiet_finalized|new_enum|future_quality|future_status|future_reason_code|future_break_kind|raw_object|\\\\{\\\\\\\"\\\" docs/acceptance/g5-insight-e6c4d311/logs/[0-9]*.txt docs/acceptance/g5-insight-e6c4d311/logs/final-browser-*.txt \u003e docs/acceptance/g5-insight-e6c4d311/logs/raw-regression-grep.txt || true \u0026\u0026 sed -n '1,200p' docs/acceptance/g5-insight-e6c4d311/logs/raw-regression-grep.txt \u0026\u0026 cat docs/acceptance/g5-insight-e6c4d311/logs/final-browser-errors.txt docs/acceptance/g5-insight-e6c4d311/logs/final-browser-console.txt docs/acceptance/g5-insight-e6c4d311/logs/served-head.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_101",
+      "command": "/bin/zsh -lc 'git diff --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_102",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_103",
+      "command": "/bin/zsh -lc 'find docs/acceptance/g5-insight-e6c4d311 -type f | sort | xargs shasum -a 256'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_104",
+      "command": "/bin/zsh -lc \"git rev-parse HEAD \u0026\u0026 git ls-remote origin 'refs/heads/candidate/g4-insight-i1-i5-e6c4d311' 'refs/heads/main' \u0026\u0026 git log --oneline --decorate -1 HEAD\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_114",
+      "command": "/bin/zsh -lc \"rg -n \\\"Something went wrong|\\\\[object Object\\\\]|quiet_finalized|invalid_time_order|new_enum|future_quality|future_status|future_reason_code|future_break_kind|future_reason|future_outcome|future_verdict|unknown_status|raw_future_enum|raw_object|\\\\{\\\\\\\"\\\" docs/acceptance/g5-insight-e6c4d311/logs/[0-9]*.txt docs/acceptance/g5-insight-e6c4d311/logs/final-browser-*.txt \u003e docs/acceptance/g5-insight-e6c4d311/logs/raw-regression-grep.txt || true\nprintf '\\\\n--- not found ---\\\\n'\nsed -n '1,80p' docs/acceptance/g5-insight-e6c4d311/logs/04-execution-detail-not-found.txt\nprintf '\\\\n--- rebuilding overview ---\\\\n'\nsed -n '1,80p' docs/acceptance/g5-insight-e6c4d311/logs/05-overview-rebuilding.txt\nprintf '\\\\n--- forbidden overview ---\\\\n'\nsed -n '1,80p' docs/acceptance/g5-insight-e6c4d311/logs/06-overview-forbidden.txt\nprintf '\\\\n--- rebuilding executions ---\\\\n'\nsed -n '1,80p' docs/acceptance/g5-insight-e6c4d311/logs/08-executions-rebuilding.txt\nprintf '\\\\n--- unavailable detail ---\\\\n'\nsed -n '1,80p' docs/acceptance/g5-insight-e6c4d311/logs/15-execution-detail-unavailable.txt\nprintf '\\\\n--- grep ---\\\\n'\nsed -n '1,160p' docs/acceptance/g5-insight-e6c4d311/logs/raw-regression-grep.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_116",
+      "command": "/bin/zsh -lc \"find docs/acceptance/g5-insight-e6c4d311 -type f | sort | xargs shasum -a 256 \u003e docs/acceptance/g5-insight-e6c4d311/artifact-manifest.sha256 \u0026\u0026 sed -n '1,220p' docs/acceptance/g5-insight-e6c4d311/artifact-manifest.sha256\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_118",
+      "command": "/bin/zsh -lc 'find docs/acceptance/g5-insight-e6c4d311 -type f ! -name artifact-manifest.sha256 | sort | xargs shasum -a 256 \u003e docs/acceptance/g5-insight-e6c4d311/artifact-manifest.sha256 \u0026\u0026 head -40 docs/acceptance/g5-insight-e6c4d311/artifact-manifest.sha256'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_120",
+      "command": "/bin/zsh -lc 'git diff -- internal/webconsole/spa/dist/.gitkeep'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_121",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/g5-insight-e6c4d311/report.md \u0026\u0026 printf '\\\\n--- verdict ---\\\\n' \u0026\u0026 cat docs/acceptance/g5-insight-e6c4d311/verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_122",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_123",
+      "command": "/bin/zsh -lc 'git diff --stat \u0026\u0026 git diff --name-only'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_127",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git diff --stat \u0026\u0026 git diff --name-only'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_128",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/g5-insight-e6c4d311/logs/raw-regression-grep.txt \u0026\u0026 cat docs/acceptance/g5-insight-e6c4d311/logs/served-head.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_129",
+      "command": "/bin/zsh -lc 'git diff -- internal/webconsole/spa/dist/.gitkeep \u0026\u0026 git diff --check'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_132",
+      "command": "/bin/zsh -lc 'find docs/acceptance/g5-insight-e6c4d311 -type f ! -name artifact-manifest.sha256 | sort | xargs shasum -a 256 \u003e docs/acceptance/g5-insight-e6c4d311/artifact-manifest.sha256 \u0026\u0026 tail -20 docs/acceptance/g5-insight-e6c4d311/artifact-manifest.sha256'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_136",
+      "command": "/bin/zsh -lc 'find docs/acceptance/g5-insight-e6c4d311 -type f ! -name artifact-manifest.sha256 | sort | xargs shasum -a 256 \u003e docs/acceptance/g5-insight-e6c4d311/artifact-manifest.sha256 \u0026\u0026 git status --short --branch \u0026\u0026 git diff --check'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_138",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/g5-insight-e6c4d311 \u0026\u0026 git commit -m \"docs(acceptance): record g5 insight reacceptance\" \u0026\u0026 git push origin HEAD:refs/heads/ac-exec/g5-insight-reacceptance-e6c4d311'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_140",
+      "command": "/bin/zsh -lc 'git remote show origin-push \u0026\u0026 git push origin-push HEAD:refs/heads/ac-exec/g5-insight-reacceptance-e6c4d311'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_144",
+      "command": "/bin/zsh -lc 'find docs/acceptance/g5-insight-e6c4d311 -type f ! -name artifact-manifest.sha256 | sort | xargs shasum -a 256 \u003e docs/acceptance/g5-insight-e6c4d311/artifact-manifest.sha256 \u0026\u0026 git add docs/acceptance/g5-insight-e6c4d311 \u0026\u0026 git commit --amend --no-edit \u0026\u0026 git push --force-with-lease origin-push HEAD:refs/heads/ac-exec/g5-insight-reacceptance-e6c4d311'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_94",
+      "command": "/bin/zsh -lc 'PORT=4177 node docs/acceptance/g5-insight-e6c4d311/mock-server.mjs'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_147",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git log --oneline --decorate -1 HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_148",
+      "command": "/bin/zsh -lc \"cat docs/acceptance/g5-insight-e6c4d311/verdict.json \u0026\u0026 printf '\\\\n--- manifest count ---\\\\n' \u0026\u0026 wc -l docs/acceptance/g5-insight-e6c4d311/artifact-manifest.sha256 \u0026\u0026 printf '\\\\n--- final errors ---\\\\n' \u0026\u0026 cat docs/acceptance/g5-insight-e6c4d311/logs/final-browser-errors.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_149",
+      "command": "/bin/zsh -lc \"git ls-remote origin-push 'refs/heads/ac-exec/g5-insight-reacceptance-e6c4d311' 'refs/heads/candidate/g4-insight-i1-i5-e6c4d311' 'refs/heads/main'\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-741b68b1/command_events.jsonl",
+  "command_event_digest": "sha256:de9f15682462162953a2c36d1098f70f0d3bd4286f887303ac16fb06a7e49e03",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "{",
+  "artifact_digest": "sha256:c54fb516fb39a51e891428529d4efe411f34aef381b71ea6d3f3172eab785495",
+  "path": ".agent-center/evidence/task-8c8b63e5/exec-741b68b1.json",
+  "branch": "ac-exec/g5-insight-reacceptance-e6c4d311"
+}
