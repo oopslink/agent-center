@@ -1,0 +1,124 @@
+{
+  "window": {
+    "kind": "rolling",
+    "duration": "24h",
+    "start": "2026-08-30T19:29:30.584075Z",
+    "end": "2026-08-31T19:29:30.584075Z"
+  },
+  "as_of": "2026-08-31T19:29:30.584075Z",
+  "refreshed_at": "2026-08-31T19:29:05.872005Z",
+  "freshness": {
+    "state": "fresh",
+    "age_ms": 24712,
+    "threshold_ms": 120000
+  },
+  "summary": {
+    "completed_executions": 4,
+    "failed_executions": 3,
+    "failure_rate": 0.75,
+    "slot_utilization": 0.9183673469387755,
+    "slot_coverage_ratio": 0.24677691719224273,
+    "queue_wait_ms": {
+      "p50": 60000,
+      "p95": 150000,
+      "samples": 6
+    },
+    "execution_duration_ms": {
+      "p50": 60000,
+      "p95": 60000,
+      "samples": 4
+    }
+  },
+  "agents": [
+    {
+      "agent_ref": "agent:agent-g8-1788204033788057000-alpha",
+      "display_name": "G8 Alpha",
+      "summary": {
+        "completed_executions": 3,
+        "failed_executions": 2,
+        "failure_rate": 0.6666666666666666,
+        "slot_utilization": 0.9183673469387755,
+        "slot_coverage_ratio": 0.24677691719224273,
+        "queue_wait_ms": {
+          "p50": 60000,
+          "p95": 60000,
+          "samples": 3
+        },
+        "execution_duration_ms": {
+          "p50": 60000,
+          "p95": 60000,
+          "samples": 3
+        }
+      }
+    },
+    {
+      "agent_ref": "agent:agent-g8-1788204033788057000-beta",
+      "display_name": "G8 Beta",
+      "summary": {
+        "completed_executions": 1,
+        "failed_executions": 1,
+        "failure_rate": 1,
+        "slot_utilization": null,
+        "slot_coverage_ratio": null,
+        "queue_wait_ms": {
+          "p50": 60000,
+          "p95": 168000,
+          "samples": 3
+        },
+        "execution_duration_ms": {
+          "p50": 60000,
+          "p95": 60000,
+          "samples": 1
+        }
+      }
+    }
+  ],
+  "projects": [
+    {
+      "project_id": "project-g8-1788204033788057000-observed",
+      "name": "G8 Observed Project",
+      "summary": {
+        "completed_executions": 3,
+        "failed_executions": 2,
+        "failure_rate": 0.6666666666666666,
+        "slot_utilization": 0.9183673469387755,
+        "slot_coverage_ratio": 0.24677691719224273,
+        "queue_wait_ms": {
+          "p50": 60000,
+          "p95": 60000,
+          "samples": 3
+        },
+        "execution_duration_ms": {
+          "p50": 60000,
+          "p95": 60000,
+          "samples": 3
+        }
+      }
+    },
+    {
+      "project_id": "project-g8-1788204033788057000-missing",
+      "name": "G8 Missing Project",
+      "summary": {
+        "completed_executions": 1,
+        "failed_executions": 1,
+        "failure_rate": 1,
+        "slot_utilization": 0.9183673469387755,
+        "slot_coverage_ratio": 0.24677691719224273,
+        "queue_wait_ms": {
+          "p50": 60000,
+          "p95": 168000,
+          "samples": 3
+        },
+        "execution_duration_ms": {
+          "p50": 60000,
+          "p95": 60000,
+          "samples": 1
+        }
+      }
+    }
+  ],
+  "diagnostics": {
+    "invalid_facts": 1,
+    "late_events": 0
+  }
+}

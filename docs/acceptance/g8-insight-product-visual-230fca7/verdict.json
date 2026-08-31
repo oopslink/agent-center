@@ -1,0 +1,220 @@
+{
+  "verdict": "REJECT",
+  "candidate_sha": "230fca7008eb66c1ffcf51dffe1a71d834a78793",
+  "base_url": "http://127.0.0.1:62662",
+  "org_slug": "org-5eb9775f",
+  "generated_at": "2026-08-31T19:36:06.879Z",
+  "screenshots": [
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/desktop-01-overview.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/desktop-02-agent-drilldown-list.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/desktop-03-execution-detail.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/desktop-matrix-known-success.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/desktop-matrix-known-failure.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/desktop-matrix-recovered.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/desktop-matrix-unknown-outcome.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/desktop-matrix-running.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/desktop-matrix-invalid-clock.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/desktop-matrix-rejected-before-start.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/desktop-04-empty-filtered.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/desktop-05-missing-detail.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/mobile-01-overview.png",
+    "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots/mobile-02-executions.png"
+  ],
+  "checks": [
+    {
+      "id": "api-real-projection-visible",
+      "status": "PASS",
+      "detail": "completed=4 rows=7"
+    },
+    {
+      "id": "api-freshness-known",
+      "status": "PASS",
+      "detail": "freshness=fresh age_ms=24712"
+    },
+    {
+      "id": "api-status-matrix",
+      "status": "PASS",
+      "detail": "success/failed/crashed/unknown/recovered/rejected/invalid present"
+    },
+    {
+      "id": "desktop-overview-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=1755"
+    },
+    {
+      "id": "desktop-overview-copy",
+      "status": "PASS",
+      "detail": "O Search ⌘K INSIGHT Insight overview INSIGHT Insight overview View all executions Past 24 hours (rolling) 8/31, 03:29 AM – 9/1, 03:29 AM Local time · UTC+08:00 Refreshed 03:29:05 AM Fresh data Completed executions 4 Each"
+    },
+    {
+      "id": "desktop-ia-nav",
+      "status": "REJECT",
+      "detail": "secondary nav contains Overview/Agents/Projects/Task executions"
+    },
+    {
+      "id": "overview-agent-drilldown-url",
+      "status": "PASS",
+      "detail": "http://127.0.0.1:62662/organizations/org-5eb9775f/insights/executions?window=24h&agent_ref=agent%3Aagent-g8-1788204033788057000-alpha"
+    },
+    {
+      "id": "desktop-agent-list-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=752"
+    },
+    {
+      "id": "desktop-detail-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=753"
+    },
+    {
+      "id": "detail-back-preserves-list-context",
+      "status": "PASS",
+      "detail": "http://127.0.0.1:62662/organizations/org-5eb9775f/insights/executions?window=24h&agent_ref=agent%3Aagent-g8-1788204033788057000-alpha"
+    },
+    {
+      "id": "matrix-known-success-execution-id",
+      "status": "PASS",
+      "detail": "exec-g8-1788204033788057000-success"
+    },
+    {
+      "id": "matrix-known-success-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=670"
+    },
+    {
+      "id": "matrix-known-success-copy",
+      "status": "PASS",
+      "detail": "O Search ⌘K INSIGHT Insight overview INSIGHT TaskExecution detail exec-g8-1788204033788057000-success Refresh Insight overview / Task executions Past 24 hours (rolling) 8/31, 03:31 AM – 9/1, 03:31 AM Local time · UTC+08:00 Refreshed 03:31:0"
+    },
+    {
+      "id": "matrix-known-failure-execution-id",
+      "status": "PASS",
+      "detail": "exec-g8-1788204033788057000-invalid"
+    },
+    {
+      "id": "matrix-known-failure-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=776"
+    },
+    {
+      "id": "matrix-known-failure-copy",
+      "status": "PASS",
+      "detail": "O Search ⌘K INSIGHT Insight overview INSIGHT TaskExecution detail exec-g8-1788204033788057000-invalid Refresh Insight overview / Task executions Past 24 hours (rolling) 8/31, 03:32 AM – 9/1, 03:32 AM Local time · UTC+08:00 Refreshed 03:31:3"
+    },
+    {
+      "id": "matrix-recovered-execution-id",
+      "status": "PASS",
+      "detail": "exec-g8-1788204033788057000-recovered"
+    },
+    {
+      "id": "matrix-recovered-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=753"
+    },
+    {
+      "id": "matrix-recovered-copy",
+      "status": "PASS",
+      "detail": "O Search ⌘K INSIGHT Insight overview INSIGHT TaskExecution detail exec-g8-1788204033788057000-recovered Refresh Insight overview / Task executions Past 24 hours (rolling) 8/31, 03:32 AM – 9/1, 03:32 AM Local time · UTC+08:00 Refreshed 03:32"
+    },
+    {
+      "id": "matrix-unknown-outcome-execution-id",
+      "status": "PASS",
+      "detail": "exec-g8-1788204033788057000-unknown"
+    },
+    {
+      "id": "matrix-unknown-outcome-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=696"
+    },
+    {
+      "id": "matrix-unknown-outcome-copy",
+      "status": "PASS",
+      "detail": "O Search ⌘K INSIGHT Insight overview INSIGHT TaskExecution detail exec-g8-1788204033788057000-unknown Refresh Insight overview / Task executions Past 24 hours (rolling) 8/31, 03:33 AM – 9/1, 03:33 AM Local time · UTC+08:00 Refreshed 03:32:3"
+    },
+    {
+      "id": "matrix-running-execution-id",
+      "status": "PASS",
+      "detail": "exec-g8-1788204033788057000-running"
+    },
+    {
+      "id": "matrix-running-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=673"
+    },
+    {
+      "id": "matrix-running-copy",
+      "status": "PASS",
+      "detail": "O Search ⌘K INSIGHT Insight overview INSIGHT TaskExecution detail exec-g8-1788204033788057000-running Refresh Insight overview / Task executions Past 24 hours (rolling) 8/31, 03:33 AM – 9/1, 03:33 AM Local time · UTC+08:00 Refreshed 03:33:0"
+    },
+    {
+      "id": "matrix-invalid-clock-execution-id",
+      "status": "PASS",
+      "detail": "exec-g8-1788204033788057000-invalid"
+    },
+    {
+      "id": "matrix-invalid-clock-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=776"
+    },
+    {
+      "id": "matrix-invalid-clock-copy",
+      "status": "PASS",
+      "detail": "O Search ⌘K INSIGHT Insight overview INSIGHT TaskExecution detail exec-g8-1788204033788057000-invalid Refresh Insight overview / Task executions Past 24 hours (rolling) 8/31, 03:34 AM – 9/1, 03:34 AM Local time · UTC+08:00 Refreshed 03:33:3"
+    },
+    {
+      "id": "matrix-rejected-before-start-execution-id",
+      "status": "PASS",
+      "detail": "command:cmd-g8-1788204033788057000-rejected"
+    },
+    {
+      "id": "matrix-rejected-before-start-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=719"
+    },
+    {
+      "id": "matrix-rejected-before-start-copy",
+      "status": "PASS",
+      "detail": "O Search ⌘K INSIGHT Insight overview INSIGHT TaskExecution detail command:cmd-g8-1788204033788057000-rejected Refresh Insight overview / Task executions Past 24 hours (rolling) 8/31, 03:34 AM – 9/1, 03:34 AM Local time · UTC+08:00 Refreshed"
+    },
+    {
+      "id": "empty-filtered-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=327"
+    },
+    {
+      "id": "empty-filtered-copy",
+      "status": "PASS",
+      "detail": "filtered empty state visible"
+    },
+    {
+      "id": "missing-detail-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=244"
+    },
+    {
+      "id": "missing-detail-copy",
+      "status": "PASS",
+      "detail": "missing detail state visible"
+    },
+    {
+      "id": "mobile-overview-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=1770"
+    },
+    {
+      "id": "mobile-overview-no-body-horizontal-overflow",
+      "status": "PASS",
+      "detail": "overflow=0"
+    },
+    {
+      "id": "mobile-list-no-raw-i18n-key",
+      "status": "PASS",
+      "detail": "chars=813"
+    },
+    {
+      "id": "browser-console-clean",
+      "status": "PASS",
+      "detail": ""
+    }
+  ]
+}
