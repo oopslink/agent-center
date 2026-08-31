@@ -1,0 +1,19 @@
+{
+  "schema": "task-input/v1",
+  "materialized_at": "2026-08-31T12:18:00+08:00",
+  "materialization_note": "Supervisor-declared task-input/v1 files were absent in the workspace; this manifest records the local package and the absence of attachments.",
+  "task": {
+    "id": "T1850",
+    "title": "Replay worker authoritative readback implementation onto fresh current-main",
+    "source_commit": "65eab385a93199d98fe3b367d4d07bc627cda7f2",
+    "required_chain_anchor": "7f4cfcc43e0360f31e756bb453e675db50cc26c6",
+    "fresh_base": "3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5"
+  },
+  "attachments": [],
+  "attachment_fields": {
+    "path": "task-input/v1/attachments/<name>",
+    "size_bytes": "integer",
+    "mime_type": "string",
+    "sha256": "hex"
+  }
+}
