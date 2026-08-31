@@ -1,0 +1,305 @@
+{
+  "task_id": "task-20a3af5f",
+  "execution_id": "exec-87b87907",
+  "reviewed_sha": "ad7959c60ea0d3004c44d65cfbe2c93de34c9406",
+  "base_sha": "ad7959c60ea0d3004c44d65cfbe2c93de34c9406",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1 | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center status --short --branch \u0026\u0026 git -C /Users/oopslink/works/codes/oopslink/agent-center remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center fetch origin --prune'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center show --stat --oneline --decorate 65eab385a93199d98fe3b367d4d07bc627cda7f2'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center branch -r --contains 65eab385a93199d98fe3b367d4d07bc627cda7f2'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center show --no-patch --oneline --decorate origin/main \u0026\u0026 git -C /Users/oopslink/works/codes/oopslink/agent-center merge-base --is-ancestor 7f4cfcc43e0360f31e756bb453e675db50cc26c6 65eab385a93199d98fe3b367d4d07bc627cda7f2; echo $?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"git -C /Users/oopslink/works/codes/oopslink/agent-center log --all --grep='I6\\\\|Insight\\\\|insight' --oneline --decorate -80\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center show 2e04ab8610f2c07bef847b11183a27e2b5cd7512:docs/design/features/insight-metric-semantics-and-information-architecture.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center show a427a2640621762506f5f98dc3179b0ab43b18e7:docs/contracts/insight-metrics-v2.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center show 43abcd72:docs/design/features/insight-phase-1-contract.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center show a427a2640621762506f5f98dc3179b0ab43b18e7:docs/contracts/insight-v2.schema.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"set -e\nrepo=/Users/oopslink/works/codes/oopslink/agent-center\ncandidate=43abcd72\nprintf 'candidate='; git -C \\\"\"'$repo\" rev-parse \"$candidate''^{commit}\"\nprintf '\"'origin_main='; git -C \\\"\"'$repo\" rev-parse origin/main\nprintf '\"'merge_base_candidate_origin_main='; git -C \\\"\"'$repo\" merge-base \"$candidate\" origin/main\nprintf '\"'origin_main_ancestor_of_candidate='; git -C \\\"\"'$repo\" merge-base --is-ancestor origin/main \"$candidate\"; echo $?\nprintf '\"'phase1_doc_blob_candidate='; git -C \\\"\"'$repo\" rev-parse \"$candidate:docs/design/features/insight-phase-1-contract.md\"\nprintf '\"'phase1_doc_blob_main='; git -C \\\"\"'$repo\" rev-parse origin/main:docs/design/features/insight-phase-1-contract.md\nprintf '\"'v2_doc_blob_candidate='; git -C \\\"\"'$repo\" rev-parse \"$candidate:docs/contracts/insight-metrics-v2.md\"\nprintf '\"'v2_schema_blob_candidate='; git -C \\\"\"'$repo\" rev-parse \"$candidate:docs/contracts/insight-v2.schema.json\"'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"git -C /Users/oopslink/works/codes/oopslink/agent-center ls-tree -r --name-only 43abcd72 | rg 'insight.*(v2|contract|schema)|contract_v2|insights'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center diff --name-status origin/main..43abcd72'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center worktree add --detach /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/i6-verify-43abcd72-$(date +%s) 43abcd72'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'ls -dt /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/i6-verify-43abcd72-* | head -1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'find /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/i6-verify-43abcd72-* -maxdepth 2 -name package.json -o -name go.mod -o -name Makefile'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"rg -n \\\"Insight|insight|contract_v2|race|go test|vitest|playwright|cypress|e2e\\\" README.md Makefile web/package.json .github internal web -g '\"'!web/node_modules'\"' -g '\"'!**/.git/**'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"go test ./internal/insight ./internal/webconsole/api -run 'Insight|insight|Contract|V2|Overview|Execution|Lineage|Delivery' -count=1\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'pnpm install --frozen-lockfile \u0026\u0026 pnpm exec vitest run src/utils/insightPresentation.test.ts src/pages/InsightOverview.test.tsx src/pages/InsightAgents.test.tsx src/pages/InsightProjects.test.tsx src/App.test.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc 'RACE_COUNT=1 make test-race 2\u003e\u00261 | tee evidence/i6-43abcd72/race.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"rg -n \\\"execution_context_required|command_status|status_message|failure_message|quiet_finalized|invalid_time_order|Task executions|InsightExecutions|InsightExecutionDetail|/insights/executions|nearest-rank|quantile_cont|percentile|lineage|funnel|issue_without_task|delivery_sha_lineage_mismatch\\\" internal web/src docs/contracts docs/design/features -g '\"'!web/node_modules'\"'\"",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc 'pnpm exec vitest run 2\u003e\u00261 | tee ../evidence/i6-43abcd72/web-vitest-all.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc 'make lint 2\u003e\u00261 | tee evidence/i6-43abcd72/lint.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc 'make build 2\u003e\u00261 | tee evidence/i6-43abcd72/build.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc 'mkdir -p evidence/i6-43abcd72 \u0026\u0026 go test ./... 2\u003e\u00261 | tee evidence/i6-43abcd72/go-test-all.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc 'tail -80 evidence/i6-43abcd72/go-test-all.log \u0026\u0026 tail -60 evidence/i6-43abcd72/race.log \u0026\u0026 tail -80 evidence/i6-43abcd72/lint.log \u0026\u0026 tail -80 evidence/i6-43abcd72/build.log \u0026\u0026 tail -80 evidence/i6-43abcd72/web-vitest-all.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc 'rg -n \"func Test|sqlite|Append|Project|HTTP|low coverage|coverage|terminal|queued|invalid|V2|503|execution_context_required|lineage|seven|funnel\" internal/insight/service_test.go internal/webconsole/api/handlers_insights_test.go internal/insight/contract_v2.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 git log --oneline -1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc \"sed -n '80,230p' web/src/pages/InsightOverview.tsx \u0026\u0026 sed -n '584,600p' web/src/api/insights.ts \u0026\u0026 sed -n '172,220p' internal/webconsole/api/handlers_insights.go \u0026\u0026 sed -n '250,310p' internal/insight/contract_v2.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc \"wc -l evidence/i6-43abcd72/*.log \u0026\u0026 rg -n \\\"Failed Tests|Test Files|Tests|error|Command failed|built in|ok\\\\s+github.com/oopslink/agent-center/internal/insight|TestInsight|execution_context_required|503 envelope|lint-spa-eslint\\\" evidence/i6-43abcd72/*.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/immutable/i6-insight-acceptance-43abcd72 refs/heads/main \u0026\u0026 git merge-base --is-ancestor 43abcd7250528694a662724c99d0a80e042ce8bb origin/main; echo candidate_in_origin_main=$? \u0026\u0026 git merge-base --is-ancestor origin/main 43abcd7250528694a662724c99d0a80e042ce8bb; echo origin_main_in_candidate=$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc 'mkdir -p docs/evidence/i6-43abcd72'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc 'git diff -- docs/evidence/i6-43abcd72/independent-acceptance-report.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc \"git check-ignore -v docs/evidence/i6-43abcd72/independent-acceptance-report.md || true \u0026\u0026 sed -n '1,260p' docs/evidence/i6-43abcd72/independent-acceptance-report.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'git status --ignored --short docs/evidence/i6-43abcd72/independent-acceptance-report.md evidence/i6-43abcd72'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc \"test -f /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87b87907/docs/evidence/i6-43abcd72/independent-acceptance-report.md \u0026\u0026 sed -n '1,40p' /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87b87907/docs/evidence/i6-43abcd72/independent-acceptance-report.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type d -name evidence -o -path './docs/evidence'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_68",
+      "command": "/bin/zsh -lc 'cp /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-87b87907/docs/evidence/i6-43abcd72/independent-acceptance-report.md evidence/i6-43abcd72/independent-acceptance-report.md \u0026\u0026 git status --short evidence/i6-43abcd72/independent-acceptance-report.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_70",
+      "command": "/bin/zsh -lc 'git switch -c evidence/i6-43abcd72-independent-reject \u0026\u0026 git add evidence/i6-43abcd72 \u0026\u0026 git commit -m \"evidence: reject i6 insight candidate 43abcd72\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc 'git push -u origin evidence/i6-43abcd72-independent-reject \u0026\u0026 git ls-remote origin refs/heads/evidence/i6-43abcd72-independent-reject refs/heads/immutable/i6-insight-acceptance-43abcd72 refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git log --oneline -1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc 'git -C /Users/oopslink/works/codes/oopslink/agent-center rev-parse origin/main origin/immutable/i6-insight-acceptance-43abcd72 origin/evidence/i6-43abcd72-independent-reject'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-87b87907/command_events.jsonl",
+  "command_event_digest": "sha256:3d0b22b6e55249102bdfb8d6c8632ae45f0311f205eb0b20a749b7cd376a56b5",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "Completed isolated I6 technical acceptance.",
+  "artifact_digest": "sha256:7962ec258c3cc599dccf5178a886091b00080463ec77572695173173b4133769",
+  "path": ".agent-center/evidence/task-20a3af5f/exec-87b87907.json",
+  "branch": "ac-exec/task-20a3af5f/exec-87b87907"
+}
