@@ -1,0 +1,113 @@
+{
+  "task_id": "task-59ba4683",
+  "execution_id": "exec-7334e33c",
+  "reviewed_sha": "4707db8237469661df6df5b9bd24f7562657b474",
+  "base_sha": "4707db8237469661df6df5b9bd24f7562657b474",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files -g 'task-input/v1/**' -g '\"'!node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"rg --files -g '\"'!node_modules'\"' -g '\"'!task-input/v1/**'\"' | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"rg -n \\\"G34|G35|G33|generation-2c74d519|task-c44b33d9|HR-1|HR-2|HR-3|HR-4|hard red|hard-red|Insight|insight|provenance|lineage\\\" -S . -g '\"'!node_modules'\"' -g '\"'!vendor'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type f \\\\( -name 'package.json' -o -name 'go.mod' -o -name 'Makefile' -o -name 'pnpm-lock.yaml' -o -name '*.md' \\\\) | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"env | sort | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'rg -n \"production|deploy|deployment|health|version|BASE_URL|PROD|insights/overview|api/orgs|SHA|commit|G34|G35|generation\" README.md CLAUDE.md Makefile docs/reports/t1578-s3-insight-phase1-integration.md docs/design/features/insight-phase-1-contract.md scripts -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f \\\\( -iname '*g34*' -o -iname '*g35*' -o -iname '*insight*' -o -iname '*production*' -o -iname '*deploy*' -o -iname '*verdict*' \\\\) | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/rules/acceptance-evidence-spec.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/rules/acceptance-methodology.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'shasum -a 256 task-input/v1/README.md task-input/v1/manifest.json \u0026\u0026 file --mime-type task-input/v1/README.md task-input/v1/manifest.json \u0026\u0026 wc -c task-input/v1/README.md task-input/v1/manifest.json \u0026\u0026 find task-input/v1 -type f -maxdepth 3 -print'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"rg -n \\\"G34|G35|G33|generation-2c74d519|task-c44b33d9|HR-1|HR-2|HR-3|HR-4|hard red|hard-red\\\" task-input docs internal web tests scripts README.md CLAUDE.md -S -g '\"'!**/*.png'\"' -g '\"'!**/*.jpg'\"' -g '\"'!**/*.pdf'\"' -g '\"'!**/*.lock'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"find task-input/v1 -maxdepth 3 -type d -print \u0026\u0026 find task-input/v1 -maxdepth 3 -type f -print -exec wc -c {} \\\\;\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'git remote -v \u0026\u0026 git log --oneline --decorate -n 12'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-7334e33c/command_events.jsonl",
+  "command_event_digest": "sha256:2eea60d09683cd3b2f1caf83e9612953fb3740050b10c51de3d181ce13397714",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "NON-DELIVERY: I did not run G34 production verdict checks.",
+  "artifact_digest": "sha256:bdefd4d683c40b6594a974e06a2b38a28eb28455dbc795a523ff182506ee3e20",
+  "path": ".agent-center/evidence/task-59ba4683/exec-7334e33c.json",
+  "branch": "ac-exec/task-59ba4683/exec-7334e33c"
+}
