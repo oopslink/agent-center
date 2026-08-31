@@ -1,0 +1,31 @@
+=== RUN   TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild
+--- PASS: TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild (0.45s)
+=== RUN   TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild
+--- PASS: TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild (0.28s)
+=== RUN   TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap
+--- PASS: TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap (0.20s)
+=== RUN   TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval
+--- PASS: TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval (0.19s)
+=== RUN   TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail
+--- PASS: TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail (0.10s)
+=== RUN   TestInsightInvalidTimeOrder
+--- PASS: TestInsightInvalidTimeOrder (0.11s)
+=== RUN   TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow
+--- PASS: TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow (0.18s)
+=== RUN   TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce
+--- PASS: TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce (0.24s)
+=== RUN   TestInsightPostCommitCrashRestartDoesNotDuplicate
+--- PASS: TestInsightPostCommitCrashRestartDoesNotDuplicate (0.24s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/insight	2.611s
+=== RUN   TestInsightsOverviewAPI_WindowValidationAndShape
+--- PASS: TestInsightsOverviewAPI_WindowValidationAndShape (0.29s)
+=== RUN   TestInsightsHTTPReadDoesNotTriggerProjection
+--- PASS: TestInsightsHTTPReadDoesNotTriggerProjection (0.24s)
+=== RUN   TestInsightsExecutionAPI_ReadsSingleProjectedExecution
+--- PASS: TestInsightsExecutionAPI_ReadsSingleProjectedExecution (0.22s)
+=== RUN   TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound
+--- PASS: TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound (0.21s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	1.660s
+exit=0

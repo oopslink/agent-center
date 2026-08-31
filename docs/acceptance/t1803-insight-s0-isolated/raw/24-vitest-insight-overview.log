@@ -1,0 +1,13 @@
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-6ed7c326/web
+
+(node:14518) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/InsightOverview.test.tsx (6 tests) 272ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  08:44:51
+   Duration  1.50s (transform 190ms, setup 590ms, collect 82ms, tests 272ms, environment 355ms, prepare 71ms)
+
+exit=0

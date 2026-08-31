@@ -1,0 +1,5 @@
+pwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-6ed7c326
+
+find: task-input/v1: No such file or directory
+exit=1
+exit=0

@@ -1,0 +1,25 @@
+Mon Aug 31 00:43:46 UTC 2026
+HEAD=0a02c230b0df9a885eccecf17482920f929b230a
+origin_main=0a02c230b0df9a885eccecf17482920f929b230a
+s3_candidate=16dc58155dfa0cafd79c08595c8a8e378b5eede9
+
+ls-remote:
+173fdb0913450370fae51831f0008d2f10165f8c	refs/heads/main
+16dc58155dfa0cafd79c08595c8a8e378b5eede9	refs/heads/s3/insight-phase1-candidate-20260827
+
+health:
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:43:51 GMT
+Content-Length: 42
+
+{"status":"ok","version":"main-173fdb09"}
+
+unauth_overview:
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:43:51 GMT
+Content-Length: 58
+
+{"error":"unauthenticated","message":"no session cookie"}
+exit=0

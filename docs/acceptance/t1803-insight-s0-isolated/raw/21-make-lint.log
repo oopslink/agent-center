@@ -1,0 +1,4 @@
+go vet ./...
+internal/admin/api/agent_tools_write.go:794:2: unreachable code
+make: *** [vet] Error 1
+exit=2

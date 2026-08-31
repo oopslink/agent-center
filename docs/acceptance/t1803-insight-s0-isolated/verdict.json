@@ -1,0 +1,42 @@
+{
+  "verdict": "REJECT",
+  "date": "2026-08-31",
+  "executor_branch": "ac-exec/task-a90c6481/exec-6ed7c326",
+  "instance": {
+    "url": "http://127.0.0.1:7100/",
+    "health_status": "ok",
+    "health_version": "main-173fdb09",
+    "remote_main_sha": "173fdb0913450370fae51831f0008d2f10165f8c",
+    "s3_candidate_sha": "16dc58155dfa0cafd79c08595c8a8e378b5eede9",
+    "provenance_matches_candidate": false
+  },
+  "gates": {
+    "task_input_package_present": false,
+    "insight_ui_reachable_from_navigation": true,
+    "s0_null_collection_ui_fix": true,
+    "insight_api_reachable": true,
+    "insight_api_empty_collections_are_arrays": false,
+    "unauthenticated_insight_rejected": true,
+    "git_diff_check": true,
+    "make_lint": false,
+    "make_build": true,
+    "focused_go_insight_api_tests": true,
+    "focused_vitest_insight_overview": true
+  },
+  "reject_reasons": [
+    "task-input/v1 README and manifest are absent",
+    "deployed health version main-173fdb09 does not match S3 candidate 16dc58155dfa0cafd79c08595c8a8e378b5eede9",
+    "make lint fails in go vet with unreachable code at internal/admin/api/agent_tools_write.go:794:2",
+    "live Insight API returns null collections for empty overview/executions where the frozen contract requires []"
+  ],
+  "evidence": {
+    "report": "docs/acceptance/t1803-insight-s0-isolated/REPORT.md",
+    "screenshots": [
+      "docs/acceptance/t1803-insight-s0-isolated/screenshots/01-entry.png",
+      "docs/acceptance/t1803-insight-s0-isolated/screenshots/02-signup.png",
+      "docs/acceptance/t1803-insight-s0-isolated/screenshots/07-signup-valid.png",
+      "docs/acceptance/t1803-insight-s0-isolated/screenshots/08-insight-overview.png"
+    ],
+    "raw_logs_dir": "docs/acceptance/t1803-insight-s0-isolated/raw"
+  }
+}
