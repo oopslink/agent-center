@@ -1,0 +1,21 @@
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b143271d/web
+
+(node:63588) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:63585) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:63587) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:63586) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/utils/insightPresentation.test.ts (52 tests) 13ms
+ ✓ src/pages/InsightAgents.test.tsx (3 tests) 125ms
+ ✓ src/pages/InsightProjects.test.tsx (7 tests) 213ms
+ ✓ src/pages/InsightOverview.test.tsx (9 tests) 340ms
+
+ Test Files  4 passed (4)
+      Tests  71 passed (71)
+   Start at  00:56:02
+   Duration  1.62s (transform 276ms, setup 1.92s, collect 340ms, tests 691ms, environment 1.31s, prepare 219ms)
+

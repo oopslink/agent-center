@@ -1,0 +1,39 @@
+{
+  "schema": "agent-center.acceptance.verdict.v1",
+  "verdict": "REJECT",
+  "candidate_sha": "928eae010f2f8925e3deab6e4cb6cf2f1da58e7b",
+  "candidate_ref": "refs/heads/candidate/g6-insight-enum-semantics-928eae01",
+  "delivery_branch": "ac-exec/task-e912da96/exec-b143271d",
+  "served_origin": "http://127.0.0.1:4173",
+  "tests": {
+    "web_install_frozen_lockfile": "PASS",
+    "web_build": "PASS",
+    "targeted_insight_vitest": "PASS",
+    "go_test_internal_insight": "PASS",
+    "browser_matrix_rendered_insight_ui": "PASS",
+    "browser_injected_raw_token_scan": "PASS",
+    "primary_ui_no_raw_json_or_raw_copy": "REJECT"
+  },
+  "reject_reasons": [
+    {
+      "id": "G6-REJECT-001",
+      "surface": "Insight overview",
+      "condition": "arbitrary future freshness enum",
+      "evidence": [
+        "screenshots/future-overview-1440.png",
+        "screenshots/mobile-overview-future-390.png"
+      ],
+      "reason": "Primary UI renders raw i18n key insight.state.unknown."
+    },
+    {
+      "id": "G6-REJECT-002",
+      "surface": "Plan lineage detail",
+      "condition": "known and future lineage evidence/node_changes payloads",
+      "evidence": [
+        "screenshots/known-lineage-1440.png",
+        "screenshots/future-lineage-1440.png"
+      ],
+      "reason": "Primary UI renders pretty-printed JSON blocks."
+    }
+  ]
+}

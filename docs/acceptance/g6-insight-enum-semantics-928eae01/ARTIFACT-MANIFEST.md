@@ -1,0 +1,53 @@
+# Artifact Manifest
+
+Candidate SHA: `928eae010f2f8925e3deab6e4cb6cf2f1da58e7b`
+
+```
+91002e9a5ab4696507ebc02110a394b18ed1b25b807779c99eb0226786f30b9b  docs/acceptance/g6-insight-enum-semantics-928eae01/COMMANDS.md
+3f2421082b364b34d5e25200272733fde27a0137ac061b5249fa08d07e9f666c  docs/acceptance/g6-insight-enum-semantics-928eae01/REPORT.md
+45eaac7ef937a399966afbd8a9a281aa0e7265cd2ba597afa68c8609aa84488d  docs/acceptance/g6-insight-enum-semantics-928eae01/derived/browser-results.json
+1a0204ba01e62653018dd03946b10ca0fb4ca5cfd6f67f35193f90a27d076734  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/00-provenance.log
+6ec12d379f5b53bd9fe9538d26a59992c9e2f6076fe77a0c14efcb339dc19fcb  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/01-web-pnpm-install-frozen-lockfile.log
+29e05b2fb1b227e1473d668c52850d04592c40d83681e0cbe48ba6e6399c0f1b  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/02-targeted-insight-vitest.log
+fb263739c6d4bb4f1ce5ba34347ee0f8a141f93e5a7d7c0b3dd41999e02d9304  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/02b-targeted-insight-vitest.log
+2b6dab7a6a5cdab96405a146950b159e28efec8e152096b683f2052ea413d534  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/03-web-build.log
+000ccf3e9d6053a598d6c3bf96664cc76306ce4fa90a3ae7b7d0e3fff514364a  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/04-vite-preview.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/05-browser-acceptance.log
+7cde7e185436b5cdbe54e9685ad7b4ba3caf3fccafef93c9b4b6514cdeffb18b  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/05a-agent-browser-open-debug.log
+50710fa84118da12933b43658b4b931b7ca25e0e3c8881ce68fb369152cc0970  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/05b-route-open-test.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/06-browser-acceptance-vite.log
+ecb23ed61d59051648832c0d47de9e36b8098a384e68df54f9e6e7f113fb6729  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/06a-network-after-bad-run.log
+3a12a66fabf8f942d8a443f6704442de29395eb3218af5da4331b674a0491c0d  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/07-go-test-internal-insight.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/08-browser-acceptance-fetch.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/09-browser-acceptance-fetch-rerun.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/10-browser-acceptance-fetch-rerun2.log
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/11-browser-acceptance-fetch-rerun3.log
+52e8885fa7d3c30d81ac106cdbfcf2543f31b3582bf0bb6fdd41cb7dd1be1691  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/12-git-commit.log
+7b708e8bf048c899462f24c0af8c794912f7fad94b754dba45b2290c4cd1d4dc  docs/acceptance/g6-insight-enum-semantics-928eae01/raw-logs/13-git-amend.log
+ecbf6aff9ec96e08d2c6fee07f10c10c8da1cad446c5fb1697556e7da4c77d2e  docs/acceptance/g6-insight-enum-semantics-928eae01/run-g6-browser-acceptance-fetch.mjs
+3b2072987bda284b2beceaac434ed6f46d0b7484c827e260612822509c8972cb  docs/acceptance/g6-insight-enum-semantics-928eae01/run-g6-browser-acceptance-vite.mjs
+11c5b2d41817decc15624b4cc11ef7712c69748c1844383e3546c8ba3b27a888  docs/acceptance/g6-insight-enum-semantics-928eae01/run-g6-browser-acceptance.mjs
+e1b2a84133cb6e3a0421b7efe55eebbcec3e63ddac627f80ed6fe144aa590108  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/empty-projects-state-1440.png
+e4c4ea6b8ec9f1eafcfe1d6afd9b2cb6172ca29f02af4f6ced0be506ad13ddd9  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/forbidden-projects-state-1440.png
+ce2107cfad067d21b3c35c37b193aef4ab63a2bcc1b8da953ee2403daf103244  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/future-agent-detail-1440.png
+d7f94f19a7bb526bd63d14d8e58d571281f5e0d858652cc244972f3d2f7ae5c2  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/future-agents-1440.png
+35a6b2437b6d5aff7a201cd9d8beaa2817ed6045e3131692c101e826ca4ece35  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/future-execution-detail-1440.png
+d7cc2b01c73f22edee10438212748ee7bef873baa287ead96f283840326fc0a1  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/future-executions-1440.png
+332849bb672ec7ca70931b0f54732a51254ce3d1c74a449171b874ab1fc0bda7  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/future-lineage-1440.png
+859f4d4bb5cb5af64d02bf6ba694ba594a3c1f642b6f608b04d49e75f9b035f6  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/future-overview-1440.png
+266cfd446672dbb227faf281f4db1e2e18c0adb8f98f5beff0c6f834eee7b949  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/future-project-detail-1440.png
+2fa815f21505fbff9e69a8b9c9f58a7d0ef18066ee4f96544ed1d5390bce810e  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/future-projects-1440.png
+8701aa6f6f5ae771ef3b399a3ea0478f3641dad5700b2a1b5987ce5918201492  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/known-agent-detail-1440.png
+33292e8b0c3c7d2126a0a8ac4f68f2e384c3e59ffe9143bb9eeddbfc9d3ef1a0  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/known-agents-1440.png
+52e0dbe740e67ed7e3ee8bec9d054d8f0506153b37b0df74b13ac1395bd3c015  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/known-execution-detail-1440.png
+7e81eb5ff1238d09e79ec4888394a10da30bdc1eea22ef598a6684f4ad07f542  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/known-executions-1440.png
+445506406679f49e6ffbed1f96641eb5c912fca3b63cf19701f6737bf2c5cc32  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/known-lineage-1440.png
+3fa603d8a8132756f59424f5ab8d9138ceaa5430b33718e617a75b3311d60b7f  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/known-overview-1440.png
+55f893892e1416447d007fd89948fa0d6cf2c1a3d142d5cbeb170445ae793d6a  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/known-project-detail-1440.png
+8f3a8849af14c59d14ee2fc8b0c419676f6c58e134d82dac8c2af68e9f613461  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/known-projects-1440.png
+c407661dfc9f221d13a25b6cc7f4a2fcdb1b5a5327fe831c0f3603ed943ee5fc  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/mobile-overview-future-390.png
+2728cb605c5c82c46b2aecba2932bc013d087451dd4a7cfe52c03ba46d8ce067  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/mobile-project-detail-future-390.png
+599f67981076e38b50a5d3b576dbe868ede0bac248bd21eebf908544567b0d43  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/rebuilding-executions-state-1440.png
+a2fd7037725f46f60cad4f2538d750e3a526b131399e57b3117fc36e3819b062  docs/acceptance/g6-insight-enum-semantics-928eae01/screenshots/unavailable-execution-detail-state-1440.png
+8dc8eb54d4b24d8023c91792e8eca1f7b2107978ea103f5e55e66d8469dfbcb5  docs/acceptance/g6-insight-enum-semantics-928eae01/verdict.json
+```

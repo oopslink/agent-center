@@ -1,0 +1,200 @@
+{
+  "sha": "928eae010f2f8925e3deab6e4cb6cf2f1da58e7b",
+  "served_origin": "http://127.0.0.1:4173",
+  "finalUrl": "http://127.0.0.1:4173/organizations/acme/insights/projects/proj-1?plan_id=plan-1",
+  "renderedInsight": true,
+  "rawTokens": [
+    "unknown_status",
+    "raw_future_enum",
+    "arbitrary_future_token",
+    "future_outcome",
+    "future_quality",
+    "backend_new_kind",
+    "backend-only",
+    "new_freshness_state",
+    "\"project_id\"",
+    "\"break_kind\"",
+    "[object Object]"
+  ],
+  "results": [
+    {
+      "name": "overview",
+      "kind": "known",
+      "route": "/organizations/acme/insights/overview",
+      "screenshot": "screenshots/known-overview-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightInsight overviewView all executionsPast 24 hours (rolling)8/30, 08:00 AM–8/31, 08:00 AMLocal time · UTC+08:00Refreshed 08:00:01 AMFresh dataCompleted executions10Each execution attempt is counted, including retriesFailure rate20%2 / 10 failedSlot utilization75%Observation coverage 90%Queue waitTypical (P50): 250 msSlow tail (P95): 1.2 s · 8 queue samplesExecution durationTypical (P50): 5 sSlow tail (P95): 2 min 05 s · 10 duration samplesBy agentSorted by completed executions descending, then by ID; up to 20 items.NameCompletedFailureQueue P50 / P95Duration P50 / P95ActionBuilderagent:builder10 completed2/10 (20%)P50 250 ms / P95 1.2 s · 8 samplesP50 5 s / P95 2 min 05 s · 10 samplesView executionsBy projectSorted by completed executions descending, then by ID; up to 20 items.NameCompletedFailureQueue P50 / P95Duration P50 / P95ActionLaunchproj-110 completed2/10 (20%)P50 250 ms / P95 1.2 s · 8 samplesP50 5 s / P95 2 min 05 s · 10 samplesView executionsEach retry is counted as one execution attempt. P50/P95 use only records with valid start/end times.WorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "executions",
+      "kind": "known",
+      "route": "/organizations/acme/insights/executions?window=24h",
+      "screenshot": "screenshots/known-executions-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightTask executionsEach row is one execution attemptPast 24 hours (rolling)Past 24 hours (rolling)8/30, 08:00 AM–8/31, 08:00 AMLocal time · UTC+08:00Refreshed 08:00:01 AMFresh dataStatusTask / ProjectAgentQueuedStartedFinishedQueue waitDurationData hintCompletedShip UILaunchBuilderRecovered by system07:00:00 AM07:00:01 AM07:00:06 AM1 s5 sEnded during recoveryShip UILaunchBuilder07:00:00 AM07:00:01 AM07:00:06 AM1 s5 sPrevious pageNext pageWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "execution-detail",
+      "kind": "known",
+      "route": "/organizations/acme/insights/executions/future",
+      "screenshot": "screenshots/known-execution-detail-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightTaskExecution detailfutureRefreshInsight overview/Task executionsPast 24 hours (rolling)8/30, 08:00 AM–8/31, 08:00 AMLocal time · UTC+08:00Refreshed 08:00:01 AMFresh dataFailedShip UILaunch · BuilderExecution timelineQueued07:00:00 AMQueue wait1 sStarted07:00:01 AMDuration5 sFinished07:00:06 AMResultFailedProcess exited with code 1.TaskShip UIProjectLaunchAgentBuilderWorkerworker-1Execution IDexec-24h-1Command IDcmd-1Invalid time dataThis record is visible, but invalid intervals are excluded from queue and duration percentiles.Technical detailsWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "projects",
+      "kind": "known",
+      "route": "/organizations/acme/insights/projects",
+      "screenshot": "screenshots/known-projects-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightInsight projectsBusiness delivery and runtime-health decision surface for each project.ProjectHealthExecutionsOpen issuesBlocked tasksActive plansReason codesLaunchproj-1Healthy12312No backend reason codesWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "project-detail",
+      "kind": "known",
+      "route": "/organizations/acme/insights/projects/proj-1?plan_id=plan-1",
+      "screenshot": "screenshots/known-project-detail-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightLaunchProject delivery funnel, Plan evolution, and runtime health.Back to Insight projectsRuntime healthHealthyExecutions12Open issues3Blocked tasks1Active plans2No backend reason codesPast 24 hours (rolling)Aug 30, 8:00 AM–Aug 31, 8:00 AMAs of Aug 31, 8:00 AMFresh dataBackend health decisionDegradedknown · samples 1 · coverage 100% · unknown 0Lineage integrity issueIssue / Task / Plan / Done funnelDiagnostic counts from the backend. Funnel breaks use the exact returned DrilldownFilter.Issues9Tasks8Plans4Done1Break kindCountDrilldownFilterIssue without taskAn issue is not connected to a task.1Break: Issue without task · Project: Proj 1 · Status: Unknown valueTask without planA task is not assigned to a Plan.2Break: Task without plan · Project: Proj 1 · Status: Unknown valueTask in multiple containersA task is linked to more than one container.3Break: Task in multiple containers · Project: Proj 1 · Status: Unknown valueDone Plan has non-terminal TaskA completed Plan still has unfinished task work.4Break: Done Plan has non-terminal Task · Project: Proj 1 · Status: Unknown valueDone Plan has open IssueA completed Plan still has open issues.5Break: Done Plan has open Issue · Project: Proj 1 · Status: Unknown valueOld-generation residueOlder Plan generation work remains active.6Break: Old-generation residue · Project: Proj 1 · Status: Unknown valueDelivery SHA lineage mismatchDelivery SHA does not match Plan lineage.7Break: Delivery SHA lineage mismatch · Project: Proj 1 · Status: Unknown valuePlan"
+    },
+    {
+      "name": "lineage",
+      "kind": "known",
+      "route": "/organizations/acme/insights/projects/proj-1/plans/plan-1/lineage",
+      "screenshot": "screenshots/known-lineage-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightLineage plan-1G0..Gn generation lineage with trigger, evidence, node changes, delivery SHA, and verdict.Back to project InsightPast 24 hours (rolling)Aug 30, 8:00 AM–Aug 31, 8:00 AMAs of Aug 31, 8:00 AMFresh dataBackend health decisionHealthyknown · samples 1 · coverage 100% · unknown 0No backend reason codesG0Aug 31, 8:00 AMTriggered byuser:ownerTrigger reasonManual adjustmentRecovery duration0 msRecovery outcomeCompletedDelivery branchfeature/launchDelivery SHA928eae010f2f8925e3deab6e4cb6cf2f1da58e7bVerdictPassEvidence[\n  {\n    \"issue_id\": \"issue-1\"\n  }\n]Node changes[\n  {\n    \"retained\": \"task-1\"\n  }\n]G1Aug 31, 8:00 AMLineage anomalyTriggered byagent:plannerTrigger reasonUnknownRecovery duration—Recovery outcomeUnknownDelivery branch—Delivery SHA—VerdictPendingEvidence[\n  {\n    \"trigger\": \"missing\"\n  }\n]Node changes[\n  {\n    \"added\": \"task-2\"\n  }\n]WorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "agents",
+      "kind": "known",
+      "route": "/organizations/acme/insights/agents",
+      "screenshot": "screenshots/known-agents-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightAgentsOrganization agents using the Insight v2 metric contractAgentHealthExecutionsUnknownCoverageActionBuilderagent:builderHealthy80100%View executionsWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "agent-detail",
+      "kind": "known",
+      "route": "/organizations/acme/insights/agents/agent%3Abuilder",
+      "screenshot": "screenshots/known-agent-detail-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightBuilderagent:builderView executionsInsight overview/AgentsHealthyExecutions8Open issues0Blocked tasks0Active plans1Metric confidenceCoverage100%Unknown0Sample count8WorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "overview",
+      "kind": "future",
+      "route": "/organizations/acme/insights/overview",
+      "screenshot": "screenshots/future-overview-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightInsight overviewView all executionsPast 24 hours (rolling)8/30, 08:00 AM–8/31, 08:00 AMLocal time · UTC+08:00Refreshed 08:00:01 AMFreshness unavailableinsight.state.unknownMetrics remain available but may omit recent executions. Last updated 08:00:01 AM.Completed executions10Each execution attempt is counted, including retriesFailure rate20%2 / 10 failedSlot utilizationCannot determineNo computable capacity baselineQueue waitTypical (P50): 250 msSlow tail (P95): 1.2 s · 8 queue samplesExecution durationTypical (P50): 5 sSlow tail (P95): 2 min 05 s · 10 duration samplesCapacity observation noteNo computable capacity baselineBy agentSorted by completed executions descending, then by ID; up to 20 items.NameCompletedFailureQueue P50 / P95Duration P50 / P95Actionagent:builderagent:builder10 completed2/10 (20%)P50 250 ms / P95 1.2 s · 8 samplesP50 5 s / P95 2 min 05 s · 10 samplesView executionsBy projectSorted by completed executions descending, then by ID; up to 20 items.NameCompletedFailureQueue P50 / P95Duration P50 / P95Actionproj-1proj-110 completed2/10 (20%)P50 250 ms / P95 1.2 s · 8 samplesP50 5 s / P95 2 min 05 s · 10 samplesView executionsEach retry is counted as one execution attempt. P50/P95 use only records with valid start/end times.1 records have invalid time data and were excluded from related duration statistics.1 late observations were processed in this window; metrics are assigned by event time.WorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "executions",
+      "kind": "future",
+      "route": "/organizations/acme/insights/executions?window=24h",
+      "screenshot": "screenshots/future-executions-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightTask executionsEach row is one execution attemptPast 24 hours (rolling)Past 24 hours (rolling)8/30, 08:00 AM–8/31, 08:00 AMLocal time · UTC+08:00Refreshed 08:00:01 AMFresh dataStatusTask / ProjectAgentQueuedStartedFinishedQueue waitDurationData hintOutcome unavailableShip UILaunchBuilder07:00:00 AM07:00:01 AM07:00:06 AM1 s5 sData needs reviewWaiting to startShip UILaunchBuilder07:00:00 AMNot startedNot finished1 s—Previous pageNext pageWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "execution-detail",
+      "kind": "future",
+      "route": "/organizations/acme/insights/executions/future",
+      "screenshot": "screenshots/future-execution-detail-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightTaskExecution detailfutureRefreshInsight overview/Task executionsPast 24 hours (rolling)8/30, 08:00 AM–8/31, 08:00 AMLocal time · UTC+08:00Refreshed 08:00:01 AMFresh dataOutcome unavailableShip UILaunch · BuilderExecution timelineQueued07:00:00 AMQueue wait1 sStarted07:00:01 AMDuration5 sFinished07:00:06 AMResultOutcome unavailableThe execution was not successful.TaskShip UIProjectLaunchAgentBuilderWorkerworker-1Execution IDfutureCommand IDcmd-1Data needs reviewThis record is visible, but invalid intervals are excluded from queue and duration percentiles.Technical detailsWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "projects",
+      "kind": "future",
+      "route": "/organizations/acme/insights/projects",
+      "screenshot": "screenshots/future-projects-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightInsight projectsBusiness delivery and runtime-health decision surface for each project.ProjectHealthExecutionsOpen issuesBlocked tasksActive plansReason codesproj-1proj-1Unknown—312Low observation coverageBackend-defined reasonWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "project-detail",
+      "kind": "future",
+      "route": "/organizations/acme/insights/projects/proj-1?plan_id=plan-1",
+      "screenshot": "screenshots/future-project-detail-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)Insightproj-1Project delivery funnel, Plan evolution, and runtime health.Back to Insight projectsRuntime healthUnknownExecutions—known=falseOpen issues3Blocked tasks1Active plans2Low observation coverageBackend-defined reasonPast 24 hours (rolling)Aug 30, 8:00 AM–Aug 31, 8:00 AMAs of Aug 31, 8:00 AMFresh dataBackend health decisionUnknownknown · samples 1 · coverage 100% · unknown 0Low observation coverageBackend-defined reasonIssue / Task / Plan / Done funnelDiagnostic counts from the backend. Funnel breaks use the exact returned DrilldownFilter.Issues9Tasks8Plans4Done1Break kindCountDrilldownFilterBackend-defined breakThe backend returned a newer break type.—Break: Backend-defined break · Project: Proj 1 · Status: Unknown valuePlan EvolutionGeneration counts, evolution rate, rework, recovery, loop depth, and residue metrics are rendered from backend fields when present.Plans4Evolved plans2Evolution rate50%Generation count7Rework count1Rework ratio25%Recovery effectiveness75%3/4Max loop depth2Stale/orphan residue1ReworkAnomaly: Rework · Project: Proj 1 · Source: Unknown valueRecoveryAnomaly: Recovery · Project: Proj 1 · Source: BackendLoop depthAnomaly: Loop depth · Project: Proj 1 · Source: BackendResidueAnomaly: Residue · Project: Proj 1 · Source: BackendPlan lineageOpen G0..Gn lineage for plan-1.Open lineageWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "lineage",
+      "kind": "future",
+      "route": "/organizations/acme/insights/projects/proj-1/plans/plan-1/lineage",
+      "screenshot": "screenshots/future-lineage-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightLineage plan-1G0..Gn generation lineage with trigger, evidence, node changes, delivery SHA, and verdict.Back to project InsightPast 24 hours (rolling)Aug 30, 8:00 AM–Aug 31, 8:00 AMAs of Aug 31, 8:00 AMFresh dataBackend health decisionUnknownknown · samples 1 · coverage 100% · unknown 0Low observation coverageBackend-defined reasonG0Aug 31, 8:00 AMTriggered byuser:ownerTrigger reasonManual adjustmentRecovery duration0 msRecovery outcomeCompletedDelivery branchfeature/launchDelivery SHA928eae010f2f8925e3deab6e4cb6cf2f1da58e7bVerdictPassEvidence[\n  {\n    \"issue_id\": \"issue-1\"\n  }\n]Node changes[\n  {\n    \"retained\": \"task-1\"\n  }\n]G1Aug 31, 8:00 AMLineage anomalyTriggered byagent:plannerTrigger reasonUnknownRecovery duration—Recovery outcomeUnknownDelivery branch—Delivery SHA—VerdictUnknown valueEvidence[\n  {\n    \"trigger\": \"missing\"\n  }\n]Node changes[\n  {\n    \"added\": \"task-2\"\n  }\n]WorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "agents",
+      "kind": "future",
+      "route": "/organizations/acme/insights/agents",
+      "screenshot": "screenshots/future-agents-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightAgentsOrganization agents using the Insight v2 metric contractAgentHealthExecutionsUnknownCoverageActionagent:builderagent:builderUnknown—4—View executionsWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "agent-detail",
+      "kind": "future",
+      "route": "/organizations/acme/insights/agents/agent%3Abuilder",
+      "screenshot": "screenshots/future-agent-detail-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)Insightagent:builderagent:builderView executionsInsight overview/AgentsUnknownLow observation coverageBackend-defined reasonExecutions—Open issues0Blocked tasks0Active plans1Metric confidenceCoverage—Unknown4Sample count0WorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "empty-projects",
+      "kind": "empty",
+      "route": "/organizations/acme/insights/projects",
+      "screenshot": "screenshots/empty-projects-state-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightInsight projectsBusiness delivery and runtime-health decision surface for each project.No projects are available for InsightThe backend returned an empty v2 project set.WorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "forbidden-projects",
+      "kind": "forbidden",
+      "route": "/organizations/acme/insights/projects",
+      "screenshot": "screenshots/forbidden-projects-state-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightInsight projectsBusiness delivery and runtime-health decision surface for each project.You do not have permission to view organization Insight[403 forbidden] no insight permissionWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "rebuilding-executions",
+      "kind": "rebuilding",
+      "route": "/organizations/acme/insights/executions?window=24h",
+      "screenshot": "screenshots/rebuilding-executions-state-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightTask executionsEach row is one execution attemptPast 24 hours (rolling)Past 24 hours (rolling)8/30, 08:00 AM–8/31, 08:00 AMLocal time · UTC+08:00Refreshed 08:00:00 AMRebuildingInsight is rebuilding[503 insight_rebuilding] rebuildingWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "unavailable-execution-detail",
+      "kind": "unavailable",
+      "route": "/organizations/acme/insights/executions/exec-24h-1",
+      "screenshot": "screenshots/unavailable-execution-detail-state-1440.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightTaskExecution detailexec-24h-1RefreshInsight overview/Task executionsPast 24 hours (rolling)8/30, 08:00 AM–8/31, 08:00 AMLocal time · UTC+08:00Refreshed 08:00:00 AMUnavailableInsight is unavailable[503 insight_unavailable] duckdb unavailableWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "mobile-overview",
+      "kind": "future-mobile",
+      "route": "/organizations/acme/insights/overview",
+      "screenshot": "screenshots/mobile-overview-future-390.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)InsightInsight overviewView all executionsPast 24 hours (rolling)8/30, 08:00 AM–8/31, 08:00 AMLocal time · UTC+08:00Refreshed 08:00:01 AMFreshness unavailableinsight.state.unknownMetrics remain available but may omit recent executions. Last updated 08:00:01 AM.Completed executions10Each execution attempt is counted, including retriesFailure rate20%2 / 10 failedSlot utilizationCannot determineNo computable capacity baselineQueue waitTypical (P50): 250 msSlow tail (P95): 1.2 s · 8 queue samplesExecution durationTypical (P50): 5 sSlow tail (P95): 2 min 05 s · 10 duration samplesCapacity observation noteNo computable capacity baselineBy agentSorted by completed executions descending, then by ID; up to 20 items.NameCompletedFailureQueue P50 / P95Duration P50 / P95Actionagent:builderagent:builder10 completed2/10 (20%)P50 250 ms / P95 1.2 s · 8 samplesP50 5 s / P95 2 min 05 s · 10 samplesView executionsBy projectSorted by completed executions descending, then by ID; up to 20 items.NameCompletedFailureQueue P50 / P95Duration P50 / P95Actionproj-1proj-110 completed2/10 (20%)P50 250 ms / P95 1.2 s · 8 samplesP50 5 s / P95 2 min 05 s · 10 samplesView executionsEach retry is counted as one execution attempt. P50/P95 use only records with valid start/end times.1 records have invalid time data and were excluded from related duration statistics.1 late observations were processed in this window; metrics are assigned by event time.WorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    },
+    {
+      "name": "mobile-project-detail",
+      "kind": "future-mobile",
+      "route": "/organizations/acme/insights/projects/proj-1?plan_id=plan-1",
+      "screenshot": "screenshots/mobile-project-detail-future-390.png",
+      "leaks": [],
+      "text_excerpt": "\n    InsightGGSearch⌘KInsight⌄OverviewAgentsTask executionsProjects0⌄(none)Insightproj-1Project delivery funnel, Plan evolution, and runtime health.Back to Insight projectsRuntime healthUnknownExecutions—known=falseOpen issues3Blocked tasks1Active plans2Low observation coverageBackend-defined reasonPast 24 hours (rolling)Aug 30, 8:00 AM–Aug 31, 8:00 AMAs of Aug 31, 8:00 AMFresh dataBackend health decisionUnknownknown · samples 1 · coverage 100% · unknown 0Low observation coverageBackend-defined reasonIssue / Task / Plan / Done funnelDiagnostic counts from the backend. Funnel breaks use the exact returned DrilldownFilter.Issues9Tasks8Plans4Done1Break kindCountDrilldownFilterBackend-defined breakThe backend returned a newer break type.—Break: Backend-defined break · Project: Proj 1 · Status: Unknown valuePlan EvolutionGeneration counts, evolution rate, rework, recovery, loop depth, and residue metrics are rendered from backend fields when present.Plans4Evolved plans2Evolution rate50%Generation count7Rework count1Rework ratio25%Recovery effectiveness75%3/4Max loop depth2Stale/orphan residue1ReworkAnomaly: Rework · Project: Proj 1 · Source: Unknown valueRecoveryAnomaly: Recovery · Project: Proj 1 · Source: BackendLoop depthAnomaly: Loop depth · Project: Proj 1 · Source: BackendResidueAnomaly: Residue · Project: Proj 1 · Source: BackendPlan lineageOpen G0..Gn lineage for plan-1.Open lineageWorkChatTeamsAccessInsightRemindSys\n  \n\n\n"
+    }
+  ],
+  "console": "[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n[error] Failed to load resource: the server responded with a status of 401 (Unauthorized)\n",
+  "errors": "",
+  "rawTokenScanClean": true
+}

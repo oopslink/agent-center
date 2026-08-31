@@ -1,0 +1,63 @@
+Mon Aug 31 16:55:14 UTC 2026
+cwd: /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-b143271d
+branch: ac-exec/task-e912da96/exec-b143271d
+head: 928eae010f2f8925e3deab6e4cb6cf2f1da58e7b
+candidate remote:
+928eae010f2f8925e3deab6e4cb6cf2f1da58e7b	refs/heads/candidate/g6-insight-enum-semantics-928eae01
+main remote:
+ad7959c60ea0d3004c44d65cfbe2c93de34c9406	refs/heads/main
+head show:
+928eae010f2f8925e3deab6e4cb6cf2f1da58e7b
+HEAD -> ac-exec/task-e912da96/exec-b143271d, origin/candidate/g6-insight-enum-semantics-928eae01, candidate/g6-insight-enum-semantics-928eae01
+2026-09-01 00:46:57 +0800
+merge(insight): freeze G6 enum semantics candidate
+status:
+## ac-exec/task-e912da96/exec-b143271d
+?? docs/acceptance/g6-insight-enum-semantics-928eae01/
+task input readme:
+# Task Input Package
+
+This package was materialized locally for the T1850 replay candidate because the
+workspace did not contain the supervisor-declared `task-input/v1` files at
+executor start.
+
+Scope:
+
+- Task: replay T1850 worker authoritative readback onto fresh current-main.
+- Source implementation: `65eab385a93199d98fe3b367d4d07bc627cda7f2`.
+- Required predecessor/production-chain anchor:
+  `7f4cfcc43e0360f31e756bb453e675db50cc26c6`.
+- Fresh base observed before edits:
+  `3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5` (`origin/main`).
+
+Attachments:
+
+- No task attachments were present in this workspace.
+- `manifest.json` records an empty attachment list with size, MIME, and SHA256
+  fields available for any future attachment entries.
+
+Isolation note:
+
+- No agent-center control-plane tools, databases, sockets, worker tokens,
+  runtime config fallbacks, or raw HTTP endpoints were used to recover this
+  package.
+task input manifest:
+{
+  "schema": "task-input/v1",
+  "materialized_at": "2026-08-31T12:18:00+08:00",
+  "materialization_note": "Supervisor-declared task-input/v1 files were absent in the workspace; this manifest records the local package and the absence of attachments.",
+  "task": {
+    "id": "T1850",
+    "title": "Replay worker authoritative readback implementation onto fresh current-main",
+    "source_commit": "65eab385a93199d98fe3b367d4d07bc627cda7f2",
+    "required_chain_anchor": "7f4cfcc43e0360f31e756bb453e675db50cc26c6",
+    "fresh_base": "3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5"
+  },
+  "attachments": [],
+  "attachment_fields": {
+    "path": "task-input/v1/attachments/<name>",
+    "size_bytes": "integer",
+    "mime_type": "string",
+    "sha256": "hex"
+  }
+}
