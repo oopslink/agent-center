@@ -259,25 +259,7 @@ export function RoleBuilder({
             </div>
             <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_10rem]">
               <div>
-                <SmallLabel>{t('roleBuilder.ramRoleLabel')}</SmallLabel>
-                <select
-                  className={inputCls}
-                  value={roleValue(r.access_requirements ?? [], ramRolesQuery.data?.roles ?? [])}
-                  data-testid={`${idPrefix}-role-${i}-access-role`}
-                  onChange={(e) => {
-                    const role = ramRolesQuery.data?.roles.find((p) => `${p.id}@${p.version}` === e.target.value);
-                    patch(i, { access_requirements: role ? role.permissions : [] });
-                  }}
-                  disabled={ramRolesQuery.isLoading}
-                >
-                  <option value="">{t('roleBuilder.ramRoleNone')}</option>
-                  {(ramRolesQuery.data?.roles ?? []).map((role) => (
-                    <option key={`${role.id}@${role.version}`} value={`${role.id}@${role.version}`}>
-                      {t('roleBuilder.ramRoleOption', { name: role.name, version: role.version })}
-                    </option>
-                  ))}
-                </select>
-                <div className="mt-2 rounded border border-border-base bg-bg-subtle p-2" data-testid={`${idPrefix}-role-${i}-ram-role-picker`}>
+                <div className="rounded border border-border-base bg-bg-subtle p-2" data-testid={`${idPrefix}-role-${i}-ram-role-picker`}>
                   <div className="mb-1.5 flex items-center justify-between gap-2">
                     <span className="text-[0.6875rem] font-semibold text-text-secondary">{t('roleBuilder.ramRoleMultiLabel')}</span>
                     <span className="text-[0.6875rem] text-text-muted" data-testid={`${idPrefix}-role-${i}-ram-role-summary`}>
@@ -351,12 +333,6 @@ export function RoleBuilder({
 
 export function totalSlots(roles: RoleInput[]): number {
   return roles.reduce((s, r) => s + r.count, 0);
-}
-
-function roleValue(requirements: string[], roles: Array<{ id: string; version: number; permissions: string[] }>): string {
-  const normalized = requirements.slice().sort().join('\n');
-  const role = roles.find((p) => p.permissions.slice().sort().join('\n') === normalized);
-  return role ? `${role.id}@${role.version}` : '';
 }
 
 function ramRoleValue(role: { id: string; name: string }, mode: 'keys' | 'ids'): string {

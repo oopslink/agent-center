@@ -187,6 +187,17 @@ describe('TeamDetail', () => {
     expect(screen.queryByTestId('edit-team-roles-modal')).not.toBeInTheDocument();
   });
 
+  it('edits Team Roles with only the multi RAM roles picker', async () => {
+    renderAt('team-7c19b0');
+    fireEvent.click(await screen.findByTestId('tab-rl'));
+    fireEvent.click(await screen.findByTestId('team-add-role'));
+
+    const modal = await screen.findByTestId('team-edit-roles-modal');
+    expect(within(modal).queryByTestId('team-edit-role-0-access-role')).not.toBeInTheDocument();
+    expect(within(modal).getByTestId('team-edit-role-0-ram-role-picker')).toHaveTextContent('RAM roles');
+    expect(within(modal).getByTestId('team-edit-role-0-ram-role-summary')).toHaveTextContent('1 roles');
+  });
+
   it('keeps long role capabilities compact in the members table', async () => {
     server.use(http.get('/api/teams/:id/members', () => HttpResponse.json([{
       team_id: 'team-7c19b0',

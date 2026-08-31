@@ -82,8 +82,10 @@ describe('Teams list', () => {
     expect(within(modal).getByTestId('new-team-role-2')).toBeInTheDocument();
     fireEvent.click(within(modal).getByTestId('new-team-role-2-remove'));
 
-    const role = await within(modal).findByTestId('new-team-role-0-access-role');
-    fireEvent.change(role, { target: { value: 'team-contributor@1' } });
+    expect(within(modal).queryByTestId('new-team-role-0-access-role')).not.toBeInTheDocument();
+    fireEvent.click(await within(modal).findByTestId('new-team-role-0-ram-role-trigger'));
+    const roleOptions = await screen.findByTestId('new-team-role-0-ram-role-options');
+    fireEvent.click(within(roleOptions).getAllByTestId('new-team-role-0-ram-role-option').find((option) => option.getAttribute('data-value') === 'Team contributor') as HTMLElement);
     expect(within(modal).getByTestId('new-team-role-0-access-permissions')).toHaveTextContent('team.memory.propose');
 
     fireEvent.change(await within(modal).findByTestId('new-team-assignment-subject'), { target: { value: 'agent:agent-d5' } });
@@ -96,7 +98,8 @@ describe('Teams list', () => {
     fireEvent.click(within(modal).getByTestId('new-team-submit'));
     await waitFor(() => expect(screen.getByTestId('loc').textContent).toMatch(/^\/teams\/team-/));
     expect(body?.candidate_assignments).toEqual([{ subject_ref: 'agent:agent-d5', role: 'planner' }]);
-    expect(body?.roles?.[0]?.access_requirements).toEqual(['team.read', 'team.write', 'team.memory.read', 'team.memory.propose']);
+    expect(body?.roles?.[0]?.access_requirements).toEqual(expect.arrayContaining(['team.read', 'team.write', 'team.memory.read', 'team.memory.propose']));
+    expect(body?.roles?.[0]?.access_requirements).toHaveLength(4);
   });
 
   it('blocks team creation when role runtime selection is not in the AI Runtime catalog', async () => {
