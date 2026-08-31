@@ -1,0 +1,155 @@
+{
+  "task_id": "task-a2ff95c2",
+  "execution_id": "exec-d98c423f",
+  "reviewed_sha": "99ec1e392546d1e8054b1a0adcb2b05600588249",
+  "base_sha": "36de9846a82bca5e3f8de97e62688387d7ca8d47",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 ls -la \u0026\u0026 find task-input/v1 -maxdepth 3 -type f -print'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"find task-input/v1 -maxdepth 4 -print -exec stat -f '%N %z bytes %Sm' {} \\\\;\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'shasum -a 256 task-input/v1/README.md task-input/v1/manifest.json \u0026\u0026 file --mime-type task-input/v1/README.md task-input/v1/manifest.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git branch --show-current \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'date -u +%Y-%m-%dT%H:%M:%SZ'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate -n 8'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git merge-base HEAD origin/main || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'mkdir -p evidence/insight-production-reverification'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'jq . evidence/insight-production-reverification/verdict.json \u003e/dev/null \u0026\u0026 echo verdict-json-ok'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' evidence/insight-production-reverification/verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'git add evidence/insight-production-reverification/task-input-audit.md evidence/insight-production-reverification/verdict.json \u0026\u0026 git commit -m \"chore: archive insight reverification block evidence\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'git push origin HEAD:ac-exec/task-a2ff95c2/exec-d98c423f'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"git config --get-regexp '\"'^remote'\"\\\\.(origin|origin-push)\\\\.'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-a2ff95c2/exec-d98c423f'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"jq -r '.verdict + \\\" \\\" + .reason' evidence/insight-production-reverification/verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-a2ff95c2/exec-d98c423f'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-d98c423f/command_events.jsonl",
+  "command_event_digest": "sha256:dd421ae3182cb80914b3c5dc8f9f1dd66e24c61ea3e410fab7ca8b5b3732bf54",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "结论：`BLOCK`，未放行。",
+  "artifact_digest": "sha256:630f7234d4da4dbeb8b39c8c5dbe0edb13e88184254fa632bdda32c0bb17cdfc",
+  "path": ".agent-center/evidence/task-a2ff95c2/exec-d98c423f.json",
+  "branch": "ac-exec/task-a2ff95c2/exec-d98c423f"
+}
