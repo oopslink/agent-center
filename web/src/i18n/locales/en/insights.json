@@ -7,6 +7,9 @@
       "byProject": "By project",
       "tableSubtitle": "Sorted by completed executions descending, then by ID; up to 20 items."
     },
+    "nav": {
+      "section": "Insight"
+    },
     "executions": {
       "title": "Task executions",
       "subtitle": "Each row is one execution attempt"
@@ -38,7 +41,8 @@
       "fresh": "Fresh data",
       "stale": "Data delayed",
       "rebuilding": "Rebuilding",
-      "unavailable": "Unavailable"
+      "unavailable": "Unavailable",
+      "unknown": "Freshness unknown"
     },
     "state": {
       "loadingOverview": "Loading Insight overview",
@@ -56,6 +60,7 @@
       "staleBody": "Metrics remain available but may omit recent executions. Last updated {{time}}.",
       "rebuilding": "Insight is rebuilding",
       "unavailable": "Insight is unavailable",
+      "unknownFreshness": "Insight freshness is unknown",
       "unauthorized": "You do not have permission to view organization Insight",
       "detailMissing": "This TaskExecution was not found in the current organization",
       "detailMissingBody": "It may be outside the current 24-hour Insight window."

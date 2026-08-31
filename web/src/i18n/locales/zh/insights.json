@@ -7,18 +7,21 @@
       "byProject": "按项目查看",
       "tableSubtitle": "按已结束执行次数降序；同数时按 ID 排序；最多显示 20 项。"
     },
+    "nav": {
+      "section": "洞察"
+    },
     "executions": {
-      "title": "Task executions",
+      "title": "任务执行记录",
       "subtitle": "每行代表一次执行尝试"
     },
     "detail": {
-      "title": "TaskExecution 详情",
+      "title": "任务执行详情",
       "timeline": "执行时间线",
       "result": "结果",
-      "task": "Task",
+      "task": "任务",
       "project": "项目",
       "agent": "智能体",
-      "worker": "Worker",
+      "worker": "工作节点",
       "technical": "技术详情"
     },
     "actions": {
@@ -38,7 +41,8 @@
       "fresh": "数据最新",
       "stale": "数据延迟",
       "rebuilding": "正在重建",
-      "unavailable": "暂不可用"
+      "unavailable": "暂不可用",
+      "unknown": "新鲜度未知"
     },
     "state": {
       "loadingOverview": "正在加载 Insight 概览",
@@ -56,8 +60,9 @@
       "staleBody": "指标仍可查看，但可能缺少最近发生的执行。最后更新于 {{time}}。",
       "rebuilding": "Insight 正在重建",
       "unavailable": "Insight 暂不可用",
+      "unknownFreshness": "Insight 数据新鲜度未知",
       "unauthorized": "你没有查看组织 Insight 的权限",
-      "detailMissing": "当前组织中找不到这条 TaskExecution",
+      "detailMissing": "当前组织中找不到这条任务执行记录",
       "detailMissingBody": "它可能不在当前 24 小时 Insight 窗口内。"
     },
     "metric": {
