@@ -1,0 +1,419 @@
+{
+  "task_id": "task-bcec75fe",
+  "execution_id": "exec-f541c46c",
+  "reviewed_sha": "ad7959c60ea0d3004c44d65cfbe2c93de34c9406",
+  "base_sha": "ad7959c60ea0d3004c44d65cfbe2c93de34c9406",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 ls \u0026\u0026 sed -n '1,240p' /Users/oopslink/.agents/skills/agent-browser/SKILL.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'rg -n \"G3|frozen|freeze|Insight|Overview|TaskExecution|Lineage|Evolution|delivery_contract|evidence_only|65eab385|7f4cfcc|3b2b45\" -S .'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"rg --files | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"find task-input -maxdepth 4 -type f -print -exec shasum -a 256 {} \\\\;\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git status --short \u0026\u0026 git log --oneline -n 20'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"sed -n '1,430p' docs/design/features/insight-phase-1-contract.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"find web -maxdepth 2 -type f | sort | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"sed -n '1,180p' Makefile \u0026\u0026 sed -n '1,220p' web/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"find cmd internal -maxdepth 3 -type f | sort | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"find web/src -type f | sort | rg 'Insight|insight|Project|Task|Agent'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"rg -n \\\"insights|Insight|executions|TaskExecution|delivery|lineage|evolution|overview\\\" web/src internal cmd -S --glob '\"'!**/node_modules/**'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"find internal -type f | rg 'insight|Insight'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate HEAD \u0026\u0026 git branch --show-current \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/pages/InsightOverview.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"sed -n '1,330p' internal/webconsole/api/handlers_insights.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"sed -n '260,620p' web/src/pages/InsightOverview.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/api/insights.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' web/src/OrgContext.tsx \u0026\u0026 sed -n '1,220p' web/src/AppLayout.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/src/api/client.ts \u0026\u0026 sed -n '1,220p' web/src/App.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/src/mocks/handlers.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"sed -n '620,760p' web/src/mocks/handlers.ts \u0026\u0026 sed -n '1,150p' web/src/pages/InsightOverview.test.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/insight/contract_v2.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"sed -n '260,560p' internal/insight/contract_v2.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/insight/types.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"sed -n '200,620p' internal/webconsole/api/handlers_insights_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"sed -n '520,780p' internal/insight/service_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc 'rg -n \"V2|Delivery|Evolution|Lineage|Break|status\" internal/insight/service_test.go internal/webconsole/api/handlers_insights_test.go web/src/pages/InsightOverview.test.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"sed -n '150,360p' web/src/pages/InsightOverview.test.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc 'rg -n \"insight\" web/src/shell web/src/AppLayout.tsx web/src/i18n/locales/en/insights.json web/src/i18n/locales/zh/insights.json -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'pnpm --dir web exec vitest run src/pages/InsightOverview.test.tsx'",
+      "exit_status": 254
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"go test ./internal/insight ./internal/webconsole/api -run 'TestInsightV2DeliveryEvolutionAndLineage|TestInsightsV2OverviewRouteShape|TestInsightsV2ExecutionsRequiresContext|TestInsightsExecutionAPI_ReadsSingleProjectedExecution|TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound' -count=1\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc 'pnpm --dir web install --frozen-lockfile'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"sed -n '220,260p' web/src/AppLayout.tsx \u0026\u0026 sed -n '1,120p' web/src/i18n/locales/en/insights.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc 'pnpm --dir web exec vitest run src/pages/InsightOverview.test.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/vite.config.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"sed -n '120,220p' web/src/i18n/locales/en/insights.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/src/api/auth.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/g3-insight-visual'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst http = require('http');\nconst now = new Date('2026-08-31T13:30:00Z');\nconst iso = (d)=\u003ed.toISOString();\nconst windowEnvelope = {window:{kind:'rolling',duration:'24h',start:iso(new Date(now-24*3600*1000)),end:iso(now)},as_of:iso(now),refreshed_at:iso(new Date(now-2000)),freshness:{state:'fresh',age_ms:2000,threshold_ms:120000}};\nconst pct={p50:1250,p95:94000,samples:7};\nconst dur={p50:420000,p95:1800000,samples:9};\nconst summary={completed_executions:9,failed_executions:3,failure_rate:1/3,slot_utilization:0.62,slot_coverage_ratio:0.91,queue_wait_ms:pct,execution_duration_ms:dur};\nconst rowBase={command_id:'cmd-g3-1',task_id:'task-g3-1',task_ref:'T1850',task_title:'Replay worker authoritative readback',agent_ref:'agent:insight-g3',agent_name:'Insight G3 Executor',project_id:'project-g3',project_name:'G3 Insight Candidate',worker_id:'worker-isolated-g3',queued_at:'2026-08-31T12:50:00Z',started_at:'2026-08-31T12:50:02Z',finished_at:'2026-08-31T12:57:02Z',queue_wait_ms:2000,duration_ms:420000,recovered:false,quality:'valid'};\nconst executions=[\n {...rowBase,execution_id:'exec-succeeded',outcome:'succeeded',failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null},\n {...rowBase,execution_id:'exec-failed',task_title:'Failing candidate check',outcome:'failed',failure_reason:'nonzero_exit',failure_message:'Process exited with code 1.',command_status:'started',status_reason:null,status_message:null},\n {...rowBase,execution_id:'exec-crashed',task_title:'Runtime interrupted',outcome:'crashed',failure_reason:'process_gone',failure_message:null,command_status:'started',status_reason:null,status_message:null,recovered:true},\n {...rowBase,execution_id:'exec-quiet',task_title:'Recovered terminal readback',outcome:'quiet_finalized',failure_reason:'stalled',failure_message:null,command_status:'started',status_reason:null,status_message:null},\n {...rowBase,execution_id:'exec-running',task_title:'Still executing',outcome:null,failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null,finished_at:null,duration_ms:null},\n {...rowBase,execution_id:'exec-rejected',task_title:'Admission rejected',outcome:null,failure_reason:null,failure_message:null,command_status:'rejected',status_reason:'no_capacity',status_message:'No capacity',started_at:null,finished_at:null,queue_wait_ms:null,duration_ms:null},\n {...rowBase,execution_id:'exec-bad-time',task_title:'Invalid time ordering sample',outcome:'failed',failure_reason:'nonzero_exit',failure_message:null,command_status:'started',status_reason:null,status_message:null,quality:'invalid_time_order',duration_ms:-1000},\n {...rowBase,execution_id:'exec-new-enum',task_title:'Future enum sample',outcome:'new_enum',failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null,quality:'future_quality'}\n];\nconst json=(res,status,obj)=\u003e{res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify(obj));};\nconst server=http.createServer((req,res)=\u003e{\n const u=new URL(req.url,'http://127.0.0.1:7100');\n if (u.pathname==='/api/sse') {res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache'}); res.write(': ok\\\\n\\\\n'); return;}\n if (u.pathname==='/api/auth/me') return json(res,200,{identity_id:'user-g3-reviewer',display_name:'G3 Reviewer',kind:'user'});\n if (u.pathname==='/api/orgs') return json(res,200,[{id:'org-g3',slug:'acme',name:'ACME G3 Review',created_at:'2026-08-31T00:00:00Z',role:'owner'}]);\n if (u.pathname==='/api/orgs/acme/projects') return json(res,200,{projects:[{id:'project-g3',name:'G3 Insight Candidate',description:'',status:'active',created_at:'2026-08-31T00:00:00Z',updated_at:'2026-08-31T00:00:00Z'}]});\n if (u.pathname.includes('/permissions/effective')) return json(res,200,{subject_ref:'user:user-g3-reviewer',resource:{kind:'org',id:'org-g3',org_id:'org-g3'},permissions:[{key:'org.analytics.read',source:'org_role',evidence_ref:'mock:g3',delegatable:false},{key:'org.read',source:'org_role',evidence_ref:'mock:g3',delegatable:false}]});\n if (u.pathname==='/api/orgs/acme/insights/overview') return json(res,200,{...windowEnvelope,summary,agents:[{agent_ref:'agent:insight-g3',display_name:'Insight G3 Executor',summary}],projects:[{project_id:'project-g3',name:'G3 Insight Candidate',summary}],diagnostics:{invalid_facts:1,late_events:2}});\n if (u.pathname==='/api/orgs/acme/insights/executions') return json(res,200,{...windowEnvelope,executions,next_cursor:null});\n const m=u.pathname.match(/\"'^'\"\\\\/api\\\\/orgs\\\\/acme\\\\/insights\\\\/executions\\\\/([\"'^/]+)$/);\n if (m) { const row=executions.find(e=\u003ee.execution_id===decodeURIComponent(m[1])); if (!row) return json(res,404,{error:'\"'not_found',message:'execution not found'}); return json(res,200,{...windowEnvelope,execution:row}); }\n if (u.pathname==='/api/orgs/acme/attention') return json(res,200,{items:[]});\n if (u.pathname==='/api/orgs/acme/conversations' || u.pathname==='/api/orgs/acme/conversations/unread') return json(res,200,{conversations:[],items:[]});\n return json(res,200,{});\n});\nserver.listen(7100,'127.0.0.1',()=\u003econsole.log('mock-api identity=g3-local-mock port=7100 sha=ad7959c60ea0d3004c44d65cfbe2c93de34c9406'));\nNODE\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc 'agent-browser open http://127.0.0.1:6183/organizations/acme/insights/overview \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot docs/acceptance/g3-insight-visual/01-overview.png \u0026\u0026 agent-browser snapshot -i'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'agent-browser get url \u0026\u0026 agent-browser get title \u0026\u0026 agent-browser snapshot -i -C'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc \"node --input-type=module - \u003c\u003c'NODE'\nimport http from 'node:http';\nimport { createServer as createViteServer } from './web/node_modules/vite/dist/node/index.js';\nconst port = 6183;\nconst reviewedSHA='ad7959c60ea0d3004c44d65cfbe2c93de34c9406';\nconst now = new Date('2026-08-31T13:30:00Z');\nconst iso = (d)=\u003ed.toISOString();\nconst envelope = {window:{kind:'rolling',duration:'24h',start:iso(new Date(now-24*3600*1000)),end:iso(now)},as_of:iso(now),refreshed_at:iso(new Date(now-2000)),freshness:{state:'fresh',age_ms:2000,threshold_ms:120000}};\nconst summary={completed_executions:9,failed_executions:3,failure_rate:1/3,slot_utilization:0.62,slot_coverage_ratio:0.91,queue_wait_ms:{p50:1250,p95:94000,samples:7},execution_duration_ms:{p50:420000,p95:1800000,samples:9}};\nconst rowBase={command_id:'cmd-g3-1',task_id:'task-g3-1',task_ref:'T1850',task_title:'Replay worker authoritative readback',agent_ref:'agent:insight-g3',agent_name:'Insight G3 Executor',project_id:'project-g3',project_name:'G3 Insight Candidate',worker_id:'worker-isolated-g3',queued_at:'2026-08-31T12:50:00Z',started_at:'2026-08-31T12:50:02Z',finished_at:'2026-08-31T12:57:02Z',queue_wait_ms:2000,duration_ms:420000,recovered:false,quality:'valid'};\nconst executions=[\n {...rowBase,execution_id:'exec-succeeded',outcome:'succeeded',failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null},\n {...rowBase,execution_id:'exec-failed',task_title:'Failing candidate check',outcome:'failed',failure_reason:'nonzero_exit',failure_message:'Process exited with code 1.',command_status:'started',status_reason:null,status_message:null},\n {...rowBase,execution_id:'exec-crashed',task_title:'Runtime interrupted',outcome:'crashed',failure_reason:'process_gone',failure_message:null,command_status:'started',status_reason:null,status_message:null,recovered:true},\n {...rowBase,execution_id:'exec-quiet',task_title:'Recovered terminal readback',outcome:'quiet_finalized',failure_reason:'stalled',failure_message:null,command_status:'started',status_reason:null,status_message:null},\n {...rowBase,execution_id:'exec-running',task_title:'Still executing',outcome:null,failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null,finished_at:null,duration_ms:null},\n {...rowBase,execution_id:'exec-rejected',task_title:'Admission rejected',outcome:null,failure_reason:null,failure_message:null,command_status:'rejected',status_reason:'no_capacity',status_message:'No capacity',started_at:null,finished_at:null,queue_wait_ms:null,duration_ms:null},\n {...rowBase,execution_id:'exec-bad-time',task_title:'Invalid time ordering sample',outcome:'failed',failure_reason:'nonzero_exit',failure_message:null,command_status:'started',status_reason:null,status_message:null,quality:'invalid_time_order',duration_ms:-1000},\n {...rowBase,execution_id:'exec-new-enum',task_title:'Future enum sample',outcome:'new_enum',failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null,quality:'future_quality'}\n];\nconst api = (req,res,next)=\u003e{\n const u=new URL(req.url,\"'`http://127.0.0.1:${port}`);\n if (!u.pathname.startsWith('\"'/api')) return next();\n const json=(status,obj)=\u003e{res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify(obj));};\n if (u.pathname==='/api/sse') {res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache'}); res.write(': ok\\\\n\\\\n'); return;}\n if (u.pathname==='/api/auth/me') return json(200,{identity_id:'user-g3-reviewer',display_name:'G3 Reviewer',kind:'user'});\n if (u.pathname==='/api/orgs') return json(200,[{id:'org-g3',slug:'acme',name:'ACME G3 Review',created_at:'2026-08-31T00:00:00Z',role:'owner'}]);\n if (u.pathname==='/api/orgs/acme/projects') return json(200,{projects:[{id:'project-g3',name:'G3 Insight Candidate',description:'',status:'active',created_at:'2026-08-31T00:00:00Z',updated_at:'2026-08-31T00:00:00Z'}]});\n if (u.pathname.includes('/permissions/effective')) return json(200,{subject_ref:'user:user-g3-reviewer',resource:{kind:'org',id:'org-g3',org_id:'org-g3'},permissions:[{key:'org.analytics.read',source:'org_role',evidence_ref:'mock:g3',delegatable:false},{key:'org.read',source:'org_role',evidence_ref:'mock:g3',delegatable:false}]});\n if (u.pathname==='/api/orgs/acme/insights/overview') return json(200,{...envelope,summary,agents:[{agent_ref:'agent:insight-g3',display_name:'Insight G3 Executor',summary}],projects:[{project_id:'project-g3',name:'G3 Insight Candidate',summary}],diagnostics:{invalid_facts:1,late_events:2}});\n if (u.pathname==='/api/orgs/acme/insights/executions') return json(200,{...envelope,executions,next_cursor:null});\n const m=u.pathname.match(/\"'^'\"\\\\/api\\\\/orgs\\\\/acme\\\\/insights\\\\/executions\\\\/([\"'^/]+)$/);\n if (m) { const row=executions.find(e=\u003ee.execution_id===decodeURIComponent(m[1])); return row ? json(200,{...envelope,execution:row}) : json(404,{error:'\"'not_found',message:'execution not found'}); }\n if (u.pathname==='/api/orgs/acme/attention') return json(200,{items:[]});\n if (u.pathname==='/api/orgs/acme/conversations' || u.pathname==='/api/orgs/acme/conversations/unread') return json(200,{conversations:[],items:[]});\n return json(200,{});\n};\nconst vite = await createViteServer({root:'web',server:{middlewareMode:true},appType:'spa',clearScreen:false});\nconst server=http.createServer((req,res)=\u003eapi(req,res,()=\u003evite.middlewares(req,res)));\nserver.listen(port,'127.0.0.1',()=\u003econsole.log(\"'`g3-insight-isolated-instance url=http://127.0.0.1:${port} source=local-vite-middleware mock_api=in-process reviewed_sha=${reviewedSHA}`));\nNODE'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc \"find . -path '*g3-insight-visual*' -maxdepth 5 -type f -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc 'agent-browser open http://127.0.0.1:6183/organizations/acme/insights/overview \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/01-overview.png \u0026\u0026 agent-browser snapshot -i -C'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc \"node --input-type=module - \u003c\u003c'NODE'\nimport http from 'node:http';\nimport { createServer as createViteServer } from './web/node_modules/vite/dist/node/index.js';\nconst port = 6183;\nconst reviewedSHA='ad7959c60ea0d3004c44d65cfbe2c93de34c9406';\nconst now = new Date('2026-08-31T13:30:00Z');\nconst iso = (d)=\u003ed.toISOString();\nconst envelope = {window:{kind:'rolling',duration:'24h',start:iso(new Date(now-24*3600*1000)),end:iso(now)},as_of:iso(now),refreshed_at:iso(new Date(now-2000)),freshness:{state:'fresh',age_ms:2000,threshold_ms:120000}};\nconst summary={completed_executions:9,failed_executions:3,failure_rate:1/3,slot_utilization:0.62,slot_coverage_ratio:0.91,queue_wait_ms:{p50:1250,p95:94000,samples:7},execution_duration_ms:{p50:420000,p95:1800000,samples:9}};\nconst rowBase={command_id:'cmd-g3-1',task_id:'task-g3-1',task_ref:'T1850',task_title:'Replay worker authoritative readback',agent_ref:'agent:insight-g3',agent_name:'Insight G3 Executor',project_id:'project-g3',project_name:'G3 Insight Candidate',worker_id:'worker-isolated-g3',queued_at:'2026-08-31T12:50:00Z',started_at:'2026-08-31T12:50:02Z',finished_at:'2026-08-31T12:57:02Z',queue_wait_ms:2000,duration_ms:420000,recovered:false,quality:'valid'};\nconst executions=[\n {...rowBase,execution_id:'exec-succeeded',outcome:'succeeded',failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null},\n {...rowBase,execution_id:'exec-failed',task_title:'Failing candidate check',outcome:'failed',failure_reason:'nonzero_exit',failure_message:'Process exited with code 1.',command_status:'started',status_reason:null,status_message:null},\n {...rowBase,execution_id:'exec-crashed',task_title:'Runtime interrupted',outcome:'crashed',failure_reason:'process_gone',failure_message:null,command_status:'started',status_reason:null,status_message:null,recovered:true},\n {...rowBase,execution_id:'exec-quiet',task_title:'Recovered terminal readback',outcome:'quiet_finalized',failure_reason:'stalled',failure_message:null,command_status:'started',status_reason:null,status_message:null},\n {...rowBase,execution_id:'exec-running',task_title:'Still executing',outcome:null,failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null,finished_at:null,duration_ms:null},\n {...rowBase,execution_id:'exec-rejected',task_title:'Admission rejected',outcome:null,failure_reason:null,failure_message:null,command_status:'rejected',status_reason:'no_capacity',status_message:'No capacity',started_at:null,finished_at:null,queue_wait_ms:null,duration_ms:null},\n {...rowBase,execution_id:'exec-bad-time',task_title:'Invalid time ordering sample',outcome:'failed',failure_reason:'nonzero_exit',failure_message:null,command_status:'started',status_reason:null,status_message:null,quality:'invalid_time_order',duration_ms:-1000},\n {...rowBase,execution_id:'exec-new-enum',task_title:'Future enum sample',outcome:'new_enum',failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null,quality:'future_quality'}\n];\nconst api = (req,res,next)=\u003e{\n const u=new URL(req.url,\"'`http://127.0.0.1:${port}`);\n if (!u.pathname.startsWith('\"'/api')) return next();\n const json=(status,obj)=\u003e{res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify(obj));};\n if (u.pathname==='/api/sse') {res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache'}); res.write(': ok\\\\n\\\\n'); return;}\n if (u.pathname==='/api/auth/me') return json(200,{identity_id:'user-g3-reviewer',display_name:'G3 Reviewer',kind:'user'});\n if (u.pathname==='/api/orgs') return json(200,[{id:'org-g3',slug:'acme',name:'ACME G3 Review',created_at:'2026-08-31T00:00:00Z',role:'owner'}]);\n if (u.pathname==='/api/orgs/acme/projects') return json(200,[{id:'project-g3',name:'G3 Insight Candidate',description:'',status:'active',created_at:'2026-08-31T00:00:00Z',updated_at:'2026-08-31T00:00:00Z'}]);\n if (u.pathname.includes('/permissions/effective')) return json(200,{subject_ref:'user:user-g3-reviewer',resource:{kind:'org',id:'org-g3',org_id:'org-g3'},permissions:[{key:'org.analytics.read',source:'org_role',evidence_ref:'mock:g3',delegatable:false},{key:'org.read',source:'org_role',evidence_ref:'mock:g3',delegatable:false}]});\n if (u.pathname==='/api/orgs/acme/insights/overview') return json(200,{...envelope,summary,agents:[{agent_ref:'agent:insight-g3',display_name:'Insight G3 Executor',summary}],projects:[{project_id:'project-g3',name:'G3 Insight Candidate',summary}],diagnostics:{invalid_facts:1,late_events:2}});\n if (u.pathname==='/api/orgs/acme/insights/executions') return json(200,{...envelope,executions,next_cursor:null});\n const m=u.pathname.match(/\"'^'\"\\\\/api\\\\/orgs\\\\/acme\\\\/insights\\\\/executions\\\\/([\"'^/]+)$/);\n if (m) { const row=executions.find(e=\u003ee.execution_id===decodeURIComponent(m[1])); return row ? json(200,{...envelope,execution:row}) : json(404,{error:'\"'not_found',message:'execution not found'}); }\n if (u.pathname==='/api/orgs/acme/attention') return json(200,{items:[]});\n if (u.pathname==='/api/orgs/acme/conversations' || u.pathname==='/api/orgs/acme/conversations/unread') return json(200,[]);\n return json(200,{});\n};\nconst vite = await createViteServer({root:'web',server:{middlewareMode:true},appType:'spa',clearScreen:false});\nconst server=http.createServer((req,res)=\u003eapi(req,res,()=\u003evite.middlewares(req,res)));\nserver.listen(port,'127.0.0.1',()=\u003econsole.log(\"'`g3-insight-isolated-instance url=http://127.0.0.1:${port} source=local-vite-middleware mock_api=in-process reviewed_sha=${reviewedSHA}`));\nNODE'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc 'agent-browser open http://127.0.0.1:6183/organizations/acme/insights/overview \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/01-overview.png \u0026\u0026 agent-browser snapshot -i -C'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'agent-browser wait 2500 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/01-overview.png \u0026\u0026 agent-browser snapshot -i -C'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc 'agent-browser click @e17 \u0026\u0026 agent-browser wait 1500 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/02-execution-list.png \u0026\u0026 agent-browser snapshot -i -C'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc 'agent-browser open http://127.0.0.1:6183/organizations/acme/insights/executions/exec-failed \u0026\u0026 agent-browser wait 1500 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/03-execution-detail.png \u0026\u0026 agent-browser snapshot -i -C'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc 'agent-browser open http://127.0.0.1:6183/organizations/acme/insights/overview \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser click @e18 \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/04-agent-drilldown-404.png \u0026\u0026 agent-browser open http://127.0.0.1:6183/organizations/acme/insights/overview \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser click @e19 \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/05-project-drilldown-404.png \u0026\u0026 agent-browser snapshot -i -C'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc \"agent-browser open 'http://127.0.0.1:6183/organizations/acme/insights/executions?window=24h\u0026agent_ref=agent%3Ainsight-g3' \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/04-agent-drilldown-404.png \u0026\u0026 agent-browser open 'http://127.0.0.1:6183/organizations/acme/insights/executions?window=24h\u0026project_id=project-g3' \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/05-project-drilldown-404.png \u0026\u0026 agent-browser snapshot -i -C\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc \"go test ./internal/insight ./internal/webconsole/api -run 'TestInsightV2DeliveryEvolutionAndLineage|TestInsightsV2OverviewRouteShape|TestInsightsV2ExecutionsRequiresContext|TestInsightsExecutionAPI_ReadsSingleProjectedExecution|TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound' -count=1 -v\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc \"find docs/acceptance/g3-insight-visual -type f -maxdepth 1 -print -exec shasum -a 256 {} \\\\; \u0026\u0026 git status --short\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc \"node --input-type=module - \u003c\u003c'NODE'\nimport http from 'node:http';\nimport { createServer as createViteServer } from './web/node_modules/vite/dist/node/index.js';\nconst port = 6183, reviewedSHA='ad7959c60ea0d3004c44d65cfbe2c93de34c9406';\nconst now = new Date('2026-08-31T13:30:00Z'), iso=(d)=\u003ed.toISOString();\nconst envelope={window:{kind:'rolling',duration:'24h',start:iso(new Date(now-86400000)),end:iso(now)},as_of:iso(now),refreshed_at:iso(new Date(now-2000)),freshness:{state:'fresh',age_ms:2000,threshold_ms:120000}};\nconst summary={completed_executions:9,failed_executions:3,failure_rate:1/3,slot_utilization:0.62,slot_coverage_ratio:0.91,queue_wait_ms:{p50:1250,p95:94000,samples:7},execution_duration_ms:{p50:420000,p95:1800000,samples:9}};\nconst rowBase={command_id:'cmd-g3-1',task_id:'task-g3-1',task_ref:'T1850',task_title:'Replay worker authoritative readback',agent_ref:'agent:insight-g3',agent_name:'Insight G3 Executor',project_id:'project-g3',project_name:'G3 Insight Candidate',worker_id:'worker-isolated-g3',queued_at:'2026-08-31T12:50:00Z',started_at:'2026-08-31T12:50:02Z',finished_at:'2026-08-31T12:57:02Z',queue_wait_ms:2000,duration_ms:420000,recovered:false,quality:'valid'};\nconst executions=[\n {...rowBase,execution_id:'exec-succeeded',outcome:'succeeded',failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null},\n {...rowBase,execution_id:'exec-failed',task_title:'Failing candidate check',outcome:'failed',failure_reason:'nonzero_exit',failure_message:'Process exited with code 1.',command_status:'started',status_reason:null,status_message:null},\n {...rowBase,execution_id:'exec-crashed',task_title:'Runtime interrupted',outcome:'crashed',failure_reason:'process_gone',failure_message:null,command_status:'started',status_reason:null,status_message:null,recovered:true},\n {...rowBase,execution_id:'exec-quiet',task_title:'Recovered terminal readback',outcome:'quiet_finalized',failure_reason:'stalled',failure_message:null,command_status:'started',status_reason:null,status_message:null},\n {...rowBase,execution_id:'exec-running',task_title:'Still executing',outcome:null,failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null,finished_at:null,duration_ms:null},\n {...rowBase,execution_id:'exec-rejected',task_title:'Admission rejected',outcome:null,failure_reason:null,failure_message:null,command_status:'rejected',status_reason:'no_capacity',status_message:'No capacity',started_at:null,finished_at:null,queue_wait_ms:null,duration_ms:null},\n {...rowBase,execution_id:'exec-bad-time',task_title:'Invalid time ordering sample',outcome:'failed',failure_reason:'nonzero_exit',failure_message:null,command_status:'started',status_reason:null,status_message:null,quality:'invalid_time_order',duration_ms:-1000},\n {...rowBase,execution_id:'exec-new-enum',task_title:'Future enum sample',outcome:'new_enum',failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null,quality:'future_quality'}\n];\nconst api=(req,res,next)=\u003e{const u=new URL(req.url,\"'`http://127.0.0.1:${port}`); if(!u.pathname.startsWith('\"'/api')) return next(); const json=(s,o)=\u003e{res.writeHead(s,{'content-type':'application/json'});res.end(JSON.stringify(o));};\n if(u.pathname==='/api/sse'){res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache'});res.write(': ok\\\\n\\\\n');return;}\n if(u.pathname==='/api/auth/me')return json(200,{identity_id:'user-g3-reviewer',display_name:'G3 Reviewer',kind:'user'});\n if(u.pathname==='/api/orgs')return json(200,[{id:'org-g3',slug:'acme',name:'ACME G3 Review',created_at:'2026-08-31T00:00:00Z',role:'owner'}]);\n if(u.pathname.includes('/permissions/effective'))return json(200,{subject_ref:'user:user-g3-reviewer',resource:{kind:'org',id:'org-g3',org_id:'org-g3'},permissions:[{key:'org.analytics.read',source:'org_role',evidence_ref:'mock:g3',delegatable:false},{key:'org.read',source:'org_role',evidence_ref:'mock:g3',delegatable:false}]});\n if(u.pathname==='/api/orgs/acme/projects')return json(200,[{id:'project-g3',name:'G3 Insight Candidate',description:'',status:'active',created_at:'2026-08-31T00:00:00Z',updated_at:'2026-08-31T00:00:00Z'}]);\n if(u.pathname==='/api/orgs/acme/members')return json(200,[]);\n if(u.pathname==='/api/orgs/acme/agents')return json(200,[]);\n if(u.pathname==='/api/orgs/acme/insights/overview')return json(200,{...envelope,summary,agents:[{agent_ref:'agent:insight-g3',display_name:'Insight G3 Executor',summary}],projects:[{project_id:'project-g3',name:'G3 Insight Candidate',summary}],diagnostics:{invalid_facts:1,late_events:2}});\n if(u.pathname==='/api/orgs/acme/insights/executions')return json(200,{...envelope,executions,next_cursor:null});\n const m=u.pathname.match(/\"'^'\"\\\\/api\\\\/orgs\\\\/acme\\\\/insights\\\\/executions\\\\/([\"'^/]+)$/); if(m){const row=executions.find(e=\u003ee.execution_id===decodeURIComponent(m[1]));return row?json(200,{...envelope,execution:row}):json(404,{error:'\"'not_found',message:'execution not found'});}\n if(u.pathname==='/api/orgs/acme/attention')return json(200,{items:[]});\n if(u.pathname==='/api/orgs/acme/conversations'||u.pathname==='/api/orgs/acme/conversations/unread')return json(200,[]);\n return json(200,[]);\n};\nconst vite=await createViteServer({root:'web',server:{middlewareMode:true},appType:'spa',clearScreen:false});\nhttp.createServer((req,res)=\u003eapi(req,res,()=\u003evite.middlewares(req,res))).listen(port,'127.0.0.1',()=\u003econsole.log(\"'`g3-insight-isolated-instance url=http://127.0.0.1:${port} source=local-vite-middleware mock_api=in-process reviewed_sha=${reviewedSHA}`));\nNODE'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc 'agent-browser open http://127.0.0.1:6184/organizations/acme/insights/overview \u0026\u0026 agent-browser wait 2000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/06-overview-standard-vite.png \u0026\u0026 agent-browser snapshot -i -C'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_80",
+      "command": "/bin/zsh -lc \"agent-browser open http://127.0.0.1:6184/organizations/acme/insights/executions?window=24h \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/07-execution-list-route-404.png \u0026\u0026 agent-browser open 'http://127.0.0.1:6184/organizations/acme/insights/executions?window=24h\u0026agent_ref=agent%3Ainsight-g3' \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/08-agent-drilldown-404.png \u0026\u0026 agent-browser open 'http://127.0.0.1:6184/organizations/acme/insights/executions?window=24h\u0026project_id=project-g3' \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/09-project-drilldown-404.png \u0026\u0026 agent-browser open http://127.0.0.1:6184/organizations/acme/insights/executions/exec-failed \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/10-execution-detail.png \u0026\u0026 agent-browser snapshot -i -C\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc \"agent-browser open 'http://127.0.0.1:6184/organizations/acme/insights/executions?window=24h' \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/07-execution-list-route-404.png \u0026\u0026 agent-browser open 'http://127.0.0.1:6184/organizations/acme/insights/executions?window=24h\u0026agent_ref=agent%3Ainsight-g3' \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/08-agent-drilldown-404.png \u0026\u0026 agent-browser open 'http://127.0.0.1:6184/organizations/acme/insights/executions?window=24h\u0026project_id=project-g3' \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/09-project-drilldown-404.png \u0026\u0026 agent-browser open 'http://127.0.0.1:6184/organizations/acme/insights/executions/exec-failed' \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser screenshot /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f541c46c/docs/acceptance/g3-insight-visual/10-execution-detail.png \u0026\u0026 agent-browser snapshot -i -C\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_82",
+      "command": "/bin/zsh -lc \"find docs/acceptance/g3-insight-visual -type f -maxdepth 1 -print -exec shasum -a 256 {} \\\\; | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_77",
+      "command": "/bin/zsh -lc \"cd web \u0026\u0026 node --input-type=module - \u003c\u003c'NODE'\nimport http from 'node:http';\nimport { createServer as createViteServer } from 'vite';\nconst port=6184, reviewedSHA='ad7959c60ea0d3004c44d65cfbe2c93de34c9406';\nconst now=new Date('2026-08-31T13:30:00Z'), iso=d=\u003ed.toISOString();\nconst envelope={window:{kind:'rolling',duration:'24h',start:iso(new Date(now-86400000)),end:iso(now)},as_of:iso(now),refreshed_at:iso(new Date(now-2000)),freshness:{state:'fresh',age_ms:2000,threshold_ms:120000}};\nconst summary={completed_executions:9,failed_executions:3,failure_rate:1/3,slot_utilization:0.62,slot_coverage_ratio:0.91,queue_wait_ms:{p50:1250,p95:94000,samples:7},execution_duration_ms:{p50:420000,p95:1800000,samples:9}};\nconst rowBase={command_id:'cmd-g3-1',task_id:'task-g3-1',task_ref:'T1850',task_title:'Replay worker authoritative readback',agent_ref:'agent:insight-g3',agent_name:'Insight G3 Executor',project_id:'project-g3',project_name:'G3 Insight Candidate',worker_id:'worker-isolated-g3',queued_at:'2026-08-31T12:50:00Z',started_at:'2026-08-31T12:50:02Z',finished_at:'2026-08-31T12:57:02Z',queue_wait_ms:2000,duration_ms:420000,recovered:false,quality:'valid'};\nconst executions=[{...rowBase,execution_id:'exec-succeeded',outcome:'succeeded',failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null},{...rowBase,execution_id:'exec-failed',task_title:'Failing candidate check',outcome:'failed',failure_reason:'nonzero_exit',failure_message:'Process exited with code 1.',command_status:'started',status_reason:null,status_message:null},{...rowBase,execution_id:'exec-crashed',task_title:'Runtime interrupted',outcome:'crashed',failure_reason:'process_gone',failure_message:null,command_status:'started',status_reason:null,status_message:null,recovered:true},{...rowBase,execution_id:'exec-quiet',task_title:'Recovered terminal readback',outcome:'quiet_finalized',failure_reason:'stalled',failure_message:null,command_status:'started',status_reason:null,status_message:null},{...rowBase,execution_id:'exec-running',task_title:'Still executing',outcome:null,failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null,finished_at:null,duration_ms:null},{...rowBase,execution_id:'exec-rejected',task_title:'Admission rejected',outcome:null,failure_reason:null,failure_message:null,command_status:'rejected',status_reason:'no_capacity',status_message:'No capacity',started_at:null,finished_at:null,queue_wait_ms:null,duration_ms:null},{...rowBase,execution_id:'exec-bad-time',task_title:'Invalid time ordering sample',outcome:'failed',failure_reason:'nonzero_exit',failure_message:null,command_status:'started',status_reason:null,status_message:null,quality:'invalid_time_order',duration_ms:-1000},{...rowBase,execution_id:'exec-new-enum',task_title:'Future enum sample',outcome:'new_enum',failure_reason:null,failure_message:null,command_status:'started',status_reason:null,status_message:null,quality:'future_quality'}];\nconst api=(req,res,next)=\u003e{const u=new URL(req.url,\"'`http://127.0.0.1:${port}`); if(!u.pathname.startsWith('\"'/api')) return next(); const json=(s,o)=\u003e{res.writeHead(s,{'content-type':'application/json'});res.end(JSON.stringify(o));};\nif(u.pathname==='/api/sse'){res.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-cache'});res.write(': ok\\\\n\\\\n');return;} if(u.pathname==='/api/auth/me')return json(200,{identity_id:'user-g3-reviewer',display_name:'G3 Reviewer',kind:'user'}); if(u.pathname==='/api/orgs')return json(200,[{id:'org-g3',slug:'acme',name:'ACME G3 Review',created_at:'2026-08-31T00:00:00Z',role:'owner'}]); if(u.pathname.includes('/permissions/effective'))return json(200,{subject_ref:'user:user-g3-reviewer',resource:{kind:'org',id:'org-g3',org_id:'org-g3'},permissions:[{key:'org.analytics.read',source:'org_role',evidence_ref:'mock:g3',delegatable:false},{key:'org.read',source:'org_role',evidence_ref:'mock:g3',delegatable:false}]}); if(u.pathname==='/api/orgs/acme/projects')return json(200,[{id:'project-g3',name:'G3 Insight Candidate',description:'',status:'active',created_at:'2026-08-31T00:00:00Z',updated_at:'2026-08-31T00:00:00Z'}]); if(u.pathname==='/api/orgs/acme/members'||u.pathname==='/api/orgs/acme/agents'||u.pathname==='/api/orgs/acme/conversations'||u.pathname==='/api/orgs/acme/conversations/unread')return json(200,[]); if(u.pathname==='/api/orgs/acme/attention')return json(200,{items:[]}); if(u.pathname==='/api/orgs/acme/insights/overview')return json(200,{...envelope,summary,agents:[{agent_ref:'agent:insight-g3',display_name:'Insight G3 Executor',summary}],projects:[{project_id:'project-g3',name:'G3 Insight Candidate',summary}],diagnostics:{invalid_facts:1,late_events:2}}); if(u.pathname==='/api/orgs/acme/insights/executions')return json(200,{...envelope,executions,next_cursor:null}); const m=u.pathname.match(/\"'^'\"\\\\/api\\\\/orgs\\\\/acme\\\\/insights\\\\/executions\\\\/([\"'^/]+)$/); if(m){const row=executions.find(e=\u003ee.execution_id===decodeURIComponent(m[1]));return row?json(200,{...envelope,execution:row}):json(404,{error:'\"'not_found',message:'execution not found'});} return json(200,[]);};\nconst vite=await createViteServer({server:{middlewareMode:true},appType:'spa',clearScreen:false});\nhttp.createServer((req,res)=\u003eapi(req,res,()=\u003evite.middlewares(req,res))).listen(port,'127.0.0.1',()=\u003econsole.log(\"'`g3-insight-isolated-instance url=http://127.0.0.1:${port} source=web-cwd-vite-middleware mock_api=in-process reviewed_sha=${reviewedSHA}`));\nNODE'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_85",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_86",
+      "command": "/bin/zsh -lc \"nl -ba web/src/App.tsx | sed -n '124,134p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_87",
+      "command": "/bin/zsh -lc \"find docs/acceptance/g3-insight-visual -type f -maxdepth 1 -print -exec shasum -a 256 {} \\\\; | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_88",
+      "command": "/bin/zsh -lc \"nl -ba web/src/AppLayout.tsx | sed -n '220,226p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc 'agent-browser close'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-f541c46c/command_events.jsonl",
+  "command_event_digest": "sha256:0f0a2073b91870d60174da36e6e6272b5927c6976badfe219748010c7afe3fce",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "**Verdict: REJECT**",
+  "artifact_digest": "sha256:111206aec0c9e5a607158fac5f65850077e5c0002191519c36cabdf5721946ee",
+  "path": ".agent-center/evidence/task-bcec75fe/exec-f541c46c.json",
+  "branch": "ac-exec/task-bcec75fe/exec-f541c46c"
+}
