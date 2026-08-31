@@ -76,7 +76,8 @@
       "known": "known",
       "unknown": "unknown",
       "meta": "{{known}} · samples {{sample}} · coverage {{coverage}} · unknown {{unknown}}",
-      "noReasons": "No backend reason codes"
+      "noReasons": "No backend reason codes",
+      "noDrilldown": "No drilldown filter"
     },
     "delivery": {
       "title": "Issue / Task / Plan / Done funnel",
@@ -99,7 +100,18 @@
         "done_plan_non_terminal_task": "Done Plan has non-terminal Task",
         "done_plan_open_issue": "Done Plan has open Issue",
         "evolution_old_generation_residue": "Old-generation residue",
-        "delivery_sha_lineage_mismatch": "Delivery SHA lineage mismatch"
+        "delivery_sha_lineage_mismatch": "Delivery SHA lineage mismatch",
+        "unknown": "Backend-defined break"
+      },
+      "breakDescription": {
+        "issue_without_task": "An issue is not connected to a task.",
+        "task_without_plan": "A task is not assigned to a Plan.",
+        "task_multiple_containers": "A task is linked to more than one container.",
+        "done_plan_non_terminal_task": "A completed Plan still has unfinished task work.",
+        "done_plan_open_issue": "A completed Plan still has open issues.",
+        "evolution_old_generation_residue": "Older Plan generation work remains active.",
+        "delivery_sha_lineage_mismatch": "Delivery SHA does not match Plan lineage.",
+        "unknown": "The backend returned a newer break type."
       }
     },
     "evolution": {
@@ -115,7 +127,32 @@
       "reworkRatio": "Rework ratio",
       "recoveryEffectiveness": "Recovery effectiveness",
       "maxLoopDepth": "Max loop depth",
-      "staleOrphanResidue": "Stale/orphan residue"
+      "staleOrphanResidue": "Stale/orphan residue",
+      "anomaly": {
+        "rework": "Rework",
+        "recovery": "Recovery",
+        "loop_depth": "Loop depth",
+        "residue": "Residue",
+        "unknown": "Backend-defined anomaly"
+      }
+    },
+    "reasonCode": {
+      "coverage_low": "Low observation coverage",
+      "coverage_unknown": "Coverage not yet measured",
+      "freshness_stale": "Data is delayed",
+      "lineage.integrity_broken": "Lineage integrity issue",
+      "metric_unknown": "Metric cannot be determined",
+      "sample_empty": "No matching samples",
+      "unknown_source_state": "Source state is not yet known",
+      "unknown": "Backend-defined reason"
+    },
+    "drilldown": {
+      "anomaly": "Anomaly",
+      "anomaly_kind": "Anomaly",
+      "break_kind": "Break",
+      "project_id": "Project",
+      "source": "Source",
+      "status": "Status"
     },
     "lineage": {
       "title": "Lineage {{planId}}",

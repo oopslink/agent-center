@@ -85,8 +85,10 @@ describe('Insight v2 project pages', () => {
     expect(row).toHaveAttribute('data-project-id', 'proj-1');
     expect(row).toHaveTextContent('Launch');
     expect(row).toHaveTextContent('Unknown');
-    expect(row).toHaveTextContent('coverage_low');
-    expect(row).toHaveTextContent('unknown_source_state');
+    expect(row).toHaveTextContent('Low observation coverage');
+    expect(row).toHaveTextContent('Source state is not yet known');
+    expect(row).not.toHaveTextContent('coverage_low');
+    expect(row).not.toHaveTextContent('unknown_source_state');
     expect(within(row).getByRole('link', { name: 'Launch' })).toHaveAttribute('href', '/organizations/acme/insights/projects/proj-1');
   });
 
@@ -144,20 +146,24 @@ describe('Insight v2 project pages', () => {
     renderAt('/organizations/acme/insights/projects/proj-1?plan_id=plan-1');
 
     expect(await screen.findByTestId('insight-project-summary')).toHaveTextContent('Runtime health');
-    expect(screen.getByTestId('insight-health-panel')).toHaveTextContent('lineage.integrity_broken');
+    expect(screen.getByTestId('insight-health-panel')).toHaveTextContent('Lineage integrity issue');
+    expect(screen.getByTestId('insight-health-panel')).not.toHaveTextContent('lineage.integrity_broken');
     const rows = await screen.findAllByTestId('insight-funnel-break');
     expect(rows).toHaveLength(7);
     expect(rows.map((row) => row.getAttribute('data-break-kind'))).toEqual(breakKinds);
     for (const row of rows) {
-      const kind = row.getAttribute('data-break-kind');
       const drilldown = within(row).getByTestId('insight-break-drilldown');
-      expect(drilldown).toHaveTextContent('"project_id": "proj-1"');
-      expect(drilldown).toHaveTextContent(`"break_kind": "${kind}"`);
+      expect(drilldown).toHaveTextContent('Project: Proj 1');
+      expect(drilldown).toHaveTextContent('Break:');
+      expect(drilldown).toHaveTextContent('Status: Backend Exact');
+      expect(drilldown).not.toHaveTextContent('"project_id"');
+      expect(drilldown).not.toHaveTextContent('"break_kind"');
     }
     expect(screen.getByTestId('insight-evolution-panel')).toHaveTextContent('50%');
     expect(screen.getByTestId('insight-evolution-panel')).toHaveTextContent('Rework ratio');
     expect(screen.getByTestId('insight-evolution-panel')).toHaveTextContent('Stale/orphan residue');
-    expect(screen.getByTestId('insight-evolution-drilldowns')).toHaveTextContent('"source": "backend"');
+    expect(screen.getByTestId('insight-evolution-drilldowns')).toHaveTextContent('Source: Backend');
+    expect(screen.getByTestId('insight-evolution-drilldowns')).not.toHaveTextContent('"source"');
     expect(screen.getByRole('link', { name: 'Open lineage' })).toHaveAttribute('href', '/organizations/acme/insights/projects/proj-1/plans/plan-1/lineage');
   });
 
@@ -204,8 +210,10 @@ describe('Insight v2 project pages', () => {
     const rows = await screen.findAllByTestId('insight-funnel-break');
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveAttribute('data-break-kind', 'backend_new_kind');
-    expect(rows[0]).toHaveTextContent('backend_new_kind');
-    expect(within(rows[0]).getByTestId('insight-break-drilldown')).toHaveTextContent('"anomaly": "backend-only"');
+    expect(rows[0]).toHaveTextContent('Backend-defined break');
+    expect(rows[0]).not.toHaveTextContent('backend_new_kind');
+    expect(within(rows[0]).getByTestId('insight-break-drilldown')).toHaveTextContent('Anomaly: Backend Only');
+    expect(within(rows[0]).getByTestId('insight-break-drilldown')).not.toHaveTextContent('"anomaly"');
     expect(within(rows[0]).getByTestId('insight-break-drilldown')).not.toHaveTextContent('break_kind');
     expect(within(rows[0]).getByText('—')).toBeInTheDocument();
   });
@@ -259,7 +267,8 @@ describe('Insight v2 project pages', () => {
     expect(await screen.findByTestId('insight-v2-window')).toHaveTextContent('Data delayed');
     expect(screen.getByTestId('insight-health-panel')).toHaveTextContent('Unknown');
     expect(screen.getByTestId('insight-health-panel')).toHaveTextContent('coverage 40%');
-    expect(screen.getByTestId('insight-health-panel')).toHaveTextContent('coverage_low');
+    expect(screen.getByTestId('insight-health-panel')).toHaveTextContent('Low observation coverage');
+    expect(screen.getByTestId('insight-health-panel')).not.toHaveTextContent('coverage_low');
     expect(screen.getByTestId('insight-delivery-funnel')).toHaveTextContent('—');
   });
 

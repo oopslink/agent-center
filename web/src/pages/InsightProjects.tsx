@@ -215,18 +215,15 @@ function DeliveryFunnel({ metrics, breaks }: { metrics: Array<[string, InsightV2
 
 function BreakRow({ item }: { item: InsightV2FunnelBreak }): React.ReactElement {
   const { t } = useTranslation('insights');
-  const filter = stableJSON(item.drilldown);
   return (
     <tr data-testid="insight-funnel-break" data-break-kind={item.kind}>
       <td className="px-2 py-2">
         <div className="font-medium text-text-primary">{breakLabel(item.kind, t)}</div>
-        <div className="font-mono text-xs text-text-muted">{item.kind}</div>
+        <div className="text-xs text-text-muted">{breakKindDescription(item.kind, t)}</div>
       </td>
       <td className="px-2 py-2 tabular-nums"><MetricValue metric={item.count} /></td>
       <td className="px-2 py-2">
-        <code className="block max-w-[34rem] overflow-x-auto rounded bg-bg-subtle px-2 py-1 text-xs text-text-secondary" data-testid="insight-break-drilldown">
-          {filter}
-        </code>
+        <DrilldownSummary value={item.drilldown} testId="insight-break-drilldown" />
       </td>
     </tr>
   );
@@ -254,8 +251,8 @@ function EvolutionPanel({ data }: { data: InsightV2ProjectEvolution['evolution']
       <dl className="grid gap-2 text-xs sm:grid-cols-2" data-testid="insight-evolution-drilldowns">
         {Object.entries(data.anomaly_drilldowns).map(([key, value]) => (
           <div key={key} className="rounded border border-border-base bg-bg-subtle p-2">
-            <dt className="font-mono text-text-muted">{key}</dt>
-            <dd className="mt-1 text-text-primary">{stableJSON(value)}</dd>
+            <dt className="font-medium text-text-muted">{anomalyLabel(key, t)}</dt>
+            <dd className="mt-1 text-text-primary"><DrilldownSummary value={value} /></dd>
           </div>
         ))}
       </dl>
@@ -397,9 +394,19 @@ function ReasonCodes({ codes }: { codes: string[] }): React.ReactElement {
   return (
     <div className="mt-2 flex flex-wrap gap-1" data-testid="insight-reason-codes">
       {codes.map((code) => (
-        <code key={code} className="rounded bg-bg-subtle px-1.5 py-0.5 text-xs text-text-secondary">{code}</code>
+        <span key={code} className="rounded bg-bg-subtle px-1.5 py-0.5 text-xs text-text-secondary">{reasonCodeLabel(code, t)}</span>
       ))}
     </div>
+  );
+}
+
+function DrilldownSummary({ value, testId }: { value: Record<string, unknown>; testId?: string }): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const entries = drilldownEntries(value, t);
+  return (
+    <span className="block max-w-[34rem] rounded bg-bg-subtle px-2 py-1 text-xs text-text-secondary" data-testid={testId}>
+      {entries.length > 0 ? entries.join(' · ') : t('insight.v2.noDrilldown')}
+    </span>
   );
 }
 
@@ -466,7 +473,54 @@ function verdictLabel(verdict: string, t: (key: string, options?: Record<string,
 
 function breakLabel(kind: string, t: (key: string, options?: Record<string, unknown>) => string): string {
   const label = t(`insight.delivery.break.${kind}`, { defaultValue: '' });
-  return label || kind;
+  return label || t('insight.delivery.break.unknown');
+}
+
+function breakKindDescription(kind: string, t: (key: string, options?: Record<string, unknown>) => string): string {
+  const label = t(`insight.delivery.breakDescription.${kind}`, { defaultValue: '' });
+  return label || t('insight.delivery.breakDescription.unknown');
+}
+
+function reasonCodeLabel(code: string, t: (key: string, options?: Record<string, unknown>) => string): string {
+  const label = t(`insight.reasonCode.${code}`, { defaultValue: '' });
+  return label || t('insight.reasonCode.unknown');
+}
+
+function anomalyLabel(kind: string, t: (key: string, options?: Record<string, unknown>) => string): string {
+  const label = t(`insight.evolution.anomaly.${kind}`, { defaultValue: '' });
+  return label || t('insight.evolution.anomaly.unknown');
+}
+
+function drilldownEntries(value: Record<string, unknown>, t: (key: string, options?: Record<string, unknown>) => string): string[] {
+  return Object.entries(value)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([key, raw]) => {
+      const label = t(`insight.drilldown.${key}`, { defaultValue: humanizeToken(key) });
+      const rendered = typeof raw === 'string' ? drilldownValue(key, raw, t) : formatDrilldownValue(raw);
+      return `${label}: ${rendered}`;
+    });
+}
+
+function drilldownValue(key: string, value: string, t: (key: string, options?: Record<string, unknown>) => string): string {
+  if (key === 'break_kind') return breakLabel(value, t);
+  if (key === 'anomaly_kind') return anomalyLabel(value, t);
+  return humanizeToken(value);
+}
+
+function formatDrilldownValue(value: unknown): string {
+  if (value === null) return EMPTY;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (Array.isArray(value)) return value.map(formatDrilldownValue).join(', ');
+  if (typeof value === 'object') return Object.keys(value as Record<string, unknown>).length === 0 ? EMPTY : 'Structured filter';
+  return String(value);
+}
+
+function humanizeToken(value: string): string {
+  return value
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase()) || EMPTY;
 }
 
 function stableJSON(value: unknown): string {

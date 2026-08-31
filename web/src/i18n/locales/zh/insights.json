@@ -76,7 +76,8 @@
       "known": "已知",
       "unknown": "未知",
       "meta": "{{known}} · 样本 {{sample}} · 覆盖 {{coverage}} · 未知 {{unknown}}",
-      "noReasons": "无后端原因代码"
+      "noReasons": "无后端原因代码",
+      "noDrilldown": "无下钻筛选"
     },
     "delivery": {
       "title": "Issue / Task / Plan / Done 漏斗",
@@ -99,7 +100,18 @@
         "done_plan_non_terminal_task": "Done Plan 含未终止 Task",
         "done_plan_open_issue": "Done Plan 含开放 Issue",
         "evolution_old_generation_residue": "旧 generation 残留",
-        "delivery_sha_lineage_mismatch": "交付 SHA 与 lineage 不匹配"
+        "delivery_sha_lineage_mismatch": "交付 SHA 与 lineage 不匹配",
+        "unknown": "后端定义的断点"
+      },
+      "breakDescription": {
+        "issue_without_task": "Issue 尚未连接到 Task。",
+        "task_without_plan": "Task 尚未归入 Plan。",
+        "task_multiple_containers": "Task 被连接到多个容器。",
+        "done_plan_non_terminal_task": "已完成 Plan 仍有未终止 Task。",
+        "done_plan_open_issue": "已完成 Plan 仍有开放 Issue。",
+        "evolution_old_generation_residue": "旧 Plan generation 仍有活跃残留。",
+        "delivery_sha_lineage_mismatch": "交付 SHA 与 Plan lineage 不一致。",
+        "unknown": "后端返回了新的断点类型。"
       }
     },
     "evolution": {
@@ -115,7 +127,32 @@
       "reworkRatio": "返工率",
       "recoveryEffectiveness": "恢复有效率",
       "maxLoopDepth": "最大回环深度",
-      "staleOrphanResidue": "陈旧/孤立残留"
+      "staleOrphanResidue": "陈旧/孤立残留",
+      "anomaly": {
+        "rework": "返工",
+        "recovery": "恢复",
+        "loop_depth": "回环深度",
+        "residue": "残留",
+        "unknown": "后端定义的异常"
+      }
+    },
+    "reasonCode": {
+      "coverage_low": "观测覆盖不足",
+      "coverage_unknown": "覆盖率尚未测得",
+      "freshness_stale": "数据有延迟",
+      "lineage.integrity_broken": "Lineage 完整性问题",
+      "metric_unknown": "指标无法判断",
+      "sample_empty": "没有匹配样本",
+      "unknown_source_state": "来源状态尚未知",
+      "unknown": "后端定义的原因"
+    },
+    "drilldown": {
+      "anomaly": "异常",
+      "anomaly_kind": "异常",
+      "break_kind": "断点",
+      "project_id": "项目",
+      "source": "来源",
+      "status": "状态"
     },
     "lineage": {
       "title": "Lineage {{planId}}",
