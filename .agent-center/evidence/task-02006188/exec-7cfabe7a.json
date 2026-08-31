@@ -1,0 +1,125 @@
+{
+  "task_id": "task-02006188",
+  "execution_id": "exec-7cfabe7a",
+  "reviewed_sha": "c6b0dc20533fd26eda87efb93134b9f1a790159e",
+  "base_sha": "c6b0dc20533fd26eda87efb93134b9f1a790159e",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'rg -n \"G33|Runtime Control|runtime control|durable status|authoritative|readback|running SHA|restart completion|ancestry|deploy|deployment\" -S .'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'rg -n \"get_team_rule|team rule|Team Rule|contract-to-production|evidence-before|verify-world-state\" -S .'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current \u0026\u0026 git log --oneline --decorate -n 12'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/reports/t1802-runtime-control-integration.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/reports/t1850-worker-readback-replay.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'rg -n \"runtime_deploy_restart|runtime_deploy_status|get_agent_runtime_effective_config|deploy_restart|deploy status|RuntimeDeploy|runtimedeploy\" internal cmd docs scripts -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"git branch -a --contains 65eab385a93199d98fe3b367d4d07bc627cda7f2 \u0026\u0026 git merge-base --is-ancestor 7f4cfcc43e0360f31e756bb453e675db50cc26c6 65eab385a93199d98fe3b367d4d07bc627cda7f2; printf 'anchor_in_source=%s\\\\n' \\\"\"'$?\" \u0026\u0026 git merge-base --is-ancestor 65eab385a93199d98fe3b367d4d07bc627cda7f2 HEAD; printf '\"'source_in_head=%s\\\\n' \\\"\"'$?\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"sed -n '230,330p' internal/mcphost/server.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"sed -n '1,180p' internal/mcphost/tools.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'rg -n \"runtime|deploy|restart|status\" internal/cli cmd -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git remote -v \u0026\u0026 git ls-remote origin main \u0026\u0026 git ls-remote origin-push main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD origin/main origin/HEAD main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"git merge-base HEAD 65eab385a93199d98fe3b367d4d07bc627cda7f2 \u0026\u0026 git merge-base HEAD 7f4cfcc43e0360f31e756bb453e675db50cc26c6 \u0026\u0026 git merge-base --is-ancestor 65eab385a93199d98fe3b367d4d07bc627cda7f2 HEAD; printf 'source_is_ancestor_of_HEAD=%s\\\\n' \\\"\"'$?\" \u0026\u0026 git merge-base --is-ancestor 7f4cfcc43e0360f31e756bb453e675db50cc26c6 HEAD; printf '\"'anchor_is_ancestor_of_HEAD=%s\\\\n' \\\"\"'$?\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 rg -n \"G33\" -S task-input docs internal cmd scripts web || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'git ls-remote origin HEAD refs/heads/main'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-7cfabe7a/command_events.jsonl",
+  "command_event_digest": "sha256:33eb6123b418ac728d721bb6a3447963a04f872d0680a6430dd3fd00f2779f00",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "Fail-closed 执行结果：未部署。",
+  "artifact_digest": "sha256:5cc27de9eaec2b4460f65e93242a970f5c79f31abb43d4b890ce301d1935c72b",
+  "path": ".agent-center/evidence/task-02006188/exec-7cfabe7a.json",
+  "branch": "ac-exec/task-02006188/exec-7cfabe7a"
+}
