@@ -2,6 +2,8 @@ package workerdaemon
 
 import (
 	"context"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"slices"
@@ -19,9 +21,12 @@ func TestSourceRuntimeDeployerReportsAuthoritativeReadback(t *testing.T) {
 	sha := "aaaaaaaaaaaabbbbbbbbbbbbccccccccccccdddd"
 	var commands []string
 	d := newSourceRuntimeDeployer(root, "worker-1", func(string) {})
-	d.readback = func(_ context.Context, mode, gotPrefix, _ string) (runtimeBuildReadback, error) {
+	d.readback = func(_ context.Context, mode, gotPrefix, _, gotSHA string) (runtimeBuildReadback, error) {
 		if mode != "center" || gotPrefix != prefix {
 			t.Fatalf("readback mode/prefix = %s/%s", mode, gotPrefix)
+		}
+		if gotSHA != sha {
+			t.Fatalf("readback expected sha = %s, want %s", gotSHA, sha)
 		}
 		return runtimeBuildReadback{Version: "runtime-deploy-" + sha[:12], Commit: sha, Health: "healthy"}, nil
 	}
@@ -73,7 +78,7 @@ func TestSourceRuntimeDeployerRejectsInstalledArtifactMismatchReadback(t *testin
 	sha := "aaaaaaaaaaaabbbbbbbbbbbbccccccccccccdddd"
 	installedSHA := strings.Repeat("b", 40)
 	d := newSourceRuntimeDeployer(root, "worker-1", func(string) {})
-	d.readback = func(context.Context, string, string, string) (runtimeBuildReadback, error) {
+	d.readback = func(context.Context, string, string, string, string) (runtimeBuildReadback, error) {
 		return runtimeBuildReadback{Version: "runtime-deploy-" + installedSHA[:12], Commit: installedSHA, Health: "healthy"}, nil
 	}
 	d.run = func(_ context.Context, _ string, name string, args []string, _ []string) ([]byte, error) {
@@ -132,6 +137,103 @@ func TestReadCenterAdminHealthUsesRunningEndpointBuildIdentity(t *testing.T) {
 	}
 }
 
+func TestReadWorkerAdminReadbackUsesAuthenticatedWorkerProjection(t *testing.T) {
+	sha := "aaaaaaaaaaaabbbbbbbbbbbbccccccccccccdddd"
+	tokenPath := writeRuntimeReadbackToken(t, "acat_worker")
+	var authz string
+	sock, shutdown := serveRuntimeReadbackWorker(t, func(w http.ResponseWriter, r *http.Request) {
+		authz = r.Header.Get("Authorization")
+		if r.URL.Query().Get("id") != "worker-1" {
+			t.Fatalf("worker id query = %q", r.URL.Query().Get("id"))
+		}
+		_, _ = w.Write([]byte(`{"worker_id":"worker-1","status":"online","version":7,"system_info":{"worker_version":"runtime-deploy-` + sha[:12] + `","build_commit":"` + sha + `","pid":123,"started_at":"2026-08-31T00:00:00Z"}}`))
+	})
+	defer shutdown()
+
+	got, err := readWorkerAdminReadback(context.Background(), "unix:"+sock, "", tokenPath, "worker-1", sha)
+	if err != nil {
+		t.Fatalf("readWorkerAdminReadback: %v", err)
+	}
+	if authz != "Bearer acat_worker" {
+		t.Fatalf("missing authenticated bearer, got %q", authz)
+	}
+	if got.Version != "runtime-deploy-"+sha[:12] || got.Commit != sha || got.Health != "healthy" {
+		t.Fatalf("readback = %+v", got)
+	}
+}
+
+func TestReadWorkerAdminReadbackFailClosedStates(t *testing.T) {
+	sha := "aaaaaaaaaaaabbbbbbbbbbbbccccccccccccdddd"
+	stale := strings.Repeat("b", 40)
+	cases := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "stale sha",
+			body: `{"worker_id":"worker-1","status":"online","system_info":{"worker_version":"runtime-deploy-` + stale[:12] + `","build_commit":"` + stale + `"}}`,
+			want: "stale running sha",
+		},
+		{
+			name: "unhealthy",
+			body: `{"worker_id":"worker-1","status":"offline","system_info":{"worker_version":"runtime-deploy-` + sha[:12] + `","build_commit":"` + sha + `"}}`,
+			want: "unhealthy status",
+		},
+		{
+			name: "unavailable",
+			body: `{"error":"worker_not_found"}`,
+			want: "status=404",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tokenPath := writeRuntimeReadbackToken(t, "acat_worker")
+			sock, shutdown := serveRuntimeReadbackWorker(t, func(w http.ResponseWriter, r *http.Request) {
+				if tc.name == "unavailable" {
+					w.WriteHeader(http.StatusNotFound)
+				}
+				_, _ = w.Write([]byte(tc.body))
+			})
+			defer shutdown()
+			ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+			defer cancel()
+			_, err := readWorkerAdminReadback(ctx, "unix:"+sock, "", tokenPath, "worker-1", sha)
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err=%v, want containing %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestReadWorkerAdminReadbackDisconnectedFailsClosed(t *testing.T) {
+	sha := "aaaaaaaaaaaabbbbbbbbbbbbccccccccccccdddd"
+	tokenPath := writeRuntimeReadbackToken(t, "acat_worker")
+	sock := shortSock(t, "missing.sock")
+	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	defer cancel()
+	_, err := readWorkerAdminReadback(ctx, "unix:"+sock, "", tokenPath, "worker-1", sha)
+	if err == nil || !strings.Contains(err.Error(), "worker readback unavailable") {
+		t.Fatalf("err=%v, want unavailable disconnect failure", err)
+	}
+}
+
+func TestReadWorkerAdminReadbackTimeoutFailsClosed(t *testing.T) {
+	sha := "aaaaaaaaaaaabbbbbbbbbbbbccccccccccccdddd"
+	tokenPath := writeRuntimeReadbackToken(t, "acat_worker")
+	sock, shutdown := serveRuntimeReadbackWorker(t, func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(200 * time.Millisecond)
+		_, _ = w.Write([]byte(`{"worker_id":"worker-1","status":"online","system_info":{"worker_version":"runtime-deploy-` + sha[:12] + `","build_commit":"` + sha + `"}}`))
+	})
+	defer shutdown()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	_, err := readWorkerAdminReadback(ctx, "unix:"+sock, "", tokenPath, "worker-1", sha)
+	if err == nil || !strings.Contains(err.Error(), "timeout") {
+		t.Fatalf("err=%v, want timeout failure", err)
+	}
+}
+
 func waitForRuntimeDeploySocket(t *testing.T, sock string, errCh <-chan error) {
 	t.Helper()
 	deadline := time.After(2 * time.Second)
@@ -147,5 +249,34 @@ func waitForRuntimeDeploySocket(t *testing.T, sock string, errCh <-chan error) {
 			}
 			time.Sleep(10 * time.Millisecond)
 		}
+	}
+}
+
+func writeRuntimeReadbackToken(t *testing.T, token string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "worker-token")
+	if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func serveRuntimeReadbackWorker(t *testing.T, h http.HandlerFunc) (string, func()) {
+	t.Helper()
+	sock := shortSock(t, "runtime-readback.sock")
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/admin/workforce/worker/find-by-id", h)
+	srv := &http.Server{Handler: mux}
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.Serve(ln) }()
+	waitForRuntimeDeploySocket(t, sock, errCh)
+	return sock, func() {
+		_ = srv.Shutdown(context.Background())
+		_ = ln.Close()
+		_ = os.Remove(sock)
 	}
 }
