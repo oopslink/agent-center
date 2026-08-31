@@ -11,6 +11,37 @@
       "title": "Task executions",
       "subtitle": "Each row is one execution attempt"
     },
+    "agents": {
+      "title": "Agents",
+      "subtitle": "Organization agents using the Insight v2 metric contract",
+      "loading": "Loading Insight agents",
+      "loadingDetail": "Loading Insight agent",
+      "failed": "Insight agents failed",
+      "failedDetail": "Insight agent failed",
+      "empty": "No agents in this organization",
+      "notFound": "This Insight agent was not found in the current organization",
+      "confidence": "Metric confidence",
+      "sampleCount": "Sample count",
+      "col": {
+        "agent": "Agent",
+        "health": "Health",
+        "executions": "Executions",
+        "unknown": "Unknown",
+        "coverage": "Coverage"
+      },
+      "metric": {
+        "executions": "Executions",
+        "openIssues": "Open issues",
+        "blockedTasks": "Blocked tasks",
+        "activePlans": "Active plans"
+      },
+      "health": {
+        "healthy": "Healthy",
+        "elevated": "Elevated",
+        "degraded": "Degraded",
+        "unknown": "Unknown"
+      }
+    },
     "projects": {
       "title": "Insight projects",
       "subtitle": "Business delivery and runtime-health decision surface for each project.",

@@ -218,6 +218,18 @@ export interface InsightExecutionFilters {
   limit?: number;
 }
 
+export interface InsightV2AgentSummary {
+  id: string;
+  name: string | null;
+  health: InsightV2Health;
+  execution_count: InsightV2CountMetric;
+  failure_rate: number | null;
+  open_issues: InsightV2CountMetric;
+  blocked_tasks: InsightV2CountMetric;
+  active_plans: InsightV2CountMetric;
+  reason_codes: string[];
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -383,6 +395,22 @@ function normalizeV2ProjectSummary(value: unknown): InsightV2ProjectSummary {
 
 function normalizeV2Projects(value: unknown): InsightV2Projects {
   return Array.isArray(value) ? value.map(normalizeV2ProjectSummary) : [];
+}
+
+function normalizeV2Agent(value: unknown): InsightV2AgentSummary {
+  const source = isRecord(value) ? value : {};
+  const health = normalizeV2Health(source.health);
+  return {
+    id: stringOrEmpty(source.id) || 'unknown',
+    name: stringOrNull(source.name),
+    health,
+    execution_count: normalizeV2CountMetric(source.execution_count),
+    failure_rate: numberOrNull(source.failure_rate),
+    open_issues: normalizeV2CountMetric(source.open_issues),
+    blocked_tasks: normalizeV2CountMetric(source.blocked_tasks),
+    active_plans: normalizeV2CountMetric(source.active_plans),
+    reason_codes: Array.isArray(source.reason_codes) ? source.reason_codes.filter((v): v is string => typeof v === 'string') : health.reason_codes,
+  };
 }
 
 function normalizeV2FunnelBreak(value: unknown): InsightV2FunnelBreak {
@@ -605,5 +633,20 @@ export function useInsightV2PlanLineage(projectId: string | undefined, planId: s
     queryKey: qk.insightV2PlanLineage(projectId ?? '', planId ?? ''),
     queryFn: async () => normalizeV2Lineage(await api.get<unknown>(`/insights/v2/projects/${encodeURIComponent(projectId ?? '')}/plans/${encodeURIComponent(planId ?? '')}/lineage?window=24h`)),
     enabled: Boolean(projectId && planId),
+  });
+}
+
+export function useInsightAgents() {
+  return useQuery({
+    queryKey: qk.insightAgents(),
+    queryFn: async () => arrayOrEmpty(await api.get<unknown[]>('/insights/v2/agents?window=24h')).map(normalizeV2Agent),
+  });
+}
+
+export function useInsightAgent(agentRef: string | undefined) {
+  return useQuery({
+    queryKey: qk.insightAgent(agentRef ?? ''),
+    queryFn: async () => normalizeV2Agent(await api.get<unknown>(`/insights/v2/agents/${encodeURIComponent(agentRef ?? '')}?window=24h`)),
+    enabled: Boolean(agentRef),
   });
 }

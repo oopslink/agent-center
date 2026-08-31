@@ -222,6 +222,7 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
     case 'insight':
       return [{ label: 'Insight', items: [
         { to: p('insights/overview'), label: 'Overview', Icon: InsightIcon },
+        { to: p('insights/agents'), label: 'Agents', Icon: InsightIcon },
         { to: p('insights/executions'), label: 'Task executions', Icon: TaskIcon },
         { to: p('insights/projects'), label: 'Projects', Icon: FolderIcon },
       ] }];
