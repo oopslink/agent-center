@@ -1,0 +1,3 @@
+[server] admin token bootstrap: wrote /tmp/insight-runtime-probe.alNhkS/bootstrap_token (scope=* owner=system:bootstrap)
+agent-center server: db=/tmp/insight-runtime-probe.alNhkS/center.db web=127.0.0.1:62331 admin=/tmp/insight-runtime-probe.alNhkS/admin.sock (escalator running)
+signal terminated received; shutting down

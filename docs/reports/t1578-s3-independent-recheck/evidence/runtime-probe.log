@@ -1,0 +1,58 @@
+
+===== COMMAND runtime_config_redacted START 2026-08-31T03:30:29Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=sed -E s#\(sqlite_path\|admin_socket_path\|master_key_file\):\ \".\*\"#\\1:\ \"\<temp-redacted\>\"# /tmp/insight-runtime-probe.alNhkS/config.yaml
+server:
+  listen_addr: "127.0.0.1:0"
+  sqlite_path: "<temp-redacted>"
+  admin_socket_path: "<temp-redacted>"
+  admin_tcp_listen: ""
+web_console:
+  listen_addr: "127.0.0.1:62331"
+secret_management:
+  master_key_file: "<temp-redacted>"
+  skip_perms_check: true
+===== COMMAND runtime_config_redacted END 2026-08-31T03:30:29Z rc=0 =====
+
+===== COMMAND runtime_migrate START 2026-08-31T03:30:29Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=./bin/agent-center server -config /tmp/insight-runtime-probe.alNhkS/config.yaml -migrate-only
+migrations applied; exiting (--migrate-only)
+===== COMMAND runtime_migrate END 2026-08-31T03:30:30Z rc=0 =====
+started pid=49933 at=2026-08-31T03:30:30Z
+
+===== COMMAND runtime_server_log START 2026-08-31T03:30:31Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=cat /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8f47c3db/docs/reports/t1578-s3-independent-recheck/evidence/runtime-server.log
+[server] admin token bootstrap: wrote /tmp/insight-runtime-probe.alNhkS/bootstrap_token (scope=* owner=system:bootstrap)
+agent-center server: db=/tmp/insight-runtime-probe.alNhkS/center.db web=127.0.0.1:62331 admin=/tmp/insight-runtime-probe.alNhkS/admin.sock (escalator running)
+===== COMMAND runtime_server_log END 2026-08-31T03:30:31Z rc=0 =====
+
+===== COMMAND runtime_health START 2026-08-31T03:30:31Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=curl -sS -i http://127.0.0.1:62331/api/health
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 03:30:31 GMT
+Content-Length: 42
+
+{"status":"ok","version":"HEAD-16dc5815"}
+===== COMMAND runtime_health END 2026-08-31T03:30:31Z rc=0 =====
+
+===== COMMAND runtime_system_version START 2026-08-31T03:30:31Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=curl -sS -i http://127.0.0.1:62331/api/system/version
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 03:30:31 GMT
+Content-Length: 308
+
+{"branch":"HEAD","built_at":"2026-08-31T03:28:49Z","commit":"16dc5815","install_path":"/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815/bin/agent-center","parent_pid":49905,"pid":49933,"started_at":"2026-08-31T03:30:31.18444Z","version":"HEAD-16dc5815"}
+===== COMMAND runtime_system_version END 2026-08-31T03:30:31Z rc=0 =====
+
+===== COMMAND runtime_process START 2026-08-31T03:30:31Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=ps -p 49933 -o pid=\,ppid=\,stat=\,command=
+49933 49905 S    ./bin/agent-center server -config /tmp/insight-runtime-probe.alNhkS/config.yaml
+===== COMMAND runtime_process END 2026-08-31T03:30:31Z rc=0 =====
+stopped pid=49933 at=2026-08-31T03:30:31Z

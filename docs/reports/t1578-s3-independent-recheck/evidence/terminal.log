@@ -1,0 +1,462 @@
+
+===== COMMAND root_status START 2026-08-31T03:27:02Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8f47c3db
+argv=pwd
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8f47c3db
+===== COMMAND root_status END 2026-08-31T03:27:02Z rc=0 =====
+
+===== COMMAND root_git_status START 2026-08-31T03:27:02Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8f47c3db
+argv=git status --short --branch
+## ac-exec/task-7b2039ec/exec-8f47c3db
+?? docs/reports/t1578-s3-independent-recheck/
+===== COMMAND root_git_status END 2026-08-31T03:27:02Z rc=0 =====
+
+===== COMMAND task_input_find START 2026-08-31T03:27:02Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8f47c3db
+argv=find . -maxdepth 4 -path \*task-input\* -print
+===== COMMAND task_input_find END 2026-08-31T03:27:02Z rc=0 =====
+
+===== COMMAND root_head START 2026-08-31T03:27:02Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8f47c3db
+argv=git show --no-patch --format=fuller HEAD
+commit 3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5
+Author:     agent-center-dev2 <dev2@agent-center.local>
+AuthorDate: Mon Aug 31 10:23:03 2026 +0800
+Commit:     agent-center-dev2 <dev2@agent-center.local>
+CommitDate: Mon Aug 31 10:23:21 2026 +0800
+
+    feat(access): expose semantic permission templates
+===== COMMAND root_head END 2026-08-31T03:27:02Z rc=0 =====
+
+===== COMMAND remote_refs START 2026-08-31T03:27:02Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-8f47c3db
+argv=git ls-remote origin refs/heads/s3/insight-phase1-candidate-20260827 refs/heads/ac-exec/task-5493aaeb/exec-9bd82743 refs/heads/ac-exec/task-eebbbe21/exec-26365c40 refs/heads/main
+16dc58155dfa0cafd79c08595c8a8e378b5eede9	refs/heads/ac-exec/task-5493aaeb/exec-9bd82743
+9419d5da2e21c9b9e15183efe33c869ef2413ccc	refs/heads/ac-exec/task-eebbbe21/exec-26365c40
+3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5	refs/heads/main
+16dc58155dfa0cafd79c08595c8a8e378b5eede9	refs/heads/s3/insight-phase1-candidate-20260827
+===== COMMAND remote_refs END 2026-08-31T03:27:08Z rc=0 =====
+
+===== COMMAND candidate_status START 2026-08-31T03:27:08Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=git status --short --branch
+## HEAD (no branch)
+===== COMMAND candidate_status END 2026-08-31T03:27:08Z rc=0 =====
+
+===== COMMAND candidate_head START 2026-08-31T03:27:08Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=git show --no-patch --format=fuller HEAD
+commit 16dc58155dfa0cafd79c08595c8a8e378b5eede9
+Author:     agent-center-pd <01KTVB7S3GE1PRSDFX3BE81FCM@agent-center>
+AuthorDate: Thu Aug 27 19:32:59 2026 +0800
+Commit:     agent-center-pd <01KTVB7S3GE1PRSDFX3BE81FCM@agent-center>
+CommitDate: Thu Aug 27 19:32:59 2026 +0800
+
+    docs(insight): converge S3 candidate identity
+===== COMMAND candidate_head END 2026-08-31T03:27:08Z rc=0 =====
+
+===== COMMAND candidate_describe START 2026-08-31T03:27:09Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=git describe --always --dirty --tags
+16dc5815
+===== COMMAND candidate_describe END 2026-08-31T03:27:09Z rc=0 =====
+
+===== COMMAND candidate_ancestor_s2a START 2026-08-31T03:27:09Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=git merge-base --is-ancestor 16a4120322f23007511d4609d0cb64d5982d0600 HEAD
+===== COMMAND candidate_ancestor_s2a END 2026-08-31T03:27:09Z rc=0 =====
+
+===== COMMAND candidate_ancestor_s2br START 2026-08-31T03:27:09Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=git merge-base --is-ancestor b9e25a6381b55a687b0d894a1f56fefc8ccbc5e0 HEAD
+===== COMMAND candidate_ancestor_s2br END 2026-08-31T03:27:09Z rc=0 =====
+
+===== COMMAND candidate_ancestor_s2c START 2026-08-31T03:27:09Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=git merge-base --is-ancestor 738bc0a6769b413dd4d04c6834207c62c2918fae HEAD
+===== COMMAND candidate_ancestor_s2c END 2026-08-31T03:27:09Z rc=0 =====
+
+===== COMMAND candidate_ancestor_remediation START 2026-08-31T03:27:09Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=git merge-base --is-ancestor 968dd76157d4b79755cc59a23163bbffbb1e5dc7 HEAD
+===== COMMAND candidate_ancestor_remediation END 2026-08-31T03:27:09Z rc=0 =====
+
+===== COMMAND toolchain START 2026-08-31T03:27:09Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=go version
+go version go1.26.3 darwin/arm64
+===== COMMAND toolchain END 2026-08-31T03:27:09Z rc=0 =====
+
+===== COMMAND node_version START 2026-08-31T03:27:09Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=node --version
+v25.6.0
+===== COMMAND node_version END 2026-08-31T03:27:09Z rc=0 =====
+
+===== COMMAND pnpm_version START 2026-08-31T03:27:09Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=pnpm --version
+10.31.0
+===== COMMAND pnpm_version END 2026-08-31T03:27:10Z rc=0 =====
+
+===== COMMAND insight_unit START 2026-08-31T03:27:10Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=go test -v ./internal/insight -count=1
+=== RUN   TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild
+--- PASS: TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild (0.69s)
+=== RUN   TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap
+--- PASS: TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap (0.42s)
+=== RUN   TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval
+--- PASS: TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval (0.23s)
+=== RUN   TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail
+--- PASS: TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail (0.39s)
+=== RUN   TestInsightInvalidTimeOrder
+--- PASS: TestInsightInvalidTimeOrder (0.29s)
+=== RUN   TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow
+--- PASS: TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow (0.43s)
+=== RUN   TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce
+--- PASS: TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce (0.58s)
+=== RUN   TestInsightPostCommitCrashRestartDoesNotDuplicate
+--- PASS: TestInsightPostCommitCrashRestartDoesNotDuplicate (0.48s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/insight	4.129s
+===== COMMAND insight_unit END 2026-08-31T03:27:16Z rc=0 =====
+
+===== COMMAND insight_race START 2026-08-31T03:27:16Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=go test -race -p 1 ./internal/insight -count=3
+ok  	github.com/oopslink/agent-center/internal/insight	87.667s
+===== COMMAND insight_race END 2026-08-31T03:28:45Z rc=0 =====
+
+===== COMMAND insight_api START 2026-08-31T03:28:45Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=go test -v ./internal/webconsole/api -run TestInsights -count=1
+=== RUN   TestInsightsOverviewAPI_WindowValidationAndShape
+--- PASS: TestInsightsOverviewAPI_WindowValidationAndShape (0.14s)
+=== RUN   TestInsightsHTTPReadDoesNotTriggerProjection
+--- PASS: TestInsightsHTTPReadDoesNotTriggerProjection (0.13s)
+=== RUN   TestInsightsExecutionAPI_ReadsSingleProjectedExecution
+--- PASS: TestInsightsExecutionAPI_ReadsSingleProjectedExecution (0.12s)
+=== RUN   TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound
+--- PASS: TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound (0.12s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	1.278s
+===== COMMAND insight_api END 2026-08-31T03:28:49Z rc=0 =====
+
+===== COMMAND build_backend START 2026-08-31T03:28:49Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=make build-backend
+cd web && pnpm install --frozen-lockfile
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +648
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 648, reused 648, downloaded 0, added 307
+Progress: resolved 648, reused 648, downloaded 0, added 644
+Progress: resolved 648, reused 648, downloaded 0, added 648, done
+
+dependencies:
++ @headlessui/react 2.2.10
++ @tanstack/react-query 5.100.14
++ highlight.js 11.11.1
++ i18next 26.3.4
++ i18next-browser-languagedetector 8.2.1
++ mermaid 11.16.1
++ react 19.2.6
++ react-dom 19.2.6
++ react-i18next 17.0.8
++ react-markdown 10.1.0
++ react-router-dom 7.15.1
++ remark-gfm 4.0.1
++ zustand 5.0.13
+
+devDependencies:
++ @testing-library/jest-dom 6.9.1
++ @testing-library/react 16.3.2
++ @testing-library/user-event 14.6.1
++ @types/react 19.2.15
++ @types/react-dom 19.2.3
++ @typescript-eslint/parser 8.60.1
++ @vitejs/plugin-react 4.7.0
++ @vitest/coverage-v8 2.1.9
++ autoprefixer 10.5.0
++ eslint 9.39.4
++ jsdom 25.0.1
++ msw 2.14.6
++ postcss 8.5.15
++ tailwindcss 3.4.19
++ typescript 5.9.3
++ vite 5.4.21
++ vitest 2.1.9
+
+Done in 2.9s using pnpm v10.31.0
+cd web && VITE_BUILD_SHA=16dc58155dfa0cafd79c08595c8a8e378b5eede9 pnpm run build
+
+> agent-center-web@0.1.0 build /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815/web
+> tsc -b && vite build
+
+vite v5.4.21 building for production...
+transforming...
+✓ 2708 modules transformed.
+rendering chunks...
+warnings when minifying css:
+▲ [WARNING] Expected identifier but found "-" [css-syntax-error]
+
+    <stdin>:3072:2:
+      3072 │   -: ·;
+           ╵   ^
+
+
+computing gzip size...
+../internal/webconsole/spa/dist/index.html                                         0.59 kB │ gzip:   0.40 kB
+../internal/webconsole/spa/dist/assets/codeHighlight-TlSL6hXd.css                  0.55 kB │ gzip:   0.27 kB
+../internal/webconsole/spa/dist/assets/index-BZSjSrC5.css                         68.75 kB │ gzip:  14.11 kB
+../internal/webconsole/spa/dist/assets/channel-BIqyU0J2.js                         0.11 kB │ gzip:   0.13 kB
+../internal/webconsole/spa/dist/assets/fleet-CWQhN11x.js                           0.14 kB │ gzip:   0.15 kB
+../internal/webconsole/spa/dist/assets/init-Gi6I4Gst.js                            0.15 kB │ gzip:   0.13 kB
+../internal/webconsole/spa/dist/assets/conversationSegments-CmhG79J6.js            0.19 kB │ gzip:   0.12 kB
+../internal/webconsole/spa/dist/assets/users-BEgozjsZ.js                           0.19 kB │ gzip:   0.19 kB
+../internal/webconsole/spa/dist/assets/chunk-2Q5K7J3B-OuBBmwy-.js                  0.20 kB │ gzip:   0.16 kB
+../internal/webconsole/spa/dist/assets/agentLifecycleTime-B8yYLUxQ.js              0.20 kB │ gzip:   0.14 kB
+../internal/webconsole/spa/dist/assets/chunk-JWPE2WC7-D8CuWQ9T.js                  0.23 kB │ gzip:   0.17 kB
+../internal/webconsole/spa/dist/assets/chunk-XXDRQBXY-eBzeGLfo.js                  0.24 kB │ gzip:   0.21 kB
+../internal/webconsole/spa/dist/assets/chunk-5VM5RSS4-Ce9m0t4Q.js                  0.37 kB │ gzip:   0.27 kB
+../internal/webconsole/spa/dist/assets/useSSEConversationSubscribe-B9HCDPii.js     0.39 kB │ gzip:   0.26 kB
+../internal/webconsole/spa/dist/assets/passcode-DA4UUc52.js                        0.40 kB │ gzip:   0.23 kB
+../internal/webconsole/spa/dist/assets/stateDiagram-v2-UEYNNEHI-JJ8GqdA-.js        0.43 kB │ gzip:   0.30 kB
+../internal/webconsole/spa/dist/assets/TypeChip-_kC_LtG6.js                        0.46 kB │ gzip:   0.34 kB
+../internal/webconsole/spa/dist/assets/system-dlof1xSH.js                          0.46 kB │ gzip:   0.27 kB
+../internal/webconsole/spa/dist/assets/useSystemSegments-BpP7FBrD.js               0.47 kB │ gzip:   0.27 kB
+../internal/webconsole/spa/dist/assets/classDiagram-JCYQIIEL-DxdMOGzr.js           0.47 kB │ gzip:   0.32 kB
+../internal/webconsole/spa/dist/assets/classDiagram-v2-OCEON4UE-DxdMOGzr.js        0.47 kB │ gzip:   0.32 kB
+../internal/webconsole/spa/dist/assets/chunk-KBJHAD2P-CGB-P9Hh.js                  0.51 kB │ gzip:   0.35 kB
+../internal/webconsole/spa/dist/assets/NotFound-CDD9myt4.js                        0.52 kB │ gzip:   0.31 kB
+../internal/webconsole/spa/dist/assets/swimlanesDiagram-ULZ7WXOC-BQWcwO_K.js       0.55 kB │ gzip:   0.37 kB
+../internal/webconsole/spa/dist/assets/ToggleSwitch-C0YUGvez.js                    0.56 kB │ gzip:   0.38 kB
+../internal/webconsole/spa/dist/assets/infoDiagram-6WML65LV-DDq55k3E.js            0.59 kB │ gzip:   0.41 kB
+../internal/webconsole/spa/dist/assets/EntityRef-DEUV55vO.js                       0.63 kB │ gzip:   0.38 kB
+../internal/webconsole/spa/dist/assets/useTablistKeyboard-Bw_NNdkJ.js              0.67 kB │ gzip:   0.41 kB
+../internal/webconsole/spa/dist/assets/SegmentedNav-DK2jg96x.js                    0.70 kB │ gzip:   0.48 kB
+../internal/webconsole/spa/dist/assets/workers-BYVGVrZB.js                         0.71 kB │ gzip:   0.34 kB
+../internal/webconsole/spa/dist/assets/ErrorState-BoYYJ1Le.js                      0.76 kB │ gzip:   0.44 kB
+../internal/webconsole/spa/dist/assets/Breadcrumb-CpORlN3H.js                      0.82 kB │ gzip:   0.42 kB
+../internal/webconsole/spa/dist/assets/issues-CQZaRQZg.js                          0.91 kB │ gzip:   0.43 kB
+../internal/webconsole/spa/dist/assets/sizeCapture-X5ZJPWSS-DHRdszJt.js            0.94 kB │ gzip:   0.52 kB
+../internal/webconsole/spa/dist/assets/invitations-COrZ4Dn3.js                     1.01 kB │ gzip:   0.40 kB
+../internal/webconsole/spa/dist/assets/executorProfiles-D7vODP3H.js                1.15 kB │ gzip:   0.56 kB
+../internal/webconsole/spa/dist/assets/ordinal-Cboi1Yqb.js                         1.19 kB │ gzip:   0.57 kB
+../internal/webconsole/spa/dist/assets/EmptyState-B9h8fwGx.js                      1.19 kB │ gzip:   0.65 kB
+../internal/webconsole/spa/dist/assets/Avatar-BeVfTZ0b.js                          1.31 kB │ gzip:   0.72 kB
+../internal/webconsole/spa/dist/assets/orgWorkItems-SZ0Fys01.js                    1.37 kB │ gzip:   0.63 kB
+../internal/webconsole/spa/dist/assets/InvitationAccept-BcndzjZ9.js                1.38 kB │ gzip:   0.63 kB
+../internal/webconsole/spa/dist/assets/tasks-B6pUgLR1.js                           1.41 kB │ gzip:   0.59 kB
+../internal/webconsole/spa/dist/assets/CapabilitiesEditor-Ctf5A7CD.js              1.42 kB │ gzip:   0.78 kB
+../internal/webconsole/spa/dist/assets/kit-CLUSzCsA.js                             1.51 kB │ gzip:   0.54 kB
+../internal/webconsole/spa/dist/assets/railroadDiagram-AXF67PYL-BhpHxOoI.js        1.61 kB │ gzip:   0.76 kB
+../internal/webconsole/spa/dist/assets/Version-BuJaSdGg.js                         1.66 kB │ gzip:   0.68 kB
+../internal/webconsole/spa/dist/assets/abnfDiagram-N423BO3Z-DVzORZWe.js            1.81 kB │ gzip:   0.90 kB
+../internal/webconsole/spa/dist/assets/chunk-2GRJ4B5K-Yn4vOVnf.js                  1.86 kB │ gzip:   0.82 kB
+../internal/webconsole/spa/dist/assets/pegDiagram-VL7TDLO6-k_X1sCTq.js             1.96 kB │ gzip:   0.93 kB
+../internal/webconsole/spa/dist/assets/listControls-2PqFgREu.js                    1.96 kB │ gzip:   0.95 kB
+../internal/webconsole/spa/dist/assets/ebnfDiagram-BXEA7PRR-f-WvWJZC.js            2.01 kB │ gzip:   0.89 kB
+../internal/webconsole/spa/dist/assets/repoDisplay-CkJ2GdXn.js                     2.01 kB │ gzip:   0.73 kB
+../internal/webconsole/spa/dist/assets/aiRuntime-DD5ZDSxI.js                       2.12 kB │ gzip:   0.87 kB
+../internal/webconsole/spa/dist/assets/ForceDeleteModal-CNFn2r3n.js                2.56 kB │ gzip:   1.01 kB
+../internal/webconsole/spa/dist/assets/AgentBadges-D_XcSSK7.js                     2.58 kB │ gzip:   0.89 kB
+../internal/webconsole/spa/dist/assets/Signin-CoZsSMiv.js                          2.71 kB │ gzip:   1.04 kB
+../internal/webconsole/spa/dist/assets/access-xoru_K4R.js                          2.79 kB │ gzip:   0.85 kB
+../internal/webconsole/spa/dist/assets/ConversationInfoPanel-FkXt7M-k.js           2.80 kB │ gzip:   0.98 kB
+../internal/webconsole/spa/dist/assets/arc-Dn5M8RDL.js                             3.43 kB │ gzip:   1.45 kB
+../internal/webconsole/spa/dist/assets/planDisplay-DG7vYfpX.js                     3.54 kB │ gzip:   1.14 kB
+../internal/webconsole/spa/dist/assets/FloatingDmWindow-BMh-mvhz.js                3.64 kB │ gzip:   1.60 kB
+../internal/webconsole/spa/dist/assets/icons-DPc332Sm.js                           3.74 kB │ gzip:   0.67 kB
+../internal/webconsole/spa/dist/assets/Settings-DOwuGQgP.js                        3.81 kB │ gzip:   1.46 kB
+../internal/webconsole/spa/dist/assets/EntitySelect-C67Dmvjp.js                    4.03 kB │ gzip:   1.67 kB
+../internal/webconsole/spa/dist/assets/ChannelDetail-BMR57nDA.js                   4.13 kB │ gzip:   1.61 kB
+../internal/webconsole/spa/dist/assets/ConversationSurfaceMobile-Dsj5PO4E.js       4.15 kB │ gzip:   1.56 kB
+../internal/webconsole/spa/dist/assets/diagram-LBJQPF4R-Boh5Wc4m.js                4.22 kB │ gzip:   1.83 kB
+../internal/webconsole/spa/dist/assets/agents-CTtpXO78.js                          4.28 kB │ gzip:   1.50 kB
+../internal/webconsole/spa/dist/assets/Unread-BGXu9dZ0.js                          4.38 kB │ gzip:   1.60 kB
+../internal/webconsole/spa/dist/assets/Signup-DWjfexf0.js                          4.57 kB │ gzip:   1.77 kB
+../internal/webconsole/spa/dist/assets/defaultLocale-CrowFXzY.js                   4.69 kB │ gzip:   2.17 kB
+../internal/webconsole/spa/dist/assets/Me-BEM_o8ei.js                              4.83 kB │ gzip:   1.37 kB
+../internal/webconsole/spa/dist/assets/kit-Dj6nxUYk.js                             4.96 kB │ gzip:   1.62 kB
+../internal/webconsole/spa/dist/assets/map--5OmGKFp.js                             5.07 kB │ gzip:   2.07 kB
+../internal/webconsole/spa/dist/assets/EntityMultiSelect-Bk01RFGi.js               5.07 kB │ gzip:   2.02 kB
+../internal/webconsole/spa/dist/assets/linear-B2Vdo6ew.js                          5.66 kB │ gzip:   2.31 kB
+../internal/webconsole/spa/dist/assets/plans-C3jvQgFN.js                           5.86 kB │ gzip:   1.62 kB
+../internal/webconsole/spa/dist/assets/diagram-UB23O5K3-D1Z6xTjH.js                6.09 kB │ gzip:   2.62 kB
+../internal/webconsole/spa/dist/assets/pieDiagram-7S7Q4E2Y-DD1wIKhT.js             6.31 kB │ gzip:   2.64 kB
+../internal/webconsole/spa/dist/assets/DMDetail-CjWD9xQm.js                        6.88 kB │ gzip:   2.63 kB
+../internal/webconsole/spa/dist/assets/chunk-RYQCIY6F-aWGrKYw6.js                  7.08 kB │ gzip:   2.72 kB
+../internal/webconsole/spa/dist/assets/InstallCommandModal-Ck8BrjsI.js             7.22 kB │ gzip:   2.12 kB
+../internal/webconsole/spa/dist/assets/ObjectAuditTimeline-C7DOTjDw.js             7.24 kB │ gzip:   2.48 kB
+../internal/webconsole/spa/dist/assets/diagram-7IWD3JNH-BSx0RCb_.js                8.28 kB │ gzip:   3.73 kB
+../internal/webconsole/spa/dist/assets/Secrets-yFWAHqhL.js                         8.41 kB │ gzip:   2.26 kB
+../internal/webconsole/spa/dist/assets/dagre-VZM6K2ZE-o-DuP9j6.js                  8.60 kB │ gzip:   3.31 kB
+../internal/webconsole/spa/dist/assets/DMs-CRwdfe1Q.js                             8.66 kB │ gzip:   2.73 kB
+../internal/webconsole/spa/dist/assets/AgentCreateModal-BJB-1Rlw.js                8.79 kB │ gzip:   2.80 kB
+../internal/webconsole/spa/dist/assets/AttachmentsSection-CDA8fU6T.js              9.39 kB │ gzip:   3.30 kB
+../internal/webconsole/spa/dist/assets/Trans-BRNYiCv-.js                           9.40 kB │ gzip:   4.08 kB
+../internal/webconsole/spa/dist/assets/UserDetail-BDvLwI2u.js                      9.76 kB │ gzip:   3.02 kB
+../internal/webconsole/spa/dist/assets/cynefinDiagram-MW4NZA55-Dngbl-Zj.js        10.09 kB │ gzip:   3.61 kB
+../internal/webconsole/spa/dist/assets/RuntimeSelectors-BCBzYlO3.js               10.32 kB │ gzip:   3.71 kB
+../internal/webconsole/spa/dist/assets/stateDiagram-OKZ733FA-CFAMaWfS.js          10.42 kB │ gzip:   3.65 kB
+../internal/webconsole/spa/dist/assets/diagram-B4RE2ZJO-_vuFv4MQ.js               10.76 kB │ gzip:   4.16 kB
+../internal/webconsole/spa/dist/assets/OrgPlans-ByjLHb_W.js                       10.92 kB │ gzip:   2.87 kB
+../internal/webconsole/spa/dist/assets/Channels-DyI-Ell7.js                       11.64 kB │ gzip:   3.40 kB
+../internal/webconsole/spa/dist/assets/TaskCreateModal-CpmH19wQ.js                12.05 kB │ gzip:   3.21 kB
+../internal/webconsole/spa/dist/assets/TeamsDirectoryHumans-Ahc7t3e5.js           12.16 kB │ gzip:   3.82 kB
+../internal/webconsole/spa/dist/assets/OrgWorkItems-CF9yf4hW.js                   12.66 kB │ gzip:   3.18 kB
+../internal/webconsole/spa/dist/assets/AccessPermissionsPanel-BMiGO1kW.js         13.26 kB │ gzip:   3.44 kB
+../internal/webconsole/spa/dist/assets/InsightOverview-U3Ij745F.js                13.37 kB │ gzip:   3.27 kB
+../internal/webconsole/spa/dist/assets/Projects-DiiZsPxH.js                       14.14 kB │ gzip:   3.75 kB
+../internal/webconsole/spa/dist/assets/WorkerDetail-Bijo6Zy6.js                   14.25 kB │ gzip:   3.91 kB
+../internal/webconsole/spa/dist/assets/ExecutorSlotPanel-DyAJXHv5.js              14.31 kB │ gzip:   3.94 kB
+../internal/webconsole/spa/dist/assets/chunk-6Q2QTUOP-BS1w5Kuq.js                 15.74 kB │ gzip:   4.39 kB
+../internal/webconsole/spa/dist/assets/Reminders-xgNhOZZO.js                      15.76 kB │ gzip:   4.30 kB
+../internal/webconsole/spa/dist/assets/diagram-Q27KOJAE-C10zb_3k.js               15.96 kB │ gzip:   5.70 kB
+../internal/webconsole/spa/dist/assets/ContextPanelMobileButton-DMpPTF4N.js       16.21 kB │ gzip:   4.52 kB
+../internal/webconsole/spa/dist/assets/IssueDetail-lMvgHYoM.js                    17.12 kB │ gzip:   4.67 kB
+../internal/webconsole/spa/dist/assets/TeamsDirectoryAgents-BpGTMgmN.js           17.33 kB │ gzip:   5.17 kB
+../internal/webconsole/spa/dist/assets/ishikawaDiagram-WSZJBQD7-CFumAVo3.js       17.47 kB │ gzip:   6.61 kB
+../internal/webconsole/spa/dist/assets/OrgRepos-BYui3Uml.js                       17.76 kB │ gzip:   5.07 kB
+../internal/webconsole/spa/dist/assets/MarkdownMessage-CK5-dN9Q.js                17.78 kB │ gzip:   6.15 kB
+../internal/webconsole/spa/dist/assets/Teams-BO6T3h3Y.js                          18.06 kB │ gzip:   4.73 kB
+../internal/webconsole/spa/dist/assets/TaskDetail-B-dHewtt.js                     18.63 kB │ gzip:   5.25 kB
+../internal/webconsole/spa/dist/assets/TeamRoleDetail-BkXR2qCH.js                 18.79 kB │ gzip:   5.11 kB
+../internal/webconsole/spa/dist/assets/kanban-definition-27J2QSJJ-2Om9nyJ2.js     20.30 kB │ gzip:   7.14 kB
+../internal/webconsole/spa/dist/assets/mindmap-definition-FAOFIHXS-PANKSZvL.js    23.18 kB │ gzip:   7.74 kB
+../internal/webconsole/spa/dist/assets/sankeyDiagram-W5VNT64P-BdBYOyWV.js         23.21 kB │ gzip:   8.50 kB
+../internal/webconsole/spa/dist/assets/journeyDiagram-NVQOT4AX--JZCgg7x.js        23.59 kB │ gzip:   8.31 kB
+../internal/webconsole/spa/dist/assets/graph-CXBbwMuG.js                          23.92 kB │ gzip:   8.30 kB
+../internal/webconsole/spa/dist/assets/agentActivityGrouping-Bz0Y3YLg.js          24.03 kB │ gzip:   6.93 kB
+../internal/webconsole/spa/dist/assets/OrganizationSettings-a8WCjH3s.js           25.20 kB │ gzip:   5.99 kB
+../internal/webconsole/spa/dist/assets/wardleyDiagram-T6FBY63Y-lmKS8TCK.js        25.51 kB │ gzip:   6.76 kB
+../internal/webconsole/spa/dist/assets/erDiagram-JOGREHBK-f0306E_8.js             27.11 kB │ gzip:   9.32 kB
+../internal/webconsole/spa/dist/assets/Environment-DgK8BbUZ.js                    27.11 kB │ gzip:   6.60 kB
+../internal/webconsole/spa/dist/assets/gitGraphDiagram-DS77QQ5N-jYATfjjl.js       29.43 kB │ gzip:   8.67 kB
+../internal/webconsole/spa/dist/assets/timeline-definition-Z64GVDOM-D_nPAGaN.js   30.85 kB │ gzip:  10.11 kB
+../internal/webconsole/spa/dist/assets/layout-DqmBkSZF.js                         31.00 kB │ gzip:  11.18 kB
+../internal/webconsole/spa/dist/assets/requirementDiagram-LRYGKXZP-D3LssE8f.js    31.01 kB │ gzip:   9.61 kB
+../internal/webconsole/spa/dist/assets/SenderSidebarContext-8pLLOqgk.js           31.15 kB │ gzip:   8.43 kB
+../internal/webconsole/spa/dist/assets/ProjectPlans-Bb0vovUX.js                   32.95 kB │ gzip:   8.77 kB
+../internal/webconsole/spa/dist/assets/quadrantDiagram-CIZ2JOQS-32W2p_Cl.js       34.01 kB │ gzip:   9.85 kB
+../internal/webconsole/spa/dist/assets/AiRuntime-DdfqfpTj.js                      35.69 kB │ gzip:   7.09 kB
+../internal/webconsole/spa/dist/assets/chunk-5RXB4S5H-DW2fs0Fd.js                 38.12 kB │ gzip:  12.38 kB
+../internal/webconsole/spa/dist/assets/ProjectDetail-CSrKOIrY.js                  41.68 kB │ gzip:   8.94 kB
+../internal/webconsole/spa/dist/assets/xychartDiagram-ELKLHX3M-BAdDcI01.js        41.92 kB │ gzip:  11.85 kB
+../internal/webconsole/spa/dist/assets/vennDiagram-T6HMQDX7-Cy6-nAxt.js           41.97 kB │ gzip:  15.56 kB
+../internal/webconsole/spa/dist/assets/ConversationView-9Zqy1lg7.js               43.42 kB │ gzip:  12.13 kB
+../internal/webconsole/spa/dist/assets/TeamDetail-lZIB_ZF5.js                     43.67 kB │ gzip:  10.69 kB
+../internal/webconsole/spa/dist/assets/chunk-GF5L2VYU-DchbVRGO.js                 49.19 kB │ gzip:  15.55 kB
+../internal/webconsole/spa/dist/assets/codeHighlight-cGCjkey2.js                  54.06 kB │ gzip:  17.35 kB
+../internal/webconsole/spa/dist/assets/flowDiagram-UKHOOZJN-DNXzQn4Y.js           60.71 kB │ gzip:  19.24 kB
+../internal/webconsole/spa/dist/assets/Access-BBcZqVxl.js                         66.73 kB │ gzip:  14.66 kB
+../internal/webconsole/spa/dist/assets/ganttDiagram-PKOTCBZU-Bc6bxthu.js          69.44 kB │ gzip:  23.19 kB
+../internal/webconsole/spa/dist/assets/c4Diagram-5PPSVZJV-CrUazwsx.js             69.93 kB │ gzip:  19.46 kB
+../internal/webconsole/spa/dist/assets/blockDiagram-VBNYF7ZC-CNeiJHbb.js          73.75 kB │ gzip:  21.09 kB
+../internal/webconsole/spa/dist/assets/cose-bilkent-JH36ORCC-DyADol-a.js          81.53 kB │ gzip:  22.35 kB
+../internal/webconsole/spa/dist/assets/AgentDetail-D2ns_t7f.js                    94.57 kB │ gzip:  22.96 kB
+../internal/webconsole/spa/dist/assets/sequenceDiagram-SI44F4Z6-BqCj00bA.js      116.95 kB │ gzip:  30.86 kB
+../internal/webconsole/spa/dist/assets/swimlanes-SLNWSIFB-Wu29Kj4k.js            118.83 kB │ gzip:  43.30 kB
+../internal/webconsole/spa/dist/assets/PlanDetail-BKoOdACw.js                    119.68 kB │ gzip:  26.84 kB
+../internal/webconsole/spa/dist/assets/architectureDiagram-T3A2C74G-BqR_RLW6.js  151.63 kB │ gzip:  42.77 kB
+../internal/webconsole/spa/dist/assets/index-Po-RpGp9.js                         156.75 kB │ gzip:  47.18 kB
+../internal/webconsole/spa/dist/assets/katex-HP8lGamR.js                         258.47 kB │ gzip:  77.25 kB
+../internal/webconsole/spa/dist/assets/cytoscape.esm-BvX2Lq_V.js                 443.77 kB │ gzip: 141.77 kB
+../internal/webconsole/spa/dist/assets/mermaid.core-BmsdYolP.js                  622.98 kB │ gzip: 148.82 kB
+../internal/webconsole/spa/dist/assets/index-BJQ9kbLV.js                         650.07 kB │ gzip: 209.53 kB
+../internal/webconsole/spa/dist/assets/cynefin-VYW2F7L2-C_CX8Qdi.js              687.73 kB │ gzip: 151.36 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 4.86s
+# vite's emptyOutDir wipes .gitkeep; restore it so the directory
+# survives `make clean` + remains tracked for fresh clones (go:embed
+# needs the dir to exist before the SPA is ever built).
+echo "Populated by 'make build-frontend' (vite build outDir)." > ./internal/webconsole/spa/dist/.gitkeep
+go build -ldflags "-X main.buildVersion=HEAD-16dc5815 -X main.buildCommit=16dc5815 -X main.buildBranch=HEAD -X main.buildBuiltAt=2026-08-31T03:28:49Z" \
+	    -o ./bin/agent-center ./cmd/agent-center
+===== COMMAND build_backend END 2026-08-31T03:29:09Z rc=0 =====
+
+===== COMMAND binary_sha START 2026-08-31T03:29:09Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=shasum -a 256 ./bin/agent-center
+4b6c69aec1f283941f9123726bca48c8f293f25cb3b9c144ef232b893cee75f3  ./bin/agent-center
+===== COMMAND binary_sha END 2026-08-31T03:29:09Z rc=0 =====
+
+===== COMMAND binary_version START 2026-08-31T03:29:09Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=./bin/agent-center --version
+agent-center — agent-center — single binary, multi-mode CLI (Phase 1)
+
+Usage:
+  agent-center <command> [subcommand ...] [--flag ...]
+  agent-center help [<command-or-topic>]
+  agent-center --help | -h | --version
+
+Help & info:
+  help                   Show usage. `help <command>` for a subtree, `help <topic>` for an indexed topic.
+  version                Print build info
+
+Runtime:
+  bootstrap              Runtime install validations
+  server                 Run the center daemon (Phase 1 minimal: migrate + idle)
+  worker                 Worker daemon commands.
+
+Admin:
+  admin                  Internal / ops commands.
+  install                Install or upgrade agent-center (center or worker) on this machine
+  list-local-centers     List all agent-center deployments installed on this machine (v2.7.1 #211 multi-instance)
+  list-local-workers     List all worker deployments installed on this machine, prod + test (v2.8 #170)
+  list-test-instances    List test sandboxes installed under ~/.agent-center-test (v2.8 #255)
+  migrate                Database migration commands (up / v1-to-v2)
+  uninstall              Remove agent-center (center or worker) from this machine
+  upgrade                Upgrade an existing agent-center install (center or worker) to the current binary's version
+
+Topics:
+  format                 Output format conventions (`--format=table|json|text`)
+  identity               Identity refs and the user/agent/system kinds
+  exit-codes             Exit code conventions
+
+Run `agent-center help <command>` or `agent-center help <topic>` for details.
+===== COMMAND binary_version END 2026-08-31T03:29:10Z rc=0 =====
+
+===== COMMAND system_version_unit START 2026-08-31T03:29:10Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815
+argv=go test -v ./internal/webconsole/api -run TestAPI_\(Health\|SystemVersion\) -count=1
+=== RUN   TestAPI_Health
+--- PASS: TestAPI_Health (0.09s)
+=== RUN   TestAPI_SystemVersion
+--- PASS: TestAPI_SystemVersion (0.00s)
+=== RUN   TestAPI_SystemVersion_Fallbacks
+--- PASS: TestAPI_SystemVersion_Fallbacks (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	0.564s
+===== COMMAND system_version_unit END 2026-08-31T03:29:12Z rc=0 =====
+
+===== COMMAND insight_ui START 2026-08-31T03:29:12Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815/web
+argv=pnpm exec vitest run src/pages/InsightOverview.test.tsx
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815/web
+
+(node:49421) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/InsightOverview.test.tsx (11 tests) 222ms
+
+ Test Files  1 passed (1)
+      Tests  11 passed (11)
+   Start at  11:29:12
+   Duration  1.09s (transform 105ms, setup 307ms, collect 45ms, tests 222ms, environment 238ms, prepare 36ms)
+
+===== COMMAND insight_ui END 2026-08-31T03:29:13Z rc=0 =====
+
+===== COMMAND insight_tsc START 2026-08-31T03:29:13Z =====
+cwd=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/insight-candidate-16dc5815/web
+argv=pnpm exec tsc -b --force
+===== COMMAND insight_tsc END 2026-08-31T03:29:19Z rc=0 =====
