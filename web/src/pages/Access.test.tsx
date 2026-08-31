@@ -581,10 +581,14 @@ describe('Access page', () => {
     expect(within(scopePicker).queryByText('org:org-test')).not.toBeInTheDocument();
     fireEvent.change(within(scopePicker).getByTestId('access-scope-picker-specific-id'), { target: { value: 'issue-99' } });
     fireEvent.click(within(scopePicker).getByTestId('access-scope-picker-specific-add'));
+    expect(within(scopePicker).getByText('2 selected')).toBeInTheDocument();
+    fireEvent.click(within(scopePicker).getByTestId('access-scope-picker-apply'));
     addGrantEntry(drawer, 'permission-capability-issue-read');
     fireEvent.click(within(drawer).getByTestId('access-picker-scope-permission-capability-issue-read'));
     const orgScopePicker = await screen.findByTestId('access-scope-picker');
     fireEvent.click(within(orgScopePicker).getByTestId('access-scope-picker-option-org-org-test'));
+    expect(within(orgScopePicker).getByText('3 selected')).toBeInTheDocument();
+    fireEvent.click(within(orgScopePicker).getByTestId('access-scope-picker-apply'));
     addGrantEntry(drawer, 'permission-capability-issue-read');
     fireEvent.click(within(drawer).getByTestId('access-picker-scope-permission-direct-project-read-project'));
     const projectScopePicker = await screen.findByTestId('access-scope-picker');
@@ -606,7 +610,6 @@ describe('Access page', () => {
       { permission_key: 'project.read', resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' } },
       { permission_key: 'issue.read', resource: { kind: 'issue', id: 'issue-42', org_id: 'org-test', project_id: 'proj-a', label: 'Issue 42' } },
       { permission_key: 'issue.read', resource: { kind: 'issue', id: 'issue-99', org_id: 'org-test', project_id: 'proj-a', label: 'Issue issue-99' } },
-      { permission_key: 'project.read', resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' } },
       { permission_key: 'project.read', resource: { kind: 'project', id: 'proj-b', org_id: 'org-test', project_id: 'proj-b', label: 'Project Beta' } },
     ]);
     expect(capturedPreviewBody?.permission_keys).toEqual(['project.read', 'issue.read']);

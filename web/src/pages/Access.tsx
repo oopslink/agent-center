@@ -2014,6 +2014,7 @@ function BatchGrantPanel({
   const [permissionQuery, setPermissionQuery] = useState('');
   const [selectedPickerIDs, setSelectedPickerIDs] = useState<string[]>([]);
   const [pickerResources, setPickerResources] = useState<Record<string, string>>({});
+  const [pickerResourceSelections, setPickerResourceSelections] = useState<Record<string, string[]>>({});
   const [customPickerResources, setCustomPickerResources] = useState<Record<string, AccessResourceScope>>({});
   const [collapsedPickerGroups, setCollapsedPickerGroups] = useState<Record<string, boolean>>({});
   const [scopePickerRowID, setScopePickerRowID] = useState<string | null>(null);
@@ -2181,6 +2182,14 @@ function BatchGrantPanel({
     const matched = resources.filter((resource) => row.compatibleKinds.includes('mixed') || row.compatibleKinds.includes(resource.kind));
     return orgExpansionKind(row) ? [...matched, ...orgResources] : matched;
   };
+  const selectedResourceKeysForRow = (row: PermissionPickerRow): string[] => {
+    const selected = pickerResourceSelections[row.id]?.filter((key) => resourceByKey.has(key)) ?? [];
+    if (selected.length > 0) return selected;
+    const legacySelected = pickerResources[row.id];
+    if (legacySelected && resourceByKey.has(legacySelected)) return [legacySelected];
+    const first = compatibleResources(row)[0];
+    return first ? [accessResourceKey(first)] : [];
+  };
   const expandedResourcesForGrant = (row: PermissionPickerRow, resource: AccessResourceScope): AccessResourceScope[] => {
     if (resource.kind !== 'org') return [resource];
     const expansionKind = orgExpansionKind(row);
@@ -2200,10 +2209,14 @@ function BatchGrantPanel({
   };
   const addPickerRows = (rows = visibleSelectedPickerRows): void => {
     const next: GrantEntry[] = [];
+    const seen = new Set(grantEntries.map((entry) => `${entry.kind}:${entry.roleId ?? entry.permissionKey}:${accessResourceKey(entry.resource)}`));
     let skipped = 0;
     for (const row of rows) {
-      const resource = resourceByKey.get(pickerResources[row.id]) ?? compatibleResources(row)[0];
-      if (!resource) {
+      const selectedResources = selectedResourceKeysForRow(row).flatMap((key) => {
+        const resource = resourceByKey.get(key);
+        return resource ? [resource] : [];
+      });
+      if (selectedResources.length === 0) {
         skipped += 1;
         continue;
       }
@@ -2215,18 +2228,22 @@ function BatchGrantPanel({
         skipped += 1;
         continue;
       }
-      const expandedResources = expandedResourcesForGrant(row, resource);
+      const expandedResources = uniqueAccessResources(selectedResources.flatMap((resource) => expandedResourcesForGrant(row, resource)));
       if (expandedResources.length === 0) {
         skipped += 1;
         continue;
       }
       for (const expandedResource of expandedResources) {
+        const permissionKey = row.kind === 'permission' && row.template ? permissionKeyForTemplateResource(row.template, expandedResource) : undefined;
+        const dedupeKey = `${row.kind}:${row.kind === 'role' ? row.role?.id : permissionKey}:${accessResourceKey(expandedResource)}`;
+        if (seen.has(dedupeKey)) continue;
+        seen.add(dedupeKey);
         next.push({
           id: `grant:${row.id}:${accessResourceKey(expandedResource)}:${Date.now()}:${next.length}`,
           kind: row.kind,
           roleId: row.kind === 'role' ? row.role?.id : undefined,
           roleName: row.kind === 'role' ? row.role?.name : undefined,
-          permissionKey: row.kind === 'permission' && row.template ? permissionKeyForTemplateResource(row.template, expandedResource) : undefined,
+          permissionKey,
           template: row.kind === 'permission' ? row.template : undefined,
           resource: expandedResource,
           risk: row.risk,
@@ -2395,14 +2412,19 @@ function BatchGrantPanel({
                               </tr>
                               {!collapsed && group.rows.map((row) => {
                                 const rowResources = compatibleResources(row);
-                                const selectedResourceKey = pickerResources[row.id] || (rowResources[0] ? accessResourceKey(rowResources[0]) : '');
+                                const selectedResourceKeys = selectedResourceKeysForRow(row);
+                                const selectedResourceKey = selectedResourceKeys[0] || '';
+                                const selectedResource = selectedResourceKey ? resourceByKey.get(selectedResourceKey) : undefined;
                                 return (
                                   <tr key={row.id} className="border-b border-border-base last:border-0" data-testid={`access-picker-row-${accessTestIDToken(row.id)}`}>
                                     <td className="px-3 py-2"><input type="checkbox" checked={selectedPickerIDs.includes(row.id)} onChange={() => setSelectedPickerIDs((prev) => toggleValue(prev, row.id))} data-testid={`access-picker-select-${accessTestIDToken(row.id)}`} /></td>
                                     <td className="px-3 py-2">{row.resource}</td>
                                     <td className="px-3 py-2"><div className="font-medium">{row.label}</div><div className="text-xs text-text-muted">{row.detail}</div></td>
                                     <td className="px-3 py-2">
-                                      <select className="sr-only" aria-hidden="true" tabIndex={-1} value={selectedResourceKey} onChange={(e) => setPickerResources((prev) => ({ ...prev, [row.id]: e.target.value }))} data-testid={`access-picker-resource-${accessTestIDToken(row.id)}`}>
+                                      <select className="sr-only" aria-hidden="true" tabIndex={-1} value={selectedResourceKey} onChange={(e) => {
+                                        setPickerResources((prev) => ({ ...prev, [row.id]: e.target.value }));
+                                        setPickerResourceSelections((prev) => ({ ...prev, [row.id]: [e.target.value] }));
+                                      }} data-testid={`access-picker-resource-${accessTestIDToken(row.id)}`}>
                                         {rowResources.length === 0 && <option value="">No compatible scope targets</option>}
                                         {rowResources.map((resource) => <option key={accessResourceKey(resource)} value={accessResourceKey(resource)}>{accessResourceLabel(resource)}</option>)}
                                       </select>
@@ -2413,8 +2435,8 @@ function BatchGrantPanel({
                                         onClick={() => setScopePickerRowID(row.id)}
                                         data-testid={`access-picker-scope-${accessTestIDToken(row.id)}`}
                                       >
-                                        <span className="font-semibold text-text-primary">{resourceByKey.get(selectedResourceKey) ? accessResourceLabel(resourceByKey.get(selectedResourceKey)!) : 'Choose scope'}</span>
-                                        <span className="text-text-muted">{resourceByKey.get(selectedResourceKey) ? scopePickerResourceMeta(row, resourceByKey.get(selectedResourceKey)!) : row.scope}</span>
+                                        <span className="font-semibold text-text-primary">{selectedResourceKeys.length > 1 ? `${selectedResourceKeys.length} scopes` : selectedResource ? accessResourceLabel(selectedResource) : 'Choose scope'}</span>
+                                        <span className="text-text-muted">{selectedResourceKeys.length > 1 ? 'Multiple selected' : selectedResource ? scopePickerResourceMeta(row, selectedResource) : row.scope}</span>
                                       </button>
                                     </td>
                                     <td className="px-3 py-2"><AccessRiskBadge risk={row.risk} /></td>
@@ -2594,11 +2616,19 @@ function BatchGrantPanel({
         <ScopePickerModal
           row={scopePickerRow}
           resources={scopePickerResources}
-          selectedKey={pickerResources[scopePickerRow.id] || (scopePickerResources[0] ? accessResourceKey(scopePickerResources[0]) : '')}
-          onSelect={(resource) => {
-            const key = accessResourceKey(resource);
-            setCustomPickerResources((prev) => resourceByKey.has(key) ? prev : { ...prev, [key]: resource });
-            setPickerResources((prev) => ({ ...prev, [scopePickerRow.id]: accessResourceKey(resource) }));
+          selectedKeys={selectedResourceKeysForRow(scopePickerRow)}
+          onApply={(selectedResources) => {
+            const keys = selectedResources.map(accessResourceKey);
+            setCustomPickerResources((prev) => {
+              const next = { ...prev };
+              for (const resource of selectedResources) {
+                const key = accessResourceKey(resource);
+                if (!resourceByKey.has(key)) next[key] = resource;
+              }
+              return next;
+            });
+            setPickerResources((prev) => ({ ...prev, [scopePickerRow.id]: keys[0] ?? '' }));
+            setPickerResourceSelections((prev) => ({ ...prev, [scopePickerRow.id]: keys }));
             setScopePickerRowID(null);
           }}
           onClose={() => setScopePickerRowID(null)}
@@ -2611,17 +2641,24 @@ function BatchGrantPanel({
 function ScopePickerModal({
   row,
   resources,
-  selectedKey,
-  onSelect,
+  selectedKeys,
+  onApply,
   onClose,
 }: {
   row: PermissionPickerRow;
   resources: AccessResourceScope[];
-  selectedKey: string;
-  onSelect: (resource: AccessResourceScope) => void;
+  selectedKeys: string[];
+  onApply: (resources: AccessResourceScope[]) => void;
   onClose: () => void;
 }): React.ReactElement {
   const containerRef = useModalA11y({ open: true, onClose });
+  const [customResources, setCustomResources] = useState<AccessResourceScope[]>([]);
+  const resourceByKey = useMemo(
+    () => new Map([...resources, ...customResources].map((resource) => [accessResourceKey(resource), resource])),
+    [customResources, resources],
+  );
+  const selectedKeySignature = selectedKeys.join('|');
+  const [draftKeys, setDraftKeys] = useState<string[]>(selectedKeys);
   const concreteKinds = useMemo(
     () => row.compatibleKinds.filter((kind): kind is AccessResourceKind => ['issue', 'plan', 'task'].includes(kind)),
     [row.compatibleKinds],
@@ -2631,6 +2668,9 @@ function ScopePickerModal({
   const [specificKind, setSpecificKind] = useState<AccessResourceKind>(concreteKinds[0] ?? 'issue');
   const [specificProjectKey, setSpecificProjectKey] = useState(projectResources[0] ? accessResourceKey(projectResources[0]) : '');
   const [specificID, setSpecificID] = useState('');
+  useEffect(() => {
+    setDraftKeys(selectedKeys);
+  }, [selectedKeySignature]);
   useEffect(() => {
     if (concreteKinds.length > 0 && !concreteKinds.includes(specificKind)) setSpecificKind(concreteKinds[0]);
   }, [concreteKinds, specificKind]);
@@ -2656,13 +2696,17 @@ function ScopePickerModal({
   const addSpecificScope = (): void => {
     if (!canAddSpecific || !selectedProject) return;
     const id = specificID.trim();
-    onSelect({
+    const resource = {
       kind: specificKind,
       id,
       org_id: selectedProject.org_id,
       project_id: selectedProject.id,
       label: `${accessResourceKindLabel(specificKind)} ${id}`,
-    });
+    };
+    const key = accessResourceKey(resource);
+    setCustomResources((prev) => prev.some((item) => accessResourceKey(item) === key) ? prev : [...prev, resource]);
+    setDraftKeys((prev) => prev.includes(key) ? prev : [...prev, key]);
+    setSpecificID('');
   };
   const projectScopedSpecificResources = useMemo(
     () => projectScopedWorkItemKind
@@ -2671,6 +2715,15 @@ function ScopePickerModal({
     [projectScopedWorkItemKind, resources],
   );
   const orgResources = useMemo(() => resources.filter((resource) => resource.kind === 'org'), [resources]);
+  const toggleDraftKey = (key: string): void => setDraftKeys((prev) => toggleValue(prev, key));
+  const selectedCount = draftKeys.length;
+  const applySelection = (): void => {
+    const selectedResources = draftKeys.flatMap((key) => {
+      const resource = resourceByKey.get(key);
+      return resource ? [resource] : [];
+    });
+    if (selectedResources.length > 0) onApply(selectedResources);
+  };
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/30 px-4 py-12" data-testid="access-scope-picker-backdrop">
@@ -2709,16 +2762,19 @@ function ScopePickerModal({
                           type="button"
                           className={[
                             'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-bg-subtle',
-                            key === selectedKey ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
+                            draftKeys.includes(key) ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
                           ].join(' ')}
-                          onClick={() => onSelect(org)}
+                          onClick={() => toggleDraftKey(key)}
                           data-testid={`access-scope-picker-option-${accessTestIDToken(key)}`}
                         >
-                          <span>
+                          <span className="flex min-w-0 items-start gap-2">
+                            <input className="mt-0.5" type="checkbox" checked={draftKeys.includes(key)} onChange={() => toggleDraftKey(key)} onClick={(event) => event.stopPropagation()} />
+                            <span className="min-w-0">
                             <span className="block font-medium text-text-primary">{accessResourceLabel(org)}</span>
                             <span className="block text-xs text-text-muted">All {workItemPlural(projectScopedWorkItemKind)} in all projects</span>
+                            </span>
                           </span>
-                          {key === selectedKey && <span className="text-xs font-semibold text-brand">Selected</span>}
+                          {draftKeys.includes(key) && <span className="text-xs font-semibold text-brand">Selected</span>}
                         </button>
                       );
                     })}
@@ -2739,16 +2795,19 @@ function ScopePickerModal({
                           type="button"
                           className={[
                             'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-bg-subtle',
-                            projectKey === selectedKey ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
+                            draftKeys.includes(projectKey) ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
                           ].join(' ')}
-                          onClick={() => onSelect(project)}
+                          onClick={() => toggleDraftKey(projectKey)}
                           data-testid={`access-scope-picker-option-${accessTestIDToken(projectKey)}`}
                         >
-                          <span>
+                          <span className="flex min-w-0 items-start gap-2">
+                            <input className="mt-0.5" type="checkbox" checked={draftKeys.includes(projectKey)} onChange={() => toggleDraftKey(projectKey)} onClick={(event) => event.stopPropagation()} />
+                            <span className="min-w-0">
                             <span className="block font-medium text-text-primary">{accessResourceLabel(project)}</span>
                             <span className="block text-xs text-text-muted">All {workItemPlural(projectScopedWorkItemKind)} in this project</span>
+                            </span>
                           </span>
-                          {projectKey === selectedKey && <span className="text-xs font-semibold text-brand">Selected</span>}
+                          {draftKeys.includes(projectKey) && <span className="text-xs font-semibold text-brand">Selected</span>}
                         </button>
                         {specificResources.map((resource) => {
                           const key = accessResourceKey(resource);
@@ -2758,16 +2817,19 @@ function ScopePickerModal({
                               type="button"
                               className={[
                                 'flex w-full items-center justify-between gap-3 px-6 py-2 text-left text-sm hover:bg-bg-subtle',
-                                key === selectedKey ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
+                                draftKeys.includes(key) ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
                               ].join(' ')}
-                              onClick={() => onSelect(resource)}
+                              onClick={() => toggleDraftKey(key)}
                               data-testid={`access-scope-picker-option-${accessTestIDToken(key)}`}
                             >
-                              <span>
+                              <span className="flex min-w-0 items-start gap-2">
+                                <input className="mt-0.5" type="checkbox" checked={draftKeys.includes(key)} onChange={() => toggleDraftKey(key)} onClick={(event) => event.stopPropagation()} />
+                                <span className="min-w-0">
                                 <span className="block font-medium text-text-primary">{accessResourceLabel(resource)}</span>
                                 <span className="block text-xs text-text-muted">Specific {accessResourceKindLabel(projectScopedWorkItemKind).toLowerCase()}</span>
+                                </span>
                               </span>
-                              {key === selectedKey && <span className="text-xs font-semibold text-brand">Selected</span>}
+                              {draftKeys.includes(key) && <span className="text-xs font-semibold text-brand">Selected</span>}
                             </button>
                           );
                         })}
@@ -2828,16 +2890,19 @@ function ScopePickerModal({
                           type="button"
                           className={[
                             'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-bg-subtle',
-                            key === selectedKey ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
+                            draftKeys.includes(key) ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
                           ].join(' ')}
-                          onClick={() => onSelect(resource)}
+                          onClick={() => toggleDraftKey(key)}
                           data-testid={`access-scope-picker-option-${accessTestIDToken(key)}`}
                         >
-                          <span>
+                          <span className="flex min-w-0 items-start gap-2">
+                            <input className="mt-0.5" type="checkbox" checked={draftKeys.includes(key)} onChange={() => toggleDraftKey(key)} onClick={(event) => event.stopPropagation()} />
+                            <span className="min-w-0">
                             <span className="block font-medium text-text-primary">{accessResourceLabel(resource)}</span>
                             <span className="block text-xs text-text-muted">{scopePickerResourceMeta(row, resource) || accessResourceMetaLabel(resource)}</span>
+                            </span>
                           </span>
-                          {key === selectedKey && <span className="text-xs font-semibold text-brand">Selected</span>}
+                          {draftKeys.includes(key) && <span className="text-xs font-semibold text-brand">Selected</span>}
                         </button>
                       );
                     })}
@@ -2846,6 +2911,23 @@ function ScopePickerModal({
               ))}
             </div>
           )}
+        </div>
+        <div className="flex items-center justify-between gap-3 border-t border-border-base px-4 py-3">
+          <span className="text-xs text-text-muted">{selectedCount} selected</span>
+          <div className="flex gap-2">
+            <button type="button" className="rounded border border-border-base px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90 disabled:opacity-50"
+              disabled={selectedCount === 0}
+              onClick={applySelection}
+              data-testid="access-scope-picker-apply"
+            >
+              Apply
+            </button>
+          </div>
         </div>
       </div>
     </div>
