@@ -232,8 +232,16 @@ function WindowBar({ data }: { data: Pick<InsightOverviewDTO, 'window' | 'refres
 function FreshnessNotice({ data }: { data: Pick<InsightOverviewDTO, 'freshness' | 'refreshed_at'> }): React.ReactElement | null {
   const { t } = useTranslation('insights');
   if (data.freshness.state === 'fresh') return null;
-  const tone = data.freshness.state === 'stale' ? 'warn' : 'danger';
-  return <InsightStatePanel testId={`insight-${data.freshness.state}`} tone={tone} title={t(`insight.state.${data.freshness.state}`)} body={t('insight.state.staleBody', { time: formatInsightClock(data.refreshed_at) })} />;
+  if (data.freshness.state === 'stale') {
+    return <InsightStatePanel testId="insight-stale" tone="warn" title={t('insight.state.stale')} body={t('insight.state.staleBody', { time: formatInsightClock(data.refreshed_at) })} />;
+  }
+  if (data.freshness.state === 'rebuilding') {
+    return <InsightStatePanel testId="insight-rebuilding" tone="danger" title={t('insight.state.rebuilding')} body={t('insight.state.staleBody', { time: formatInsightClock(data.refreshed_at) })} />;
+  }
+  if (data.freshness.state === 'unavailable') {
+    return <InsightStatePanel testId="insight-unavailable" tone="danger" title={t('insight.state.unavailable')} body={t('insight.state.staleBody', { time: formatInsightClock(data.refreshed_at) })} />;
+  }
+  return <InsightStatePanel testId="insight-freshness-unknown" tone="danger" title={t('insight.state.unknownFreshness')} body={t('insight.state.staleBody', { time: formatInsightClock(data.refreshed_at) })} />;
 }
 
 function SummaryCards({ summary }: { summary: InsightSummary }): React.ReactElement {

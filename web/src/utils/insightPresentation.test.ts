@@ -142,7 +142,7 @@ describe('insight presentation semantics', () => {
 
   it.each([
     ['health', 'unknown_status', 'Unknown'],
-    ['freshness', 'raw_future_enum', 'Freshness unavailable'],
+    ['freshness', 'raw_future_enum', 'Freshness unknown'],
     ['lineageReason', 'arbitrary_future_token', 'Unknown'],
     ['recoveryOutcome', 'future_outcome', 'Unknown'],
     ['verdict', 'future_outcome', 'Unknown value'],

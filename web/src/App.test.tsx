@@ -213,8 +213,7 @@ describe('App shell + route tree', () => {
         ['Subject access', `${ORG_BASE}/access/subject-access`],
       ]],
       [`${ORG_BASE}/insights/overview`, [
-        ['Overview', `${ORG_BASE}/insights/overview`],
-        ['Task executions', `${ORG_BASE}/insights/executions`],
+        ['Insight overview', `${ORG_BASE}/insights/overview`],
       ]],
       [`${ORG_BASE}/environment`, [
         ['Environment', `${ORG_BASE}/environment`],
