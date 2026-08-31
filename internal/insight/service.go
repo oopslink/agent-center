@@ -209,10 +209,10 @@ func (s *Service) Executions(ctx context.Context, orgID string, f ExecutionFilte
 	}
 	args = append(args, limit+1)
 	rows, err := s.duck.QueryContext(ctx, `SELECT execution_id, command_id, task_id, task_title, agent_ref, agent_name,
-		project_id, project_name, worker_id, outcome, failure_reason, queued_at, started_at, finished_at,
+		project_id, project_name, worker_id, outcome, failure_reason, failure_message, queued_at, started_at, finished_at,
 		CASE WHEN queued_at IS NOT NULL AND started_at IS NOT NULL AND started_at >= queued_at THEN date_diff('millisecond', CAST(queued_at AS TIMESTAMP), CAST(started_at AS TIMESTAMP)) END,
 		CASE WHEN started_at IS NOT NULL AND finished_at IS NOT NULL AND finished_at >= started_at THEN date_diff('millisecond', CAST(started_at AS TIMESTAMP), CAST(finished_at AS TIMESTAMP)) END,
-		recovered, quality, COALESCE(finished_at, started_at, queued_at) AS sort_key
+		recovered, quality, command_status, status_reason, status_message, COALESCE(finished_at, started_at, queued_at) AS sort_key
 		FROM execution_fact WHERE `+where+`
 		ORDER BY sort_key DESC, execution_id DESC LIMIT ?`, args...)
 	if err != nil {
@@ -224,13 +224,16 @@ func (s *Service) Executions(ctx context.Context, orgID string, f ExecutionFilte
 	hasNext := false
 	for rows.Next() {
 		var r ExecutionRow
-		var cmd, task, title, an, proj, pn, worker, outcome, reason sql.NullString
+		var cmd, task, title, an, proj, pn, worker, outcome, reason, failureMessage, commandStatus, statusReason, statusMessage sql.NullString
 		var queued, started, finished, sortKey sql.NullString
 		var qwait, dur sql.NullInt64
-		if err := rows.Scan(&r.ExecutionID, &cmd, &task, &title, &r.AgentRef, &an, &proj, &pn, &worker, &outcome, &reason, &queued, &started, &finished, &qwait, &dur, &r.Recovered, &r.Quality, &sortKey); err != nil {
+		if err := rows.Scan(&r.ExecutionID, &cmd, &task, &title, &r.AgentRef, &an, &proj, &pn, &worker, &outcome, &reason, &failureMessage, &queued, &started, &finished, &qwait, &dur, &r.Recovered, &r.Quality, &commandStatus, &statusReason, &statusMessage, &sortKey); err != nil {
 			return ExecutionsResponse{}, err
 		}
 		r.CommandID = strPtr(cmd)
+		r.CommandStatus = strPtr(commandStatus)
+		r.StatusReason = strPtr(statusReason)
+		r.StatusMessage = strPtr(statusMessage)
 		r.TaskID = strPtr(task)
 		r.TaskRef = strPtr(task)
 		r.TaskTitle = strPtr(title)
@@ -240,6 +243,7 @@ func (s *Service) Executions(ctx context.Context, orgID string, f ExecutionFilte
 		r.WorkerID = strPtr(worker)
 		r.Outcome = strPtr(outcome)
 		r.FailureReason = strPtr(reason)
+		r.FailureMessage = strPtr(failureMessage)
 		r.QueuedAt = strPtr(queued)
 		r.StartedAt = strPtr(started)
 		r.FinishedAt = strPtr(finished)
@@ -272,12 +276,15 @@ func (s *Service) Execution(ctx context.Context, orgID, executionID string, asOf
 	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
+	start := asOf.Add(-24 * time.Hour)
 	row := s.duck.QueryRowContext(ctx, `SELECT execution_id, command_id, task_id, task_title, agent_ref, agent_name,
-		project_id, project_name, worker_id, outcome, failure_reason, queued_at, started_at, finished_at,
+		project_id, project_name, worker_id, outcome, failure_reason, failure_message, queued_at, started_at, finished_at,
 		CASE WHEN queued_at IS NOT NULL AND started_at IS NOT NULL AND started_at >= queued_at THEN date_diff('millisecond', CAST(queued_at AS TIMESTAMP), CAST(started_at AS TIMESTAMP)) END,
 		CASE WHEN started_at IS NOT NULL AND finished_at IS NOT NULL AND finished_at >= started_at THEN date_diff('millisecond', CAST(started_at AS TIMESTAMP), CAST(finished_at AS TIMESTAMP)) END,
-		recovered, quality
-		FROM execution_fact WHERE organization_id = ? AND execution_id = ?`, orgID, executionID)
+		recovered, quality, command_status, status_reason, status_message
+		FROM execution_fact WHERE organization_id = ? AND execution_id = ?
+		AND COALESCE(finished_at, started_at, queued_at) >= CAST(? AS TIMESTAMPTZ)
+		AND COALESCE(finished_at, started_at, queued_at) < CAST(? AS TIMESTAMPTZ)`, orgID, executionID, fmtTS(start), fmtTS(asOf))
 	execution, err := scanExecutionRow(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ExecutionResponse{}, ErrExecutionNotFound
@@ -295,13 +302,16 @@ type rowScanner interface {
 
 func scanExecutionRow(scanner rowScanner) (ExecutionRow, error) {
 	var r ExecutionRow
-	var cmd, task, title, an, proj, pn, worker, outcome, reason sql.NullString
+	var cmd, task, title, an, proj, pn, worker, outcome, reason, failureMessage, commandStatus, statusReason, statusMessage sql.NullString
 	var queued, started, finished sql.NullString
 	var qwait, dur sql.NullInt64
-	if err := scanner.Scan(&r.ExecutionID, &cmd, &task, &title, &r.AgentRef, &an, &proj, &pn, &worker, &outcome, &reason, &queued, &started, &finished, &qwait, &dur, &r.Recovered, &r.Quality); err != nil {
+	if err := scanner.Scan(&r.ExecutionID, &cmd, &task, &title, &r.AgentRef, &an, &proj, &pn, &worker, &outcome, &reason, &failureMessage, &queued, &started, &finished, &qwait, &dur, &r.Recovered, &r.Quality, &commandStatus, &statusReason, &statusMessage); err != nil {
 		return ExecutionRow{}, err
 	}
 	r.CommandID = strPtr(cmd)
+	r.CommandStatus = strPtr(commandStatus)
+	r.StatusReason = strPtr(statusReason)
+	r.StatusMessage = strPtr(statusMessage)
 	r.TaskID = strPtr(task)
 	r.TaskRef = strPtr(task)
 	r.TaskTitle = strPtr(title)
@@ -311,6 +321,7 @@ func scanExecutionRow(scanner rowScanner) (ExecutionRow, error) {
 	r.WorkerID = strPtr(worker)
 	r.Outcome = strPtr(outcome)
 	r.FailureReason = strPtr(reason)
+	r.FailureMessage = strPtr(failureMessage)
 	r.QueuedAt = strPtr(queued)
 	r.StartedAt = strPtr(started)
 	r.FinishedAt = strPtr(finished)
@@ -373,20 +384,33 @@ func (s *Service) rebuildLocked(ctx context.Context) error {
 }
 
 func (s *Service) ensureSchema(ctx context.Context) error {
+	var existing string
+	err := s.duck.QueryRowContext(ctx, `SELECT v FROM insight_meta WHERE k='schema_version'`).Scan(&existing)
+	if err == nil && existing != fmt.Sprintf("%d", SchemaVersion) {
+		if err := s.resetSchema(ctx); err != nil {
+			return err
+		}
+	} else if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		var tableCount int
+		if e := s.duck.QueryRowContext(ctx, `SELECT COUNT(*) FROM information_schema.tables WHERE table_name='insight_meta'`).Scan(&tableCount); e == nil && tableCount > 0 {
+			return err
+		}
+	}
 	stmts := []string{
 		`CREATE TABLE IF NOT EXISTS insight_meta (k VARCHAR PRIMARY KEY, v VARCHAR NOT NULL)`,
-		`INSERT OR REPLACE INTO insight_meta VALUES ('schema_version', '1')`,
+		fmt.Sprintf(`INSERT OR REPLACE INTO insight_meta VALUES ('schema_version', '%d')`, SchemaVersion),
 		`CREATE TABLE IF NOT EXISTS execution_fact (
 			execution_id VARCHAR PRIMARY KEY, command_id VARCHAR, organization_id VARCHAR, project_id VARCHAR,
 			task_id VARCHAR, task_title VARCHAR, agent_ref VARCHAR NOT NULL, agent_name VARCHAR, worker_id VARCHAR,
 			cli VARCHAR, model VARCHAR, queued_at TIMESTAMPTZ, started_at TIMESTAMPTZ, finished_at TIMESTAMPTZ,
-			outcome VARCHAR, failure_reason VARCHAR, recovered BOOLEAN NOT NULL DEFAULT false,
+			outcome VARCHAR, failure_reason VARCHAR, failure_message VARCHAR, command_status VARCHAR,
+			status_reason VARCHAR, status_message VARCHAR, recovered BOOLEAN NOT NULL DEFAULT false,
 			quality VARCHAR NOT NULL DEFAULT 'valid', first_event_id VARCHAR NOT NULL, last_event_id VARCHAR NOT NULL,
 			observed_at TIMESTAMPTZ NOT NULL, project_name VARCHAR)`,
 		`CREATE TABLE IF NOT EXISTS queue_interval_fact (
 			command_id VARCHAR PRIMARY KEY, execution_id VARCHAR, organization_id VARCHAR, project_id VARCHAR,
 			task_id VARCHAR, agent_ref VARCHAR NOT NULL, worker_id VARCHAR NOT NULL, queued_at TIMESTAMPTZ NOT NULL,
-			started_at TIMESTAMPTZ, command_status VARCHAR NOT NULL, status_reason VARCHAR,
+			started_at TIMESTAMPTZ, command_status VARCHAR NOT NULL, status_reason VARCHAR, status_message VARCHAR,
 			quality VARCHAR NOT NULL DEFAULT 'valid', last_event_id VARCHAR NOT NULL, observed_at TIMESTAMPTZ NOT NULL)`,
 		`CREATE TABLE IF NOT EXISTS slot_interval_fact (
 			worker_id VARCHAR NOT NULL, agent_ref VARCHAR NOT NULL, slot_index INTEGER NOT NULL,
@@ -408,10 +432,26 @@ func (s *Service) ensureSchema(ctx context.Context) error {
 	return nil
 }
 
+func (s *Service) resetSchema(ctx context.Context) error {
+	for _, stmt := range []string{
+		`DROP TABLE IF EXISTS projected_event`,
+		`DROP TABLE IF EXISTS projector_checkpoint`,
+		`DROP TABLE IF EXISTS execution_fact`,
+		`DROP TABLE IF EXISTS queue_interval_fact`,
+		`DROP TABLE IF EXISTS slot_interval_fact`,
+		`DROP TABLE IF EXISTS insight_meta`,
+	} {
+		if _, err := s.duck.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (s *Service) projectQueue(ctx context.Context) error {
 	cursor := s.checkpointCursor(ctx, SourceQueue)
 	query := `SELECT id, worker_id, command_type, COALESCE(agent_id,''), COALESCE(task_id,''),
-		COALESCE(status,''), COALESCE(status_reason,''), COALESCE(execution_id,''), COALESCE(status_updated_at,''), created_at,
+		COALESCE(status,''), COALESCE(status_reason,''), COALESCE(status_detail,''), COALESCE(execution_id,''), COALESCE(status_updated_at,''), created_at,
 		COALESCE(NULLIF(status_updated_at,''), created_at) AS cursor_at
 		FROM worker_control_events WHERE command_type = 'agent.fork_executor'`
 	args := []any{}
@@ -425,11 +465,11 @@ func (s *Service) projectQueue(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	type queueRow struct{ id, workerID, typ, agentID, taskID, status, reason, execID, statusAt, createdAt, cursorAt string }
+	type queueRow struct{ id, workerID, typ, agentID, taskID, status, reason, detail, execID, statusAt, createdAt, cursorAt string }
 	var all []queueRow
 	for rows.Next() {
 		var r queueRow
-		if err := rows.Scan(&r.id, &r.workerID, &r.typ, &r.agentID, &r.taskID, &r.status, &r.reason, &r.execID, &r.statusAt, &r.createdAt, &r.cursorAt); err != nil {
+		if err := rows.Scan(&r.id, &r.workerID, &r.typ, &r.agentID, &r.taskID, &r.status, &r.reason, &r.detail, &r.execID, &r.statusAt, &r.createdAt, &r.cursorAt); err != nil {
 			return err
 		}
 		all = append(all, r)
@@ -442,7 +482,7 @@ func (s *Service) projectQueue(ctx context.Context) error {
 	}
 	lastCursor := cursor
 	for _, r := range all {
-		id, workerID, agentID, taskID, status, reason, execID, statusAt, createdAt := r.id, r.workerID, r.agentID, r.taskID, r.status, r.reason, r.execID, r.statusAt, r.createdAt
+		id, workerID, agentID, taskID, status, reason, detail, execID, statusAt, createdAt := r.id, r.workerID, r.agentID, r.taskID, r.status, r.reason, r.detail, r.execID, r.statusAt, r.createdAt
 		queuedAt, _ := parseTS(createdAt)
 		observedAt := queuedAt
 		if t, ok := parseTS(statusAt); ok {
@@ -470,31 +510,36 @@ func (s *Service) projectQueue(ctx context.Context) error {
 		}
 		_, err = tx.ExecContext(ctx, `INSERT OR REPLACE INTO queue_interval_fact
 			(command_id, execution_id, organization_id, project_id, task_id, agent_ref, worker_id, queued_at,
-			 command_status, status_reason, quality, last_event_id, observed_at)
-			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			 command_status, status_reason, status_message, quality, last_event_id, observed_at)
+			VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			id, nullArg(execID), nullArg(d.OrgID), nullArg(d.ProjectID), nullArg(taskID), agentRef, workerID, fmtTS(queuedAt),
-			statusOrPending(status), nullArg(reason), "valid", sourceID, fmtTS(observedAt))
+			statusOrPending(status), nullArg(reason), nullArg(detail), "valid", sourceID, fmtTS(observedAt))
 		if err == nil && execID != "" {
 			_, err = tx.ExecContext(ctx, `UPDATE execution_fact SET command_id = COALESCE(command_id, ?),
 				queued_at = COALESCE(queued_at, CAST(? AS TIMESTAMPTZ)), worker_id = COALESCE(worker_id, ?),
 				organization_id = COALESCE(organization_id, ?), project_id = COALESCE(project_id, ?),
-				project_name = COALESCE(project_name, ?), task_id = COALESCE(task_id, ?), task_title = COALESCE(task_title, ?)
+				project_name = COALESCE(project_name, ?), task_id = COALESCE(task_id, ?), task_title = COALESCE(task_title, ?),
+				command_status = ?, status_reason = ?, status_message = ?
 				WHERE execution_id = ?`,
-				id, fmtTS(queuedAt), workerID, nullArg(d.OrgID), nullArg(d.ProjectID), nullArg(d.ProjectName), nullArg(taskID), nullArg(d.TaskTitle), execID)
+				id, fmtTS(queuedAt), workerID, nullArg(d.OrgID), nullArg(d.ProjectID), nullArg(d.ProjectName), nullArg(taskID), nullArg(d.TaskTitle),
+				statusOrPending(status), nullArg(reason), nullArg(detail), execID)
 		} else if err == nil && execID == "" {
 			pseudoID := "command:" + id
 			_, err = tx.ExecContext(ctx, `INSERT INTO execution_fact
 				(execution_id, command_id, organization_id, project_id, task_id, task_title, agent_ref, agent_name, worker_id,
-				 queued_at, recovered, quality, first_event_id, last_event_id, observed_at, project_name)
-				VALUES (?,?,?,?,?,?,?,?,?,?,false,'valid',?,?,?,?)
+				 queued_at, command_status, status_reason, status_message, recovered, quality, first_event_id, last_event_id, observed_at, project_name)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,false,'valid',?,?,?,?)
 				ON CONFLICT (execution_id) DO UPDATE SET
 					command_id = excluded.command_id, organization_id = COALESCE(execution_fact.organization_id, excluded.organization_id),
 					project_id = COALESCE(execution_fact.project_id, excluded.project_id), project_name = COALESCE(execution_fact.project_name, excluded.project_name),
 					task_id = COALESCE(execution_fact.task_id, excluded.task_id), task_title = COALESCE(execution_fact.task_title, excluded.task_title),
 					agent_ref = excluded.agent_ref, agent_name = COALESCE(excluded.agent_name, execution_fact.agent_name),
-					worker_id = excluded.worker_id, queued_at = excluded.queued_at, last_event_id = excluded.last_event_id, observed_at = excluded.observed_at`,
+					worker_id = excluded.worker_id, queued_at = excluded.queued_at, command_status = excluded.command_status,
+					status_reason = excluded.status_reason, status_message = excluded.status_message,
+					last_event_id = excluded.last_event_id, observed_at = excluded.observed_at`,
 				pseudoID, id, nullArg(d.OrgID), nullArg(d.ProjectID), nullArg(taskID), nullArg(d.TaskTitle),
-				agentRef, nullArg(d.AgentName), workerID, fmtTS(queuedAt), sourceID, sourceID, fmtTS(observedAt), nullArg(d.ProjectName))
+				agentRef, nullArg(d.AgentName), workerID, fmtTS(queuedAt), statusOrPending(status), nullArg(reason), nullArg(detail),
+				sourceID, sourceID, fmtTS(observedAt), nullArg(d.ProjectName))
 		}
 		if err == nil {
 			err = markProjected(ctx, tx, sourceID, SourceQueue, id, observedAt)
@@ -590,19 +635,22 @@ func (s *Service) projectActivity(ctx context.Context) error {
 			model, _ := p["model"].(string)
 			_, err = tx.ExecContext(ctx, `INSERT INTO execution_fact
 				(execution_id, command_id, organization_id, project_id, task_id, task_title, agent_ref, agent_name, worker_id,
-				 cli, model, queued_at, started_at, recovered, quality, first_event_id, last_event_id, observed_at, project_name)
-				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,false,'valid',?,?,?,?)
+				 cli, model, queued_at, started_at, command_status, status_reason, status_message, recovered, quality, first_event_id, last_event_id, observed_at, project_name)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,false,'valid',?,?,?,?)
 				ON CONFLICT (execution_id) DO UPDATE SET
 					started_at = CASE WHEN execution_fact.started_at IS NULL OR CAST(? AS TIMESTAMPTZ) < execution_fact.started_at THEN CAST(? AS TIMESTAMPTZ) ELSE execution_fact.started_at END,
 					cli = COALESCE(NULLIF(?, ''), execution_fact.cli), model = COALESCE(NULLIF(?, ''), execution_fact.model),
 					agent_ref = ?, agent_name = COALESCE(excluded.agent_name, execution_fact.agent_name),
 					command_id = COALESCE(execution_fact.command_id, excluded.command_id), queued_at = CASE WHEN execution_fact.queued_at IS NULL THEN excluded.queued_at ELSE execution_fact.queued_at END,
+					command_status = COALESCE(excluded.command_status, execution_fact.command_status),
+					status_reason = COALESCE(excluded.status_reason, execution_fact.status_reason),
+					status_message = COALESCE(excluded.status_message, execution_fact.status_message),
 					worker_id = COALESCE(execution_fact.worker_id, excluded.worker_id), organization_id = COALESCE(execution_fact.organization_id, excluded.organization_id),
 					project_id = COALESCE(execution_fact.project_id, excluded.project_id), project_name = COALESCE(execution_fact.project_name, excluded.project_name),
 					task_id = COALESCE(execution_fact.task_id, excluded.task_id), task_title = COALESCE(execution_fact.task_title, excluded.task_title),
 					last_event_id = ?, observed_at = ?, quality = CASE WHEN execution_fact.finished_at IS NOT NULL AND execution_fact.finished_at < CAST(? AS TIMESTAMPTZ) THEN 'invalid_time_order' ELSE 'valid' END`,
 				execID, nullArg(q.CommandID), nullArg(coalesce(d.OrgID, q.OrgID)), nullArg(coalesce(d.ProjectID, q.ProjectID)), nullArg(taskID), nullArg(d.TaskTitle),
-				agentRef, nullArg(d.AgentName), nullArg(q.WorkerID), cli, model, nullArg(q.QueuedAt), fmtTS(occurred), sourceID, sourceID, fmtTS(occurred), nullArg(d.ProjectName),
+				agentRef, nullArg(d.AgentName), nullArg(q.WorkerID), cli, model, nullArg(q.QueuedAt), fmtTS(occurred), nullArg(q.CommandStatus), nullArg(q.StatusReason), nullArg(q.StatusMessage), sourceID, sourceID, fmtTS(occurred), nullArg(d.ProjectName),
 				fmtTS(occurred), fmtTS(occurred), cli, model, agentRef, sourceID, fmtTS(occurred), fmtTS(occurred))
 			if err == nil {
 				_, err = tx.ExecContext(ctx, `UPDATE queue_interval_fact SET started_at = COALESCE(started_at, CAST(? AS TIMESTAMPTZ)) WHERE execution_id = ?`, fmtTS(occurred), execID)
@@ -613,14 +661,19 @@ func (s *Service) projectActivity(ctx context.Context) error {
 				outcome, _ = p["outcome"].(string)
 			}
 			reason, _ := p["reason"].(string)
+			detail, _ := p["detail"].(string)
 			recovered, _ := p["recovered"].(bool)
 			_, err = tx.ExecContext(ctx, `INSERT INTO execution_fact
 				(execution_id, command_id, organization_id, project_id, task_id, task_title, agent_ref, agent_name, worker_id,
-				 queued_at, finished_at, outcome, failure_reason, recovered, quality, first_event_id, last_event_id, observed_at, project_name)
-				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+				 queued_at, finished_at, outcome, failure_reason, failure_message, command_status, status_reason, status_message, recovered, quality, first_event_id, last_event_id, observed_at, project_name)
+				VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 				ON CONFLICT (execution_id) DO UPDATE SET
 					finished_at = CASE WHEN execution_fact.finished_at IS NULL OR CAST(? AS TIMESTAMPTZ) > execution_fact.finished_at THEN CAST(? AS TIMESTAMPTZ) ELSE execution_fact.finished_at END,
 					outcome = ?, failure_reason = COALESCE(NULLIF(?, ''), execution_fact.failure_reason),
+					failure_message = COALESCE(NULLIF(?, ''), execution_fact.failure_message),
+					command_status = COALESCE(excluded.command_status, execution_fact.command_status),
+					status_reason = COALESCE(excluded.status_reason, execution_fact.status_reason),
+					status_message = COALESCE(excluded.status_message, execution_fact.status_message),
 					recovered = execution_fact.recovered OR ?, agent_ref = ?, agent_name = COALESCE(excluded.agent_name, execution_fact.agent_name),
 					command_id = COALESCE(execution_fact.command_id, excluded.command_id), queued_at = CASE WHEN execution_fact.queued_at IS NULL THEN excluded.queued_at ELSE execution_fact.queued_at END,
 					worker_id = COALESCE(execution_fact.worker_id, excluded.worker_id), organization_id = COALESCE(execution_fact.organization_id, excluded.organization_id),
@@ -629,8 +682,9 @@ func (s *Service) projectActivity(ctx context.Context) error {
 					last_event_id = ?, observed_at = ?,
 					quality = CASE WHEN execution_fact.started_at IS NOT NULL AND CAST(? AS TIMESTAMPTZ) < execution_fact.started_at THEN 'invalid_time_order' ELSE execution_fact.quality END`,
 				execID, nullArg(q.CommandID), nullArg(coalesce(d.OrgID, q.OrgID)), nullArg(coalesce(d.ProjectID, q.ProjectID)), nullArg(taskID), nullArg(d.TaskTitle),
-				agentRef, nullArg(d.AgentName), nullArg(q.WorkerID), nullArg(q.QueuedAt), fmtTS(occurred), outcome, nullArg(reason), recovered, qualityFor(q.StartedAt, occurred), sourceID, sourceID, fmtTS(occurred), nullArg(d.ProjectName),
-				fmtTS(occurred), fmtTS(occurred), outcome, reason, recovered, agentRef, sourceID, fmtTS(occurred), fmtTS(occurred))
+				agentRef, nullArg(d.AgentName), nullArg(q.WorkerID), nullArg(q.QueuedAt), fmtTS(occurred), outcome, nullArg(reason), nullArg(detail),
+				nullArg(q.CommandStatus), nullArg(q.StatusReason), nullArg(q.StatusMessage), recovered, qualityFor(q.StartedAt, occurred), sourceID, sourceID, fmtTS(occurred), nullArg(d.ProjectName),
+				fmtTS(occurred), fmtTS(occurred), outcome, reason, detail, recovered, agentRef, sourceID, fmtTS(occurred), fmtTS(occurred))
 		}
 		if err == nil {
 			err = markProjected(ctx, tx, sourceID, SourceActivity, id, occurred)

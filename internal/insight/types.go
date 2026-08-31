@@ -9,7 +9,8 @@ const (
 	Window24h             = "24h"
 	DefaultFreshnessSLA   = 2 * time.Minute
 	DefaultProjectorTick  = 30 * time.Second
-	SchemaVersion         = 1
+	SchemaVersion         = 2
+	MetricVersionV2       = "insight.metrics.v2"
 	SourceActivity        = "agent_activity_events"
 	SourceQueue           = "worker_control_events"
 	SourceSlotObservation = "agent_concurrency_observations"
@@ -71,25 +72,29 @@ type Overview struct {
 }
 
 type ExecutionRow struct {
-	ExecutionID   string  `json:"execution_id"`
-	CommandID     *string `json:"command_id"`
-	TaskID        *string `json:"task_id"`
-	TaskRef       *string `json:"task_ref"`
-	TaskTitle     *string `json:"task_title"`
-	AgentRef      string  `json:"agent_ref"`
-	AgentName     *string `json:"agent_name"`
-	ProjectID     *string `json:"project_id"`
-	ProjectName   *string `json:"project_name"`
-	WorkerID      *string `json:"worker_id"`
-	Outcome       *string `json:"outcome"`
-	FailureReason *string `json:"failure_reason"`
-	QueuedAt      *string `json:"queued_at"`
-	StartedAt     *string `json:"started_at"`
-	FinishedAt    *string `json:"finished_at"`
-	QueueWaitMS   *int64  `json:"queue_wait_ms"`
-	DurationMS    *int64  `json:"duration_ms"`
-	Recovered     bool    `json:"recovered"`
-	Quality       string  `json:"quality"`
+	ExecutionID    string  `json:"execution_id"`
+	CommandID      *string `json:"command_id"`
+	CommandStatus  *string `json:"command_status"`
+	StatusReason   *string `json:"status_reason"`
+	StatusMessage  *string `json:"status_message"`
+	TaskID         *string `json:"task_id"`
+	TaskRef        *string `json:"task_ref"`
+	TaskTitle      *string `json:"task_title"`
+	AgentRef       string  `json:"agent_ref"`
+	AgentName      *string `json:"agent_name"`
+	ProjectID      *string `json:"project_id"`
+	ProjectName    *string `json:"project_name"`
+	WorkerID       *string `json:"worker_id"`
+	Outcome        *string `json:"outcome"`
+	FailureReason  *string `json:"failure_reason"`
+	FailureMessage *string `json:"failure_message"`
+	QueuedAt       *string `json:"queued_at"`
+	StartedAt      *string `json:"started_at"`
+	FinishedAt     *string `json:"finished_at"`
+	QueueWaitMS    *int64  `json:"queue_wait_ms"`
+	DurationMS     *int64  `json:"duration_ms"`
+	Recovered      bool    `json:"recovered"`
+	Quality        string  `json:"quality"`
 }
 
 type ExecutionsResponse struct {
@@ -115,4 +120,98 @@ type ExecutionFilter struct {
 	Cursor    string
 	Limit     int
 	AsOf      time.Time
+}
+
+type V2Meta struct {
+	MetricVersion string    `json:"metric_version"`
+	SampleCount   int64     `json:"sample_count"`
+	Coverage      *float64  `json:"coverage"`
+	Freshness     Freshness `json:"freshness"`
+	UnknownCount  int64     `json:"unknown_count"`
+	Known         bool      `json:"known"`
+}
+
+type V2Health struct {
+	Status      string           `json:"status"`
+	ReasonCodes []string         `json:"reason_codes"`
+	Evidence    []map[string]any `json:"evidence"`
+}
+
+type V2CountMetric struct {
+	Value *int64 `json:"value"`
+	Meta  V2Meta `json:"meta"`
+}
+
+type V2WindowedEnvelope struct {
+	MetricVersion string   `json:"metric_version"`
+	TimeWindow    Window   `json:"time_window"`
+	AsOf          string   `json:"as_of"`
+	Health        V2Health `json:"health"`
+	Meta          V2Meta   `json:"meta"`
+}
+
+type V2EntitySummary struct {
+	ID             string        `json:"id"`
+	Name           *string       `json:"name,omitempty"`
+	Health         V2Health      `json:"health"`
+	ExecutionCount V2CountMetric `json:"execution_count"`
+	FailureRate    *float64      `json:"failure_rate"`
+	OpenIssues     V2CountMetric `json:"open_issues"`
+	BlockedTasks   V2CountMetric `json:"blocked_tasks"`
+	ActivePlans    V2CountMetric `json:"active_plans"`
+	ReasonCodes    []string      `json:"reason_codes"`
+}
+
+type V2OverviewResponse struct {
+	V2WindowedEnvelope
+	Executions V2CountMetric     `json:"executions"`
+	Agents     []V2EntitySummary `json:"agents"`
+	Projects   []V2EntitySummary `json:"projects"`
+}
+
+type V2FunnelBreak struct {
+	Kind      string         `json:"kind"`
+	Count     V2CountMetric  `json:"count"`
+	Drilldown map[string]any `json:"drilldown"`
+}
+
+type V2Funnel struct {
+	Issues V2CountMetric   `json:"issues"`
+	Tasks  V2CountMetric   `json:"tasks"`
+	Plans  V2CountMetric   `json:"plans"`
+	Done   V2CountMetric   `json:"done"`
+	Breaks []V2FunnelBreak `json:"breaks"`
+}
+
+type V2ProjectDeliveryResponse struct {
+	V2WindowedEnvelope
+	ProjectID string   `json:"project_id"`
+	Funnel    V2Funnel `json:"funnel"`
+}
+
+type V2EvolutionResponse struct {
+	V2WindowedEnvelope
+	ProjectID string         `json:"project_id"`
+	Evolution map[string]any `json:"evolution"`
+}
+
+type V2Generation struct {
+	Generation         int              `json:"generation"`
+	CreatedAt          string           `json:"created_at"`
+	TriggeredBy        string           `json:"triggered_by"`
+	Reason             string           `json:"reason"`
+	Evidence           []map[string]any `json:"evidence"`
+	NodeChanges        []map[string]any `json:"node_changes"`
+	RecoveryDurationMS *int64           `json:"recovery_duration_ms"`
+	RecoveryOutcome    string           `json:"recovery_outcome"`
+	DeliveryBranch     string           `json:"delivery_branch,omitempty"`
+	DeliverySHA        string           `json:"delivery_sha,omitempty"`
+	AcceptanceVerdict  string           `json:"acceptance_verdict,omitempty"`
+}
+
+type V2PlanLineageResponse struct {
+	V2WindowedEnvelope
+	ProjectID   string         `json:"project_id"`
+	PlanID      string         `json:"plan_id"`
+	Generations []V2Generation `json:"generations"`
 }

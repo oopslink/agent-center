@@ -131,6 +131,118 @@ func TestInsightsHTTPReadDoesNotTriggerProjection(t *testing.T) {
 	}
 }
 
+func TestInsightsAPIUnavailableReturnsFreshnessEnvelope(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	deps.Insight = mustInsight(t, db, t.TempDir()+"/missing-parent/insight.duckdb")
+	_ = deps.Insight.Close()
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/overview?window=24h", nil)
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusServiceUnavailable {
+		t.Fatalf("unavailable status = %d, want 503", resp.StatusCode)
+	}
+	var out struct {
+		Window struct {
+			Duration string `json:"duration"`
+		} `json:"window"`
+		Freshness struct {
+			State       string `json:"state"`
+			ThresholdMS int64  `json:"threshold_ms"`
+		} `json:"freshness"`
+		Error struct {
+			Code string `json:"code"`
+		} `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Window.Duration != "24h" || out.Freshness.State != "unavailable" || out.Error.Code != "insight_unavailable" {
+		t.Fatalf("503 envelope = %+v", out)
+	}
+}
+
+func TestInsightsV2ExecutionsRequiresContext(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	deps.Insight = mustInsight(t, db, t.TempDir()+"/insight.duckdb")
+	if err := deps.Insight.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer deps.Insight.Close()
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/v2/executions?window=24h", nil)
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("v2 executions without context status = %d, want 400", resp.StatusCode)
+	}
+	var out struct {
+		Error string `json:"error"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.Error != "execution_context_required" {
+		t.Fatalf("v2 executions error = %q", out.Error)
+	}
+}
+
+func TestInsightsV2OverviewRouteShape(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	seedInsightHTTPFacts(t, db, sess.OrgID, time.Now().UTC().Add(-time.Minute))
+	deps.Insight = mustInsight(t, db, t.TempDir()+"/insight.duckdb")
+	if err := deps.Insight.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer deps.Insight.Close()
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	defer ts.Close()
+
+	req, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/v2/overview?window=24h", nil)
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("v2 overview status = %d, want 200", resp.StatusCode)
+	}
+	var out struct {
+		MetricVersion string `json:"metric_version"`
+		TimeWindow    struct {
+			Duration string `json:"duration"`
+		} `json:"time_window"`
+		Health struct {
+			Status string `json:"status"`
+		} `json:"health"`
+		Executions struct {
+			Value *int64 `json:"value"`
+		} `json:"executions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.MetricVersion != insight.MetricVersionV2 || out.TimeWindow.Duration != "24h" || out.Executions.Value == nil || *out.Executions.Value != 1 || out.Health.Status == "" {
+		t.Fatalf("v2 overview body = %+v", out)
+	}
+}
+
 func TestInsightsExecutionAPI_ReadsSingleProjectedExecution(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -228,6 +340,15 @@ func TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound(t *testing.T) {
 
 func seedInsightHTTPFacts(t *testing.T, db *sql.DB, orgID string, finished time.Time) {
 	seedInsightHTTPFactsWithIDs(t, db, orgID, "api", "exec-api", finished)
+}
+
+func mustInsight(t *testing.T, db *sql.DB, path string) *insight.Service {
+	t.Helper()
+	svc, err := insight.Open(context.Background(), db, path, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return svc
 }
 
 func seedInsightHTTPFactsWithIDs(t *testing.T, db *sql.DB, orgID, suffix, executionID string, finished time.Time) {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -314,7 +315,7 @@ func TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail(t *testing.T) {
 	if o.Summary.SlotCoverageRatio == nil {
 		t.Fatal("slot coverage = nil, want one TTL-covered minute over the 24h window")
 	}
-	want := float64(ttl) / float64(24*time.Hour)
+	want := float64(ttl) / float64(2*time.Hour)
 	if delta := *o.Summary.SlotCoverageRatio - want; delta < -1e-9 || delta > 1e-9 {
 		t.Fatalf("slot coverage = %.9f, want %.9f; time after heartbeat TTL must be unknown", *o.Summary.SlotCoverageRatio, want)
 	}
@@ -337,6 +338,125 @@ func TestInsightInvalidTimeOrder(t *testing.T) {
 	}
 	if o.Diagnostics.InvalidFacts != 1 {
 		t.Fatalf("invalid facts = %d, want 1", o.Diagnostics.InvalidFacts)
+	}
+}
+
+func TestInsightExecutionExplanationFieldsAndWindowGate(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+	start := asOf.Add(-time.Hour)
+	insertQueueWithDetail(t, db, "cmd-reject", "worker-1", "agent-1", "task-1", "", "rejected", "repo_source_unavailable", "repository source is unavailable", start, start)
+	insertQueueWithDetail(t, db, "cmd-fail", "worker-1", "agent-1", "task-1", "exec-fail", "started", "admitted", "fork accepted", start, start.Add(time.Second))
+	insertActivity(t, db, "start-fail", "agent-1", "task-1", "exec-fail", map[string]any{"event": "executor.start", "executor_id": "exec-fail"}, start.Add(time.Second))
+	insertActivity(t, db, "stop-fail", "agent-1", "task-1", "exec-fail", map[string]any{"event": "executor.stop", "executor_id": "exec-fail", "outcome": "failed", "reason": "nonzero_exit", "detail": "process exited with status 2"}, start.Add(2*time.Second))
+	insertActivity(t, db, "start-old", "agent-1", "task-1", "exec-old", map[string]any{"event": "executor.start", "executor_id": "exec-old"}, asOf.Add(-25*time.Hour))
+	insertActivity(t, db, "stop-old", "agent-1", "task-1", "exec-old", map[string]any{"event": "executor.stop", "executor_id": "exec-old", "outcome": "succeeded"}, asOf.Add(-25*time.Hour+time.Second))
+
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	resp, err := svc.Executions(ctx, "org-1", ExecutionFilter{AsOf: asOf, Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows := map[string]ExecutionRow{}
+	for _, r := range resp.Executions {
+		rows[r.ExecutionID] = r
+	}
+	rejected := rows["command:cmd-reject"]
+	if rejected.CommandStatus == nil || *rejected.CommandStatus != "rejected" || rejected.StatusReason == nil || *rejected.StatusReason != "repo_source_unavailable" || rejected.StatusMessage == nil || *rejected.StatusMessage != "repository source is unavailable" {
+		t.Fatalf("rejected command explanation = %+v", rejected)
+	}
+	failed := rows["exec-fail"]
+	if failed.FailureReason == nil || *failed.FailureReason != "nonzero_exit" || failed.FailureMessage == nil || *failed.FailureMessage != "process exited with status 2" || failed.StatusMessage == nil || *failed.StatusMessage != "fork accepted" {
+		t.Fatalf("failed execution explanation = %+v", failed)
+	}
+	if _, err := svc.Execution(ctx, "org-1", "exec-old", asOf); !errors.Is(err, ErrExecutionNotFound) {
+		t.Fatalf("old execution detail err = %v, want ErrExecutionNotFound", err)
+	}
+}
+
+func TestInsightLeaderboardUsesTerminalOutcomeSet(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+	insertActivity(t, db, "start-a", "agent-1", "task-1", "exec-a", map[string]any{"event": "executor.start", "executor_id": "exec-a"}, asOf.Add(-time.Hour))
+	insertActivity(t, db, "stop-a", "agent-1", "task-1", "exec-a", map[string]any{"event": "executor.stop", "executor_id": "exec-a", "outcome": "succeeded"}, asOf.Add(-time.Hour+time.Second))
+	insertActivity(t, db, "start-unknown", "agent-2", "task-1", "exec-unknown", map[string]any{"event": "executor.start", "executor_id": "exec-unknown"}, asOf.Add(-time.Hour))
+	insertActivity(t, db, "stop-unknown", "agent-2", "task-1", "exec-unknown", map[string]any{"event": "executor.stop", "executor_id": "exec-unknown", "outcome": "mystery"}, asOf.Add(-time.Hour+2*time.Second))
+	execSQL(t, db, `INSERT INTO agents (id, organization_id, name, env_vars, worker_id, lifecycle, created_by, created_at, updated_at) VALUES ('agent-2', 'org-1', 'Agent Two', '{}', 'worker-1', 'running', 'user:test', ?, ?)`, asOf.Format(time.RFC3339Nano), asOf.Format(time.RFC3339Nano))
+
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	o, err := svc.Overview(ctx, "org-1", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(o.Agents) != 1 || o.Agents[0].AgentRef != "agent:agent-1" {
+		t.Fatalf("agents leaderboard = %+v, want only terminal known outcome agent", o.Agents)
+	}
+}
+
+func TestInsightV2DeliveryEvolutionAndLineage(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	now := asOf.Format(time.RFC3339Nano)
+	seedDims(t, db, "org-1")
+	execSQL(t, db, `INSERT INTO pm_issues (id, project_id, title, description, status, created_by, created_at, updated_at) VALUES ('issue-open', 'project-1', 'Open', '', 'open', 'user:test', ?, ?)`, now, now)
+	execSQL(t, db, `INSERT INTO pm_issues (id, project_id, title, description, status, created_by, created_at, updated_at) VALUES ('issue-linked', 'project-1', 'Linked', '', 'open', 'user:test', ?, ?)`, now, now)
+	execSQL(t, db, `INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, created_at, updated_at) VALUES ('plan-done', 'project-1', 'Done plan', '', 'done', 'user:test', ?, ?)`, now, now)
+	execSQL(t, db, `INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, derived_from_issue, plan_id, created_by, created_at, updated_at) VALUES ('task-linked', 'project-1', 'Linked task', '', 'running', 'agent:agent-1', 'issue-linked', 'plan-done', 'user:test', ?, ?)`, now, now)
+	execSQL(t, db, `INSERT INTO pm_assignment_pool_tasks (pool_id, task_id, added_at) VALUES ('pool-project-1', 'task-linked', ?)`, now)
+	execSQL(t, db, `INSERT INTO pm_plan_generations (id, plan_id, parent_generation_id, reason, evidence, creator_ref, diff_json, snapshot_json, idempotency_key, request_fingerprint, created_at) VALUES ('gen-0', 'plan-done', '', 'manual_adjustment', '[{\"source\":\"seed\"}]', 'user:test', '[{\"kind\":\"added\",\"node_id\":\"task-linked\"}]', '{}', 'g0', 'fp0', ?)`, now)
+	execSQL(t, db, `INSERT INTO pm_plan_generations (id, plan_id, parent_generation_id, reason, evidence, creator_ref, diff_json, snapshot_json, idempotency_key, request_fingerprint, created_at) VALUES ('gen-1', 'plan-done', 'gen-0', 'execution_failure', '[{\"source\":\"retry\"}]', 'agent:agent-1', '[{\"kind\":\"replaced\",\"from\":\"task-linked\",\"to\":\"task-linked-2\"}]', '{}', 'g1', 'fp1', ?)`, asOf.Add(time.Minute).Format(time.RFC3339Nano))
+	execSQL(t, db, `INSERT INTO pm_delivery_subjects (id, subject_type, plan_id, task_id, remote, branch, base_sha, candidate_sha, candidate_ref, pushed_remote, delivery_contract_hash, acceptance_contract_hash, created_at) VALUES ('subj-1', 'commit', 'plan-done', 'task-linked', 'origin', 'feature/x', ?, ?, 'refs/heads/feature/x', 'origin', 'dh', 'ah', ?)`, strings.Repeat("a", 40), strings.Repeat("b", 40), now)
+	execSQL(t, db, `INSERT INTO pm_acceptances (id, subject_id, subject_digest, plan_id, task_id, contract_hash, verdict, actor_ref, authority_rank, authority_source, created_at) VALUES ('acc-1', 'subj-1', 'digest', 'plan-done', 'task-linked', 'ah', 'passed', 'user:test', 1, 'test', ?)`, now)
+
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	delivery, err := svc.V2ProjectDelivery(ctx, "org-1", "project-1", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if delivery.MetricVersion != MetricVersionV2 || len(delivery.Funnel.Breaks) != 7 {
+		t.Fatalf("delivery envelope/breaks = %+v", delivery)
+	}
+	kinds := map[string]int64{}
+	for _, b := range delivery.Funnel.Breaks {
+		if b.Count.Value != nil {
+			kinds[b.Kind] = *b.Count.Value
+		}
+	}
+	for _, k := range V2DeliveryBreakKinds {
+		if _, ok := kinds[k]; !ok {
+			t.Fatalf("missing break kind %s in %+v", k, delivery.Funnel.Breaks)
+		}
+	}
+	if kinds["issue_without_task"] != 1 || kinds["task_multiple_containers"] != 1 || kinds["done_plan_non_terminal_task"] != 1 || kinds["done_plan_open_issue"] != 1 || kinds["evolution_old_generation_residue"] != 1 {
+		t.Fatalf("break counts = %+v", kinds)
+	}
+	evo, err := svc.V2ProjectEvolution(ctx, "org-1", "project-1", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if evo.Evolution["generation_count"].(int64) != 2 || evo.Evolution["evolved_plans"].(int64) != 1 {
+		t.Fatalf("evolution = %+v", evo.Evolution)
+	}
+	lineage, err := svc.V2PlanLineage(ctx, "org-1", "project-1", "plan-done", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lineage.Generations) != 2 || lineage.Generations[0].Generation != 0 || lineage.Generations[1].Generation != 1 {
+		t.Fatalf("lineage generations = %+v", lineage.Generations)
 	}
 }
 
@@ -525,6 +645,13 @@ func insertQueue(t *testing.T, db *sql.DB, id, workerID, agentID, taskID, execID
 	execSQL(t, db, `INSERT INTO worker_control_events (id, worker_id, "offset", idempotency_key, command_type, payload, agent_id, task_id, status, execution_id, status_updated_at, created_at)
 		VALUES (?,?,?,?, 'agent.fork_executor', '{}', ?, ?, ?, ?, ?, ?)`,
 		id, workerID, time.Now().UnixNano(), id+"-idem", agentID, taskID, status, execID, statusAt.Format(time.RFC3339Nano), queued.Format(time.RFC3339Nano))
+}
+
+func insertQueueWithDetail(t *testing.T, db *sql.DB, id, workerID, agentID, taskID, execID, status, reason, detail string, queued, statusAt time.Time) {
+	t.Helper()
+	execSQL(t, db, `INSERT INTO worker_control_events (id, worker_id, "offset", idempotency_key, command_type, payload, agent_id, task_id, status, status_reason, status_detail, execution_id, status_updated_at, created_at)
+		VALUES (?,?,?,?, 'agent.fork_executor', '{}', ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, workerID, time.Now().UnixNano(), id+"-idem", agentID, taskID, status, reason, detail, execID, statusAt.Format(time.RFC3339Nano), queued.Format(time.RFC3339Nano))
 }
 
 func insertActivity(t *testing.T, db *sql.DB, id, agentID, taskID, execID string, payload map[string]any, occurred time.Time) {

@@ -181,6 +181,16 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/overview", s.insightsOverviewHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/executions", s.insightsExecutionsHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/executions/{execution_id}", s.insightsExecutionHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/overview", s.insightsV2OverviewHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/agents", s.insightsV2AgentsHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/agents/{agent_ref}", s.insightsV2AgentHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/projects", s.insightsV2ProjectsHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/projects/{project_id}", s.insightsV2ProjectHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/projects/{project_id}/delivery", s.insightsV2ProjectDeliveryHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/projects/{project_id}/evolution", s.insightsV2ProjectEvolutionHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/projects/{project_id}/plans/{plan_id}/lineage", s.insightsV2PlanLineageHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/executions", s.insightsV2ExecutionsHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/executions/{execution_id}", s.insightsV2ExecutionHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/access/apply", s.accessBatchApplyHandler)
 	// v2.7.1 #214: user profile detail (member-id path; Humans row → UserDetail).
 	// EXEMPT (org-agnostic): cross-org profile — lists every org the user belongs

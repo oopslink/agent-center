@@ -17,7 +17,7 @@ type dims struct {
 }
 
 type queueDim struct {
-	CommandID, OrgID, ProjectID, WorkerID, QueuedAt, StartedAt string
+	CommandID, OrgID, ProjectID, WorkerID, QueuedAt, StartedAt, CommandStatus, StatusReason, StatusMessage string
 }
 
 type sourceCursor struct {
@@ -107,9 +107,10 @@ func (s *Service) queueByExecution(ctx context.Context, tx *sql.Tx, execID strin
 	if execID == "" {
 		return q
 	}
-	_ = tx.QueryRowContext(ctx, `SELECT command_id, COALESCE(organization_id,''), COALESCE(project_id,''), worker_id, CAST(queued_at AS VARCHAR), COALESCE(CAST(started_at AS VARCHAR),'')
+	_ = tx.QueryRowContext(ctx, `SELECT command_id, COALESCE(organization_id,''), COALESCE(project_id,''), worker_id, CAST(queued_at AS VARCHAR), COALESCE(CAST(started_at AS VARCHAR),''),
+		COALESCE(command_status,''), COALESCE(status_reason,''), COALESCE(status_message,'')
 		FROM queue_interval_fact WHERE execution_id=? LIMIT 1`, execID).
-		Scan(&q.CommandID, &q.OrgID, &q.ProjectID, &q.WorkerID, &q.QueuedAt, &q.StartedAt)
+		Scan(&q.CommandID, &q.OrgID, &q.ProjectID, &q.WorkerID, &q.QueuedAt, &q.StartedAt, &q.CommandStatus, &q.StatusReason, &q.StatusMessage)
 	return q
 }
 
@@ -217,6 +218,7 @@ func (s *Service) leaderboard(ctx context.Context, orgID, by string, asOf time.T
 	start := asOf.Add(-24 * time.Hour)
 	rows, err := s.duck.QueryContext(ctx, `SELECT `+by+`, COUNT(*) AS c FROM execution_fact
 		WHERE organization_id=? AND `+by+` IS NOT NULL AND finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ)
+		AND outcome IN ('succeeded','failed','crashed','quiet_finalized')
 		GROUP BY `+by+` ORDER BY c DESC, `+by+` ASC LIMIT 20`, orgID, fmtTS(start), fmtTS(asOf))
 	if err != nil {
 		return nil, err
@@ -262,8 +264,7 @@ func (s *Service) slotUtilization(ctx context.Context, orgID, agentRef string, a
 	args = append(args, fmtTS(asOf), fmtTS(asOf), fmtTS(start))
 	row := s.duck.QueryRowContext(ctx, `SELECT
 		SUM(CASE WHEN occupied AND admissible THEN date_diff('millisecond', CAST(GREATEST(valid_from, CAST(? AS TIMESTAMPTZ)) AS TIMESTAMP), CAST(known_to AS TIMESTAMP)) ELSE 0 END),
-		SUM(CASE WHEN admissible THEN date_diff('millisecond', CAST(GREATEST(valid_from, CAST(? AS TIMESTAMPTZ)) AS TIMESTAMP), CAST(known_to AS TIMESTAMP)) ELSE 0 END),
-		COUNT(DISTINCT worker_id || ':' || agent_ref || ':' || slot_index)
+		SUM(CASE WHEN admissible THEN date_diff('millisecond', CAST(GREATEST(valid_from, CAST(? AS TIMESTAMPTZ)) AS TIMESTAMP), CAST(known_to AS TIMESTAMP)) ELSE 0 END)
 		FROM (
 			SELECT *, LEAST(
 				CASE WHEN valid_to IS NULL THEN CAST(valid_from AS TIMESTAMP) + (? * INTERVAL 1 MILLISECOND) ELSE CAST(valid_to AS TIMESTAMP) END,
@@ -272,8 +273,7 @@ func (s *Service) slotUtilization(ctx context.Context, orgID, agentRef string, a
 			FROM slot_interval_fact
 		) WHERE known_to > CAST(? AS TIMESTAMP) AND `+where+` AND valid_from < CAST(? AS TIMESTAMPTZ) AND COALESCE(valid_to, CAST(? AS TIMESTAMPTZ)) > CAST(? AS TIMESTAMPTZ) AND state <> 'unknown'`, args...)
 	var occ, avail sql.NullFloat64
-	var slots sql.NullInt64
-	if err := row.Scan(&occ, &avail, &slots); err != nil {
+	if err := row.Scan(&occ, &avail); err != nil {
 		return nil, nil, err
 	}
 	var util, cov *float64
@@ -281,9 +281,19 @@ func (s *Service) slotUtilization(ctx context.Context, orgID, agentRef string, a
 		v := occ.Float64 / avail.Float64
 		util = &v
 	}
-	windowMS := float64((24 * time.Hour).Milliseconds())
-	if avail.Valid && slots.Valid && slots.Int64 > 0 {
-		v := avail.Float64 / (windowMS * float64(slots.Int64))
+	capArgs := []any{fmtTS(start), fmtTS(asOf), fmtTS(asOf)}
+	capArgs = append(capArgs, whereArgs...)
+	capArgs = append(capArgs, fmtTS(asOf), fmtTS(asOf), fmtTS(start))
+	var capacity sql.NullFloat64
+	if err := s.duck.QueryRowContext(ctx, `SELECT
+		SUM(CASE WHEN admissible THEN date_diff('millisecond', CAST(GREATEST(valid_from, CAST(? AS TIMESTAMPTZ)) AS TIMESTAMP), CAST(LEAST(COALESCE(valid_to, CAST(? AS TIMESTAMPTZ)), CAST(? AS TIMESTAMPTZ)) AS TIMESTAMP)) ELSE 0 END)
+		FROM slot_interval_fact WHERE `+where+`
+		AND valid_from < CAST(? AS TIMESTAMPTZ)
+		AND COALESCE(valid_to, CAST(? AS TIMESTAMPTZ)) > CAST(? AS TIMESTAMPTZ)`, capArgs...).Scan(&capacity); err != nil {
+		return nil, nil, err
+	}
+	if avail.Valid && capacity.Valid && capacity.Float64 > 0 {
+		v := avail.Float64 / capacity.Float64
 		cov = &v
 	}
 	return util, cov, nil
