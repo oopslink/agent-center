@@ -1,0 +1,59 @@
+
+    InsightOOSearch⌘KInsight⌄OverviewAgentsTask executionsProjects1⌄AlphaInsightAlphaProject delivery funnel, Plan evolution, and runtime health.Back to Insight projectsRuntime healthUnknownExecutions0Open issues0Blocked tasks0Active plans1coverage_unknownPast 24 hours (rolling)Aug 30, 8:11 PM–Aug 31, 8:11 PMAs of Aug 31, 8:11 PMFresh dataBackend health decisionUnknownknown · samples 2 · coverage 100% · unknown 1unknown_source_stateIssue / Task / Plan / Done funnelDiagnostic counts from the backend. Funnel breaks use the exact returned DrilldownFilter.Issues0Tasks1Plans1Done0Break kindCountDrilldownFilterDelivery SHA lineage mismatchdelivery_sha_lineage_mismatch0{
+  "break_kind": "delivery_sha_lineage_mismatch",
+  "project_id": "project-ffb1c198"
+}Done Plan has non-terminal Taskdone_plan_non_terminal_task0{
+  "break_kind": "done_plan_non_terminal_task",
+  "project_id": "project-ffb1c198"
+}Done Plan has open Issuedone_plan_open_issue0{
+  "break_kind": "done_plan_open_issue",
+  "project_id": "project-ffb1c198"
+}Old-generation residueevolution_old_generation_residue0{
+  "break_kind": "evolution_old_generation_residue",
+  "project_id": "project-ffb1c198"
+}Issue without taskissue_without_task0{
+  "break_kind": "issue_without_task",
+  "project_id": "project-ffb1c198"
+}Task in multiple containerstask_multiple_containers0{
+  "break_kind": "task_multiple_containers",
+  "project_id": "project-ffb1c198"
+}Task without plantask_without_plan1{
+  "break_kind": "task_without_plan",
+  "project_id": "project-ffb1c198"
+}Plan EvolutionGeneration counts, evolution rate, rework, recovery, loop depth, and residue metrics are rendered from backend fields when present.Plans1Evolved plans0Evolution rate0%Generation count0Rework count0Rework ratio—Recovery effectiveness—0/0Max loop depth0Stale/orphan residue0rework{
+  "anomaly_kind": "rework",
+  "generation_parent": "non_empty",
+  "project_id": "project-ffb1c198",
+  "reason_in": [
+    "review_reject",
+    "execution_failure"
+  ]
+}recovery{
+  "anomaly_kind": "recovery",
+  "generation_parent": "non_empty",
+  "project_id": "project-ffb1c198",
+  "reason_in": [
+    "blocked",
+    "review_reject",
+    "execution_failure"
+  ]
+}loop_depth{
+  "anomaly_kind": "loop_depth",
+  "generation_parent": "non_empty",
+  "metric": "max_loop_depth",
+  "project_id": "project-ffb1c198"
+}residue{
+  "anomaly_kind": "residue",
+  "generation_parent": "non_empty",
+  "project_id": "project-ffb1c198",
+  "task_status_in": [
+    "open",
+    "assigned",
+    "running",
+    "blocked",
+    "pool"
+  ]
+}Plan lineageOpen G0..Gn lineage for plan-011e5cc2.Open lineageWorkChatTeamsAccessInsightRemindSys
+  
+
+

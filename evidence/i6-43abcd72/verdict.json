@@ -1,0 +1,65 @@
+{
+  "task": "T1940",
+  "candidate_sha": "43abcd7250528694a662724c99d0a80e042ce8bb",
+  "candidate_ref": "refs/heads/immutable/i6-insight-acceptance-43abcd72",
+  "verdict": "REJECT",
+  "served_instance": {
+    "id": "i6viz43abcd72",
+    "prefix": "/Users/oopslink/.agent-center-test/i6viz43abcd72",
+    "web_url": "http://127.0.0.1:49156",
+    "version": "HEAD-43abcd72",
+    "commit": "43abcd72"
+  },
+  "tests": [
+    {
+      "command": "go test ./internal/insight ./internal/webconsole/api -run 'Insight|Insights' -count=1",
+      "result": "PASS"
+    },
+    {
+      "command": "cd web && pnpm exec vitest run src/utils/insightPresentation.test.ts src/pages/InsightOverview.test.tsx src/pages/InsightAgents.test.tsx src/pages/InsightProjects.test.tsx",
+      "result": "PASS",
+      "tests": 62
+    },
+    {
+      "command": "make build",
+      "result": "PASS",
+      "notes": "SPA CSS minifier warning observed"
+    },
+    {
+      "command": "go test ./...",
+      "result": "PASS"
+    }
+  ],
+  "blocking_findings": [
+    {
+      "id": "F1",
+      "acceptance": ["B", "C", "D", "E"],
+      "summary": "Full-fidelity execution chain could not be generated in isolated instance",
+      "evidence": "install test-instance --with-agent failed runtime_model_not_found; after adding runtime model, agent creation failed worker_not_in_org"
+    },
+    {
+      "id": "F2",
+      "acceptance": ["E"],
+      "summary": "Frozen HTTP empty collection contract violated",
+      "evidence": "raw/api-overview-v1.json contains agents:null/projects:null; raw/api-overview-v2.json contains agents:null"
+    },
+    {
+      "id": "F3",
+      "acceptance": ["C", "E"],
+      "summary": "Project Insight main UI exposes raw backend reason/drilldown internals",
+      "evidence": "desktop-project-detail-delivery-evolution.png and mobile-project-detail.png show coverage_unknown, unknown_source_state, and raw JSON drilldown filters"
+    },
+    {
+      "id": "F4",
+      "acceptance": ["A", "E"],
+      "summary": "Invalid copied cursor renders poor 503 object error",
+      "evidence": "raw/current-executions-body.txt and desktop-executions-filter-cursor.png show Execution request failed [503 [object Object]]"
+    }
+  ],
+  "acceptance": {
+    "B": "REJECT",
+    "C": "REJECT",
+    "D": "REJECT",
+    "E": "REJECT"
+  }
+}
