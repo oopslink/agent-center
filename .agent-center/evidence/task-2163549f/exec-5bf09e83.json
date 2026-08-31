@@ -1,0 +1,311 @@
+{
+  "task_id": "task-2163549f",
+  "execution_id": "exec-5bf09e83",
+  "reviewed_sha": "c6b0dc20533fd26eda87efb93134b9f1a790159e",
+  "base_sha": "c6b0dc20533fd26eda87efb93134b9f1a790159e",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find task-input/v1 -maxdepth 3 -type f -print -exec shasum -a 256 {} \\\\;\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'git fetch --prune origin main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git rev-parse origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git rev-parse --abbrev-ref HEAD \u0026\u0026 git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git status --porcelain=v1 --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git branch -vv'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'cat .git/FETCH_HEAD'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'git config --get-all remote.origin.fetch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git show-ref --heads --remotes main origin/main refs/remotes/origin/main refs/heads/main'",
+      "exit_status": 129
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'git show-ref refs/heads/main refs/remotes/origin/main refs/heads/ac-exec/task-2163549f/exec-5bf09e83'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"git rev-parse --git-path FETCH_HEAD \u0026\u0026 sed -n '1,20p' \\\"\"'$(git rev-parse --git-path FETCH_HEAD)\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'git rev-list --left-right --count main...HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"git merge-base HEAD main \u0026\u0026 git merge-base --is-ancestor main HEAD; printf 'main_is_ancestor_exit=%s\\\\n' \"'$? \u0026\u0026 git merge-base --is-ancestor 7f4cfcc43e0360f31e756bb453e675db50cc26c6 HEAD; printf '\"'anchor_is_ancestor_exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc ls",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate --no-renames 65eab385a93199d98fe3b367d4d07bc627cda7f2'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate --no-renames 7f4cfcc43e0360f31e756bb453e675db50cc26c6'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"git log --oneline --decorate --max-count=8 --graph --all --simplify-by-decoration --branches='ac-exec/task-2163549f/exec-5bf09e83' --branches='main'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"rg -n \\\"authoritative|readback|worker identity|running.*worker|worker.*health|runtime.*health|health\\\" internal cmd scripts docs tests task-input/v1 -g '\"'!web/node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc 'rg -n \"admin.*health|agent.*runtime|worker.*status|runtime deploy|deploy status|workerdaemon\" README.md Makefile cmd internal scripts docs tests'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type f \\\\( -name package.json -o -name go.mod -o -name Makefile \\\\) -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"sed -n '1,140p' docs/reports/t1802-runtime-control-integration.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/reports/t1850-worker-readback-replay.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"sed -n '1,160p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"git merge-base HEAD 65eab385a93199d98fe3b367d4d07bc627cda7f2; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"git merge-base HEAD 7f4cfcc43e0360f31e756bb453e675db50cc26c6; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"go test ./internal/workerdaemon -run 'TestControllerHandler_RuntimeDeploy|TestSourceRuntimeDeployer|TestParseAgentCenterVersionReadback'; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"go test ./...; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc \"make test-race; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc \"go vet ./...; printf 'exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc \"printf 'utc='; date -u +%Y-%m-%dT%H:%M:%SZ; printf 'local='; date +%Y-%m-%dT%H:%M:%S%z; printf 'whoami='; whoami; printf 'id='; id; printf 'hostname='; hostname; printf 'cwd='; pwd; printf 'shell_pid='; echo \"'$$; ps -p $$ -o pid=,ppid=,stat=,etime=,command=; uname -a'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc \"git status --porcelain=v1 --branch \u0026\u0026 git rev-list --left-right --count main...HEAD \u0026\u0026 git merge-base HEAD main \u0026\u0026 git merge-base --is-ancestor main HEAD; printf 'main_is_ancestor_exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/ac-exec/task-2163549f/exec-5bf09e83 refs/heads/main refs/remotes/origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-2163549f/exec-5bf09e83 refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc \"mkdir -p docs/acceptance/g35-worker-authoritative-reverify/raw\n{\n  printf '\"'$ pwd'\"\\\\n'; pwd; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ sed -n '\"'\\\\''1,240p'\\\\'' task-input/v1/README.md\\\\n'; sed -n '1,240p' task-input/v1/README.md; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ sed -n '\"'\\\\''1,260p'\\\\'' task-input/v1/manifest.json\\\\n'; sed -n '1,260p' task-input/v1/manifest.json; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ find task-input/v1 -maxdepth 3 -type f -print -exec shasum -a 256 {} '\"\\\\\\\\;\\\\n'; find task-input/v1 -maxdepth 3 -type f -print -exec shasum -a 256 {} \\\\;; printf 'exit=%s\\\\n\\\\n' \"'$?;\n} \u003e docs/acceptance/g35-worker-authoritative-reverify/raw/task-input.log 2\u003e\u00261\n{\n  printf '\"'\"'$ git fetch --prune origin main'\"\\\\n'; git fetch --prune origin main; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git config --get-all remote.origin.fetch'\"\\\\n'; git config --get-all remote.origin.fetch; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git remote -v'\"\\\\n'; git remote -v; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git rev-parse --abbrev-ref HEAD \u0026\u0026 git rev-parse HEAD'\"\\\\n'; git rev-parse --abbrev-ref HEAD \u0026\u0026 git rev-parse HEAD; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git show-ref refs/heads/main refs/remotes/origin/main refs/heads/ac-exec/task-2163549f/exec-5bf09e83'\"\\\\n'; git show-ref refs/heads/main refs/remotes/origin/main refs/heads/ac-exec/task-2163549f/exec-5bf09e83; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git rev-parse --git-path FETCH_HEAD \u0026\u0026 sed -n '\"'\\\\''1,20p'\\\\'' \\\"\"'$(git rev-parse --git-path FETCH_HEAD)\"'\"\\\\n'; git rev-parse --git-path FETCH_HEAD \u0026\u0026 sed -n '1,20p' \\\"\"'$(git rev-parse --git-path FETCH_HEAD)\"; printf '\"'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git ls-remote origin refs/heads/main refs/heads/ac-exec/task-2163549f/exec-5bf09e83 refs/remotes/origin/main'\"\\\\n'; git ls-remote origin refs/heads/main refs/heads/ac-exec/task-2163549f/exec-5bf09e83 refs/remotes/origin/main; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git ls-remote origin-push refs/heads/main refs/heads/ac-exec/task-2163549f/exec-5bf09e83'\"\\\\n'; git ls-remote origin-push refs/heads/main refs/heads/ac-exec/task-2163549f/exec-5bf09e83; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git status --porcelain=v1 --branch'\"\\\\n'; git status --porcelain=v1 --branch; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git rev-list --left-right --count main...HEAD'\"\\\\n'; git rev-list --left-right --count main...HEAD; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git merge-base HEAD main'\"\\\\n'; git merge-base HEAD main; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git merge-base --is-ancestor main HEAD'\"\\\\n'; git merge-base --is-ancestor main HEAD; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git merge-base --is-ancestor HEAD main'\"\\\\n'; git merge-base --is-ancestor HEAD main; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git merge-base HEAD 65eab385a93199d98fe3b367d4d07bc627cda7f2'\"\\\\n'; git merge-base HEAD 65eab385a93199d98fe3b367d4d07bc627cda7f2; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ git merge-base HEAD 7f4cfcc43e0360f31e756bb453e675db50cc26c6'\"\\\\n'; git merge-base HEAD 7f4cfcc43e0360f31e756bb453e675db50cc26c6; printf 'exit=%s\\\\n\\\\n' \"'$?;\n} \u003e docs/acceptance/g35-worker-authoritative-reverify/raw/git-provenance.log 2\u003e\u00261\n{\n  printf '\"'\"'$ date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ'\"\\\\n'; date -u +%Y-%m-%dT%H:%M:%SZ; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ date +%%Y-%%m-%%dT%%H:%%M:%%S%%z'\"\\\\n'; date +%Y-%m-%dT%H:%M:%S%z; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ whoami'\"\\\\n'; whoami; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ id'\"\\\\n'; id; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ hostname'\"\\\\n'; hostname; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ pwd'\"\\\\n'; pwd; printf 'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ printf shell_pid=%%s'\"\\\\\\\\n \"'$$ \u0026\u0026 ps -p $$ -o pid=,ppid=,stat=,etime=,command='\"\\\\n'; printf 'shell_pid=%s\\\\n' \"'$$ \u0026\u0026 ps -p $$ -o pid=,ppid=,stat=,etime=,command=; printf '\"'exit=%s\\\\n\\\\n' \"'$?;\n  printf '\"'\"'$ uname -a'\"\\\\n'; uname -a; printf 'exit=%s\\\\n\\\\n' \"'$?;\n} \u003e docs/acceptance/g35-worker-authoritative-reverify/raw/worker-runtime-identity-health.log 2\u003e\u00261\n{\n  printf '\"'\"'$ go test ./internal/workerdaemon -run '\"'\\\\''TestControllerHandler_RuntimeDeploy|TestSourceRuntimeDeployer|TestParseAgentCenterVersionReadback'\\\\''\\\\n'; go test ./internal/workerdaemon -run 'TestControllerHandler_RuntimeDeploy|TestSourceRuntimeDeployer|TestParseAgentCenterVersionReadback'; printf 'exit=%s\\\\n' \"'$?;\n} \u003e docs/acceptance/g35-worker-authoritative-reverify/raw/focused-workerdaemon.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc \"{\n  printf '\"'$ go test ./...'\"\\\\n'; go test ./...; printf 'exit=%s\\\\n' \"'$?;\n} \u003e docs/acceptance/g35-worker-authoritative-reverify/raw/go-test-all.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc \"{\n  printf '\"'$ go vet ./...'\"\\\\n'; go vet ./...; printf 'exit=%s\\\\n' \"'$?;\n} \u003e docs/acceptance/g35-worker-authoritative-reverify/raw/go-vet-all.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc \"{\n  printf '\"'$ make test-race'\"\\\\n'; make test-race; printf 'exit=%s\\\\n' \"'$?;\n} \u003e docs/acceptance/g35-worker-authoritative-reverify/raw/make-test-race.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/acceptance/g35-worker-authoritative-reverify/raw/git-provenance.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/g35-worker-authoritative-reverify/raw/worker-runtime-identity-health.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc \"for f in docs/acceptance/g35-worker-authoritative-reverify/raw/*.log; do printf '%s\\\\n' \\\"\"'$f\"; tail -5 \"$f\"; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'git status --porcelain=v1 --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' docs/acceptance/g35-worker-authoritative-reverify/verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_68",
+      "command": "/bin/zsh -lc \"find docs/acceptance/g35-worker-authoritative-reverify -type f -maxdepth 2 -print -exec shasum -a 256 {} \\\\;\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc 'git status --porcelain=v1 --branch'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-5bf09e83/command_events.jsonl",
+  "command_event_digest": "sha256:a90de671779d44e0cc14b4bdefb2ddb0d35d80dcbaaabdc24ad32a6d784a6e10",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "Produced fresh G35 evidence under:",
+  "artifact_digest": "sha256:a414f1ec361b6197184847183e529f9af5f6d7e460ca1f5e2c9d52f8138f4d0f",
+  "path": ".agent-center/evidence/task-2163549f/exec-5bf09e83.json",
+  "branch": "ac-exec/task-2163549f/exec-5bf09e83"
+}
