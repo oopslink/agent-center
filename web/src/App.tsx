@@ -40,6 +40,9 @@ const Reminders = lazy(() => import('./pages/Reminders'));
 const InsightOverview = lazy(() => import('./pages/InsightOverview'));
 const InsightExecutions = lazy(() => import('./pages/InsightOverview').then((m) => ({ default: m.InsightExecutionsPage })));
 const InsightExecutionDetail = lazy(() => import('./pages/InsightOverview').then((m) => ({ default: m.InsightExecutionDetailPage })));
+const InsightProjects = lazy(() => import('./pages/InsightProjects'));
+const InsightProjectDetail = lazy(() => import('./pages/InsightProjects').then((m) => ({ default: m.InsightProjectDetailPage })));
+const InsightPlanLineage = lazy(() => import('./pages/InsightProjects').then((m) => ({ default: m.InsightPlanLineagePage })));
 const Access = lazy(() => import('./pages/Access'));
 const Secrets = lazy(() => import('./pages/Secrets'));
 const Environment = lazy(() => import('./pages/Environment'));
@@ -129,6 +132,9 @@ export function App(): React.ReactElement {
           <Route path="reminders" element={<Reminders />} />
           <Route path="insights" element={<Navigate to="overview" replace />} />
           <Route path="insights/overview" element={<InsightOverview />} />
+          <Route path="insights/projects" element={<InsightProjects />} />
+          <Route path="insights/projects/:projectId" element={<InsightProjectDetail />} />
+          <Route path="insights/projects/:projectId/plans/:planId/lineage" element={<InsightPlanLineage />} />
           <Route path="insights/executions" element={<InsightExecutions />} />
           <Route path="insights/executions/:executionId" element={<InsightExecutionDetail />} />
           <Route path="access" element={<Navigate to="ram-roles" replace />} />
