@@ -81,6 +81,7 @@ describe('col②/④ System module — three-column shell integration (v2.10.0 [
   it('keeps grant-access inside the viewport shell instead of the page scroll container', () => {
     renderShell('/access/grant-access');
     expect(screen.getByTestId('page-GrantAccess')).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toHaveClass('h-screen-dvh', 'overflow-hidden');
     const shell = screen.getByTestId('app-content-shell');
     expect(shell).toHaveClass('overflow-hidden');
     expect(shell).not.toHaveClass('overflow-y-auto');

@@ -461,7 +461,6 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
   const [permission, setPermission] = useState('all');
   const [risk, setRisk] = useState<AccessRisk | 'all'>('all');
   const [status, setStatus] = useState<AccessStatus | 'all'>('all');
-  const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedSubjectRef, setSelectedSubjectRef] = useState('');
   const [toast, setToast] = useState<AccessToast>(null);
   const overview = useAccessOverview({
@@ -554,7 +553,6 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
             <OrgLink
               to="/access/grant-access"
               className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
-              onClick={() => setDrawerOpen(true)}
               data-testid="access-open-batch"
             >
               Grant access
@@ -632,7 +630,6 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
           contextSubjectRef={selectedSubjectRef}
           onToast={setToast}
           onClose={() => navigate(org?.slug ? `/organizations/${org.slug}/access/subject-access` : '/access/subject-access')}
-          mode="page"
         />
         ) : (
         <div className={page === 'subject-access' ? 'grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_22rem]' : 'grid min-w-0 gap-4'}>
@@ -672,22 +669,6 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
           </aside>}
         </div>
         )
-      )}
-
-      {drawerOpen && data && (
-        <BatchGrantDrawer
-          subjects={data.subjects}
-          roles={data.roles}
-          permissions={data.catalog}
-          resources={resources}
-          decisions={data.decisions}
-          teams={teams.data ?? []}
-          canManageAccess={canManageAccess}
-          contextSubjectRef={selectedSubjectRef}
-          onToast={setToast}
-          onClose={() => setDrawerOpen(false)}
-          mode="dialog"
-        />
       )}
       </>
       )}
@@ -1983,7 +1964,6 @@ function BatchGrantDrawer({
   contextSubjectRef,
   onToast,
   onClose,
-  mode = 'dialog',
 }: {
   subjects: AccessSubject[];
   roles: AccessRole[];
@@ -1995,9 +1975,7 @@ function BatchGrantDrawer({
   contextSubjectRef: string;
   onToast: (toast: AccessToast) => void;
   onClose: () => void;
-  mode?: 'dialog' | 'page';
 }): React.ReactElement {
-  const containerRef = useModalA11y({ open: mode === 'dialog', onClose });
   const previewMutation = useAccessBatchPreview();
   const applyMutation = useAccessBatchApply();
   const [step, setStep] = useState(0);
@@ -2246,15 +2224,10 @@ function BatchGrantDrawer({
   };
 
   return (
-    <div className={mode === 'dialog' ? 'fixed inset-0 z-50 bg-black/30' : 'flex min-h-0 min-w-0 flex-1 overflow-hidden'} data-testid="access-batch-drawer-backdrop">
+    <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden" data-testid="access-batch-drawer-backdrop">
       <div
-        ref={containerRef}
-        role={mode === 'dialog' ? 'dialog' : undefined}
-        aria-modal={mode === 'dialog' ? 'true' : undefined}
         aria-label={title}
-        className={mode === 'dialog'
-          ? 'fixed inset-x-4 top-6 mx-auto flex max-h-[calc(100vh-3rem)] max-w-6xl flex-col rounded border border-border-base bg-bg-elevated text-text-primary shadow-2xl'
-          : 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded border border-border-base bg-bg-elevated text-text-primary'}
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded border border-border-base bg-bg-elevated text-text-primary"
         data-testid="access-batch-drawer"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border-base px-5 py-4">
@@ -2276,8 +2249,8 @@ function BatchGrantDrawer({
           </div>
           <button
             type="button"
-            aria-label={mode === 'dialog' ? 'Close' : 'Back to Subject access'}
-            title={mode === 'dialog' ? 'Close' : 'Back to Subject access'}
+            aria-label="Back to Subject access"
+            title="Back to Subject access"
             className="rounded p-1.5 text-text-secondary hover:bg-bg-subtle"
             onClick={onClose}
           >

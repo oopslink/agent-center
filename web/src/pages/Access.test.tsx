@@ -30,6 +30,11 @@ function addGrantEntry(drawer: HTMLElement, token: string, resourceKey?: string)
   fireEvent.click(within(drawer).getByTestId(`access-picker-add-${token}`));
 }
 
+function selectFirstGrantSubject(drawer: HTMLElement) {
+  const input = within(drawer).getAllByTestId('access-grant-subject-select')[0] as HTMLInputElement;
+  if (!input.checked) fireEvent.click(input);
+}
+
 afterEach(() => {
   cleanup();
   useAppStore.setState({ currentUserId: '' });
@@ -210,7 +215,7 @@ describe('Access page', () => {
     expect(screen.getByTestId('access-open-batch')).toBeDisabled();
   });
 
-  it('shows Team RAM and direct binding source chains, then opens the grant flow with selected context', async () => {
+  it('shows Team RAM and direct binding source chains, then links to the grant page without opening a modal', async () => {
     renderPage('/organizations/test/access/subject-access');
     const builder = await screen.findByTestId('access-subject-effective-agent:builder');
     fireEvent.click(within(builder).getByText(/^3 effective permissions/));
@@ -229,10 +234,8 @@ describe('Access page', () => {
     expect(within(sidebar).getByTestId('access-direct-binding-union')).toHaveTextContent('grant-custom-1');
     await waitFor(() => expect(within(sidebar).getByTestId('access-audit-history')).toHaveTextContent('authorization.assignment.created'));
 
-    fireEvent.click(screen.getByTestId('access-open-batch'));
-    const drawer = await screen.findByRole('dialog', { name: 'Batch authorization' });
-    expect(within(drawer).getByTestId('access-grant-subject-table')).toHaveTextContent('agent:builder');
-    expect(within(drawer).getAllByTestId('access-grant-subject-select').filter((input) => (input as HTMLInputElement).checked)).toHaveLength(1);
+    expect(screen.getByTestId('access-open-batch')).toHaveAttribute('href', '/organizations/test/access/grant-access');
+    expect(screen.queryByRole('dialog', { name: 'Batch authorization' })).not.toBeInTheDocument();
   });
 
   it('filters permission groups and gives visible feedback when adding grant rows', async () => {
@@ -276,13 +279,12 @@ describe('Access page', () => {
   });
 
   it('previews and applies a four-step batch grant without deriving final permissions in the UI', async () => {
-    renderPage('/organizations/test/access/subject-access');
+    renderPage('/organizations/test/access/grant-access');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    await screen.findByTestId('access-subject-view');
-    fireEvent.click(screen.getByTestId('access-open-batch'));
 
     const drawer = await screen.findByTestId('access-batch-drawer');
     const subjectChecks = within(drawer).getAllByTestId('access-grant-subject-select');
+    selectFirstGrantSubject(drawer);
     fireEvent.click(subjectChecks[3]);
     addGrantEntry(drawer, 'permission-direct-team-memory-review-team', 'team:team-7c19b0');
     fireEvent.change(within(drawer).getByTestId('access-batch-expires'), {
@@ -375,12 +377,11 @@ describe('Access page', () => {
         });
       }),
     );
-    renderPage('/organizations/test/access/subject-access');
+    renderPage('/organizations/test/access/grant-access');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();
-    await screen.findByTestId('access-subject-view');
-    fireEvent.click(screen.getByTestId('access-open-batch'));
 
     const drawer = await screen.findByTestId('access-batch-drawer');
+    selectFirstGrantSubject(drawer);
     addGrantEntry(drawer, 'permission-direct-project-write-project', 'project:proj-a');
     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), {
       target: { value: 'temporary direct binding' },
@@ -462,11 +463,10 @@ describe('Access page', () => {
         });
       }),
     );
-    renderPage('/organizations/test/access/subject-access');
-    await screen.findByTestId('access-subject-view');
-    fireEvent.click(screen.getByTestId('access-open-batch'));
+    renderPage('/organizations/test/access/grant-access');
 
     const drawer = await screen.findByTestId('access-batch-drawer');
+    selectFirstGrantSubject(drawer);
     addGrantEntry(drawer, 'role-role-project-member', 'project:proj-a');
     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'grant project membership role' } });
     fireEvent.click(within(drawer).getByTestId('access-run-preview'));
@@ -484,16 +484,13 @@ describe('Access page', () => {
   });
 
   it('explains why the access preview action is disabled', async () => {
-    renderPage('/organizations/test/access/subject-access');
-    await screen.findByTestId('access-subject-view');
-    fireEvent.click(screen.getByTestId('access-open-batch'));
+    renderPage('/organizations/test/access/grant-access');
     const drawer = await screen.findByTestId('access-batch-drawer');
     expect(within(drawer).getByTestId('access-run-preview')).toBeDisabled();
-    expect(within(drawer).getByTestId('access-preview-disabled-reason')).toHaveTextContent('Add at least one grant entry.');
-
-    const checked = within(drawer).getAllByTestId('access-grant-subject-select').find((input) => (input as HTMLInputElement).checked);
-    if (checked) fireEvent.click(checked);
     expect(within(drawer).getByTestId('access-preview-disabled-reason')).toHaveTextContent('Select at least one subject');
+
+    selectFirstGrantSubject(drawer);
+    expect(within(drawer).getByTestId('access-preview-disabled-reason')).toHaveTextContent('Add at least one grant entry.');
   });
 
   it('models direct grants as one permission with scope-specific backing keys', async () => {
@@ -544,10 +541,9 @@ describe('Access page', () => {
       }),
     );
 
-    renderPage('/organizations/test/access/subject-access');
-    await screen.findByTestId('access-subject-view');
-    fireEvent.click(screen.getByTestId('access-open-batch'));
+    renderPage('/organizations/test/access/grant-access');
     const drawer = await screen.findByTestId('access-batch-drawer');
+    selectFirstGrantSubject(drawer);
 
     const picker = within(drawer).getByTestId('access-permission-picker');
     expect(within(picker).getByText('Issue · Project or issue · Read')).toBeInTheDocument();
@@ -592,18 +588,16 @@ describe('Access page', () => {
     ]);
   });
 
-  it('keeps the selected subject context and surfaces a 409 apply conflict as a toast', async () => {
+  it('surfaces a 409 apply conflict as a toast', async () => {
     server.use(
       http.post('*/api/orgs/:slug/access/batch/apply', () => HttpResponse.json(
         { error: 'version_conflict', message: 'subject access changed after preview' },
         { status: 409 },
       )),
     );
-    renderPage('/organizations/test/access/subject-access');
-    await screen.findByTestId('access-subject-view');
-    fireEvent.click(screen.getByTestId('access-open-batch'));
+    renderPage('/organizations/test/access/grant-access');
     const drawer = await screen.findByTestId('access-batch-drawer');
-    expect(within(drawer).getAllByTestId('access-grant-subject-select').filter((input) => (input as HTMLInputElement).checked)).toHaveLength(1);
+    selectFirstGrantSubject(drawer);
     addGrantEntry(drawer, 'permission-direct-project-write-project', 'project:proj-a');
     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'conflict probe' } });
     fireEvent.click(within(drawer).getByTestId('access-run-preview'));
@@ -638,10 +632,9 @@ describe('Access page', () => {
         });
       }),
     );
-    renderPage('/organizations/test/access/subject-access');
-    await screen.findByTestId('access-subject-view');
-    fireEvent.click(screen.getByTestId('access-open-batch'));
+    renderPage('/organizations/test/access/grant-access');
     const drawer = await screen.findByTestId('access-batch-drawer');
+    selectFirstGrantSubject(drawer);
     expect(within(drawer).getByTestId('access-picker-group-Organization')).toHaveTextContent('Organization');
     expect(within(drawer).getByTestId('access-picker-group-Project')).toHaveTextContent('Project');
     fireEvent.click(within(drawer).getByTestId('access-picker-group-toggle-Project'));
@@ -716,10 +709,9 @@ describe('Access page', () => {
         summary: { total: 2, succeeded: 1, failed: 1, unauthorized: 0, not_applicable: 1, partial_failure: true },
       })),
     );
-    renderPage('/organizations/test/access/subject-access');
-    await screen.findByTestId('access-subject-view');
-    fireEvent.click(screen.getByTestId('access-open-batch'));
+    renderPage('/organizations/test/access/grant-access');
     const drawer = await screen.findByTestId('access-batch-drawer');
+    selectFirstGrantSubject(drawer);
     addGrantEntry(drawer, 'permission-direct-org-read-org', 'org:org-test');
     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'partial mapping' } });
     fireEvent.click(within(drawer).getByTestId('access-run-preview'));

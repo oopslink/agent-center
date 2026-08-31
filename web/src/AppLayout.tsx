@@ -420,7 +420,7 @@ export default function AppLayout(): React.ReactElement {
           + the chat's pinned composer) gets pushed below the visible area and the
           input box becomes unreachable on long threads; 100dvh tracks the visible
           viewport so the composer stays above the tab bar. See index.css. */}
-      <div className="flex h-screen-dvh bg-bg-base">
+      <div className="flex h-screen-dvh overflow-hidden bg-bg-base" data-testid="app-shell">
         {/* ────── Mobile top bar (md:hidden) ────── */}
         <header className="fixed inset-x-0 top-0 z-30 flex h-12 items-center gap-2 border-b border-border-base bg-bg-elevated px-3 md:hidden">
           {/* Left: module name → opens mobile nav sheet */}
