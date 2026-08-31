@@ -11,6 +11,186 @@
       "title": "Task executions",
       "subtitle": "每行代表一次执行尝试"
     },
+    "agents": {
+      "title": "智能体",
+      "subtitle": "使用 Insight v2 指标契约的组织智能体",
+      "loading": "正在加载 Insight 智能体",
+      "loadingDetail": "正在加载 Insight 智能体详情",
+      "failed": "Insight 智能体加载失败",
+      "failedDetail": "Insight 智能体详情加载失败",
+      "empty": "当前组织没有智能体",
+      "notFound": "当前组织中找不到这个 Insight 智能体",
+      "confidence": "指标置信度",
+      "sampleCount": "样本数",
+      "col": {
+        "agent": "智能体",
+        "health": "健康状态",
+        "executions": "执行",
+        "unknown": "未知",
+        "coverage": "覆盖率"
+      },
+      "metric": {
+        "executions": "执行",
+        "openIssues": "开放 Issue",
+        "blockedTasks": "阻塞任务",
+        "activePlans": "活跃 Plan"
+      },
+      "health": {
+        "healthy": "健康",
+        "elevated": "升高",
+        "degraded": "降级",
+        "unknown": "未知"
+      }
+    },
+    "projects": {
+      "title": "Insight 项目",
+      "subtitle": "每个项目的业务交付与运行健康决策面。",
+      "loading": "正在加载 Insight 项目",
+      "failed": "项目 Insight 请求失败",
+      "empty": "暂无可用于 Insight 的项目",
+      "emptyBody": "后端返回了空的 v2 项目集合。",
+      "project": "项目",
+      "health": "健康",
+      "executions": "执行",
+      "openIssues": "开放 Issue",
+      "blockedTasks": "阻塞 Task",
+      "activePlans": "活跃 Plan",
+      "reasonCodes": "原因代码",
+      "back": "返回 Insight 项目"
+    },
+    "projectDetail": {
+      "subtitle": "项目交付漏斗、Plan Evolution 与运行健康。",
+      "loading": "正在加载项目 Insight",
+      "failed": "项目 Insight 加载失败",
+      "runtimeHealth": "运行健康"
+    },
+    "health": {
+      "healthy": "健康",
+      "elevated": "升高",
+      "degraded": "降级",
+      "unknown": "未知"
+    },
+    "v2": {
+      "asOf": "截至 {{time}}",
+      "healthDecision": "后端健康决策",
+      "known": "已知",
+      "unknown": "未知",
+      "meta": "{{known}} · 样本 {{sample}} · 覆盖 {{coverage}} · 未知 {{unknown}}",
+      "noReasons": "无后端原因代码",
+      "noDrilldown": "无下钻筛选"
+    },
+    "delivery": {
+      "title": "Issue / Task / Plan / Done 漏斗",
+      "subtitle": "来自后端的诊断计数。漏斗断点使用后端返回的原始 DrilldownFilter。",
+      "loading": "正在加载交付漏斗",
+      "failed": "交付漏斗加载失败",
+      "breakKind": "断点类型",
+      "count": "计数",
+      "drilldown": "DrilldownFilter",
+      "stage": {
+        "issues": "Issues",
+        "tasks": "Tasks",
+        "plans": "Plans",
+        "done": "Done"
+      },
+      "break": {
+        "issue_without_task": "Issue 没有 Task",
+        "task_without_plan": "Task 没有 Plan",
+        "task_multiple_containers": "Task 位于多个容器",
+        "done_plan_non_terminal_task": "Done Plan 含未终止 Task",
+        "done_plan_open_issue": "Done Plan 含开放 Issue",
+        "evolution_old_generation_residue": "旧 generation 残留",
+        "delivery_sha_lineage_mismatch": "交付 SHA 与 lineage 不匹配",
+        "unknown": "后端定义的断点"
+      },
+      "breakDescription": {
+        "issue_without_task": "Issue 尚未连接到 Task。",
+        "task_without_plan": "Task 尚未归入 Plan。",
+        "task_multiple_containers": "Task 被连接到多个容器。",
+        "done_plan_non_terminal_task": "已完成 Plan 仍有未终止 Task。",
+        "done_plan_open_issue": "已完成 Plan 仍有开放 Issue。",
+        "evolution_old_generation_residue": "旧 Plan generation 仍有活跃残留。",
+        "delivery_sha_lineage_mismatch": "交付 SHA 与 Plan lineage 不一致。",
+        "unknown": "后端返回了新的断点类型。"
+      }
+    },
+    "evolution": {
+      "title": "Plan Evolution",
+      "subtitle": "generation 数量、演进率、返工、恢复、循环深度与残留指标存在时按后端字段渲染。",
+      "loading": "正在加载 Plan Evolution",
+      "failed": "Plan Evolution 加载失败",
+      "plans": "Plans",
+      "evolvedPlans": "演进过的 Plans",
+      "evolutionRate": "演进率",
+      "generationCount": "generation 数量",
+      "reworkCount": "返工次数",
+      "reworkRatio": "返工率",
+      "recoveryEffectiveness": "恢复有效率",
+      "maxLoopDepth": "最大回环深度",
+      "staleOrphanResidue": "陈旧/孤立残留",
+      "anomaly": {
+        "rework": "返工",
+        "recovery": "恢复",
+        "loop_depth": "回环深度",
+        "residue": "残留",
+        "unknown": "后端定义的异常"
+      }
+    },
+    "reasonCode": {
+      "coverage_low": "观测覆盖不足",
+      "coverage_unknown": "覆盖率尚未测得",
+      "freshness_stale": "数据有延迟",
+      "lineage.integrity_broken": "Lineage 完整性问题",
+      "metric_unknown": "指标无法判断",
+      "sample_empty": "没有匹配样本",
+      "unknown_source_state": "来源状态尚未知",
+      "unknown": "后端定义的原因"
+    },
+    "drilldown": {
+      "anomaly": "异常",
+      "anomaly_kind": "异常",
+      "break_kind": "断点",
+      "project_id": "项目",
+      "source": "来源",
+      "status": "状态"
+    },
+    "lineage": {
+      "title": "Lineage {{planId}}",
+      "subtitle": "G0..Gn generation lineage，包含触发、证据、节点变化、交付 SHA 与 verdict。",
+      "panelTitle": "Plan lineage",
+      "panelBody": "打开 {{planId}} 的 G0..Gn lineage。",
+      "open": "打开 lineage",
+      "back": "返回项目 Insight",
+      "loading": "正在加载 lineage",
+      "failed": "Plan lineage 加载失败",
+      "noPlan": "未选择用于 lineage 的 Plan",
+      "noPlanBody": "用 ?plan_id=<plan-id> 打开本页，或直接使用 lineage 路由。",
+      "empty": "后端未返回 generations",
+      "emptyBody": "后端将该 Plan 的 lineage 标记为空或未知。",
+      "anomaly": "Lineage 异常",
+      "triggeredBy": "触发者",
+      "reason": "触发原因",
+      "recoveryDuration": "恢复耗时",
+      "recoveryOutcome": "恢复结果",
+      "deliveryBranch": "交付分支",
+      "deliverySha": "交付 SHA",
+      "verdict": "Verdict",
+      "evidence": "证据",
+      "nodeChanges": "节点变化",
+      "reasonValue": {
+        "blocked": "阻塞",
+        "review_reject": "Review 拒绝",
+        "requirement_change": "需求变化",
+        "execution_failure": "执行失败",
+        "manual_adjustment": "人工调整",
+        "unknown": "未知"
+      },
+      "verdictValue": {
+        "pass": "通过",
+        "reject": "拒绝",
+        "pending": "待定"
+      }
+    },
     "detail": {
       "title": "TaskExecution 详情",
       "timeline": "执行时间线",
@@ -38,7 +218,17 @@
       "fresh": "数据最新",
       "stale": "数据延迟",
       "rebuilding": "正在重建",
-      "unavailable": "暂不可用"
+      "unavailable": "暂不可用",
+      "unknown": "新鲜度未知"
+    },
+    "duration": {
+      "invalid": "时间数据异常",
+      "ms": "{{count}} ms",
+      "seconds": "{{value}} 秒",
+      "minutesOnly": "{{minutes}}分",
+      "minutesSeconds": "{{minutes}}分 {{seconds}}秒",
+      "hoursMinutes": "{{hours}}小时 {{minutes}}分",
+      "daysHours": "{{days}}天 {{hours}}小时"
     },
     "state": {
       "loadingOverview": "正在加载 Insight 概览",
@@ -94,7 +284,11 @@
       "queue": "排队 P50 / P95",
       "duration": "耗时 P50 / P95",
       "action": "操作",
-      "completedValue": "{{count}} 次已结束"
+      "completedValue": "{{count}} 次已结束",
+      "failureValue": "{{failed}}/{{completed}}（{{rate}}）",
+      "noCompletedFailure": "—（0 次已结束）",
+      "percentileValue": "P50 {{p50}} / P95 {{p95}} · {{samples}} 个样本",
+      "noPercentileSamples": "—（0 个有效样本）"
     },
     "filters": {
       "agent": "智能体：{{value}}",

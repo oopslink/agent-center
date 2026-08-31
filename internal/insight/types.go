@@ -189,10 +189,32 @@ type V2ProjectDeliveryResponse struct {
 	Funnel    V2Funnel `json:"funnel"`
 }
 
+type V2EvolutionAnomalyDrilldowns struct {
+	Rework    map[string]any `json:"rework"`
+	Recovery  map[string]any `json:"recovery"`
+	LoopDepth map[string]any `json:"loop_depth"`
+	Residue   map[string]any `json:"residue"`
+}
+
+type V2EvolutionSummary struct {
+	Plans                 int64                        `json:"plans"`
+	EvolvedPlans          int64                        `json:"evolved_plans"`
+	EvolutionRate         *float64                     `json:"evolution_rate"`
+	GenerationCount       int64                        `json:"generation_count"`
+	ReworkCount           int64                        `json:"rework_count"`
+	ReworkRatio           *float64                     `json:"rework_ratio"`
+	RecoveryAttempts      int64                        `json:"recovery_attempts"`
+	RecoverySuccesses     int64                        `json:"recovery_successes"`
+	RecoveryEffectiveness *float64                     `json:"recovery_effectiveness"`
+	MaxLoopDepth          int64                        `json:"max_loop_depth"`
+	StaleOrphanResidue    int64                        `json:"stale_orphan_residue"`
+	AnomalyDrilldowns     V2EvolutionAnomalyDrilldowns `json:"anomaly_drilldowns"`
+}
+
 type V2EvolutionResponse struct {
 	V2WindowedEnvelope
-	ProjectID string         `json:"project_id"`
-	Evolution map[string]any `json:"evolution"`
+	ProjectID string             `json:"project_id"`
+	Evolution V2EvolutionSummary `json:"evolution"`
 }
 
 type V2Generation struct {
