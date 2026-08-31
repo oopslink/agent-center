@@ -10,7 +10,11 @@
       "tableSubtitle": "按已结束执行次数降序；同数时按 ID 排序；最多显示 20 项。"
     },
     "nav": {
-      "section": "洞察"
+      "section": "洞察",
+      "overview": "概览",
+      "agents": "智能体",
+      "projects": "项目",
+      "executions": "Task executions"
     },
     "executions": {
       "title": "任务执行记录",

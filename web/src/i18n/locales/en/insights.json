@@ -10,7 +10,11 @@
       "tableSubtitle": "Sorted by completed executions descending, then by ID; up to 20 items."
     },
     "nav": {
-      "section": "Insight"
+      "section": "Insight",
+      "overview": "Overview",
+      "agents": "Agents",
+      "projects": "Projects",
+      "executions": "Task executions"
     },
     "executions": {
       "title": "Task executions",

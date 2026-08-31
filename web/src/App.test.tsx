@@ -107,6 +107,8 @@ describe('App shell + route tree', () => {
       // v2.10.0 [T6]: global cross-project Plan list.
       [`${ORG_BASE}/plans`, 'page-OrgPlans'],
       [`${ORG_BASE}/insights/overview`, 'page-InsightOverview'],
+      [`${ORG_BASE}/insights/agents`, 'page-InsightAgents'],
+      [`${ORG_BASE}/insights/projects`, 'page-InsightProjects'],
       [`${ORG_BASE}/insights/executions`, 'page-InsightExecutions'],
       [`${ORG_BASE}/secrets`, 'page-Secrets'],
       [`${ORG_BASE}/environment`, 'page-Environment'],
@@ -213,7 +215,10 @@ describe('App shell + route tree', () => {
         ['Subject access', `${ORG_BASE}/access/subject-access`],
       ]],
       [`${ORG_BASE}/insights/overview`, [
-        ['Insight overview', `${ORG_BASE}/insights/overview`],
+        ['Overview', `${ORG_BASE}/insights/overview`],
+        ['Agents', `${ORG_BASE}/insights/agents`],
+        ['Projects', `${ORG_BASE}/insights/projects`],
+        ['Task executions', `${ORG_BASE}/insights/executions?window=24h`],
       ]],
       [`${ORG_BASE}/environment`, [
         ['Environment', `${ORG_BASE}/environment`],
