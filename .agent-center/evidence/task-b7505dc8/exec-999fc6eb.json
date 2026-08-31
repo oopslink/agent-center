@@ -1,0 +1,47 @@
+{
+  "task_id": "task-b7505dc8",
+  "execution_id": "exec-999fc6eb",
+  "reviewed_sha": "4707db8237469661df6df5b9bd24f7562657b474",
+  "base_sha": "4707db8237469661df6df5b9bd24f7562657b474",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files task-input/v1 . | sed -n '1,160p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 ls -la \u0026\u0026 ls -la task-input/v1 \u0026\u0026 ls -la task-input/v1/attachments'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find task-input -maxdepth 4 -type f -print -exec shasum -a 256 {} \\\\; -exec file --mime-type {} \\\\;\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-999fc6eb/command_events.jsonl",
+  "command_event_digest": "sha256:33d017f73c65e9f52a65c113b4b7493f059a57c90a0fe3be3e1b70ff171124bc",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "Non-delivery.",
+  "artifact_digest": "sha256:7d1a8a9f28c716a0fcf5d064d2de78cec596f92c30a613ccb7097726fe7aac7b",
+  "path": ".agent-center/evidence/task-b7505dc8/exec-999fc6eb.json",
+  "branch": "ac-exec/task-b7505dc8/exec-999fc6eb"
+}
