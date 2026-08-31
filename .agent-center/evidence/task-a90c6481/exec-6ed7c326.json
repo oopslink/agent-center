@@ -1,0 +1,491 @@
+{
+  "task_id": "task-a90c6481",
+  "execution_id": "exec-6ed7c326",
+  "reviewed_sha": "34f6418d22037107e0840ac8977035d818147b8f",
+  "base_sha": "0a02c230b0df9a885eccecf17482920f929b230a",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' /Users/oopslink/.agents/skills/dogfood/SKILL.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' /Users/oopslink/.agents/skills/agent-browser/SKILL.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc pwd",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"rg --files -g 'README.md' -g 'manifest.json' -g 'acceptance-methodology.md'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' /Users/oopslink/.agents/skills/dogfood/references/issue-taxonomy.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type d | sort | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/rules/acceptance-methodology.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"find . -path './.git' -prune -o -path './.agent-center' -prune -o -iname '*insight*' -print | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"find . -path './.git' -prune -o -path './.agent-center' -prune -o -type f \\\\( -iname '*accept*' -o -iname '*handoff*' -o -iname '*deploy*' -o -iname '*evidence*' \\\\) -print | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'find docs/rules -maxdepth 1 -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"find . -path './.git' -prune -o -path './.agent-center' -prune -o -type f | rg -i 'isolated|s0 gate|s0|health|candidate|sha|deployed|insight' | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate -n 20'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'git show --stat --name-only --oneline HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"git show --name-only --format=fuller HEAD | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/reports/t1578-s3-insight-phase1-integration.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/design/features/insight-phase-1-contract.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '261,620p' docs/design/features/insight-phase-1-contract.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/reports/t1802-runtime-control-integration.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/rules/acceptance-checklist.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/rules/testing.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc 'rg -n \"isolated|deploy|health|7100|7101|7050|7051|Insight|insights|S0|Gate|candidate|9419d5|61b217|0a02c230\" docs README.md sites -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"env | sort | rg -i 'url|port|host|instance|deploy|health|candidate|sha|agent|center|web|server|task'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"find . -path './.git' -prune -o -path './.agent-center' -prune -o -type d -iname 'task-input' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc 'git branch -a --contains 9419d5da2e21c9b9e15183efe33c869ef2413ccc || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"git ls-tree -r --name-only origin-push/evidence/t1729-insight-3cc52ed3-independent | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"git ls-tree -r --name-only origin-push/evidence/task-3c61d3ed-insight-3cc52ed3-exec8ac3d408 | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"git ls-tree -r --name-only origin-push/ac-evidence/insight-3cc52ed3-tester3 | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"git ls-remote origin-push 'refs/heads/*insight*' | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"git show origin-push/evidence/t1729-insight-3cc52ed3-independent:docs/acceptance/t1729-insight-3cc52ed3-independent/REPORT.md | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc 'git show origin-push/ac-evidence/insight-3cc52ed3-tester3:docs/acceptance/t1729-insight-3cc52ed3-independent/verdict.json 2\u003e/dev/null || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"git show origin-push/evidence/task-3c61d3ed-insight-3cc52ed3-exec8ac3d408:docs/acceptance/t1729-insight-3cc52ed3-independent/REPORT.md | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc \"git log --oneline --decorate --all --grep='S0\\\\|s0\\\\|gate\\\\|Gate\\\\|Insight' -n 80\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"git show --no-patch --format='%H %P%n%s%n%an \u003c%ae\u003e%n%ad' origin-push/s3/insight-phase1-candidate-20260827\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc 'rg -n \"S0|s0|Gate|gate|Insight|insights|null collections|null overview|3cc52ed3|75427e3d|7d9e8bb0|5f5a5b09|d55279de|b424642a\" docs/acceptance docs/reports docs/design/features docs/plans -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc \"for p in 7100 7101 7102 5173; do printf 'PORT %s\\\\n' \\\"\"'$p\"; curl -i --max-time 2 \"http://127.0.0.1:$p/api/health\" 2\u003e\u00261 | sed -n '\"'1,20p'; done\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc \"git show --no-patch --format='%H %P%n%s%n%an \u003c%ae\u003e%n%ad' origin-push/immutable/t1760-insight-null-collections-v2\"",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc \"git show --no-patch --format='%H %P%n%s%n%an \u003c%ae\u003e%n%ad' immutable/t1760-insight-null-collections-v2\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc \"git ls-tree -r --name-only immutable/t1760-insight-null-collections-v2 | rg 'docs/acceptance|docs/reports|task-input|insight' | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc \"git log --oneline --decorate --all --ancestry-path 3cc52ed300bfe00444d6487aded97e96280d2b16..origin/main | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc \"git branch -a --contains d55279debfa874ecaeff90eaac020aa62d8a7a2e | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t1803-insight-s0-isolated/raw docs/acceptance/t1803-insight-s0-isolated/screenshots \u0026\u0026 agent-browser --session t1803-insight open http://127.0.0.1:7100/ \u0026\u0026 agent-browser --session t1803-insight wait --load networkidle \u0026\u0026 agent-browser --session t1803-insight screenshot --annotate docs/acceptance/t1803-insight-s0-isolated/screenshots/01-entry.png \u0026\u0026 agent-browser --session t1803-insight snapshot -i'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc 'agent-browser --session t1803-insight click @e4 \u0026\u0026 agent-browser --session t1803-insight wait --load networkidle \u0026\u0026 agent-browser --session t1803-insight screenshot --annotate docs/acceptance/t1803-insight-s0-isolated/screenshots/02-signup.png \u0026\u0026 agent-browser --session t1803-insight snapshot -i'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'agent-browser --session t1803-insight fill @e1 \"T1803 Tester\" \u0026\u0026 agent-browser --session t1803-insight fill @e2 \"t1803-$(date +%s)@example.invalid\" \u0026\u0026 agent-browser --session t1803-insight fill @e3 \"123456\" \u0026\u0026 agent-browser --session t1803-insight fill @e4 \"123456\" \u0026\u0026 agent-browser --session t1803-insight fill @e5 \"T1803 Insight Org\" \u0026\u0026 agent-browser --session t1803-insight screenshot --annotate docs/acceptance/t1803-insight-s0-isolated/screenshots/03-signup-filled.png \u0026\u0026 agent-browser --session t1803-insight click @e6 \u0026\u0026 agent-browser --session t1803-insight wait --load networkidle \u0026\u0026 agent-browser --session t1803-insight screenshot --annotate docs/acceptance/t1803-insight-s0-isolated/screenshots/04-after-signup.png \u0026\u0026 agent-browser --session t1803-insight snapshot -i'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc \"curl -i -s --max-time 5 http://127.0.0.1:7100/api/auth/bootstrap | sed -n '1,40p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc \"curl -i -s --max-time 5 http://127.0.0.1:7100/api/health | sed -n '1,40p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc 'agent-browser --session t1803-insight console \u0026\u0026 agent-browser --session t1803-insight errors'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc 'agent-browser --session t1803-insight get url \u0026\u0026 agent-browser --session t1803-insight screenshot --annotate docs/acceptance/t1803-insight-s0-isolated/screenshots/04-after-signup-timeout.png \u0026\u0026 agent-browser --session t1803-insight snapshot -i'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc 'EMAIL=\"t1803-$(date +%s)@example.invalid\"; agent-browser --session t1803-insight fill @e2 \"$EMAIL\" \u0026\u0026 agent-browser --session t1803-insight screenshot --annotate docs/acceptance/t1803-insight-s0-isolated/screenshots/05-signup-corrected.png \u0026\u0026 agent-browser --session t1803-insight snapshot -i'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'agent-browser --session t1803-insight get text body \u0026\u0026 agent-browser --session t1803-insight fill @e1 \"T1803 Tester\" \u0026\u0026 agent-browser --session t1803-insight fill @e3 \"12345678\" \u0026\u0026 agent-browser --session t1803-insight fill @e4 \"12345678\" \u0026\u0026 agent-browser --session t1803-insight fill @e5 \"T1803 Insight Organization\" \u0026\u0026 agent-browser --session t1803-insight screenshot --annotate docs/acceptance/t1803-insight-s0-isolated/screenshots/06-signup-stronger.png \u0026\u0026 agent-browser --session t1803-insight snapshot -i'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc 'agent-browser --session t1803-insight fill @e3 \"Pass123!\" \u0026\u0026 agent-browser --session t1803-insight fill @e4 \"Pass123!\" \u0026\u0026 agent-browser --session t1803-insight screenshot --annotate docs/acceptance/t1803-insight-s0-isolated/screenshots/07-signup-valid.png \u0026\u0026 agent-browser --session t1803-insight snapshot -i'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc 'agent-browser --session t1803-insight click @e6 \u0026\u0026 agent-browser --session t1803-insight wait --load networkidle \u0026\u0026 agent-browser --session t1803-insight get url \u0026\u0026 agent-browser --session t1803-insight screenshot --annotate docs/acceptance/t1803-insight-s0-isolated/screenshots/08-insight-overview.png \u0026\u0026 agent-browser --session t1803-insight get text body \u0026\u0026 agent-browser --session t1803-insight console \u0026\u0026 agent-browser --session t1803-insight errors'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc \"agent-browser --help | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_80",
+      "command": "/bin/zsh -lc \"agent-browser --session t1803-insight eval 'async () =\u003e { const org = location.pathname.split(\\\"/\\\")[2]; const endpoints = [\\\"/api/orgs/\\\"+org+\\\"/insights/overview?window=24h\\\", \\\"/api/orgs/\\\"+org+\\\"/insights/overview?window=12h\\\", \\\"/api/orgs/\\\"+org+\\\"/insights/executions?window=24h\u0026limit=50\\\"]; const out = {}; for (const ep of endpoints) { const r = await fetch(ep); out[ep] = {status: r.status, contentType: r.headers.get(\\\"content-type\\\"), body: await r.text()}; } return out; }' \u003e docs/acceptance/t1803-insight-s0-isolated/raw/10-insight-api-fetch.json \u0026\u0026 sed -n '1,240p' docs/acceptance/t1803-insight-s0-isolated/raw/10-insight-api-fetch.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_82",
+      "command": "/bin/zsh -lc \"wc -c docs/acceptance/t1803-insight-s0-isolated/raw/10-insight-api-fetch.json \u0026\u0026 agent-browser --session t1803-insight eval '(async () =\u003e { const org = location.pathname.split(\\\"/\\\")[2]; const endpoints = [\\\"/api/orgs/\\\"+org+\\\"/insights/overview?window=24h\\\", \\\"/api/orgs/\\\"+org+\\\"/insights/overview?window=12h\\\", \\\"/api/orgs/\\\"+org+\\\"/insights/executions?window=24h\u0026limit=50\\\"]; const out = {}; for (const ep of endpoints) { const r = await fetch(ep); out[ep] = {status: r.status, contentType: r.headers.get(\\\"content-type\\\"), body: await r.text()}; } return JSON.stringify(out, null, 2); })()' | tee docs/acceptance/t1803-insight-s0-isolated/raw/11-insight-api-fetch.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_85",
+      "command": "/bin/zsh -lc 'git diff --check \u003e docs/acceptance/t1803-insight-s0-isolated/raw/20-git-diff-check.log 2\u003e\u00261; code=$?; echo exit=$code \u003e\u003e docs/acceptance/t1803-insight-s0-isolated/raw/20-git-diff-check.log; sed -n '\"'1,80p' docs/acceptance/t1803-insight-s0-isolated/raw/20-git-diff-check.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_84",
+      "command": "/bin/zsh -lc \"agent-browser --session t1803-insight network requests \u003e docs/acceptance/t1803-insight-s0-isolated/raw/12-browser-network.log \u0026\u0026 sed -n '1,220p' docs/acceptance/t1803-insight-s0-isolated/raw/12-browser-network.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_87",
+      "command": "/bin/zsh -lc \"agent-browser --session t1803-insight eval 'JSON.stringify({url: location.href, title: document.title, bodyIncludesInsight: document.body.innerText.includes(\\\"Insight overview\\\"), bodyIncludesEmpty: document.body.innerText.includes(\\\"No executions in the past 24 hours\\\"), bodyIncludesFresh: document.body.innerText.includes(\\\"Fresh data\\\")}, null, 2)' \u003e docs/acceptance/t1803-insight-s0-isolated/raw/13-ui-state.json \u0026\u0026 sed -n '1,120p' docs/acceptance/t1803-insight-s0-isolated/raw/13-ui-state.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_86",
+      "command": "/bin/zsh -lc \"{ date -u; git rev-parse HEAD; git rev-parse origin/main; git rev-parse origin-push/s3/insight-phase1-candidate-20260827; git ls-remote origin-push refs/heads/s3/insight-phase1-candidate-20260827 refs/heads/main; curl -i -s --max-time 5 http://127.0.0.1:7100/api/health; curl -i -s --max-time 5 http://127.0.0.1:7100/api/orgs/org-6de116e1/insights/overview?window=24h; } \u003e docs/acceptance/t1803-insight-s0-isolated/raw/00-provenance-health-auth.log \u0026\u0026 sed -n '1,220p' docs/acceptance/t1803-insight-s0-isolated/raw/00-provenance-health-auth.log\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc \"{ date -u; printf 'HEAD='; git rev-parse HEAD; printf 'origin_main='; git rev-parse origin/main; printf 's3_candidate='; git rev-parse origin-push/s3/insight-phase1-candidate-20260827; printf '\\\\nls-remote:\\\\n'; git ls-remote origin-push refs/heads/s3/insight-phase1-candidate-20260827 refs/heads/main; printf '\\\\nhealth:\\\\n'; curl -i -s --max-time 5 'http://127.0.0.1:7100/api/health'; printf '\\\\nunauth_overview:\\\\n'; curl -i -s --max-time 5 'http://127.0.0.1:7100/api/orgs/org-6de116e1/insights/overview?window=24h'; } \u003e docs/acceptance/t1803-insight-s0-isolated/raw/00-provenance-health-auth.log; code=\"'$?; echo \"exit=$code\" \u003e\u003e docs/acceptance/t1803-insight-s0-isolated/raw/00-provenance-health-auth.log; sed -n '\"'1,220p' docs/acceptance/t1803-insight-s0-isolated/raw/00-provenance-health-auth.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_93",
+      "command": "/bin/zsh -lc 'git fetch origin-push main s3/insight-phase1-candidate-20260827 \u003e docs/acceptance/t1803-insight-s0-isolated/raw/01-fetch-origin-push.log 2\u003e\u00261; code=$?; echo exit=$code \u003e\u003e docs/acceptance/t1803-insight-s0-isolated/raw/01-fetch-origin-push.log; sed -n '\"'1,160p' docs/acceptance/t1803-insight-s0-isolated/raw/01-fetch-origin-push.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_92",
+      "command": "/bin/zsh -lc 'make lint \u003e docs/acceptance/t1803-insight-s0-isolated/raw/21-make-lint.log 2\u003e\u00261; code=$?; echo exit=$code \u003e\u003e docs/acceptance/t1803-insight-s0-isolated/raw/21-make-lint.log; tail -80 docs/acceptance/t1803-insight-s0-isolated/raw/21-make-lint.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_96",
+      "command": "/bin/zsh -lc 'git fetch origin main \u003e docs/acceptance/t1803-insight-s0-isolated/raw/02-fetch-origin.log 2\u003e\u00261; code=$?; echo exit=$code \u003e\u003e docs/acceptance/t1803-insight-s0-isolated/raw/02-fetch-origin.log; { printf '\"'HEAD='; git rev-parse HEAD; printf 'origin_main='; git rev-parse origin/main; printf 'origin_push_main='; git rev-parse origin-push/main; printf 's3_candidate='; git rev-parse origin-push/s3/insight-phase1-candidate-20260827; } \u003e docs/acceptance/t1803-insight-s0-isolated/raw/03-post-fetch-refs.log; cat docs/acceptance/t1803-insight-s0-isolated/raw/02-fetch-origin.log docs/acceptance/t1803-insight-s0-isolated/raw/03-post-fetch-refs.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_95",
+      "command": "/bin/zsh -lc 'make build \u003e docs/acceptance/t1803-insight-s0-isolated/raw/22-make-build.log 2\u003e\u00261; code=$?; echo exit=$code \u003e\u003e docs/acceptance/t1803-insight-s0-isolated/raw/22-make-build.log; tail -100 docs/acceptance/t1803-insight-s0-isolated/raw/22-make-build.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_99",
+      "command": "/bin/zsh -lc 'git status --short --branch \u003e docs/acceptance/t1803-insight-s0-isolated/raw/04-git-status-after-build.log; cat docs/acceptance/t1803-insight-s0-isolated/raw/04-git-status-after-build.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_100",
+      "command": "/bin/zsh -lc 'pnpm --dir web exec vitest run src/pages/InsightOverview.test.tsx --pool=forks --poolOptions.forks.singleFork=true \u003e docs/acceptance/t1803-insight-s0-isolated/raw/24-vitest-insight-overview.log 2\u003e\u00261; code=$?; echo exit=$code \u003e\u003e docs/acceptance/t1803-insight-s0-isolated/raw/24-vitest-insight-overview.log; tail -120 docs/acceptance/t1803-insight-s0-isolated/raw/24-vitest-insight-overview.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_98",
+      "command": "/bin/zsh -lc \"go test ./internal/insight ./internal/webconsole/api -run 'TestInsight|TestInsights' -count=1 -v \u003e docs/acceptance/t1803-insight-s0-isolated/raw/23-go-insight-api-focused.log 2\u003e\u00261; code=\"'$?; echo exit=$code \u003e\u003e docs/acceptance/t1803-insight-s0-isolated/raw/23-go-insight-api-focused.log; tail -120 docs/acceptance/t1803-insight-s0-isolated/raw/23-go-insight-api-focused.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_102",
+      "command": "/bin/zsh -lc \"{ printf 'pwd='; pwd; printf '\\\\n'; find task-input/v1 -maxdepth 3 -type f -print 2\u003e\u00261; printf 'exit=%s\\\\n' \\\"\"'$?\"; find . -maxdepth 4 -type d -name task-input -print 2\u003e\u00261; printf '\"'exit=%s\\\\n' \\\"\"'$?\"; } \u003e docs/acceptance/t1803-insight-s0-isolated/raw/05-task-input-presence.log; sed -n '\"'1,120p' docs/acceptance/t1803-insight-s0-isolated/raw/05-task-input-presence.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_106",
+      "command": "/bin/zsh -lc \"find docs/acceptance/t1803-insight-s0-isolated -type f | sort | xargs shasum -a 256 \u003e docs/acceptance/t1803-insight-s0-isolated/SHA256SUMS \u0026\u0026 sed -n '1,220p' docs/acceptance/t1803-insight-s0-isolated/SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_108",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_107",
+      "command": "/bin/zsh -lc 'agent-browser --session t1803-insight close'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_110",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t1803-insight-s0-isolated -type f ! -name SHA256SUMS | sort | xargs shasum -a 256 \u003e docs/acceptance/t1803-insight-s0-isolated/SHA256SUMS \u0026\u0026 git add docs/acceptance/t1803-insight-s0-isolated \u0026\u0026 git commit -m \"test(acceptance): record T1803 insight S0 isolated verdict\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_112",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:ac-exec/task-a90c6481/exec-6ed7c326 \u003e docs/acceptance/t1803-insight-s0-isolated-push.log 2\u003e\u00261; code=$?; echo exit=$code \u003e\u003e docs/acceptance/t1803-insight-s0-isolated-push.log; cat docs/acceptance/t1803-insight-s0-isolated-push.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_114",
+      "command": "/bin/zsh -lc 'mv docs/acceptance/t1803-insight-s0-isolated-push.log docs/acceptance/t1803-insight-s0-isolated/raw/30-first-push.log\ngit ls-remote origin-push refs/heads/ac-exec/task-a90c6481/exec-6ed7c326 \u003e docs/acceptance/t1803-insight-s0-isolated/raw/31-remote-readback-before-amend.log\ngit ls-tree -r --name-only HEAD -- docs/acceptance/t1803-insight-s0-isolated \u003e docs/acceptance/t1803-insight-s0-isolated/raw/32-ls-tree-before-amend.log\nfind docs/acceptance/t1803-insight-s0-isolated -type f ! -name SHA256SUMS | sort | xargs shasum -a 256 \u003e docs/acceptance/t1803-insight-s0-isolated/SHA256SUMS\ngit add docs/acceptance/t1803-insight-s0-isolated\ngit commit --amend --no-edit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_116",
+      "command": "/bin/zsh -lc \"git push --force-with-lease origin-push HEAD:ac-exec/task-a90c6481/exec-6ed7c326 \u0026\u0026 git ls-remote origin-push refs/heads/ac-exec/task-a90c6481/exec-6ed7c326 \u0026\u0026 git ls-tree -r --name-only HEAD -- docs/acceptance/t1803-insight-s0-isolated | sed -n '1,120p' \u0026\u0026 git status --short --branch\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_118",
+      "command": "/bin/zsh -lc \"git fetch origin-push ac-exec/task-a90c6481/exec-6ed7c326 \u0026\u0026 git rev-parse FETCH_HEAD \u0026\u0026 git ls-tree -r --name-only FETCH_HEAD -- docs/acceptance/t1803-insight-s0-isolated | sed -n '1,80p'\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-6ed7c326/command_events.jsonl",
+  "command_event_digest": "sha256:4d16764b60c38d3dde8691a76b719c9773ab8bcacd165f1b10d54a6919a60587",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "完成独立黑盒验收并已提交/推送证据。",
+  "artifact_digest": "sha256:8c85d7f3fe2a5875d07cf7cefc933fa2fcd3dc9480ca5d57b0d7f56ab54a0b60",
+  "path": ".agent-center/evidence/task-a90c6481/exec-6ed7c326.json",
+  "branch": "ac-exec/task-a90c6481/exec-6ed7c326"
+}
