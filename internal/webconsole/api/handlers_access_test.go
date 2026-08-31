@@ -457,6 +457,16 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 		VALUES ('role-union-reviewer', 'team.memory.review', 'team', 0, ?)`, now); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := db.Exec(`
+		INSERT INTO authorization_roles (id, org_id, kind, visibility, stable_key, name, description, scope_kind, created_by, created_at, updated_at, version)
+		VALUES ('role-team-extra', ?, 'custom', 'reusable', 'team-extra', 'Team extra', '', 'team', 'system', ?, ?, 1)`, sess.OrgID, now, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`
+		INSERT INTO authorization_role_permissions (role_id, permission_key, resource_kind, delegatable, created_at)
+		VALUES ('role-team-extra', 'team.read', 'team', 0, ?)`, now); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := db.Exec(`INSERT INTO team_role_ram_role_mappings (team_id, team_role, ram_role_id, created_at, created_by) VALUES (?, 'reviewer', 'role-union-reviewer', ?, 'system')`, tm.ID().String(), now); err != nil {
 		t.Fatal(err)
 	}
@@ -466,6 +476,41 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 	server := newTestServer(t, deps)
 	defer server.Close()
 
+	teamRoleSubject := accessTeamRoleSubjectRef(tm.ID().String(), "reviewer")
+	teamRoleApplyBody := fmt.Sprintf(`{
+		"subject_refs":[%q],
+		"permission_keys":[],
+		"resources":[],
+		"entries":[{"role_id":"role-team-extra","resource":{"kind":"team","id":%q,"org_id":%q,"label":"Access Union Team"}}],
+		"reason":"attach reusable role to team role"
+	}`, teamRoleSubject, tm.ID().String(), sess.OrgID)
+	resp := orgScopedPost(t, server.URL+"/api/access/batch/apply", teamRoleApplyBody, sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("team role RAM attach status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
+	}
+	var teamRoleApplied struct {
+		Summary struct {
+			Succeeded int `json:"succeeded"`
+		} `json:"summary"`
+		Items []struct {
+			SubjectRef string `json:"subject_ref"`
+			RoleID     string `json:"role_id"`
+			Status     string `json:"status"`
+			GrantID    string `json:"grant_id"`
+		} `json:"items"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&teamRoleApplied); err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if teamRoleApplied.Summary.Succeeded != 1 || len(teamRoleApplied.Items) != 1 || teamRoleApplied.Items[0].SubjectRef != teamRoleSubject || teamRoleApplied.Items[0].RoleID != "role-team-extra" || teamRoleApplied.Items[0].Status != "allowed" || teamRoleApplied.Items[0].GrantID == "" {
+		t.Fatalf("team role RAM attach result=%+v", teamRoleApplied)
+	}
+	var attached int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM team_role_ram_role_mappings WHERE team_id = ? AND team_role = 'reviewer' AND ram_role_id = 'role-team-extra'`, tm.ID().String()).Scan(&attached); err != nil || attached != 1 {
+		t.Fatalf("team role RAM mapping count=%d err=%v", attached, err)
+	}
+
 	applyBody := `{
 		"subject_refs":["` + subject + `"],
 		"permission_keys":["team.memory.review"],
@@ -473,7 +518,7 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 		"expires_at":"` + expiresAt + `",
 		"reason":"temporary direct binding"
 	}`
-	resp := orgScopedPost(t, server.URL+"/api/access/batch/apply", applyBody, sess)
+	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", applyBody, sess)
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("direct binding apply status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
 	}
@@ -496,6 +541,10 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 		t.Fatalf("overview status=%d body=%v", resp.StatusCode, decodeBody(t, resp))
 	}
 	var overview struct {
+		Subjects []struct {
+			Ref  string `json:"ref"`
+			Kind string `json:"kind"`
+		} `json:"subjects"`
 		Decisions []struct {
 			SubjectRef  string `json:"subject_ref"`
 			Permission  string `json:"permission"`
@@ -515,6 +564,16 @@ func TestAccessOverviewShowsTeamRAMAndDirectBindingUnion(t *testing.T) {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
+	foundTeamRoleSubject := false
+	for _, subj := range overview.Subjects {
+		if subj.Ref == teamRoleSubject && subj.Kind == "team_role" {
+			foundTeamRoleSubject = true
+			break
+		}
+	}
+	if !foundTeamRoleSubject {
+		t.Fatalf("overview missing team role subject %s in %+v", teamRoleSubject, overview.Subjects)
+	}
 	seen := map[string]bool{}
 	for _, d := range overview.Decisions {
 		if d.SubjectRef == subject && d.Permission == "team.memory.review" {

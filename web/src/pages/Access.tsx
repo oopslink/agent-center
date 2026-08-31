@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '@/api/client';
 import {
   type AccessBatchItem,
+  type AccessBatchGrantEntry,
   type AccessBatchPreview,
   type AccessBatchRequest,
   type AccessBatchResult,
@@ -59,7 +60,6 @@ import {
   AccessStatusBadge,
   accessResourceKey,
   accessResourceLabel,
-  accessRiskLabel,
   displayAccessDate,
 } from '@/components/access/kit';
 
@@ -77,6 +77,17 @@ type DirectGrantTemplate = {
   risk: AccessRisk;
 };
 
+type GrantEntry = {
+  id: string;
+  kind: 'role' | 'permission';
+  roleId?: string;
+  roleName?: string;
+  permissionKey?: string;
+  template?: DirectGrantTemplate;
+  resource: AccessResourceScope;
+  risk: AccessRisk;
+};
+
 type SemanticPermission = {
   label: string;
   resource: string;
@@ -89,57 +100,17 @@ type SemanticPermission = {
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
-const SUBJECT_OPTIONS: Array<AccessSubjectKind | 'all'> = ['all', 'human', 'agent', 'worker', 'system'];
+const SUBJECT_OPTIONS: Array<AccessSubjectKind | 'all'> = ['all', 'human', 'agent', 'team_role', 'worker', 'system'];
 function emptyBatchRequest(subjectRef = ''): AccessBatchRequest {
   return {
     subject_refs: subjectRef ? [subjectRef] : [],
     role_ids: [],
     permission_keys: [],
     resources: [],
+    entries: [],
     expires_at: '',
     reason: '',
   };
-}
-
-function selectedPermissionDefinitions(
-  permissions: AccessPermissionDefinition[],
-  keys: string[],
-): AccessPermissionDefinition[] {
-  const byKey = new Map(permissions.map((permission) => [permission.key, permission]));
-  return keys.map((key) => byKey.get(key)).filter((permission): permission is AccessPermissionDefinition => Boolean(permission));
-}
-
-function resourceCompatibleWithPermissions(
-  resource: AccessResourceScope,
-  selectedPermissions: AccessPermissionDefinition[],
-): boolean {
-  return selectedPermissions.length === 0 || selectedPermissions.every((permission) => permission.resource_kinds.includes(resource.kind));
-}
-
-function filterResourcesForPermissions(
-  resources: AccessResourceScope[],
-  selectedPermissions: AccessPermissionDefinition[],
-): AccessResourceScope[] {
-  if (selectedPermissions.length === 0) return resources;
-  return resources.filter((resource) => resourceCompatibleWithPermissions(resource, selectedPermissions));
-}
-
-function resourceCompatibleWithRoles(resource: AccessResourceScope, selectedRoles: AccessRole[]): boolean {
-  return selectedRoles.length === 0 || selectedRoles.some((role) => ramRoleScope(role) === 'mixed' || ramRoleScope(role) === resource.kind);
-}
-
-function filterResourcesForRoles(resources: AccessResourceScope[], selectedRoles: AccessRole[]): AccessResourceScope[] {
-  if (selectedRoles.length === 0) return resources;
-  return resources.filter((resource) => resourceCompatibleWithRoles(resource, selectedRoles));
-}
-
-function resourceCompatibleWithGrantTemplates(resource: AccessResourceScope, selectedTemplates: DirectGrantTemplate[]): boolean {
-  return selectedTemplates.length === 0 || selectedTemplates.some((template) => template.backendResourceKind === resource.kind);
-}
-
-function filterResourcesForGrantTemplates(resources: AccessResourceScope[], selectedTemplates: DirectGrantTemplate[]): AccessResourceScope[] {
-  if (selectedTemplates.length === 0) return resources;
-  return resources.filter((resource) => resourceCompatibleWithGrantTemplates(resource, selectedTemplates));
 }
 
 function uniqueResources(decisions: AccessDecision[], grants: AccessGrant[]): AccessResourceScope[] {
@@ -147,6 +118,16 @@ function uniqueResources(decisions: AccessDecision[], grants: AccessGrant[]): Ac
   for (const d of decisions) byKey.set(accessResourceKey(d.resource), d.resource);
   for (const g of grants) byKey.set(accessResourceKey(g.resource), g.resource);
   return [...byKey.values()].sort((a, b) => accessResourceLabel(a).localeCompare(accessResourceLabel(b)));
+}
+
+function uniqueAccessResources(resources: AccessResourceScope[]): AccessResourceScope[] {
+  const byKey = new Map<string, AccessResourceScope>();
+  for (const resource of resources) byKey.set(accessResourceKey(resource), resource);
+  return [...byKey.values()];
+}
+
+function accessTestIDToken(value: string): string {
+  return value.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
 function projectIDForAccessResource(resource: AccessResourceScope): string {
@@ -229,6 +210,17 @@ function accessActionLabel(permission: AccessPermissionDefinition): string {
   return normalized.charAt(0).toUpperCase() + normalized.slice(1).replace(/[_-]/g, ' ');
 }
 
+function accessRoleRiskForUI(role: AccessRole, permissions: AccessPermissionDefinition[]): AccessRisk {
+  const byKey = new Map(permissions.map((permission) => [permission.key, permission]));
+  let risk: AccessRisk = 'low';
+  for (const key of role.permissions) {
+    const permissionRisk = byKey.get(key)?.risk;
+    if (permissionRisk === 'high') return 'high';
+    if (permissionRisk === 'medium') risk = 'medium';
+  }
+  return role.high_risk ? 'high' : risk;
+}
+
 function roleTemplateDetail(role: AccessRole): string {
   const scope = ramRoleScope(role);
   const param = scope === 'mixed' ? 'resource' : accessResourceKindLabel(scope).toLowerCase();
@@ -299,7 +291,6 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
   const [risk, setRisk] = useState<AccessRisk | 'all'>('all');
   const [status, setStatus] = useState<AccessStatus | 'all'>('all');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [drawerMode, setDrawerMode] = useState<'direct' | 'batch'>('direct');
   const [selectedSubjectRef, setSelectedSubjectRef] = useState('');
   const [toast, setToast] = useState<AccessToast>(null);
   const overview = useAccessOverview({
@@ -369,22 +360,12 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
           <button
             type="button"
             className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
-            onClick={() => { setDrawerMode('direct'); setDrawerOpen(true); }}
-            disabled={!canManageAccess || !selectedSubjectRef}
-            title={!canManageAccess ? 'Requires org.member.role.manage' : undefined}
-            data-testid="access-open-direct-binding"
-          >
-            Add direct binding
-          </button>
-          <button
-            type="button"
-            className="rounded border border-border-base px-3 py-1.5 text-sm font-medium text-text-primary hover:bg-bg-subtle disabled:opacity-50"
-            onClick={() => { setDrawerMode('batch'); setDrawerOpen(true); }}
-            disabled={!canManageAccess}
-            title={!canManageAccess ? 'Requires org.member.role.manage' : undefined}
+            onClick={() => setDrawerOpen(true)}
+            disabled={!canManageAccess || (data?.subjects.length ?? 0) === 0}
+            title={!canManageAccess ? 'Requires org.member.role.manage' : (data?.subjects.length ?? 0) === 0 ? 'No subjects available' : undefined}
             data-testid="access-open-batch"
           >
-            Batch grant
+            Grant access
           </button>
         </div>}
       </header>
@@ -490,9 +471,10 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
           roles={data.roles}
           permissions={data.catalog}
           resources={resources}
+          decisions={data.decisions}
+          teams={teams.data ?? []}
           canManageAccess={canManageAccess}
-          mode={drawerMode}
-          contextSubjectRef={drawerMode === 'direct' ? selectedSubjectRef : ''}
+          contextSubjectRef={selectedSubjectRef}
           onToast={setToast}
           onClose={() => setDrawerOpen(false)}
         />
@@ -1785,8 +1767,9 @@ function BatchGrantDrawer({
   roles,
   permissions,
   resources,
+  decisions,
+  teams,
   canManageAccess,
-  mode,
   contextSubjectRef,
   onToast,
   onClose,
@@ -1795,8 +1778,9 @@ function BatchGrantDrawer({
   roles: AccessRole[];
   permissions: AccessPermissionDefinition[];
   resources: AccessResourceScope[];
+  decisions: AccessDecision[];
+  teams: TeamView[];
   canManageAccess: boolean;
-  mode: 'direct' | 'batch';
   contextSubjectRef: string;
   onToast: (toast: AccessToast) => void;
   onClose: () => void;
@@ -1809,72 +1793,149 @@ function BatchGrantDrawer({
   const [preview, setPreview] = useState<AccessBatchPreview | null>(null);
   const [result, setResult] = useState<AccessBatchResult | null>(null);
   const [highRiskAck, setHighRiskAck] = useState(false);
-  const [directTemplateIDs, setDirectTemplateIDs] = useState<string[]>([]);
-  const title = mode === 'direct' ? 'Add direct binding' : 'Batch authorization';
+  const [subjectQuery, setSubjectQuery] = useState('');
+  const [subjectProjectID, setSubjectProjectID] = useState('all');
+  const [subjectTeamName, setSubjectTeamName] = useState('all');
+  const [selectedPickerIDs, setSelectedPickerIDs] = useState<string[]>([]);
+  const [pickerResources, setPickerResources] = useState<Record<string, string>>({});
+  const [grantEntries, setGrantEntries] = useState<GrantEntry[]>([]);
+  const [selectedGrantIDs, setSelectedGrantIDs] = useState<string[]>([]);
+  const title = 'Batch authorization';
   const assignableRoles = useMemo(() => assignableRAMRoles(roles), [roles]);
   const directTemplates = useMemo(() => buildDirectGrantTemplates(permissions), [permissions]);
-  const selectedDirectTemplates = selectedDirectGrantTemplates(directTemplates, directTemplateIDs);
-  const selectedRoles = selectedRAMRoles(assignableRoles, request.role_ids ?? []);
-  const selectedPermissions = selectedPermissionDefinitions(permissions, request.permission_keys);
-  const previewMissing = previewDisabledReason(canManageAccess, request);
+  const pickerRows = useMemo(() => [
+    ...assignableRoles.map((role) => ({
+      id: `role:${role.id}`,
+      kind: 'role' as const,
+      label: role.name,
+      resource: 'Role template',
+      permission: role.name,
+      scope: accessResourceKindLabel(ramRoleScope(role)),
+      action: 'Assign',
+      detail: roleTemplateDetail(role),
+      risk: role.high_risk ? 'high' as AccessRisk : accessRoleRiskForUI(role, permissions),
+      role,
+      compatibleKinds: [...new Set([ramRoleScope(role), 'team'])],
+    })),
+    ...directTemplates.map((template) => ({
+      id: `permission:${template.id}`,
+      kind: 'permission' as const,
+      label: directTemplateLabel(template),
+      resource: template.resource,
+      permission: template.permissionKey,
+      scope: template.scope,
+      action: template.action,
+      detail: template.description,
+      risk: template.risk,
+      template,
+      compatibleKinds: [template.backendResourceKind],
+    })),
+  ], [assignableRoles, directTemplates, permissions]);
+  const resourceByKey = useMemo(() => new Map(resources.map((resource) => [accessResourceKey(resource), resource])), [resources]);
+  const projectSubjectRefs = useMemo(() => {
+    const byProject = new Map<string, Set<string>>();
+    for (const decision of decisions) {
+      const id = projectIDForAccessResource(decision.resource);
+      if (!id) continue;
+      if (!byProject.has(id)) byProject.set(id, new Set());
+      if (decision.status === 'allowed') byProject.get(id)?.add(decision.subject_ref);
+    }
+    return byProject;
+  }, [decisions]);
+  const subjectProjectOptions = useMemo(() => {
+    const byID = new Map<string, string>();
+    for (const resource of resources) {
+      const id = projectIDForAccessResource(resource);
+      if (id) byID.set(id, resource.label || id);
+    }
+    return [{ value: 'all', label: 'All projects' }, ...[...byID.entries()].sort((a, b) => a[1].localeCompare(b[1])).map(([value, label]) => ({ value, label }))];
+  }, [resources]);
+  const subjectTeamOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const subject of subjects) {
+      for (const name of subject.team_names ?? []) names.add(name);
+    }
+    for (const tm of teams) names.add(tm.name);
+    return [{ value: 'all', label: 'All teams' }, ...[...names].sort().map((name) => ({ value: name, label: name }))];
+  }, [subjects, teams]);
+  const visibleSubjects = useMemo(() => {
+    const q = subjectQuery.trim().toLowerCase();
+    return subjects.filter((subject) => {
+      if (q) {
+        const haystack = [subject.name, subject.ref, subject.email ?? '', subject.role ?? '', ...(subject.team_names ?? [])].join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      if (subjectTeamName !== 'all' && !(subject.team_names ?? []).includes(subjectTeamName)) return false;
+      if (subjectProjectID !== 'all') {
+        const refs = projectSubjectRefs.get(subjectProjectID);
+        const isTeamRole = subject.kind === 'team_role' && subject.team_names?.some((name) => subjectTeamName === 'all' || name === subjectTeamName);
+        if (!refs?.has(subject.ref) && !isTeamRole) return false;
+      }
+      return true;
+    });
+  }, [projectSubjectRefs, subjectProjectID, subjectQuery, subjectTeamName, subjects]);
+  const roleIDs = [...new Set(grantEntries.flatMap((entry) => entry.roleId ? [entry.roleId] : []))];
+  const permissionKeys = [...new Set(grantEntries.flatMap((entry) => entry.permissionKey ? [entry.permissionKey] : []))];
+  const entryResources = uniqueAccessResources(grantEntries.map((entry) => entry.resource));
+  const entries: AccessBatchGrantEntry[] = grantEntries.map((entry) => ({
+    role_id: entry.roleId,
+    permission_key: entry.permissionKey,
+    resource: entry.resource,
+  }));
+  const effectiveRequest: AccessBatchRequest = {
+    ...request,
+    role_ids: roleIDs,
+    permission_keys: permissionKeys,
+    resources: entryResources,
+    entries,
+  };
+  const previewMissing = previewDisabledReason(canManageAccess, request, grantEntries.length);
   const canPreview =
     canManageAccess &&
     request.subject_refs.length > 0 &&
-    ((request.role_ids?.length ?? 0) > 0 || request.permission_keys.length > 0) &&
-    request.resources.length > 0 &&
+    grantEntries.length > 0 &&
     request.reason.trim().length > 0;
   const canConfirm = canManageAccess && !!preview && (preview.summary.high_risk === 0 || highRiskAck);
 
   const toggleSubject = (ref: string): void => {
     setRequest((prev) => ({ ...prev, subject_refs: toggleValue(prev.subject_refs, ref) }));
   };
-  const toggleDirectTemplate = (templateID: string): void => {
-    const templateIDs = toggleValue(directTemplateIDs, templateID);
-    const nextTemplates = selectedDirectGrantTemplates(directTemplates, templateIDs);
-    const permissionKeys = [...new Set(nextTemplates.map((template) => template.permissionKey))];
-    setDirectTemplateIDs(templateIDs);
-    setRequest((prev) => {
-      const selectedPermissions = selectedPermissionDefinitions(permissions, permissionKeys);
-      return {
-        ...prev,
-        permission_keys: permissionKeys,
-        resources: filterResourcesForRoles(
-          filterResourcesForGrantTemplates(filterResourcesForPermissions(prev.resources, selectedPermissions), nextTemplates),
-          selectedRoles,
-        ),
-      };
-    });
+  const toggleAllVisibleSubjects = (): void => {
+    const visibleRefs = visibleSubjects.map((subject) => subject.ref);
+    const allSelected = visibleRefs.length > 0 && visibleRefs.every((ref) => request.subject_refs.includes(ref));
+    setRequest((prev) => ({
+      ...prev,
+      subject_refs: allSelected
+        ? prev.subject_refs.filter((ref) => !visibleRefs.includes(ref))
+        : [...new Set([...prev.subject_refs, ...visibleRefs])],
+    }));
   };
-  const toggleRole = (roleID: string): void => {
-    setRequest((prev) => {
-      const roleIDs = toggleValue(prev.role_ids ?? [], roleID);
-      const nextRoles = selectedRAMRoles(roles, roleIDs);
-      return {
-        ...prev,
-        role_ids: roleIDs,
-        resources: filterResourcesForRoles(filterResourcesForGrantTemplates(prev.resources, selectedDirectTemplates), nextRoles),
-      };
-    });
+  const compatibleResources = (kinds: string[]): AccessResourceScope[] => resources.filter((resource) => kinds.includes('mixed') || kinds.includes(resource.kind));
+  const selectedPickerRows = pickerRows.filter((row) => selectedPickerIDs.includes(row.id));
+  const addPickerRows = (rows = selectedPickerRows): void => {
+    const next: GrantEntry[] = [];
+    for (const row of rows) {
+      const resource = resourceByKey.get(pickerResources[row.id]) ?? compatibleResources(row.compatibleKinds)[0];
+      if (!resource) continue;
+      next.push({
+        id: `grant:${row.id}:${accessResourceKey(resource)}:${Date.now()}:${next.length}`,
+        kind: row.kind,
+        roleId: row.kind === 'role' ? row.role.id : undefined,
+        roleName: row.kind === 'role' ? row.role.name : undefined,
+        permissionKey: row.kind === 'permission' ? row.template.permissionKey : undefined,
+        template: row.kind === 'permission' ? row.template : undefined,
+        resource,
+        risk: row.risk,
+      });
+    }
+    if (next.length > 0) setGrantEntries((prev) => [...prev, ...next]);
   };
-  const toggleResource = (resource: AccessResourceScope): void => {
-    setRequest((prev) => {
-      const selectedPermissions = selectedPermissionDefinitions(permissions, prev.permission_keys);
-      const selectedRoles = selectedRAMRoles(roles, prev.role_ids ?? []);
-      const selectedTemplates = selectedDirectGrantTemplates(directTemplates, directTemplateIDs);
-      if (
-        !resourceCompatibleWithPermissions(resource, selectedPermissions) ||
-        !resourceCompatibleWithGrantTemplates(resource, selectedTemplates) ||
-        !resourceCompatibleWithRoles(resource, selectedRoles)
-      ) return prev;
-      const keys = new Set(prev.resources.map(accessResourceKey));
-      const next = keys.has(accessResourceKey(resource))
-        ? prev.resources.filter((r) => accessResourceKey(r) !== accessResourceKey(resource))
-        : [...prev.resources, resource];
-      return { ...prev, resources: next };
-    });
+  const removeSelectedGrants = (): void => {
+    setGrantEntries((prev) => prev.filter((entry) => !selectedGrantIDs.includes(entry.id)));
+    setSelectedGrantIDs([]);
   };
   const runPreview = (): void => {
-    previewMutation.mutate(request, {
+    previewMutation.mutate(effectiveRequest, {
       onSuccess: (data) => {
         setPreview(data);
         setResult(null);
@@ -1885,31 +1946,29 @@ function BatchGrantDrawer({
   };
   const runApply = (): void => {
     applyMutation.mutate(
-      { ...request, preview_request_id: preview?.request_id },
+      { ...effectiveRequest, preview_request_id: preview?.request_id },
       {
         onSuccess: (data) => {
           setResult(data);
           setStep(3);
           onToast({
             tone: data.summary.partial_failure ? 'warning' : 'success',
-            message: mode === 'direct'
-              ? (data.summary.partial_failure ? 'Direct binding completed with partial failure' : 'Direct binding granted')
-              : (data.summary.partial_failure ? 'Batch grant completed with partial failure' : 'Batch grant applied'),
+            message: data.summary.partial_failure ? 'Batch grant completed with partial failure' : 'Batch grant applied',
           });
         },
-        onError: (error) => onToast(accessToastFromError(error, mode === 'direct' ? 'Direct binding failed' : 'Batch grant failed')),
+        onError: (error) => onToast(accessToastFromError(error, 'Batch grant failed')),
       },
     );
   };
 
   return (
     <div className="fixed inset-0 z-50 bg-black/30" data-testid="access-batch-drawer-backdrop">
-      <aside
+      <div
         ref={containerRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="fixed inset-y-0 right-0 flex h-full w-full max-w-3xl flex-col border-l border-border-base bg-bg-elevated text-text-primary shadow-2 md:w-[46rem]"
+        className="fixed inset-x-4 top-6 mx-auto flex max-h-[calc(100vh-3rem)] max-w-6xl flex-col rounded border border-border-base bg-bg-elevated text-text-primary shadow-2xl"
         data-testid="access-batch-drawer"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border-base px-5 py-4">
@@ -1942,70 +2001,116 @@ function BatchGrantDrawer({
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           {step === 0 && (
             <div className="space-y-4">
-              <Picker title="Subjects">
-                {mode === 'direct' && contextSubjectRef && (
-                  <div className="rounded border border-brand/30 bg-brand/5 p-3 text-sm md:col-span-2" data-testid="access-direct-subject-context">
-                    <div className="text-xs font-semibold uppercase text-text-muted">Subject context</div>
-                    <div className="mt-1 font-semibold text-text-primary">{subjects.find((subject) => subject.ref === contextSubjectRef)?.name ?? contextSubjectRef}</div>
-                    <div className="font-mono text-xs text-text-muted">{contextSubjectRef}</div>
+              <section className="rounded border border-border-base bg-bg-base" data-testid="access-grant-subjects">
+                <div className="flex flex-wrap items-end gap-2 border-b border-border-base px-3 py-3">
+                  <label className="min-w-0 flex-[1_1_14rem]">
+                    <span className="text-xs font-semibold uppercase text-text-muted">Keyword</span>
+                    <input className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1.5 text-sm" value={subjectQuery} onChange={(e) => setSubjectQuery(e.target.value)} data-testid="access-grant-subject-keyword" />
+                  </label>
+                  <Select label="Project" value={subjectProjectID} onChange={setSubjectProjectID} options={subjectProjectOptions} />
+                  <Select label="Team" value={subjectTeamName} onChange={setSubjectTeamName} options={subjectTeamOptions} />
+                </div>
+                <div className="max-h-52 overflow-auto">
+                  <table className="w-full min-w-[44rem] text-left text-sm" data-testid="access-grant-subject-table">
+                    <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
+                      <tr>
+                        <th className="w-10 px-3 py-2"><input type="checkbox" checked={visibleSubjects.length > 0 && visibleSubjects.every((subject) => request.subject_refs.includes(subject.ref))} onChange={toggleAllVisibleSubjects} aria-label="Select all visible subjects" /></th>
+                        <th className="px-3 py-2 font-semibold">Subject</th>
+                        <th className="px-3 py-2 font-semibold">Type</th>
+                        <th className="px-3 py-2 font-semibold">Team</th>
+                        <th className="px-3 py-2 font-semibold">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleSubjects.map((subject) => (
+                        <tr key={subject.ref} className="border-b border-border-base last:border-0">
+                          <td className="px-3 py-2"><input type="checkbox" checked={request.subject_refs.includes(subject.ref)} onChange={() => toggleSubject(subject.ref)} data-testid="access-grant-subject-select" /></td>
+                          <td className="px-3 py-2"><div className="font-medium">{subject.name}</div><div className="font-mono text-xs text-text-muted">{subject.ref}</div></td>
+                          <td className="px-3 py-2">{subject.kind === 'team_role' ? 'team role' : subject.kind}</td>
+                          <td className="px-3 py-2 text-xs text-text-secondary">{(subject.team_names ?? []).join(', ') || '—'}</td>
+                          <td className="px-3 py-2">{subject.status ?? 'unknown'}</td>
+                        </tr>
+                      ))}
+                      {visibleSubjects.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-sm text-text-muted">No subjects match the current filters.</td></tr>}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+              <div className="grid gap-4 xl:grid-cols-2">
+                <section className="rounded border border-border-base bg-bg-base" data-testid="access-permission-picker">
+                  <div className="flex items-center justify-between border-b border-border-base px-3 py-2">
+                    <h3 className="text-xs font-semibold uppercase text-text-muted">Permission picker</h3>
+                    <button type="button" className="rounded border border-border-base px-2 py-1 text-xs font-semibold disabled:opacity-50" disabled={selectedPickerRows.length === 0} onClick={() => addPickerRows()} data-testid="access-add-selected-grants">Add selected</button>
                   </div>
-                )}
-                {subjects.filter((subject) => mode !== 'direct' || subject.ref === contextSubjectRef).map((subject) => (
-                  <ChoiceRow
-                    key={subject.ref}
-                    checked={request.subject_refs.includes(subject.ref)}
-                    disabled={!canManageAccess || mode === 'direct'}
-                    onChange={() => toggleSubject(subject.ref)}
-                    label={subject.name}
-                    detail={`${subject.ref} · ${subject.role ?? subject.kind} · ${subject.status ?? 'unknown'}`}
-                  />
-                ))}
-              </Picker>
-              <Picker title="Role templates">
-                {assignableRoles.map((role) => (
-                  <ChoiceRow
-                    key={role.id}
-                    checked={(request.role_ids ?? []).includes(role.id)}
-                    disabled={!canManageAccess}
-                    onChange={() => toggleRole(role.id)}
-                    label={role.name}
-                    detail={roleTemplateDetail(role)}
-                    badge={<AccessRiskBadge risk={role.high_risk ? 'high' : 'low'} />}
-                  />
-                ))}
-              </Picker>
-              <Picker title="Direct permissions">
-                {directTemplates.map((template) => (
-                  <ChoiceRow
-                    key={template.id}
-                    checked={directTemplateIDs.includes(template.id)}
-                    disabled={!canManageAccess}
-                    onChange={() => toggleDirectTemplate(template.id)}
-                    label={directTemplateLabel(template)}
-                    detail={`Maps to ${template.permissionKey} · ${accessRiskLabel(template.risk)}`}
-                    badge={<AccessRiskBadge risk={template.risk} />}
-                  />
-                ))}
-              </Picker>
-              <GrantCompositionPanel roles={selectedRoles} directTemplates={selectedDirectTemplates} resources={request.resources} />
-              <Picker title="Scope / parameters">
-                {resources.map((resource) => {
-                  const compatible =
-                    resourceCompatibleWithPermissions(resource, selectedPermissions) &&
-                    resourceCompatibleWithGrantTemplates(resource, selectedDirectTemplates) &&
-                    resourceCompatibleWithRoles(resource, selectedRoles);
-                  return (
-                    <ChoiceRow
-                      key={accessResourceKey(resource)}
-                      checked={request.resources.some((r) => accessResourceKey(r) === accessResourceKey(resource))}
-                      disabled={!canManageAccess || !compatible}
-                      onChange={() => toggleResource(resource)}
-                      label={accessResourceLabel(resource)}
-                      detail={compatible ? `${resource.kind} parameter` : `${resource.kind} - incompatible with selected grant`}
-                    />
-                  );
-                })}
-              </Picker>
+                  <div className="max-h-80 overflow-auto">
+                    <table className="w-full min-w-[44rem] text-left text-sm">
+                      <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
+                        <tr>
+                          <th className="w-10 px-3 py-2"><input type="checkbox" checked={pickerRows.length > 0 && pickerRows.every((row) => selectedPickerIDs.includes(row.id))} onChange={() => setSelectedPickerIDs(selectedPickerIDs.length === pickerRows.length ? [] : pickerRows.map((row) => row.id))} aria-label="Select all permissions" /></th>
+                          <th className="px-3 py-2 font-semibold">Resource</th>
+                          <th className="px-3 py-2 font-semibold">Permission</th>
+                          <th className="px-3 py-2 font-semibold">Scope</th>
+                          <th className="px-3 py-2 font-semibold">Target</th>
+                          <th className="px-3 py-2 font-semibold">Risk</th>
+                          <th className="px-3 py-2 font-semibold">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pickerRows.map((row) => {
+                          const rowResources = compatibleResources(row.compatibleKinds);
+                          const selectedResourceKey = pickerResources[row.id] || (rowResources[0] ? accessResourceKey(rowResources[0]) : '');
+                          return (
+                            <tr key={row.id} className="border-b border-border-base last:border-0" data-testid={`access-picker-row-${accessTestIDToken(row.id)}`}>
+                              <td className="px-3 py-2"><input type="checkbox" checked={selectedPickerIDs.includes(row.id)} onChange={() => setSelectedPickerIDs((prev) => toggleValue(prev, row.id))} data-testid={`access-picker-select-${accessTestIDToken(row.id)}`} /></td>
+                              <td className="px-3 py-2">{row.resource}</td>
+                              <td className="px-3 py-2"><div className="font-medium">{row.label}</div><div className="text-xs text-text-muted">{row.detail}</div></td>
+                              <td className="px-3 py-2">{row.scope}</td>
+                              <td className="px-3 py-2">
+                                <select className="w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-xs" value={selectedResourceKey} onChange={(e) => setPickerResources((prev) => ({ ...prev, [row.id]: e.target.value }))} data-testid={`access-picker-resource-${accessTestIDToken(row.id)}`}>
+                                  {rowResources.map((resource) => <option key={accessResourceKey(resource)} value={accessResourceKey(resource)}>{accessResourceLabel(resource)}</option>)}
+                                </select>
+                              </td>
+                              <td className="px-3 py-2"><AccessRiskBadge risk={row.risk} /></td>
+                              <td className="px-3 py-2"><button type="button" className="rounded border border-border-base px-2 py-1 text-xs font-semibold" disabled={rowResources.length === 0} onClick={() => addPickerRows([row])} data-testid={`access-picker-add-${accessTestIDToken(row.id)}`}>Add</button></td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+                <section className="rounded border border-border-base bg-bg-base" data-testid="access-grant-list">
+                  <div className="flex items-center justify-between border-b border-border-base px-3 py-2">
+                    <h3 className="text-xs font-semibold uppercase text-text-muted">Grant list</h3>
+                    <button type="button" className="rounded border border-danger/30 px-2 py-1 text-xs font-semibold text-danger disabled:opacity-50" disabled={selectedGrantIDs.length === 0} onClick={removeSelectedGrants} data-testid="access-remove-selected-grants">Delete selected</button>
+                  </div>
+                  <div className="max-h-80 overflow-auto">
+                    <table className="w-full min-w-[40rem] text-left text-sm">
+                      <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
+                        <tr>
+                          <th className="w-10 px-3 py-2"><input type="checkbox" checked={grantEntries.length > 0 && grantEntries.every((entry) => selectedGrantIDs.includes(entry.id))} onChange={() => setSelectedGrantIDs(selectedGrantIDs.length === grantEntries.length ? [] : grantEntries.map((entry) => entry.id))} aria-label="Select all grant entries" /></th>
+                          <th className="px-3 py-2 font-semibold">Resource</th>
+                          <th className="px-3 py-2 font-semibold">Permission</th>
+                          <th className="px-3 py-2 font-semibold">Scope target</th>
+                          <th className="px-3 py-2 font-semibold">Risk</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {grantEntries.map((entry) => (
+                          <tr key={entry.id} className="border-b border-border-base last:border-0" data-testid={`access-grant-entry-${accessTestIDToken(entry.id)}`}>
+                            <td className="px-3 py-2"><input type="checkbox" checked={selectedGrantIDs.includes(entry.id)} onChange={() => setSelectedGrantIDs((prev) => toggleValue(prev, entry.id))} data-testid="access-grant-entry-select" /></td>
+                            <td className="px-3 py-2">{entry.kind === 'role' ? 'Role template' : entry.template?.resource}</td>
+                            <td className="px-3 py-2"><div className="font-medium">{entry.kind === 'role' ? entry.roleName : directTemplateLabel(entry.template!)}</div><div className="font-mono text-xs text-text-muted">{entry.roleId ?? entry.permissionKey}</div></td>
+                            <td className="px-3 py-2">{accessResourceLabel(entry.resource)}</td>
+                            <td className="px-3 py-2"><AccessRiskBadge risk={entry.risk} /></td>
+                          </tr>
+                        ))}
+                        {grantEntries.length === 0 && <tr><td colSpan={5} className="px-3 py-6 text-center text-sm text-text-muted">Add permissions or role templates to build the batch grant.</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="block">
                   <span className="text-xs font-semibold uppercase text-text-muted">Expires at</span>
@@ -2121,7 +2226,7 @@ function BatchGrantDrawer({
             )}
           </div>
         </div>
-      </aside>
+      </div>
     </div>
   );
 }
@@ -2130,27 +2235,11 @@ function toggleValue(values: string[], value: string): string[] {
   return values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
 }
 
-function selectedRAMRoles(roles: AccessRole[], selectedRoleIDs: string[]): AccessRole[] {
-  const byID = new Map(roles.map((role) => [role.id, role]));
-  return selectedRoleIDs.flatMap((id) => {
-    const role = byID.get(id);
-    return role ? [role] : [];
-  });
-}
-
-function selectedDirectGrantTemplates(templates: DirectGrantTemplate[], selectedTemplateIDs: string[]): DirectGrantTemplate[] {
-  const byID = new Map(templates.map((template) => [template.id, template]));
-  return selectedTemplateIDs.flatMap((id) => {
-    const template = byID.get(id);
-    return template ? [template] : [];
-  });
-}
-
-function previewDisabledReason(canManageAccess: boolean, request: AccessBatchRequest): string {
+function previewDisabledReason(canManageAccess: boolean, request: AccessBatchRequest, grantEntryCount = (request.entries?.length ?? 0)): string {
   if (!canManageAccess) return 'Preview unavailable: current subject cannot manage access.';
   if (request.subject_refs.length === 0) return 'Select at least one subject.';
-  if ((request.role_ids?.length ?? 0) === 0 && request.permission_keys.length === 0) return 'Select at least one role template or direct permission.';
-  if (request.resources.length === 0) return 'Select at least one scope parameter.';
+  if (grantEntryCount === 0 && (request.role_ids?.length ?? 0) === 0 && request.permission_keys.length === 0) return 'Add at least one grant entry.';
+  if (grantEntryCount === 0 && request.resources.length === 0) return 'Select at least one scope parameter.';
   if (request.reason.trim().length === 0) return 'Enter a reason before previewing.';
   return 'Ready to preview.';
 }
@@ -2158,94 +2247,6 @@ function previewDisabledReason(canManageAccess: boolean, request: AccessBatchReq
 function roleIDFromEvidence(evidenceRef: string): string {
   const parts = evidenceRef.split('/');
   return parts.length >= 3 ? parts[2] : '';
-}
-
-function Picker({ title, children }: { title: string; children: React.ReactNode }): React.ReactElement {
-  return (
-    <section className="rounded border border-border-base bg-bg-base">
-      <h3 className="border-b border-border-base px-3 py-2 text-xs font-semibold uppercase text-text-muted">{title}</h3>
-      <div className="grid gap-1 p-2 md:grid-cols-2">{children}</div>
-    </section>
-  );
-}
-
-function ChoiceRow({
-  checked,
-  disabled,
-  onChange,
-  label,
-  detail,
-  badge,
-}: {
-  checked: boolean;
-  disabled?: boolean;
-  onChange: () => void;
-  label: string;
-  detail: string;
-  badge?: React.ReactNode;
-}): React.ReactElement {
-  return (
-    <button
-      type="button"
-      aria-pressed={checked}
-      disabled={disabled}
-      onClick={onChange}
-      className={[
-        'flex min-w-0 items-start gap-2 rounded px-2 py-2 text-left text-sm',
-        checked ? 'bg-status-emerald-bg text-status-emerald-fg' : 'hover:bg-bg-subtle',
-        disabled ? 'opacity-50' : '',
-      ].join(' ')}
-    >
-      <span className={checked ? 'mt-1 h-2 w-2 rounded-full bg-success' : 'mt-1 h-2 w-2 rounded-full border border-border-strong'} aria-hidden="true" />
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-medium text-text-primary">{label}</span>
-        <span className="block truncate text-xs text-text-muted">{detail}</span>
-      </span>
-      {badge}
-    </button>
-  );
-}
-
-function GrantCompositionPanel({
-  roles,
-  directTemplates,
-  resources,
-}: {
-  roles: AccessRole[];
-  directTemplates: DirectGrantTemplate[];
-  resources: AccessResourceScope[];
-}): React.ReactElement {
-  if (roles.length === 0 && directTemplates.length === 0) {
-    return (
-      <section className="rounded border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-secondary" data-testid="access-grant-composition">
-        Choose a role template or direct permission, then bind it to one or more scope parameters.
-      </section>
-    );
-  }
-  const scopeText = resources.length > 0 ? resources.map(accessResourceLabel).join(', ') : 'No scope selected';
-  return (
-    <section className="rounded border border-border-base bg-bg-base p-3" data-testid="access-grant-composition">
-      <div className="text-xs font-semibold uppercase text-text-muted">Grant composition</div>
-      <div className="mt-2 grid gap-2 text-sm">
-        {roles.map((role) => (
-          <div key={role.id} className="rounded border border-border-base bg-bg-subtle px-3 py-2">
-            <div className="font-medium text-text-primary">{role.name}</div>
-            <div className="mt-1 text-xs text-text-secondary">
-              Role template · scope parameter: {scopeText} · expands to {role.permissions.join(', ')}
-            </div>
-          </div>
-        ))}
-        {directTemplates.map((template) => (
-          <div key={template.id} className="rounded border border-border-base bg-bg-subtle px-3 py-2">
-            <div className="font-medium text-text-primary">{directTemplateLabel(template)}</div>
-            <div className="mt-1 text-xs text-text-secondary">
-              Resource {template.resource} · Scope {template.scope} · Action {template.action} · compiles to {template.permissionKey} on {scopeText}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
 }
 
 function PreviewSummary({ preview }: { preview: AccessBatchPreview }): React.ReactElement {

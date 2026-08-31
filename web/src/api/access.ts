@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
 
-export type AccessSubjectKind = 'human' | 'agent' | 'worker' | 'system';
+export type AccessSubjectKind = 'human' | 'agent' | 'worker' | 'system' | 'team_role';
 export type AccessResourceKind =
   | 'org'
   | 'project'
@@ -195,8 +195,15 @@ export interface AccessBatchRequest {
   role_ids?: string[];
   permission_keys: string[];
   resources: AccessResourceScope[];
+  entries?: AccessBatchGrantEntry[];
   expires_at?: string | null;
   reason: string;
+}
+
+export interface AccessBatchGrantEntry {
+  role_id?: string;
+  permission_key?: string;
+  resource: AccessResourceScope;
 }
 
 export interface AccessBatchItem {

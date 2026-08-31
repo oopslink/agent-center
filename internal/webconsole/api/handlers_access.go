@@ -17,6 +17,7 @@ import (
 	"github.com/oopslink/agent-center/internal/identity"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/team"
+	teamservice "github.com/oopslink/agent-center/internal/team/service"
 )
 
 type accessResourceScopeDTO struct {
@@ -159,9 +160,16 @@ type accessBatchRequestDTO struct {
 	RoleIDs          []string                 `json:"role_ids,omitempty"`
 	PermissionKeys   []string                 `json:"permission_keys"`
 	Resources        []accessResourceScopeDTO `json:"resources"`
+	Entries          []accessBatchGrantDTO    `json:"entries,omitempty"`
 	ExpiresAt        *string                  `json:"expires_at"`
 	Reason           string                   `json:"reason"`
 	PreviewRequestID string                   `json:"preview_request_id"`
+}
+
+type accessBatchGrantDTO struct {
+	RoleID        string                 `json:"role_id,omitempty"`
+	PermissionKey string                 `json:"permission_key,omitempty"`
+	Resource      accessResourceScopeDTO `json:"resource"`
 }
 
 type accessBatchItemDTO struct {
@@ -248,24 +256,31 @@ func accessRolesForOrg(ctx context.Context, d HandlerDeps, orgID string, catalog
 	rows, err := d.DB.QueryContext(ctx, `
 		SELECT id, name, COALESCE(description, '')
 		FROM authorization_roles
-		WHERE org_id = ? AND kind = 'custom' AND COALESCE(NULLIF(visibility, ''), 'reusable') = 'reusable' AND revoked_at IS NULL
-		ORDER BY name, id`, orgID)
+		WHERE org_id = ? AND kind IN ('system', 'custom') AND COALESCE(NULLIF(visibility, ''), 'reusable') = 'reusable' AND revoked_at IS NULL
+		ORDER BY kind DESC, name, id`, orgID)
 	if err != nil {
 		return roles
 	}
-	var custom []accessRoleDTO
+	var reusable []accessRoleDTO
 	for rows.Next() {
 		var role accessRoleDTO
 		if err := rows.Scan(&role.ID, &role.Name, &role.Description); err != nil {
 			rows.Close()
 			return roles
 		}
-		role.Editable = true
+		role.Editable = !strings.HasPrefix(role.ID, "sys-")
 		role.Source = string(authz.SourceCustomRole)
-		custom = append(custom, role)
+		reusable = append(reusable, role)
 	}
 	rows.Close()
-	for _, role := range custom {
+	seen := map[string]struct{}{}
+	for _, role := range roles {
+		seen[role.ID] = struct{}{}
+	}
+	for _, role := range reusable {
+		if _, ok := seen[role.ID]; ok {
+			continue
+		}
 		role.Permissions = accessRolePermissions(ctx, d, role.ID)
 		role.ScopeKind = accessRoleScopeKind(role.Permissions, catalog)
 		for _, p := range role.Permissions {
@@ -308,6 +323,18 @@ func accessRoleScopeKind(permissions []string, catalog map[string]accessPermissi
 		}
 	}
 	return "org"
+}
+
+func accessTeamRoleSubjectRef(teamID, role string) string {
+	return "team_role:" + teamID + ":" + role
+}
+
+func parseAccessTeamRoleSubjectRef(ref string) (string, string, bool) {
+	parts := strings.SplitN(ref, ":", 3)
+	if len(parts) != 3 || parts[0] != "team_role" || strings.TrimSpace(parts[1]) == "" || strings.TrimSpace(parts[2]) == "" {
+		return "", "", false
+	}
+	return parts[1], parts[2], true
 }
 
 func accessCatalogFromDefinitions(definitions []authz.PermissionDefinition) []accessPermissionDefinitionDTO {
@@ -1336,6 +1363,19 @@ func (s *Server) accessDerivedState(ctx context.Context, d HandlerDeps, orgID st
 			return state, err
 		}
 		for _, tm := range teams {
+			for _, role := range tm.Roles() {
+				ref := accessTeamRoleSubjectRef(tm.ID().String(), role.Role)
+				subj := accessSubjectDTO{
+					Ref:       ref,
+					Kind:      "team_role",
+					Name:      fmt.Sprintf("%s / %s", tm.Name(), role.Role),
+					Role:      role.Role,
+					Status:    string(identity.MemberJoined),
+					TeamNames: []string{tm.Name()},
+				}
+				state.subjects = append(state.subjects, subj)
+				state.subjectByRef[subj.Ref] = subj
+			}
 			rows, merr := d.TeamService.ListMembers(ctx, tm.ID())
 			if merr != nil {
 				return state, merr
@@ -1970,8 +2010,13 @@ func accessFilterDecisions(decisions []accessDecisionDTO, subjects map[string]ac
 		if subjectKind != "" && subjectKind != "all" && subj.Kind != subjectKind {
 			continue
 		}
-		if projectID != "" && projectID != "all" && d.Resource.ID != projectID && d.Resource.ProjectID != projectID {
-			continue
+		if projectID != "" && projectID != "all" {
+			if d.Resource.ID != projectID && d.Resource.ProjectID != projectID {
+				continue
+			}
+			if d.Source == "project_member" && d.Status == "unauthorized" && strings.Contains(d.EvidenceRef, "pm_project_members:missing") {
+				continue
+			}
 		}
 		if permission != "" && permission != "all" && d.Permission != permission {
 			continue
@@ -2032,7 +2077,7 @@ func (s *Server) accessBatchUnifiedHandler(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusInternalServerError, "access_projection_failed", err.Error())
 		return
 	}
-	items := accessBatchItems(r.Context(), svc, orgID, actor, body, state, !preview)
+	items := accessBatchItems(r.Context(), d, svc, orgID, actor, body, state, !preview)
 	if preview {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"request_id": fmt.Sprintf("access-preview-%s", accessHash(fmt.Sprintf("%s|%s|%v", actor, orgID, body))),
@@ -2050,14 +2095,29 @@ func (s *Server) accessBatchUnifiedHandler(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-func accessBatchItems(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, state accessDerivedState, applied bool) []accessBatchItemDTO {
+func accessBatchItems(ctx context.Context, d HandlerDeps, svc *authz.Service, orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, state accessDerivedState, applied bool) []accessBatchItemDTO {
 	items := []accessBatchItemDTO{}
 	expiresAt, expiresErr := parseAccessExpiry(body.ExpiresAt)
+	if len(body.Entries) > 0 {
+		for _, subjectRef := range body.SubjectRefs {
+			for _, entry := range body.Entries {
+				idx := len(items) + 1
+				if strings.TrimSpace(entry.RoleID) != "" {
+					item := accessEvaluateBatchRoleItem(ctx, d, svc, orgID, actor, entry.RoleID, body, state, idx, subjectRef, entry.Resource, expiresAt, expiresErr, applied)
+					items = append(items, item)
+					continue
+				}
+				item := accessEvaluateBatchItem(ctx, svc, orgID, actor, body, state, idx, subjectRef, entry.PermissionKey, entry.Resource, expiresAt, expiresErr, applied)
+				items = append(items, item)
+			}
+		}
+		return items
+	}
 	for _, subjectRef := range body.SubjectRefs {
 		for _, roleID := range body.RoleIDs {
 			for _, resource := range body.Resources {
 				idx := len(items) + 1
-				item := accessEvaluateBatchRoleItem(ctx, svc, orgID, actor, roleID, body, state, idx, subjectRef, resource, expiresAt, expiresErr, applied)
+				item := accessEvaluateBatchRoleItem(ctx, d, svc, orgID, actor, roleID, body, state, idx, subjectRef, resource, expiresAt, expiresErr, applied)
 				items = append(items, item)
 			}
 		}
@@ -2072,7 +2132,7 @@ func accessBatchItems(ctx context.Context, svc *authz.Service, orgID string, act
 	return items
 }
 
-func accessEvaluateBatchRoleItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, roleID string, body accessBatchRequestDTO, state accessDerivedState, idx int, subjectRef string, resource accessResourceScopeDTO, expiresAt *time.Time, expiresErr error, applied bool) accessBatchItemDTO {
+func accessEvaluateBatchRoleItem(ctx context.Context, d HandlerDeps, svc *authz.Service, orgID string, actor authz.SubjectRef, roleID string, body accessBatchRequestDTO, state accessDerivedState, idx int, subjectRef string, resource accessResourceScopeDTO, expiresAt *time.Time, expiresErr error, applied bool) accessBatchItemDTO {
 	subj, subjectFound := state.subjectByRef[subjectRef]
 	role, roleFound := state.roleByID[roleID]
 	item := accessBatchItemDTO{
@@ -2102,6 +2162,8 @@ func accessEvaluateBatchRoleItem(ctx context.Context, svc *authz.Service, orgID 
 		item.Reason = "RAM Role is not registered"
 		item.EvidenceRef = "authorization_roles:missing"
 		return item
+	case subj.Kind == "team_role":
+		return accessEvaluateTeamRoleRAMItem(ctx, d, actor, role, body, item, resource, applied)
 	case role.ScopeKind != "" && role.ScopeKind != "mixed" && role.ScopeKind != resource.Kind:
 		item.Status = "not_applicable"
 		item.Reason = fmt.Sprintf("%s does not apply to %s resources", role.Name, resource.Kind)
@@ -2166,6 +2228,86 @@ func accessRoleRisk(role accessRoleDTO, catalog map[string]accessPermissionDefin
 	return risk
 }
 
+func accessEvaluateTeamRoleRAMItem(ctx context.Context, d HandlerDeps, actor authz.SubjectRef, role accessRoleDTO, body accessBatchRequestDTO, item accessBatchItemDTO, resource accessResourceScopeDTO, applied bool) accessBatchItemDTO {
+	teamID, teamRole, ok := parseAccessTeamRoleSubjectRef(item.SubjectRef)
+	if !ok {
+		item.Status = "denied"
+		item.Reason = "invalid Team Role subject reference"
+		item.Code = "422 invalid_request"
+		return item
+	}
+	if resource.Kind != "team" || resource.ID != teamID {
+		item.Status = "not_applicable"
+		item.Reason = "Team Role RAM Role mappings are scoped to their owning team"
+		item.EvidenceRef = "team_role_subject:" + item.SubjectRef
+		return item
+	}
+	if role.ID == "" || !strings.HasPrefix(role.ID, "role-") && !strings.HasPrefix(role.ID, "sys-") {
+		item.Status = "denied"
+		item.Reason = "Team Role subjects can receive reusable RAM Roles only"
+		item.Code = "422 invalid_request"
+		return item
+	}
+	if d.TeamService == nil {
+		item.Status = "denied"
+		item.Reason = "Team Role RAM Role mapping service is unavailable"
+		item.Code = "500 authorization_error"
+		return item
+	}
+	current, err := d.TeamService.GetRAMRoleMapping(ctx, team.TeamID(teamID), teamRole)
+	if err != nil {
+		item.Status = accessBatchStatusForError(err)
+		item.Code = accessBatchCodeForError(err)
+		item.Reason = err.Error()
+		return item
+	}
+	next := append([]string(nil), current.RAMRoleIDs...)
+	already := false
+	for _, id := range next {
+		if id == role.ID {
+			already = true
+			break
+		}
+	}
+	if already {
+		item.Status = "allowed"
+		item.Reason = "Team Role already includes this RAM Role"
+		item.EvidenceRef = "team_role_ram_role_mappings:" + teamID + "/" + teamRole + "/" + role.ID
+		item.GrantID = accessBatchIdempotencyKey("team-role", resource.OrgID, actor, body.PreviewRequestID, item)
+		return item
+	}
+	next = append(next, role.ID)
+	sort.Strings(next)
+	if applied {
+		_, err = d.TeamService.ReplaceRAMRoleMapping(ctx, team.TeamID(teamID), teamRole, teamservice.ReplaceRAMRoleMappingInput{
+			ActorRef:        string(actor),
+			RAMRoleIDs:      next,
+			ExpectedVersion: current.Version,
+		})
+		if err != nil {
+			item.Status = accessBatchStatusForError(err)
+			item.Code = accessBatchCodeForError(err)
+			item.Reason = err.Error()
+			return item
+		}
+		item.Status = "allowed"
+		item.Reason = "RAM Role attached to Team Role mapping"
+		item.EvidenceRef = "team_role_ram_role_mappings:" + teamID + "/" + teamRole + "/" + role.ID
+		item.GrantID = accessBatchIdempotencyKey("team-role", resource.OrgID, actor, body.PreviewRequestID, item)
+		return item
+	}
+	if _, err := d.TeamService.PreviewRAMRoleMapping(ctx, team.TeamID(teamID), teamRole, next); err != nil {
+		item.Status = accessBatchStatusForError(err)
+		item.Code = accessBatchCodeForError(err)
+		item.Reason = err.Error()
+		return item
+	}
+	item.Status = "allowed"
+	item.Reason = "RAM Role can be attached to Team Role mapping"
+	item.EvidenceRef = "team_role_ram_role_mappings:preview:" + item.ID
+	return item
+}
+
 func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID string, actor authz.SubjectRef, body accessBatchRequestDTO, state accessDerivedState, idx int, subjectRef, permission string, resource accessResourceScopeDTO, expiresAt *time.Time, expiresErr error, applied bool) accessBatchItemDTO {
 	subj, subjectFound := state.subjectByRef[subjectRef]
 	def, permissionFound := state.catalogByKey[permission]
@@ -2189,6 +2331,11 @@ func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID stri
 	case !subjectFound || subj.Status != string(identity.MemberJoined):
 		item.Status = "unauthorized"
 		item.Reason = "subject is unavailable or outside this organization"
+		return item
+	case subj.Kind == "team_role":
+		item.Status = "not_applicable"
+		item.Reason = "Team Role subjects receive reusable RAM Roles; direct permissions must be granted to human or agent subjects."
+		item.EvidenceRef = "team_role_subject:" + subjectRef
 		return item
 	case !permissionFound:
 		item.Status = "denied"
