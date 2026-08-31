@@ -76,6 +76,7 @@ export function InsightExecutionsPage(): React.ReactElement {
   const [params, setParams] = useSearchParams();
   const filters = filtersFromParams(params);
   const query = useInsightExecutions({ ...filters, limit: 50 }, true);
+  const unavailableEnvelope = envelopeFromError(query.error);
 
   const removeFilter = (key: 'agent_ref' | 'project_id') => {
     const next = new URLSearchParams(params);
@@ -98,7 +99,18 @@ export function InsightExecutionsPage(): React.ReactElement {
       <InsightHeader title={t('insight.executions.title')} subtitle={t('insight.executions.subtitle')} />
       <FilterSummary filters={filters} onRemove={removeFilter} onClear={clearFilters} />
       {query.isLoading && <StatePanel testId="insight-executions-loading" title={t('insight.state.loadingExecutions')} />}
-      {query.isError && <InsightError testIdPrefix="insight-executions" error={query.error} fallbackTitle={t('insight.state.executionsFailed')} />}
+      {query.isError && !unavailableEnvelope && <InsightError testIdPrefix="insight-executions" error={query.error} fallbackTitle={t('insight.state.executionsFailed')} />}
+      {unavailableEnvelope && (
+        <>
+          <WindowBar data={unavailableEnvelope} />
+          <StatePanel
+            testId={unavailableEnvelope.freshness.state === 'rebuilding' ? 'insight-executions-rebuilding' : 'insight-executions-unavailable'}
+            tone="danger"
+            title={unavailableEnvelope.freshness.state === 'rebuilding' ? t('insight.state.rebuilding') : t('insight.state.unavailable')}
+            body={query.error instanceof Error ? query.error.message : undefined}
+          />
+        </>
+      )}
       {query.data && (
         <>
           <WindowBar data={query.data} />
@@ -129,7 +141,9 @@ export function InsightExecutionDetailPage(): React.ReactElement {
   const location = useLocation();
   const query = useInsightExecution(executionId);
   const isNotFound = query.error instanceof ApiError && query.error.status === 404;
-  const listBack = typeof location.state === 'object' && location.state && 'from' in location.state ? String((location.state as { from?: string }).from ?? '') : `${base}/executions?window=24h`;
+  const unavailableEnvelope = envelopeFromError(query.error);
+  const stateBack = typeof location.state === 'object' && location.state && 'from' in location.state ? String((location.state as { from?: string }).from ?? '') : '';
+  const listBack = stateBack || listHrefFromDetailSearch(location.search, base);
 
   return (
     <section className="space-y-4" data-testid="page-InsightExecutionDetail">
@@ -145,7 +159,18 @@ export function InsightExecutionDetailPage(): React.ReactElement {
       </nav>
       {query.isLoading && <StatePanel testId="insight-execution-loading" title={t('insight.state.loadingDetail')} />}
       {isNotFound && <StatePanel testId="insight-execution-not-found" title={t('insight.state.detailMissing')} body={t('insight.state.detailMissingBody')} />}
-      {query.isError && !isNotFound && <InsightError testIdPrefix="insight-execution" error={query.error} fallbackTitle={t('insight.state.detailFailed')} />}
+      {query.isError && !isNotFound && !unavailableEnvelope && <InsightError testIdPrefix="insight-execution" error={query.error} fallbackTitle={t('insight.state.detailFailed')} />}
+      {unavailableEnvelope && (
+        <>
+          <WindowBar data={unavailableEnvelope} />
+          <StatePanel
+            testId={unavailableEnvelope.freshness.state === 'rebuilding' ? 'insight-execution-rebuilding' : 'insight-execution-unavailable'}
+            tone="danger"
+            title={unavailableEnvelope.freshness.state === 'rebuilding' ? t('insight.state.rebuilding') : t('insight.state.unavailable')}
+            body={query.error instanceof Error ? query.error.message : undefined}
+          />
+        </>
+      )}
       {query.data && (
         <>
           <WindowBar data={query.data} />
@@ -316,18 +341,18 @@ function TaskExecutionTable({ rows, base }: { rows: InsightExecutionRow[]; base:
   const location = useLocation();
   return (
     <div className="overflow-x-auto rounded border border-border-base bg-bg-elevated" data-testid="insight-execution-table">
-      <table className="w-full min-w-[58rem] text-left text-sm">
+      <table className="w-full min-w-[34rem] text-left text-sm md:min-w-[44rem] lg:min-w-[58rem]">
         <thead className="text-xs uppercase tracking-wide text-text-muted">
           <tr>
             <th className="px-3 py-2 font-medium">{t('insight.execution.status')}</th>
             <th className="px-3 py-2 font-medium">{t('insight.execution.task')}</th>
             <th className="px-3 py-2 font-medium">{t('insight.execution.agent')}</th>
-            <th className="px-3 py-2 font-medium">{t('insight.execution.queued')}</th>
-            <th className="px-3 py-2 font-medium">{t('insight.execution.started')}</th>
-            <th className="px-3 py-2 font-medium">{t('insight.execution.finished')}</th>
-            <th className="px-3 py-2 font-medium">{t('insight.execution.queueWait')}</th>
+            <th className="hidden px-3 py-2 font-medium lg:table-cell">{t('insight.execution.queued')}</th>
+            <th className="hidden px-3 py-2 font-medium lg:table-cell">{t('insight.execution.started')}</th>
+            <th className="hidden px-3 py-2 font-medium lg:table-cell">{t('insight.execution.finished')}</th>
+            <th className="hidden px-3 py-2 font-medium lg:table-cell">{t('insight.execution.queueWait')}</th>
             <th className="px-3 py-2 font-medium">{t('insight.execution.duration')}</th>
-            <th className="px-3 py-2 font-medium">{t('insight.execution.dataHint')}</th>
+            <th className="hidden px-3 py-2 font-medium md:table-cell">{t('insight.execution.dataHint')}</th>
           </tr>
         </thead>
         <tbody>
@@ -338,13 +363,16 @@ function TaskExecutionTable({ rows, base }: { rows: InsightExecutionRow[]; base:
                 <Link to={`${base}/executions/${encodeURIComponent(row.execution_id)}`} state={{ from: `${location.pathname}${location.search}` }} className="font-medium text-brand hover:underline">{row.task_title ?? row.task_ref ?? row.task_id ?? row.execution_id}</Link>
                 <div className="font-mono text-xs text-text-muted">{row.project_name ?? row.project_id ?? EMPTY}</div>
               </td>
-              <td className="px-3 py-2 align-top">{row.agent_name ?? row.agent_ref}</td>
-              <td className="px-3 py-2 align-top tabular-nums">{timeOrLabel(row.queued_at, EMPTY)}</td>
-              <td className="px-3 py-2 align-top tabular-nums">{timeOrLabel(row.started_at, t('insight.execution.notStarted'))}</td>
-              <td className="px-3 py-2 align-top tabular-nums">{timeOrLabel(row.finished_at, t('insight.execution.notFinished'))}</td>
-              <td className="px-3 py-2 align-top tabular-nums">{humanDuration(row.queue_wait_ms)}</td>
+              <td className="px-3 py-2 align-top">
+                <div>{row.agent_name ?? row.agent_ref}</div>
+                {row.recovered && <span className="mt-1 inline-flex rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">{t('insight.execution.recovered')}</span>}
+              </td>
+              <td className="hidden px-3 py-2 align-top tabular-nums lg:table-cell">{timeOrLabel(row.queued_at, EMPTY)}</td>
+              <td className="hidden px-3 py-2 align-top tabular-nums lg:table-cell">{timeOrLabel(row.started_at, t('insight.execution.notStarted'))}</td>
+              <td className="hidden px-3 py-2 align-top tabular-nums lg:table-cell">{timeOrLabel(row.finished_at, t('insight.execution.notFinished'))}</td>
+              <td className="hidden px-3 py-2 align-top tabular-nums lg:table-cell">{humanDuration(row.queue_wait_ms)}</td>
               <td className="px-3 py-2 align-top tabular-nums">{humanDuration(row.duration_ms)}</td>
-              <td className="px-3 py-2 align-top"><QualityBadge quality={row.quality} /></td>
+              <td className="hidden px-3 py-2 align-top md:table-cell"><QualityBadge quality={row.quality} /></td>
             </tr>
           ))}
         </tbody>
@@ -442,6 +470,18 @@ function filtersFromParams(params: URLSearchParams): InsightExecutionFilters {
 
 function hasExecutionFilter(filters: InsightExecutionFilters): boolean {
   return Boolean(filters.agent_ref || filters.project_id);
+}
+
+function listHrefFromDetailSearch(search: string, base: string): string {
+  const current = new URLSearchParams(search);
+  const next = new URLSearchParams({ window: '24h' });
+  const agentRef = current.get('agent_ref');
+  const projectId = current.get('project_id');
+  const cursor = current.get('cursor');
+  if (agentRef) next.set('agent_ref', agentRef);
+  if (projectId) next.set('project_id', projectId);
+  if (cursor) next.set('cursor', cursor);
+  return `${base}/executions?${next.toString()}`;
 }
 
 function classifyCoverage(coverage: number | null, utilization: number | null, t: (key: string, options?: Record<string, unknown>) => string): { kind: 'unknown' | 'insufficient' | 'partial' | 'representative'; value: string; sub: string; tone: 'unknown' | 'warn' | 'normal' } {
