@@ -355,6 +355,31 @@ function accessResourceMetaLabel(resource: AccessResourceScope): string {
   return accessResourceKindLabel(resource.kind);
 }
 
+function workItemPlural(kind: AccessResourceKind): string {
+  const labels: Partial<Record<AccessResourceKind, string>> = {
+    issue: 'issues',
+    plan: 'plans',
+    task: 'tasks',
+  };
+  return labels[kind] ?? `${accessResourceKindLabel(kind).toLowerCase()}s`;
+}
+
+function workItemScopeKind(kinds: string[]): Extract<AccessResourceKind, 'issue' | 'plan' | 'task'> | null {
+  return (kinds.find((kind): kind is Extract<AccessResourceKind, 'issue' | 'plan' | 'task'> => kind === 'issue' || kind === 'plan' || kind === 'task') ?? null);
+}
+
+function scopePickerResourceMeta(row: PermissionPickerRow, resource: AccessResourceScope): string {
+  const concreteKind = workItemScopeKind(row.compatibleKinds);
+  if (concreteKind && row.compatibleKinds.includes('project')) {
+    if (resource.kind === 'org') return `All ${workItemPlural(concreteKind)} in all projects`;
+    if (resource.kind === 'project') return `All ${workItemPlural(concreteKind)} in this project`;
+    if (resource.kind === concreteKind) return `Specific ${accessResourceKindLabel(concreteKind).toLowerCase()}`;
+  }
+  if (resource.kind === 'org' && row.compatibleKinds.includes('project')) return 'All projects in this organization';
+  if (resource.kind === 'org' && row.compatibleKinds.includes('team')) return 'All teams in this organization';
+  return row.scope;
+}
+
 function accessActionLabel(permission: AccessPermissionDefinition): string {
   const raw = permission.actions[0] || permission.key.split('.').at(-1) || 'use';
   const normalized = raw === 'update' ? 'write' : raw;
@@ -2143,9 +2168,28 @@ function BatchGrantDrawer({
         : [...new Set([...prev.subject_refs, ...visibleRefs])],
     }));
   };
-  const compatibleResources = (kinds: string[]): AccessResourceScope[] => resources.filter((resource) => kinds.includes('mixed') || kinds.includes(resource.kind));
+  const orgResources = resources.filter((resource) => resource.kind === 'org');
+  const projectResources = resources.filter((resource) => resource.kind === 'project');
+  const teamResources = resources.filter((resource) => resource.kind === 'team');
+  const orgExpansionKind = (row: PermissionPickerRow): 'project' | 'team' | null => {
+    if (row.compatibleKinds.includes('mixed')) return null;
+    if (row.compatibleKinds.includes('project')) return 'project';
+    if (row.compatibleKinds.includes('team')) return 'team';
+    return null;
+  };
+  const compatibleResources = (row: PermissionPickerRow): AccessResourceScope[] => {
+    const matched = resources.filter((resource) => row.compatibleKinds.includes('mixed') || row.compatibleKinds.includes(resource.kind));
+    return orgExpansionKind(row) ? [...matched, ...orgResources] : matched;
+  };
+  const expandedResourcesForGrant = (row: PermissionPickerRow, resource: AccessResourceScope): AccessResourceScope[] => {
+    if (resource.kind !== 'org') return [resource];
+    const expansionKind = orgExpansionKind(row);
+    if (expansionKind === 'project') return projectResources;
+    if (expansionKind === 'team') return teamResources;
+    return [resource];
+  };
   const scopePickerRow = scopePickerRowID ? pickerRows.find((row) => row.id === scopePickerRowID) : undefined;
-  const scopePickerResources = scopePickerRow ? compatibleResources(scopePickerRow.compatibleKinds) : [];
+  const scopePickerResources = scopePickerRow ? compatibleResources(scopePickerRow) : [];
   const visibleSelectedPickerRows = filteredPickerRows.filter((row) => selectedPickerIDs.includes(row.id));
   const filteredPickerIDs = filteredPickerRows.map((row) => row.id);
   const allFilteredPickerRowsSelected = filteredPickerRows.length > 0 && filteredPickerRows.every((row) => selectedPickerIDs.includes(row.id));
@@ -2158,7 +2202,7 @@ function BatchGrantDrawer({
     const next: GrantEntry[] = [];
     let skipped = 0;
     for (const row of rows) {
-      const resource = resourceByKey.get(pickerResources[row.id]) ?? compatibleResources(row.compatibleKinds)[0];
+      const resource = resourceByKey.get(pickerResources[row.id]) ?? compatibleResources(row)[0];
       if (!resource) {
         skipped += 1;
         continue;
@@ -2171,16 +2215,23 @@ function BatchGrantDrawer({
         skipped += 1;
         continue;
       }
-      next.push({
-        id: `grant:${row.id}:${accessResourceKey(resource)}:${Date.now()}:${next.length}`,
-        kind: row.kind,
-        roleId: row.kind === 'role' ? row.role?.id : undefined,
-        roleName: row.kind === 'role' ? row.role?.name : undefined,
-        permissionKey: row.kind === 'permission' && row.template ? permissionKeyForTemplateResource(row.template, resource) : undefined,
-        template: row.kind === 'permission' ? row.template : undefined,
-        resource,
-        risk: row.risk,
-      });
+      const expandedResources = expandedResourcesForGrant(row, resource);
+      if (expandedResources.length === 0) {
+        skipped += 1;
+        continue;
+      }
+      for (const expandedResource of expandedResources) {
+        next.push({
+          id: `grant:${row.id}:${accessResourceKey(expandedResource)}:${Date.now()}:${next.length}`,
+          kind: row.kind,
+          roleId: row.kind === 'role' ? row.role?.id : undefined,
+          roleName: row.kind === 'role' ? row.role?.name : undefined,
+          permissionKey: row.kind === 'permission' && row.template ? permissionKeyForTemplateResource(row.template, expandedResource) : undefined,
+          template: row.kind === 'permission' ? row.template : undefined,
+          resource: expandedResource,
+          risk: row.risk,
+        });
+      }
     }
     if (next.length > 0) {
       const addedPickerIDs = new Set(rows.map((row) => row.id));
@@ -2346,7 +2397,7 @@ function BatchGrantDrawer({
                                 </td>
                               </tr>
                               {!collapsed && group.rows.map((row) => {
-                                const rowResources = compatibleResources(row.compatibleKinds);
+                                const rowResources = compatibleResources(row);
                                 const selectedResourceKey = pickerResources[row.id] || (rowResources[0] ? accessResourceKey(rowResources[0]) : '');
                                 return (
                                   <tr key={row.id} className="border-b border-border-base last:border-0" data-testid={`access-picker-row-${accessTestIDToken(row.id)}`}>
@@ -2366,7 +2417,7 @@ function BatchGrantDrawer({
                                         data-testid={`access-picker-scope-${accessTestIDToken(row.id)}`}
                                       >
                                         <span className="font-semibold text-text-primary">{resourceByKey.get(selectedResourceKey) ? accessResourceLabel(resourceByKey.get(selectedResourceKey)!) : 'Choose scope'}</span>
-                                        <span className="text-text-muted">{row.scope}</span>
+                                        <span className="text-text-muted">{resourceByKey.get(selectedResourceKey) ? scopePickerResourceMeta(row, resourceByKey.get(selectedResourceKey)!) : row.scope}</span>
                                       </button>
                                     </td>
                                     <td className="px-3 py-2"><AccessRiskBadge risk={row.risk} /></td>
@@ -2578,6 +2629,7 @@ function ScopePickerModal({
     () => row.compatibleKinds.filter((kind): kind is AccessResourceKind => ['issue', 'plan', 'task'].includes(kind)),
     [row.compatibleKinds],
   );
+  const projectScopedWorkItemKind = row.compatibleKinds.includes('project') ? workItemScopeKind(row.compatibleKinds) : null;
   const projectResources = useMemo(() => resources.filter((resource) => resource.kind === 'project'), [resources]);
   const [specificKind, setSpecificKind] = useState<AccessResourceKind>(concreteKinds[0] ?? 'issue');
   const [specificProjectKey, setSpecificProjectKey] = useState(projectResources[0] ? accessResourceKey(projectResources[0]) : '');
@@ -2615,6 +2667,13 @@ function ScopePickerModal({
       label: `${accessResourceKindLabel(specificKind)} ${id}`,
     });
   };
+  const projectScopedSpecificResources = useMemo(
+    () => projectScopedWorkItemKind
+      ? resources.filter((resource) => resource.kind === projectScopedWorkItemKind)
+      : [],
+    [projectScopedWorkItemKind, resources],
+  );
+  const orgResources = useMemo(() => resources.filter((resource) => resource.kind === 'org'), [resources]);
 
   return (
     <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/30 px-4 py-12" data-testid="access-scope-picker-backdrop">
@@ -2636,87 +2695,160 @@ function ScopePickerModal({
           </button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {concreteKinds.length > 0 && (
-            <section className="mb-3 rounded border border-border-base bg-bg-base p-3" data-testid="access-scope-picker-specific">
-              <div className="text-xs font-semibold uppercase text-text-secondary">Specific {accessResourceKindLabel(concreteKinds[0]).toLowerCase()}</div>
-              <div className="mt-2 grid gap-2 md:grid-cols-[9rem_minmax(0,1fr)_minmax(0,1fr)_auto]">
-                <label>
-                  <span className="text-[0.6875rem] font-semibold uppercase text-text-muted">Type</span>
-                  <select
-                    className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1.5 text-sm"
-                    value={specificKind}
-                    onChange={(event) => setSpecificKind(event.target.value as AccessResourceKind)}
-                    data-testid="access-scope-picker-specific-kind"
-                  >
-                    {concreteKinds.map((kind) => <option key={kind} value={kind}>{accessResourceKindLabel(kind)}</option>)}
-                  </select>
-                </label>
-                <label>
-                  <span className="text-[0.6875rem] font-semibold uppercase text-text-muted">Project</span>
-                  <select
-                    className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1.5 text-sm"
-                    value={specificProjectKey}
-                    onChange={(event) => setSpecificProjectKey(event.target.value)}
-                    data-testid="access-scope-picker-specific-project"
-                  >
-                    {projectResources.map((resource) => <option key={accessResourceKey(resource)} value={accessResourceKey(resource)}>{accessResourceLabel(resource)}</option>)}
-                  </select>
-                </label>
-                <label>
-                  <span className="text-[0.6875rem] font-semibold uppercase text-text-muted">{accessResourceKindLabel(specificKind)} ID</span>
-                  <input
-                    className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1.5 text-sm"
-                    value={specificID}
-                    onChange={(event) => setSpecificID(event.target.value)}
-                    placeholder={`${specificKind}-id`}
-                    data-testid="access-scope-picker-specific-id"
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="self-end rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg disabled:opacity-50"
-                  disabled={!canAddSpecific}
-                  onClick={addSpecificScope}
-                  data-testid="access-scope-picker-specific-add"
-                >
-                  Use
-                </button>
-              </div>
-            </section>
-          )}
           {groups.length === 0 && <p className="rounded border border-border-base bg-bg-subtle px-3 py-6 text-center text-sm text-text-muted">No compatible scopes.</p>}
-          <div className="space-y-3">
-            {groups.map((group) => (
-              <section key={group.kind} className="rounded border border-border-base" data-testid={`access-scope-picker-group-${accessTestIDToken(group.kind)}`}>
+          {projectScopedWorkItemKind ? (
+            <div className="space-y-3">
+              {orgResources.length > 0 && (
+                <section className="rounded border border-border-base" data-testid="access-scope-picker-group-org">
+                  <div className="border-b border-border-base bg-bg-subtle px-3 py-2 text-xs font-semibold uppercase text-text-secondary">
+                    Organization
+                  </div>
+                  <div className="divide-y divide-border-base">
+                    {orgResources.map((org) => {
+                      const key = accessResourceKey(org);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          className={[
+                            'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-bg-subtle',
+                            key === selectedKey ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
+                          ].join(' ')}
+                          onClick={() => onSelect(org)}
+                          data-testid={`access-scope-picker-option-${accessTestIDToken(key)}`}
+                        >
+                          <span>
+                            <span className="block font-medium text-text-primary">{accessResourceLabel(org)}</span>
+                            <span className="block text-xs text-text-muted">All {workItemPlural(projectScopedWorkItemKind)} in all projects</span>
+                          </span>
+                          {key === selectedKey && <span className="text-xs font-semibold text-brand">Selected</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+              <section className="rounded border border-border-base" data-testid="access-scope-picker-group-project">
                 <div className="border-b border-border-base bg-bg-subtle px-3 py-2 text-xs font-semibold uppercase text-text-secondary">
-                  {accessResourceKindLabel(group.kind)}
+                  Project
                 </div>
                 <div className="divide-y divide-border-base">
-                  {group.entries.map((resource) => {
-                    const key = accessResourceKey(resource);
+                  {projectResources.map((project) => {
+                    const projectKey = accessResourceKey(project);
+                    const specificResources = projectScopedSpecificResources.filter((resource) => projectIDForAccessResource(resource) === project.id);
                     return (
-                      <button
-                        key={key}
-                        type="button"
-                        className={[
-                          'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-bg-subtle',
-                          key === selectedKey ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
-                        ].join(' ')}
-                        onClick={() => onSelect(resource)}
-                        data-testid={`access-scope-picker-option-${accessTestIDToken(key)}`}
-                      >
-                        <span>
-                          <span className="block font-medium text-text-primary">{accessResourceLabel(resource)}</span>
-                          <span className="block text-xs text-text-muted">{accessResourceMetaLabel(resource)}</span>
-                        </span>
-                        {key === selectedKey && <span className="text-xs font-semibold text-brand">Selected</span>}
-                      </button>
+                      <div key={projectKey}>
+                        <button
+                          type="button"
+                          className={[
+                            'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-bg-subtle',
+                            projectKey === selectedKey ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
+                          ].join(' ')}
+                          onClick={() => onSelect(project)}
+                          data-testid={`access-scope-picker-option-${accessTestIDToken(projectKey)}`}
+                        >
+                          <span>
+                            <span className="block font-medium text-text-primary">{accessResourceLabel(project)}</span>
+                            <span className="block text-xs text-text-muted">All {workItemPlural(projectScopedWorkItemKind)} in this project</span>
+                          </span>
+                          {projectKey === selectedKey && <span className="text-xs font-semibold text-brand">Selected</span>}
+                        </button>
+                        {specificResources.map((resource) => {
+                          const key = accessResourceKey(resource);
+                          return (
+                            <button
+                              key={key}
+                              type="button"
+                              className={[
+                                'flex w-full items-center justify-between gap-3 px-6 py-2 text-left text-sm hover:bg-bg-subtle',
+                                key === selectedKey ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
+                              ].join(' ')}
+                              onClick={() => onSelect(resource)}
+                              data-testid={`access-scope-picker-option-${accessTestIDToken(key)}`}
+                            >
+                              <span>
+                                <span className="block font-medium text-text-primary">{accessResourceLabel(resource)}</span>
+                                <span className="block text-xs text-text-muted">Specific {accessResourceKindLabel(projectScopedWorkItemKind).toLowerCase()}</span>
+                              </span>
+                              {key === selectedKey && <span className="text-xs font-semibold text-brand">Selected</span>}
+                            </button>
+                          );
+                        })}
+                      </div>
                     );
                   })}
                 </div>
-              </section>
-            ))}
+                <div className="border-t border-border-base bg-bg-base p-3" data-testid="access-scope-picker-specific">
+                  <div className="text-xs font-semibold uppercase text-text-secondary">Specific {accessResourceKindLabel(projectScopedWorkItemKind).toLowerCase()}</div>
+                  <div className="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                    <label>
+                      <span className="text-[0.6875rem] font-semibold uppercase text-text-muted">Project</span>
+                      <select
+                        className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1.5 text-sm"
+                        value={specificProjectKey}
+                        onChange={(event) => setSpecificProjectKey(event.target.value)}
+                        data-testid="access-scope-picker-specific-project"
+                      >
+                        {projectResources.map((resource) => <option key={accessResourceKey(resource)} value={accessResourceKey(resource)}>{accessResourceLabel(resource)}</option>)}
+                      </select>
+                    </label>
+                    <label>
+                      <span className="text-[0.6875rem] font-semibold uppercase text-text-muted">{accessResourceKindLabel(projectScopedWorkItemKind)} ID</span>
+                    <input
+                      className="mt-1 w-full rounded border border-border-base bg-bg-elevated px-2 py-1.5 text-sm"
+                      value={specificID}
+                      onChange={(event) => setSpecificID(event.target.value)}
+                      placeholder={`${projectScopedWorkItemKind}-id`}
+                      data-testid="access-scope-picker-specific-id"
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="self-end rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg disabled:opacity-50"
+                    disabled={!canAddSpecific}
+                    onClick={addSpecificScope}
+                    data-testid="access-scope-picker-specific-add"
+                  >
+                    Use
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
+          ) : (
+            <div className="space-y-3">
+              {groups.map((group) => (
+                <section key={group.kind} className="rounded border border-border-base" data-testid={`access-scope-picker-group-${accessTestIDToken(group.kind)}`}>
+                  <div className="border-b border-border-base bg-bg-subtle px-3 py-2 text-xs font-semibold uppercase text-text-secondary">
+                    {accessResourceKindLabel(group.kind)}
+                  </div>
+                  <div className="divide-y divide-border-base">
+                    {group.entries.map((resource) => {
+                      const key = accessResourceKey(resource);
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          className={[
+                            'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-bg-subtle',
+                            key === selectedKey ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
+                          ].join(' ')}
+                          onClick={() => onSelect(resource)}
+                          data-testid={`access-scope-picker-option-${accessTestIDToken(key)}`}
+                        >
+                          <span>
+                            <span className="block font-medium text-text-primary">{accessResourceLabel(resource)}</span>
+                            <span className="block text-xs text-text-muted">{scopePickerResourceMeta(row, resource) || accessResourceMetaLabel(resource)}</span>
+                          </span>
+                          {key === selectedKey && <span className="text-xs font-semibold text-brand">Selected</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

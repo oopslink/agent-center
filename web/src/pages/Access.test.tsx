@@ -520,6 +520,12 @@ describe('Access page', () => {
         grants: [],
         summary: { allowed: 1, high_risk: 0, expiring: 0, denied: 0, not_applicable: 0 },
       })),
+      http.get('*/api/orgs/:slug/projects', () => HttpResponse.json({
+        projects: [
+          { id: 'proj-a', organization_id: 'org-test', name: 'Project Alpha', description: '', status: 'active', created_by: 'user:hayang', version: 1, created_at: '2026-05-20T01:00:00Z', updated_at: '2026-05-20T01:00:00Z' },
+          { id: 'proj-b', organization_id: 'org-test', name: 'Project Beta', description: '', status: 'active', created_by: 'user:hayang', version: 1, created_at: '2026-05-21T01:00:00Z', updated_at: '2026-05-21T01:00:00Z' },
+        ],
+      })),
       http.post('*/api/orgs/:slug/access/batch/preview', async ({ request }) => {
         previewBody = (await request.json()) as PreviewRequestBody;
         return HttpResponse.json({
@@ -553,23 +559,39 @@ describe('Access page', () => {
 
     addGrantEntry(drawer, 'permission-capability-issue-read', 'project:proj-a');
     addGrantEntry(drawer, 'permission-capability-issue-read', 'issue:issue-42');
+    expect(within(drawer).getByTestId('access-picker-scope-permission-capability-issue-read')).toHaveTextContent('Specific issue');
     fireEvent.click(within(drawer).getByTestId('access-picker-scope-permission-capability-issue-read'));
     const scopePicker = await screen.findByTestId('access-scope-picker');
+    const orgGroup = within(scopePicker).getByTestId('access-scope-picker-group-org');
+    expect(orgGroup).toHaveTextContent('Test Org');
+    expect(orgGroup).toHaveTextContent('All issues in all projects');
+    const projectGroup = within(scopePicker).getByTestId('access-scope-picker-group-project');
+    expect(projectGroup).toHaveTextContent('Project Alpha');
+    expect(projectGroup).toHaveTextContent('Project Beta');
+    expect(projectGroup).toHaveTextContent('All issues in this project');
+    expect(projectGroup).toHaveTextContent('Issue 42');
     expect(within(scopePicker).getByTestId('access-scope-picker-specific')).toHaveTextContent('Specific issue');
+    expect(within(scopePicker).queryByTestId('access-scope-picker-specific-kind')).not.toBeInTheDocument();
+    expect(within(scopePicker).queryByTestId('access-scope-picker-group-issue')).not.toBeInTheDocument();
     expect(within(scopePicker).queryByText('org:org-test')).not.toBeInTheDocument();
-    expect(
-      within(scopePicker).getByTestId('access-scope-picker-group-project').compareDocumentPosition(within(scopePicker).getByTestId('access-scope-picker-group-issue')) &
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
     fireEvent.change(within(scopePicker).getByTestId('access-scope-picker-specific-id'), { target: { value: 'issue-99' } });
     fireEvent.click(within(scopePicker).getByTestId('access-scope-picker-specific-add'));
     addGrantEntry(drawer, 'permission-capability-issue-read');
+    fireEvent.click(within(drawer).getByTestId('access-picker-scope-permission-capability-issue-read'));
+    const orgScopePicker = await screen.findByTestId('access-scope-picker');
+    fireEvent.click(within(orgScopePicker).getByTestId('access-scope-picker-option-org-org-test'));
+    addGrantEntry(drawer, 'permission-capability-issue-read');
+    fireEvent.click(within(drawer).getByTestId('access-picker-scope-permission-direct-project-read-project'));
+    const projectScopePicker = await screen.findByTestId('access-scope-picker');
+    expect(within(projectScopePicker).getByTestId('access-scope-picker-group-org')).toHaveTextContent('All projects in this organization');
+    fireEvent.click(within(projectScopePicker).getByRole('button', { name: 'Close scope picker' }));
     const grantList = within(drawer).getByTestId('access-grant-list');
     expect(grantList).toHaveTextContent('Issue · Project · Read');
     expect(grantList).toHaveTextContent('Issue · This issue · Read');
     expect(grantList).toHaveTextContent('project.read');
     expect(grantList).toHaveTextContent('issue.read');
     expect(grantList).toHaveTextContent('Issue issue-99');
+    expect(grantList).toHaveTextContent('Project Beta');
     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'grant project-scoped plan read' } });
     fireEvent.click(within(drawer).getByTestId('access-run-preview'));
 
@@ -579,12 +601,15 @@ describe('Access page', () => {
       { permission_key: 'project.read', resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' } },
       { permission_key: 'issue.read', resource: { kind: 'issue', id: 'issue-42', org_id: 'org-test', project_id: 'proj-a', label: 'Issue 42' } },
       { permission_key: 'issue.read', resource: { kind: 'issue', id: 'issue-99', org_id: 'org-test', project_id: 'proj-a', label: 'Issue issue-99' } },
+      { permission_key: 'project.read', resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' } },
+      { permission_key: 'project.read', resource: { kind: 'project', id: 'proj-b', org_id: 'org-test', project_id: 'proj-b', label: 'Project Beta' } },
     ]);
     expect(capturedPreviewBody?.permission_keys).toEqual(['project.read', 'issue.read']);
     expect(capturedPreviewBody?.resources).toEqual([
       { kind: 'project', id: 'proj-a', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' },
       { kind: 'issue', id: 'issue-42', org_id: 'org-test', project_id: 'proj-a', label: 'Issue 42' },
       { kind: 'issue', id: 'issue-99', org_id: 'org-test', project_id: 'proj-a', label: 'Issue issue-99' },
+      { kind: 'project', id: 'proj-b', org_id: 'org-test', project_id: 'proj-b', label: 'Project Beta' },
     ]);
   });
 
