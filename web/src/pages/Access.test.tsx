@@ -483,8 +483,12 @@ describe('Access page', () => {
     expect(within(drawer).getByTestId('access-preview-disabled-reason')).toHaveTextContent('Select at least one subject');
   });
 
-  it('models direct grants as resource, scope, and action templates', async () => {
-    type PreviewRequestBody = { permission_keys?: string[]; resources?: Array<{ kind: string; id: string; org_id?: string; label?: string }> };
+  it('models direct grants as one permission with scope-specific backing keys', async () => {
+    type PreviewRequestBody = {
+      permission_keys?: string[];
+      resources?: Array<{ kind: string; id: string; org_id?: string; label?: string }>;
+      entries?: Array<{ permission_key?: string; resource?: { kind: string; id: string; org_id?: string; label?: string } }>;
+    };
     let previewBody: PreviewRequestBody | null = null;
     server.use(
       http.get('*/api/orgs/:slug/access/overview', () => HttpResponse.json({
@@ -495,9 +499,13 @@ describe('Access page', () => {
         roles: [],
         catalog: [
           { key: 'project.read', label: 'Read project', description: 'Read project work and project metadata.', resource_kinds: ['project'], actions: ['read'], risk: 'low', category: 'access', legacy_sources: ['project_member'] },
+          { key: 'issue.read', label: 'Read issue', description: 'Read issue details.', resource_kinds: ['issue'], actions: ['read'], risk: 'low', category: 'access', legacy_sources: [] },
+          { key: 'task.read', label: 'Read task', description: 'Read task details.', resource_kinds: ['task'], actions: ['read'], risk: 'low', category: 'access', legacy_sources: [] },
+          { key: 'plan.read', label: 'Read plan', description: 'Read plan details.', resource_kinds: ['plan'], actions: ['read'], risk: 'low', category: 'access', legacy_sources: [] },
         ],
         decisions: [
           { allowed: true, subject_ref: 'agent:builder', permission: 'project.read', resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' }, source: 'project_member', reason: 'project membership derives project.read', evidence_ref: 'pm_project_members:pmem-1', status: 'allowed', risk: 'low' },
+          { allowed: true, subject_ref: 'agent:builder', permission: 'issue.read', resource: { kind: 'issue', id: 'issue-42', org_id: 'org-test', project_id: 'proj-a', label: 'Issue 42' }, source: 'custom_role', reason: 'direct issue read', evidence_ref: 'authorization_role_assignments:grant-issue-1', status: 'allowed', risk: 'low' },
         ],
         grants: [],
         summary: { allowed: 1, high_risk: 0, expiring: 0, denied: 0, not_applicable: 0 },
@@ -528,17 +536,33 @@ describe('Access page', () => {
     fireEvent.click(screen.getByTestId('access-open-batch'));
     const drawer = await screen.findByTestId('access-batch-drawer');
 
-    addGrantEntry(drawer, 'permission-derived-project-read-plan-project', 'project:proj-a');
+    const picker = within(drawer).getByTestId('access-permission-picker');
+    expect(within(picker).getByText('Issue · Project or issue · Read')).toBeInTheDocument();
+    expect(within(picker).getByText('Task · Project or task · Read')).toBeInTheDocument();
+    expect(within(picker).getByText('Plan · Project or plan · Read')).toBeInTheDocument();
+    expect(within(picker).queryByText('Issue · This issue · Read')).not.toBeInTheDocument();
+
+    addGrantEntry(drawer, 'permission-capability-issue-read', 'project:proj-a');
+    addGrantEntry(drawer, 'permission-capability-issue-read', 'issue:issue-42');
     const grantList = within(drawer).getByTestId('access-grant-list');
-    expect(grantList).toHaveTextContent('Plan · Project · Read');
+    expect(grantList).toHaveTextContent('Issue · Project · Read');
+    expect(grantList).toHaveTextContent('Issue · This issue · Read');
     expect(grantList).toHaveTextContent('project.read');
+    expect(grantList).toHaveTextContent('issue.read');
     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'grant project-scoped plan read' } });
     fireEvent.click(within(drawer).getByTestId('access-run-preview'));
 
     await within(drawer).findByTestId('access-preview-summary');
     const capturedPreviewBody = previewBody as PreviewRequestBody | null;
-    expect(capturedPreviewBody?.permission_keys).toEqual(['project.read']);
-    expect(capturedPreviewBody?.resources).toEqual([{ kind: 'project', id: 'proj-a', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' }]);
+    expect(capturedPreviewBody?.entries).toEqual([
+      { permission_key: 'project.read', resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' } },
+      { permission_key: 'issue.read', resource: { kind: 'issue', id: 'issue-42', org_id: 'org-test', project_id: 'proj-a', label: 'Issue 42' } },
+    ]);
+    expect(capturedPreviewBody?.permission_keys).toEqual(['project.read', 'issue.read']);
+    expect(capturedPreviewBody?.resources).toEqual([
+      { kind: 'project', id: 'proj-a', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' },
+      { kind: 'issue', id: 'issue-42', org_id: 'org-test', project_id: 'proj-a', label: 'Issue 42' },
+    ]);
   });
 
   it('keeps the selected subject context and surfaces a 409 apply conflict as a toast', async () => {

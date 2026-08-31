@@ -73,7 +73,9 @@ type DirectGrantTemplate = {
   scope: string;
   action: string;
   permissionKey: string;
+  permissionKeyByResourceKind?: Partial<Record<AccessResourceKind, string>>;
   backendResourceKind: AccessResourceKind;
+  compatibleKinds?: AccessResourceKind[];
   description: string;
   risk: AccessRisk;
 };
@@ -199,10 +201,11 @@ function enrichAccessResourceLabel(
   }
   const projectID = projectIDForAccessResource(resource);
   if (projectID) {
+    const projectName = context.projectNameByID.get(projectID);
     return {
       ...resource,
       project_id: resource.project_id || projectID,
-      label: context.projectNameByID.get(projectID) || resource.label,
+      label: resource.kind === 'project' ? (projectName || resource.label) : (resource.label || projectName),
     };
   }
   if (resource.kind === 'team') {
@@ -249,6 +252,12 @@ function buildDirectGrantTemplates(permissions: AccessPermissionDefinition[]): D
   };
 
   for (const permission of permissions) {
+    const workItem = workItemPermissionTemplate(permission);
+    if (workItem) {
+      addTemplate(workItem);
+      continue;
+    }
+
     const semantic = semanticPermissionFromDefinition(permission);
     for (const kind of permission.resource_kinds) {
       addTemplate({
@@ -262,25 +271,33 @@ function buildDirectGrantTemplates(permissions: AccessPermissionDefinition[]): D
         risk: permission.risk,
       });
     }
-
-    if (permission.key === 'project.read') {
-      const action = 'Read';
-      for (const resource of ['Plan', 'Task', 'Issue'] as const) {
-        addTemplate({
-          id: `derived:${permission.key}:${resource.toLowerCase()}:project`,
-          resource,
-          scope: 'Project',
-          action,
-          permissionKey: permission.key,
-          backendResourceKind: 'project',
-          description: `${action} ${resource.toLowerCase()} items under the selected project. Compiles to ${permission.key}.`,
-          risk: permission.risk,
-        });
-      }
-    }
   }
 
   return templates.sort((a, b) => `${a.resource}:${a.scope}:${a.action}`.localeCompare(`${b.resource}:${b.scope}:${b.action}`));
+}
+
+function workItemPermissionTemplate(permission: AccessPermissionDefinition): DirectGrantTemplate | null {
+  const [kind, rawAction] = permission.key.split('.');
+  if (!['task', 'issue', 'plan'].includes(kind) || !['read', 'write'].includes(rawAction ?? '')) return null;
+  const resourceKind = kind as Extract<AccessResourceKind, 'task' | 'issue' | 'plan'>;
+  const action = rawAction === 'write' ? 'Write' : 'Read';
+  const resource = accessResourceKindLabel(resourceKind);
+  const projectPermissionKey = rawAction === 'write' ? 'project.write' : 'project.read';
+  return {
+    id: `capability:${resourceKind}:${rawAction}`,
+    resource,
+    scope: `Project or ${resource.toLowerCase()}`,
+    action,
+    permissionKey: permission.key,
+    permissionKeyByResourceKind: {
+      project: projectPermissionKey,
+      [resourceKind]: permission.key,
+    },
+    backendResourceKind: resourceKind,
+    compatibleKinds: ['project', resourceKind],
+    description: `${action} ${resource.toLowerCase()} items in a selected project or on a selected ${resource.toLowerCase()}.`,
+    risk: permission.risk,
+  };
 }
 
 function accessResourceKindLabel(kind: string): string {
@@ -325,6 +342,21 @@ function roleTemplateDetail(role: AccessRole): string {
 
 function directTemplateLabel(template: DirectGrantTemplate): string {
   return `${template.resource} · ${template.scope} · ${template.action}`;
+}
+
+function templateCompatibleKinds(template: DirectGrantTemplate): AccessResourceKind[] {
+  return template.compatibleKinds ?? [template.backendResourceKind];
+}
+
+function permissionKeyForTemplateResource(template: DirectGrantTemplate, resource: AccessResourceScope): string {
+  return template.permissionKeyByResourceKind?.[resource.kind] ?? template.permissionKey;
+}
+
+function directTemplateLabelForResource(template: DirectGrantTemplate, resource?: AccessResourceScope): string {
+  const scope = resource && template.compatibleKinds?.includes(resource.kind)
+    ? (resource.kind === 'project' ? 'Project' : `This ${accessResourceKindLabel(resource.kind).toLowerCase()}`)
+    : template.scope;
+  return `${template.resource} · ${scope} · ${template.action}`;
 }
 
 function semanticPermissionFromDefinition(permission: AccessPermissionDefinition): SemanticPermission {
@@ -1973,7 +2005,8 @@ function BatchGrantDrawer({
       }];
     }),
     ...directTemplates.flatMap((template) => {
-      if (!canGrantToKinds([template.backendResourceKind])) return [];
+      const compatibleKinds = templateCompatibleKinds(template);
+      if (!canGrantToKinds(compatibleKinds)) return [];
       return [{
       id: `permission:${template.id}`,
       kind: 'permission' as const,
@@ -1985,7 +2018,7 @@ function BatchGrantDrawer({
       detail: template.description,
       risk: template.risk,
       template,
-      compatibleKinds: [template.backendResourceKind],
+      compatibleKinds,
       }];
     }),
   ], [assignableRoles, directTemplates, grantableResourceKinds, permissions, resources.length]);
@@ -2123,7 +2156,7 @@ function BatchGrantDrawer({
         kind: row.kind,
         roleId: row.kind === 'role' ? row.role?.id : undefined,
         roleName: row.kind === 'role' ? row.role?.name : undefined,
-        permissionKey: row.kind === 'permission' ? row.template?.permissionKey : undefined,
+        permissionKey: row.kind === 'permission' && row.template ? permissionKeyForTemplateResource(row.template, resource) : undefined,
         template: row.kind === 'permission' ? row.template : undefined,
         resource,
         risk: row.risk,
@@ -2367,7 +2400,7 @@ function BatchGrantDrawer({
                           <tr key={entry.id} className="border-b border-border-base last:border-0" data-testid={`access-grant-entry-${accessTestIDToken(entry.id)}`}>
                             <td className="px-3 py-2"><input type="checkbox" checked={selectedGrantIDs.includes(entry.id)} onChange={() => setSelectedGrantIDs((prev) => toggleValue(prev, entry.id))} data-testid="access-grant-entry-select" /></td>
                             <td className="px-3 py-2">{entry.kind === 'role' ? 'Role template' : entry.template?.resource}</td>
-                            <td className="px-3 py-2"><div className="font-medium">{entry.kind === 'role' ? entry.roleName : directTemplateLabel(entry.template!)}</div><div className="font-mono text-xs text-text-muted">{entry.roleId ?? entry.permissionKey}</div></td>
+                            <td className="px-3 py-2"><div className="font-medium">{entry.kind === 'role' ? entry.roleName : directTemplateLabelForResource(entry.template!, entry.resource)}</div><div className="font-mono text-xs text-text-muted">{entry.roleId ?? entry.permissionKey}</div></td>
                             <td className="px-3 py-2">{accessResourceLabel(entry.resource)}</td>
                             <td className="px-3 py-2"><AccessRiskBadge risk={entry.risk} /></td>
                           </tr>
