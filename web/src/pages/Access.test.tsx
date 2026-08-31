@@ -447,7 +447,66 @@ describe('Access page', () => {
     expect(within(drawer).getByTestId('access-preview-disabled-reason')).toHaveTextContent('Select at least one subject');
 
     fireEvent.click(within(drawer).getByRole('button', { name: /Builder/ }));
-    expect(within(drawer).getByTestId('access-preview-disabled-reason')).toHaveTextContent('Select at least one RAM Role or direct permission');
+    expect(within(drawer).getByTestId('access-preview-disabled-reason')).toHaveTextContent('Select at least one role template or direct permission');
+  });
+
+  it('models direct grants as resource, scope, and action templates', async () => {
+    type PreviewRequestBody = { permission_keys?: string[]; resources?: Array<{ kind: string; id: string; org_id?: string; label?: string }> };
+    let previewBody: PreviewRequestBody | null = null;
+    server.use(
+      http.get('*/api/orgs/:slug/access/overview', () => HttpResponse.json({
+        generated_at: '2026-08-31T00:00:00Z',
+        subjects: [
+          { ref: 'agent:builder', kind: 'agent', name: 'Builder', role: 'member', status: 'joined', team_names: [] },
+        ],
+        roles: [],
+        catalog: [
+          { key: 'project.read', label: 'Read project', description: 'Read project work and project metadata.', resource_kinds: ['project'], actions: ['read'], risk: 'low', category: 'access', legacy_sources: ['project_member'] },
+        ],
+        decisions: [
+          { allowed: true, subject_ref: 'agent:builder', permission: 'project.read', resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' }, source: 'project_member', reason: 'project membership derives project.read', evidence_ref: 'pm_project_members:pmem-1', status: 'allowed', risk: 'low' },
+        ],
+        grants: [],
+        summary: { allowed: 1, high_risk: 0, expiring: 0, denied: 0, not_applicable: 0 },
+      })),
+      http.post('*/api/orgs/:slug/access/batch/preview', async ({ request }) => {
+        previewBody = (await request.json()) as PreviewRequestBody;
+        return HttpResponse.json({
+          request_id: 'preview-rsa',
+          expires_at: null,
+          items: [{
+            id: 'item-1',
+            subject_ref: 'agent:builder',
+            subject_name: 'Builder',
+            permission: 'project.read',
+            resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' },
+            status: 'allowed',
+            risk: 'low',
+            high_risk: false,
+            reason: 'grant can be applied by unified authorization API',
+          }],
+          summary: { total: 1, grantable: 1, high_risk: 0, unauthorized: 0, not_applicable: 0 },
+        });
+      }),
+    );
+
+    renderPage('/organizations/test/access/subject-access');
+    await screen.findByTestId('access-subject-view');
+    fireEvent.click(screen.getByTestId('access-open-direct-binding'));
+    const drawer = await screen.findByTestId('access-batch-drawer');
+
+    fireEvent.click(within(drawer).getByRole('button', { name: /Plan · Project · Read/ }));
+    const composition = within(drawer).getByTestId('access-grant-composition');
+    expect(composition).toHaveTextContent('Resource Plan · Scope Project · Action Read');
+    expect(composition).toHaveTextContent('compiles to project.read');
+    fireEvent.click(within(drawer).getByRole('button', { name: /Project Alpha/ }));
+    fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'grant project-scoped plan read' } });
+    fireEvent.click(within(drawer).getByTestId('access-run-preview'));
+
+    await within(drawer).findByTestId('access-preview-summary');
+    const capturedPreviewBody = previewBody as PreviewRequestBody | null;
+    expect(capturedPreviewBody?.permission_keys).toEqual(['project.read']);
+    expect(capturedPreviewBody?.resources).toEqual([{ kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' }]);
   });
 
   it('keeps the selected subject context and surfaces a 409 apply conflict as a toast', async () => {

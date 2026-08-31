@@ -9,6 +9,7 @@ import {
   type AccessDecision,
   type AccessGrant,
   type AccessRole,
+  type AccessResourceKind,
   type RAMRole,
   type RAMRoleDetail,
   type AccessPermissionDefinition,
@@ -64,6 +65,16 @@ import {
 export type AccessPage = 'ram-roles' | 'subject-access';
 type AccessToast = { tone: 'success' | 'danger' | 'warning'; message: string } | null;
 type SelectOption = string | { value: string; label: string };
+type DirectGrantTemplate = {
+  id: string;
+  resource: string;
+  scope: string;
+  action: string;
+  permissionKey: string;
+  backendResourceKind: AccessResourceKind;
+  description: string;
+  risk: AccessRisk;
+};
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
@@ -111,6 +122,15 @@ function filterResourcesForRoles(resources: AccessResourceScope[], selectedRoles
   return resources.filter((resource) => resourceCompatibleWithRoles(resource, selectedRoles));
 }
 
+function resourceCompatibleWithGrantTemplates(resource: AccessResourceScope, selectedTemplates: DirectGrantTemplate[]): boolean {
+  return selectedTemplates.length === 0 || selectedTemplates.some((template) => template.backendResourceKind === resource.kind);
+}
+
+function filterResourcesForGrantTemplates(resources: AccessResourceScope[], selectedTemplates: DirectGrantTemplate[]): AccessResourceScope[] {
+  if (selectedTemplates.length === 0) return resources;
+  return resources.filter((resource) => resourceCompatibleWithGrantTemplates(resource, selectedTemplates));
+}
+
 function uniqueResources(decisions: AccessDecision[], grants: AccessGrant[]): AccessResourceScope[] {
   const byKey = new Map<string, AccessResourceScope>();
   for (const d of decisions) byKey.set(accessResourceKey(d.resource), d.resource);
@@ -129,6 +149,82 @@ function ramRoleScope(role: AccessRole): string {
 
 function assignableRAMRoles(roles: AccessRole[]): AccessRole[] {
   return roles.filter((role) => role.source === 'custom_role' || role.id.startsWith('sys-'));
+}
+
+function buildDirectGrantTemplates(permissions: AccessPermissionDefinition[]): DirectGrantTemplate[] {
+  const templates: DirectGrantTemplate[] = [];
+  const seen = new Set<string>();
+  const addTemplate = (template: DirectGrantTemplate): void => {
+    if (seen.has(template.id)) return;
+    seen.add(template.id);
+    templates.push(template);
+  };
+
+  for (const permission of permissions) {
+    for (const kind of permission.resource_kinds) {
+      addTemplate({
+        id: `direct:${permission.key}:${kind}`,
+        resource: accessResourceKindLabel(kind),
+        scope: `This ${accessResourceKindLabel(kind).toLowerCase()}`,
+        action: accessActionLabel(permission),
+        permissionKey: permission.key,
+        backendResourceKind: kind,
+        description: permission.description || permission.label,
+        risk: permission.risk,
+      });
+    }
+
+    if (permission.key === 'project.read') {
+      const action = 'Read';
+      for (const resource of ['Plan', 'Task', 'Issue'] as const) {
+        addTemplate({
+          id: `derived:${permission.key}:${resource.toLowerCase()}:project`,
+          resource,
+          scope: 'Project',
+          action,
+          permissionKey: permission.key,
+          backendResourceKind: 'project',
+          description: `${action} ${resource.toLowerCase()} items under the selected project. Compiles to ${permission.key}.`,
+          risk: permission.risk,
+        });
+      }
+    }
+  }
+
+  return templates.sort((a, b) => `${a.resource}:${a.scope}:${a.action}`.localeCompare(`${b.resource}:${b.scope}:${b.action}`));
+}
+
+function accessResourceKindLabel(kind: string): string {
+  const labels: Record<string, string> = {
+    org: 'Organization',
+    project: 'Project',
+    team: 'Team',
+    task: 'Task',
+    issue: 'Issue',
+    plan: 'Plan',
+    conversation: 'Conversation',
+    file: 'File',
+    agent: 'Agent',
+    worker: 'Worker',
+    admin_token: 'Admin token',
+  };
+  return labels[kind] ?? kind;
+}
+
+function accessActionLabel(permission: AccessPermissionDefinition): string {
+  const raw = permission.actions[0] || permission.key.split('.').at(-1) || 'use';
+  const normalized = raw === 'update' ? 'write' : raw;
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1).replace(/[_-]/g, ' ');
+}
+
+function roleTemplateDetail(role: AccessRole): string {
+  const scope = ramRoleScope(role);
+  const param = scope === 'mixed' ? 'resource' : accessResourceKindLabel(scope).toLowerCase();
+  return `Template · parameter: ${param} · ${role.permissions.length} permissions`;
+}
+
+function directTemplateLabel(template: DirectGrantTemplate): string {
+  return `${template.resource} · ${template.scope} · ${template.action}`;
 }
 
 export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): React.ReactElement {
@@ -1648,8 +1744,11 @@ function BatchGrantDrawer({
   const [preview, setPreview] = useState<AccessBatchPreview | null>(null);
   const [result, setResult] = useState<AccessBatchResult | null>(null);
   const [highRiskAck, setHighRiskAck] = useState(false);
+  const [directTemplateIDs, setDirectTemplateIDs] = useState<string[]>([]);
   const title = mode === 'direct' ? 'Add direct binding' : 'Batch authorization';
   const assignableRoles = useMemo(() => assignableRAMRoles(roles), [roles]);
+  const directTemplates = useMemo(() => buildDirectGrantTemplates(permissions), [permissions]);
+  const selectedDirectTemplates = selectedDirectGrantTemplates(directTemplates, directTemplateIDs);
   const selectedRoles = selectedRAMRoles(assignableRoles, request.role_ids ?? []);
   const selectedPermissions = selectedPermissionDefinitions(permissions, request.permission_keys);
   const previewMissing = previewDisabledReason(canManageAccess, request);
@@ -1664,14 +1763,20 @@ function BatchGrantDrawer({
   const toggleSubject = (ref: string): void => {
     setRequest((prev) => ({ ...prev, subject_refs: toggleValue(prev.subject_refs, ref) }));
   };
-  const togglePermission = (key: string): void => {
+  const toggleDirectTemplate = (templateID: string): void => {
+    const templateIDs = toggleValue(directTemplateIDs, templateID);
+    const nextTemplates = selectedDirectGrantTemplates(directTemplates, templateIDs);
+    const permissionKeys = [...new Set(nextTemplates.map((template) => template.permissionKey))];
+    setDirectTemplateIDs(templateIDs);
     setRequest((prev) => {
-      const permissionKeys = toggleValue(prev.permission_keys, key);
       const selectedPermissions = selectedPermissionDefinitions(permissions, permissionKeys);
       return {
         ...prev,
         permission_keys: permissionKeys,
-        resources: filterResourcesForRoles(filterResourcesForPermissions(prev.resources, selectedPermissions), selectedRoles),
+        resources: filterResourcesForRoles(
+          filterResourcesForGrantTemplates(filterResourcesForPermissions(prev.resources, selectedPermissions), nextTemplates),
+          selectedRoles,
+        ),
       };
     });
   };
@@ -1682,7 +1787,7 @@ function BatchGrantDrawer({
       return {
         ...prev,
         role_ids: roleIDs,
-        resources: filterResourcesForRoles(prev.resources, nextRoles),
+        resources: filterResourcesForRoles(filterResourcesForGrantTemplates(prev.resources, selectedDirectTemplates), nextRoles),
       };
     });
   };
@@ -1690,7 +1795,12 @@ function BatchGrantDrawer({
     setRequest((prev) => {
       const selectedPermissions = selectedPermissionDefinitions(permissions, prev.permission_keys);
       const selectedRoles = selectedRAMRoles(roles, prev.role_ids ?? []);
-      if (!resourceCompatibleWithPermissions(resource, selectedPermissions) || !resourceCompatibleWithRoles(resource, selectedRoles)) return prev;
+      const selectedTemplates = selectedDirectGrantTemplates(directTemplates, directTemplateIDs);
+      if (
+        !resourceCompatibleWithPermissions(resource, selectedPermissions) ||
+        !resourceCompatibleWithGrantTemplates(resource, selectedTemplates) ||
+        !resourceCompatibleWithRoles(resource, selectedRoles)
+      ) return prev;
       const keys = new Set(prev.resources.map(accessResourceKey));
       const next = keys.has(accessResourceKey(resource))
         ? prev.resources.filter((r) => accessResourceKey(r) !== accessResourceKey(resource))
@@ -1786,7 +1896,7 @@ function BatchGrantDrawer({
                   />
                 ))}
               </Picker>
-              <Picker title="RAM Roles">
+              <Picker title="Role templates">
                 {assignableRoles.map((role) => (
                   <ChoiceRow
                     key={role.id}
@@ -1794,27 +1904,31 @@ function BatchGrantDrawer({
                     disabled={!canManageAccess}
                     onChange={() => toggleRole(role.id)}
                     label={role.name}
-                    detail={`${ramRoleScope(role)} scope · ${role.permissions.length} permissions`}
+                    detail={roleTemplateDetail(role)}
                     badge={<AccessRiskBadge risk={role.high_risk ? 'high' : 'low'} />}
                   />
                 ))}
               </Picker>
-              <Picker title="Permissions">
-                {permissions.map((permission) => (
+              <Picker title="Direct permissions">
+                {directTemplates.map((template) => (
                   <ChoiceRow
-                    key={permission.key}
-                    checked={request.permission_keys.includes(permission.key)}
+                    key={template.id}
+                    checked={directTemplateIDs.includes(template.id)}
                     disabled={!canManageAccess}
-                    onChange={() => togglePermission(permission.key)}
-                    label={permission.key}
-                    detail={`${permission.label} · ${accessRiskLabel(permission.risk)}`}
-                    badge={<AccessRiskBadge risk={permission.risk} />}
+                    onChange={() => toggleDirectTemplate(template.id)}
+                    label={directTemplateLabel(template)}
+                    detail={`Maps to ${template.permissionKey} · ${accessRiskLabel(template.risk)}`}
+                    badge={<AccessRiskBadge risk={template.risk} />}
                   />
                 ))}
               </Picker>
-              <Picker title="Resources">
+              <GrantCompositionPanel roles={selectedRoles} directTemplates={selectedDirectTemplates} resources={request.resources} />
+              <Picker title="Scope / parameters">
                 {resources.map((resource) => {
-                  const compatible = resourceCompatibleWithPermissions(resource, selectedPermissions) && resourceCompatibleWithRoles(resource, selectedRoles);
+                  const compatible =
+                    resourceCompatibleWithPermissions(resource, selectedPermissions) &&
+                    resourceCompatibleWithGrantTemplates(resource, selectedDirectTemplates) &&
+                    resourceCompatibleWithRoles(resource, selectedRoles);
                   return (
                     <ChoiceRow
                       key={accessResourceKey(resource)}
@@ -1822,7 +1936,7 @@ function BatchGrantDrawer({
                       disabled={!canManageAccess || !compatible}
                       onChange={() => toggleResource(resource)}
                       label={accessResourceLabel(resource)}
-                      detail={compatible ? resource.kind : `${resource.kind} - incompatible with selected grant`}
+                      detail={compatible ? `${resource.kind} parameter` : `${resource.kind} - incompatible with selected grant`}
                     />
                   );
                 })}
@@ -1959,11 +2073,19 @@ function selectedRAMRoles(roles: AccessRole[], selectedRoleIDs: string[]): Acces
   });
 }
 
+function selectedDirectGrantTemplates(templates: DirectGrantTemplate[], selectedTemplateIDs: string[]): DirectGrantTemplate[] {
+  const byID = new Map(templates.map((template) => [template.id, template]));
+  return selectedTemplateIDs.flatMap((id) => {
+    const template = byID.get(id);
+    return template ? [template] : [];
+  });
+}
+
 function previewDisabledReason(canManageAccess: boolean, request: AccessBatchRequest): string {
   if (!canManageAccess) return 'Preview unavailable: current subject cannot manage access.';
-  if (request.subject_refs.length === 0) return 'Select at least one subject to preview changes.';
-  if ((request.role_ids?.length ?? 0) === 0 && request.permission_keys.length === 0) return 'Select at least one RAM Role or direct permission.';
-  if (request.resources.length === 0) return 'Select at least one compatible resource.';
+  if (request.subject_refs.length === 0) return 'Select at least one subject.';
+  if ((request.role_ids?.length ?? 0) === 0 && request.permission_keys.length === 0) return 'Select at least one role template or direct permission.';
+  if (request.resources.length === 0) return 'Select at least one scope parameter.';
   if (request.reason.trim().length === 0) return 'Enter a reason before previewing.';
   return 'Ready to preview.';
 }
@@ -2016,6 +2138,48 @@ function ChoiceRow({
       </span>
       {badge}
     </button>
+  );
+}
+
+function GrantCompositionPanel({
+  roles,
+  directTemplates,
+  resources,
+}: {
+  roles: AccessRole[];
+  directTemplates: DirectGrantTemplate[];
+  resources: AccessResourceScope[];
+}): React.ReactElement {
+  if (roles.length === 0 && directTemplates.length === 0) {
+    return (
+      <section className="rounded border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-secondary" data-testid="access-grant-composition">
+        Choose a role template or direct permission, then bind it to one or more scope parameters.
+      </section>
+    );
+  }
+  const scopeText = resources.length > 0 ? resources.map(accessResourceLabel).join(', ') : 'No scope selected';
+  return (
+    <section className="rounded border border-border-base bg-bg-base p-3" data-testid="access-grant-composition">
+      <div className="text-xs font-semibold uppercase text-text-muted">Grant composition</div>
+      <div className="mt-2 grid gap-2 text-sm">
+        {roles.map((role) => (
+          <div key={role.id} className="rounded border border-border-base bg-bg-subtle px-3 py-2">
+            <div className="font-medium text-text-primary">{role.name}</div>
+            <div className="mt-1 text-xs text-text-secondary">
+              Role template · scope parameter: {scopeText} · expands to {role.permissions.join(', ')}
+            </div>
+          </div>
+        ))}
+        {directTemplates.map((template) => (
+          <div key={template.id} className="rounded border border-border-base bg-bg-subtle px-3 py-2">
+            <div className="font-medium text-text-primary">{directTemplateLabel(template)}</div>
+            <div className="mt-1 text-xs text-text-secondary">
+              Resource {template.resource} · Scope {template.scope} · Action {template.action} · compiles to {template.permissionKey} on {scopeText}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
