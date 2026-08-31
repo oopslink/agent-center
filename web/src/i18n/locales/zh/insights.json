@@ -11,6 +11,37 @@
       "title": "Task executions",
       "subtitle": "每行代表一次执行尝试"
     },
+    "agents": {
+      "title": "智能体",
+      "subtitle": "使用 Insight v2 指标契约的组织智能体",
+      "loading": "正在加载 Insight 智能体",
+      "loadingDetail": "正在加载 Insight 智能体详情",
+      "failed": "Insight 智能体加载失败",
+      "failedDetail": "Insight 智能体详情加载失败",
+      "empty": "当前组织没有智能体",
+      "notFound": "当前组织中找不到这个 Insight 智能体",
+      "confidence": "指标置信度",
+      "sampleCount": "样本数",
+      "col": {
+        "agent": "智能体",
+        "health": "健康状态",
+        "executions": "执行",
+        "unknown": "未知",
+        "coverage": "覆盖率"
+      },
+      "metric": {
+        "executions": "执行",
+        "openIssues": "开放 Issue",
+        "blockedTasks": "阻塞任务",
+        "activePlans": "活跃 Plan"
+      },
+      "health": {
+        "healthy": "健康",
+        "elevated": "升高",
+        "degraded": "降级",
+        "unknown": "未知"
+      }
+    },
     "detail": {
       "title": "TaskExecution 详情",
       "timeline": "执行时间线",

@@ -111,6 +111,38 @@ export interface InsightExecutionFilters {
   limit?: number;
 }
 
+export interface InsightV2Meta {
+  metric_version: 'insight.metrics.v2';
+  sample_count: number;
+  coverage: number | null;
+  freshness: InsightFreshness;
+  unknown_count: number;
+  known: boolean;
+}
+
+export interface InsightV2Health {
+  status: 'healthy' | 'elevated' | 'degraded' | 'unknown' | string;
+  reason_codes: string[];
+  evidence: Array<Record<string, unknown>>;
+}
+
+export interface InsightV2CountMetric {
+  value: number | null;
+  meta: InsightV2Meta;
+}
+
+export interface InsightV2AgentSummary {
+  id: string;
+  name: string | null;
+  health: InsightV2Health;
+  execution_count: InsightV2CountMetric;
+  failure_rate: number | null;
+  open_issues: InsightV2CountMetric;
+  blocked_tasks: InsightV2CountMetric;
+  active_plans: InsightV2CountMetric;
+  reason_codes: string[];
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null;
 }
@@ -277,6 +309,53 @@ function normalizeExecutionDetail(value: unknown): InsightExecutionDetail {
   };
 }
 
+function normalizeV2Meta(value: unknown): InsightV2Meta {
+  const source = isRecord(value) ? value : {};
+  return {
+    metric_version: 'insight.metrics.v2',
+    sample_count: numberOrZero(source.sample_count),
+    coverage: numberOrNull(source.coverage),
+    freshness: normalizeFreshness(source.freshness),
+    unknown_count: numberOrZero(source.unknown_count),
+    known: typeof source.known === 'boolean' ? source.known : false,
+  };
+}
+
+function normalizeV2Health(value: unknown): InsightV2Health {
+  const source = isRecord(value) ? value : {};
+  const status = stringOrEmpty(source.status) || 'unknown';
+  const reasonCodes = Array.isArray(source.reason_codes) ? source.reason_codes.filter((v): v is string => typeof v === 'string') : [];
+  return {
+    status,
+    reason_codes: reasonCodes,
+    evidence: Array.isArray(source.evidence) ? source.evidence.filter(isRecord) : [],
+  };
+}
+
+function normalizeV2CountMetric(value: unknown): InsightV2CountMetric {
+  const source = isRecord(value) ? value : {};
+  return {
+    value: numberOrNull(source.value),
+    meta: normalizeV2Meta(source.meta),
+  };
+}
+
+function normalizeV2Agent(value: unknown): InsightV2AgentSummary {
+  const source = isRecord(value) ? value : {};
+  const health = normalizeV2Health(source.health);
+  return {
+    id: stringOrEmpty(source.id) || 'unknown',
+    name: stringOrNull(source.name),
+    health,
+    execution_count: normalizeV2CountMetric(source.execution_count),
+    failure_rate: numberOrNull(source.failure_rate),
+    open_issues: normalizeV2CountMetric(source.open_issues),
+    blocked_tasks: normalizeV2CountMetric(source.blocked_tasks),
+    active_plans: normalizeV2CountMetric(source.active_plans),
+    reason_codes: Array.isArray(source.reason_codes) ? source.reason_codes.filter((v): v is string => typeof v === 'string') : health.reason_codes,
+  };
+}
+
 function executionParams(filters: InsightExecutionFilters = {}): string {
   const params = new URLSearchParams({ window: '24h' });
   if (filters.agent_ref) params.set('agent_ref', filters.agent_ref);
@@ -306,5 +385,20 @@ export function useInsightExecution(executionId: string | undefined) {
     queryKey: qk.insightExecution(executionId ?? ''),
     queryFn: async () => normalizeExecutionDetail(await api.get<unknown>(`/insights/executions/${encodeURIComponent(executionId ?? '')}?window=24h`)),
     enabled: Boolean(executionId),
+  });
+}
+
+export function useInsightAgents() {
+  return useQuery({
+    queryKey: qk.insightAgents(),
+    queryFn: async () => arrayOrEmpty(await api.get<unknown[]>('/insights/v2/agents?window=24h')).map(normalizeV2Agent),
+  });
+}
+
+export function useInsightAgent(agentRef: string | undefined) {
+  return useQuery({
+    queryKey: qk.insightAgent(agentRef ?? ''),
+    queryFn: async () => normalizeV2Agent(await api.get<unknown>(`/insights/v2/agents/${encodeURIComponent(agentRef ?? '')}?window=24h`)),
+    enabled: Boolean(agentRef),
   });
 }
