@@ -435,6 +435,9 @@ func TestInsightV2DeliveryEvolutionAndLineage(t *testing.T) {
 		if b.Count.Value != nil {
 			kinds[b.Kind] = *b.Count.Value
 		}
+		if b.Drilldown["project_id"] != "project-1" || b.Drilldown["break_kind"] != b.Kind || len(b.Drilldown) != 2 {
+			t.Fatalf("break %s drilldown = %+v, want exact backend filter", b.Kind, b.Drilldown)
+		}
 	}
 	for _, k := range V2DeliveryBreakKinds {
 		if _, ok := kinds[k]; !ok {
@@ -448,8 +451,14 @@ func TestInsightV2DeliveryEvolutionAndLineage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if evo.Evolution["generation_count"].(int64) != 2 || evo.Evolution["evolved_plans"].(int64) != 1 {
+	if evo.Evolution.GenerationCount != 2 || evo.Evolution.EvolvedPlans != 1 || evo.Evolution.ReworkCount != 1 || evo.Evolution.RecoveryAttempts != 1 || evo.Evolution.MaxLoopDepth != 1 || evo.Evolution.StaleOrphanResidue != 1 {
 		t.Fatalf("evolution = %+v", evo.Evolution)
+	}
+	if evo.Evolution.EvolutionRate == nil || *evo.Evolution.EvolutionRate != 1 || evo.Evolution.ReworkRatio == nil || *evo.Evolution.ReworkRatio != 0.5 {
+		t.Fatalf("evolution ratios = %+v", evo.Evolution)
+	}
+	if evo.Evolution.AnomalyDrilldowns.Rework["project_id"] != "project-1" || evo.Evolution.AnomalyDrilldowns.Recovery["anomaly_kind"] != "recovery" || evo.Evolution.AnomalyDrilldowns.LoopDepth["metric"] != "max_loop_depth" || evo.Evolution.AnomalyDrilldowns.Residue["anomaly_kind"] != "residue" {
+		t.Fatalf("evolution drilldowns = %+v", evo.Evolution.AnomalyDrilldowns)
 	}
 	lineage, err := svc.V2PlanLineage(ctx, "org-1", "project-1", "plan-done", asOf)
 	if err != nil {
