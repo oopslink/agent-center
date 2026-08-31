@@ -1,0 +1,42 @@
+=== RUN   TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild
+--- PASS: TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild (0.23s)
+=== RUN   TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild
+--- PASS: TestInsightFreshness_ProductionCheckpointFreshStaleAndRebuild (0.15s)
+=== RUN   TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap
+--- PASS: TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap (0.12s)
+=== RUN   TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval
+--- PASS: TestInsightSlotObservation_AdmissionCapOnlyChangeClosesCapacityInterval (0.11s)
+=== RUN   TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail
+--- PASS: TestInsightSlotObservation_HeartbeatTTLExcludesUnknownTail (0.11s)
+=== RUN   TestInsightInvalidTimeOrder
+--- PASS: TestInsightInvalidTimeOrder (0.11s)
+=== RUN   TestInsightExecutionExplanationFieldsAndWindowGate
+--- PASS: TestInsightExecutionExplanationFieldsAndWindowGate (0.11s)
+=== RUN   TestInsightLeaderboardUsesTerminalOutcomeSet
+--- PASS: TestInsightLeaderboardUsesTerminalOutcomeSet (0.11s)
+=== RUN   TestInsightV2DeliveryEvolutionAndLineage
+--- PASS: TestInsightV2DeliveryEvolutionAndLineage (0.10s)
+=== RUN   TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow
+--- PASS: TestInsightExecutionsCursorDoesNotSkipLimitPlusOneRow (0.11s)
+=== RUN   TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce
+--- PASS: TestInsightPreCommitCrashReplaysAndAppliesExactlyOnce (0.12s)
+=== RUN   TestInsightPostCommitCrashRestartDoesNotDuplicate
+--- PASS: TestInsightPostCommitCrashRestartDoesNotDuplicate (0.12s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/insight	2.179s
+=== RUN   TestInsightsOverviewAPI_WindowValidationAndShape
+--- PASS: TestInsightsOverviewAPI_WindowValidationAndShape (0.15s)
+=== RUN   TestInsightsHTTPReadDoesNotTriggerProjection
+--- PASS: TestInsightsHTTPReadDoesNotTriggerProjection (0.13s)
+=== RUN   TestInsightsAPIUnavailableReturnsFreshnessEnvelope
+--- PASS: TestInsightsAPIUnavailableReturnsFreshnessEnvelope (0.11s)
+=== RUN   TestInsightsV2ExecutionsRequiresContext
+--- PASS: TestInsightsV2ExecutionsRequiresContext (0.11s)
+=== RUN   TestInsightsV2OverviewRouteShape
+--- PASS: TestInsightsV2OverviewRouteShape (0.12s)
+=== RUN   TestInsightsExecutionAPI_ReadsSingleProjectedExecution
+--- PASS: TestInsightsExecutionAPI_ReadsSingleProjectedExecution (0.13s)
+=== RUN   TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound
+--- PASS: TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound (0.12s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	1.537s

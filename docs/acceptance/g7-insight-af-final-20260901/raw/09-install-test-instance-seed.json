@@ -1,0 +1,28 @@
+{
+  "id": "g7-insight-af-final",
+  "prefix": "/Users/oopslink/.agent-center-test/g7-insight-af-final",
+  "web_url": "http://127.0.0.1:56892",
+  "server_port": 56893,
+  "admin_port": 56894,
+  "admin_bootstrap_token": "<redacted-admin-bootstrap-token>",
+  "workers": [
+    {
+      "id": "test-g7-insight-af-final-w1",
+      "prefix": "/Users/oopslink/.agent-center-test/g7-insight-af-final/worker-1"
+    }
+  ],
+  "web_login": "seeded ✓ — sign in at web_url with the credentials in `signin`",
+  "entity_ids": "seeded ✓ — see `entity_refs` (org/project/channel)",
+  "workers_note": "workers are workforce-enrolled (token exchanged) + running, but NOT org-enrolled yet — control-connect 409s until a tenant org is seeded (--with-seed, #257)",
+  "signin": {
+    "org_slug": "org-67eba184",
+    "display_name": "Owner g7-insight-af-final",
+    "email": "<redacted-seeded-owner-email>",
+    "passcode": "<redacted-seeded-passcode>"
+  },
+  "entity_refs": {
+    "org_id": "organization-2bdefd27",
+    "project_id": "project-360a6a8f",
+    "channel_id": "channel-2ce51e0e"
+  }
+}

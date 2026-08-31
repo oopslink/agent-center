@@ -1,0 +1,123 @@
+{
+  "schema": "agent-center.acceptance.verdict.v1",
+  "task": "G7 origin/main Insight A-F final verification",
+  "executor_branch": "ac-evidence/g7-insight-af-final-20260901",
+  "fresh_fetch": {
+    "command": "git fetch origin main --prune",
+    "fetched_main_sha": "fddd073cd4208825086fc62d11fb6ba5a4d4655f",
+    "stale_origin_main_sha_observed": "ad7959c60ea0d3004c44d65cfbe2c93de34c9406",
+    "note": "remote.origin.fetch is +refs/*:refs/*; fresh fetch updated local main and FETCH_HEAD while refs/remotes/origin/main remained stale"
+  },
+  "candidate": {
+    "sha": "fddd073cd4208825086fc62d11fb6ba5a4d4655f",
+    "base_description": "fresh fetched main after G7/G6 acceptance evidence merge",
+    "predecessor_ancestor": {
+      "sha": "ad7959c60ea0d3004c44d65cfbe2c93de34c9406",
+      "is_ancestor": true
+    }
+  },
+  "isolated_instance": {
+    "id": "g7-insight-af-final",
+    "prefix": "/Users/oopslink/.agent-center-test/g7-insight-af-final",
+    "web_url": "http://127.0.0.1:56892",
+    "server_port": 56893,
+    "admin_port": 56894,
+    "seeded_org_slug": "org-67eba184",
+    "seeded_org_id": "organization-2bdefd27",
+    "seeded_project_id": "project-360a6a8f",
+    "startup_command": "./bin/agent-center install test-instance --id g7-insight-af-final --with-seed --workers 1 --output=json",
+    "full_agent_attempt": {
+      "command": "./bin/agent-center install test-instance --id g7-insight-af-final --with-agent --workers 1 --output=json",
+      "status": "failed",
+      "failure": "create agent returned runtime_model_not_found for model claude-opus-4-8"
+    }
+  },
+  "checks": [
+    {
+      "id": "A",
+      "name": "SQLite to projector to aggregate read model",
+      "status": "pass",
+      "evidence": [
+        "raw/01-go-insight-targeted.log",
+        "raw/16-go-insight-race.log"
+      ],
+      "observed": "migrated SQLite fixtures refresh into DuckDB; idempotent replay, late events, rebuild parity, quantiles and invalid diagnostics passed"
+    },
+    {
+      "id": "B",
+      "name": "HTTP Insight routes",
+      "status": "pass",
+      "evidence": [
+        "raw/01-go-insight-targeted.log",
+        "raw/10-live-http-insights.log"
+      ],
+      "observed": "authenticated live instance returned fresh /insights/overview, /insights/executions, /insights/v2/overview and /insights/v2/projects envelopes"
+    },
+    {
+      "id": "C",
+      "name": "UI overview and drilldown links",
+      "status": "pass",
+      "evidence": [
+        "raw/04-web-insight-vitest-rerun.log",
+        "raw/15-browser-insight-body.log"
+      ],
+      "observed": "SPA renders Insight overview and View all executions link on live instance; component test verifies agent/project drilldown hrefs"
+    },
+    {
+      "id": "D",
+      "name": "State matrix and enum presentation",
+      "status": "pass",
+      "evidence": [
+        "raw/04-web-insight-vitest-rerun.log",
+        "raw/01-go-insight-targeted.log"
+      ],
+      "observed": "coverage null/zero/low/partial/representative states, execution status/recovery/quality mapping, terminal outcome set and unknown enum hiding passed"
+    },
+    {
+      "id": "E",
+      "name": "Execution list/detail drilldowns",
+      "status": "pass",
+      "evidence": [
+        "raw/01-go-insight-targeted.log",
+        "raw/04-web-insight-vitest-rerun.log"
+      ],
+      "observed": "filtered execution list, cursor preservation/removal, single execution detail, not-found state, foreign-org hiding and explanation fields passed"
+    },
+    {
+      "id": "F",
+      "name": "Delivery/evolution/lineage and ancestry",
+      "status": "pass_with_limitation",
+      "evidence": [
+        "raw/00-provenance.log",
+        "raw/01-go-insight-targeted.log",
+        "raw/07-install-test-instance.json"
+      ],
+      "observed": "candidate preserves predecessor ancestry and TestInsightV2DeliveryEvolutionAndLineage passed; full seeded-agent live path could not be produced because test-instance --with-agent fails on missing runtime model claude-opus-4-8"
+    }
+  ],
+  "overall": "pass_with_limitation",
+  "blocking_failure_points": [
+    {
+      "scope": "full-fidelity seeded agent execution instance",
+      "evidence": "raw/07-install-test-instance.json",
+      "failure": "runtime_model_not_found for claude-opus-4-8 prevents install test-instance --with-agent from creating a real agent/task execution on fresh main"
+    }
+  ],
+  "warnings": [
+    {
+      "scope": "make build",
+      "evidence": "raw/06-make-build.log",
+      "message": "Vite emitted a CSS minifier warning at stdin:3107 and chunk size warnings, but exited 0"
+    },
+    {
+      "scope": "browser screenshot",
+      "evidence": "raw/12-browser-insight-overview.log",
+      "message": "agent-browser textual snapshot succeeded; screenshot subcommand hung and was interrupted"
+    },
+    {
+      "scope": "playwright screenshot fallback",
+      "evidence": "raw/14-playwright-live-ui.log",
+      "message": "repo web dependencies do not include playwright, so no screenshot artifact was captured"
+    }
+  ]
+}

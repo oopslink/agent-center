@@ -1,0 +1,9 @@
+$ agent-browser open signin
+✓ agent-center
+  http://127.0.0.1:56892/signin
+✓ Done
+$ agent-browser snapshot signin
+- textbox "Email or display name" [ref=e1]
+- textbox "Password" [ref=e2]
+- button "Sign in" [ref=e3] [disabled]
+- link "Sign up" [ref=e4]

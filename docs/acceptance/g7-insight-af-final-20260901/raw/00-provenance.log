@@ -1,0 +1,18 @@
+$ git rev-parse HEAD main origin/main FETCH_HEAD
+fddd073cd4208825086fc62d11fb6ba5a4d4655f
+fddd073cd4208825086fc62d11fb6ba5a4d4655f
+ad7959c60ea0d3004c44d65cfbe2c93de34c9406
+fddd073cd4208825086fc62d11fb6ba5a4d4655f
+
+$ git log --oneline --decorate -8 HEAD
+fddd073c (HEAD -> ac-evidence/g7-insight-af-final-20260901, main) test(insight): record G6 independent technical acceptance
+ad7959c6 (origin/main, origin/ac-exec/task-61da74b1/exec-de321263, origin/HEAD, origin-push/main, origin-push/ac-exec/task-61da74b1/exec-de321263, origin-push/HEAD, ac-exec/task-908936a8/exec-a5d53c78, ac-exec/task-06fabd24/exec-4b848a8c) feat(insight): add v2 delivery and lineage APIs
+dfea9c37 fix(access): persist dynamic grant scopes
+87224d7b fix(access): allow multi-scope grant selection
+d77dcb74 fix(access): render grant flow as a page panel
+548b5bbc fix(access): nest scoped grant selection
+ba3ab0db fix(access): keep grant flow on page
+0acc2b9a fix(teams): remove duplicate RAM role selector
+
+$ git merge-base --is-ancestor ad7959c60ea0d3004c44d65cfbe2c93de34c9406 HEAD
+ad7959c6_ancestor=0

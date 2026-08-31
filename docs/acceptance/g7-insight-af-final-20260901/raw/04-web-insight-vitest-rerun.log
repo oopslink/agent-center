@@ -1,0 +1,17 @@
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-4b848a8c/web
+
+(node:68737) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/InsightOverview.test.tsx > Insight pages > renders overview metrics and links agent/project drilldowns to the routed execution list
+ ✓ src/pages/InsightOverview.test.tsx > Insight pages > treats null, zero, low, partial, and representative coverage without guessing missing data as zero
+ ✓ src/pages/InsightOverview.test.tsx > Insight pages > loads execution list from URL filters, preserves cursor context, and removes chips
+ ✓ src/pages/InsightOverview.test.tsx > Insight pages > maps execution status, recovery, quality, and reasons without exposing raw enums in the main row
+ ✓ src/pages/InsightOverview.test.tsx > Insight pages > renders object detail, failure_message, fallback reason, invalid quality, and not-found state
+ ✓ src/pages/InsightOverview.test.tsx > Insight pages > renders rebuilding/auth errors explicitly and supports Chinese copy
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  02:22:01
+   Duration  1.21s (transform 101ms, setup 293ms, collect 52ms, tests 249ms, environment 234ms, prepare 33ms)
+

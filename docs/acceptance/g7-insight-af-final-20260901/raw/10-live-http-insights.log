@@ -1,0 +1,24 @@
+$ curl signin
+HTTP/1.1 200 OK
+Content-Type: application/json
+Set-Cookie: ac_session=<redacted-session-cookie>; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax
+Date: Mon, 31 Aug 2026 18:24:40 GMT
+Content-Length: 32
+
+{"identity_id":"user-7fe92162"}
+
+$ curl me
+{"display_name":"Owner g7-insight-af-final","identity_id":"user-7fe92162","kind":"user"}
+
+$ curl insight overview
+{"window":{"kind":"rolling","duration":"24h","start":"2026-08-30T18:24:40.134327Z","end":"2026-08-31T18:24:40.134327Z"},"as_of":"2026-08-31T18:24:40.134327Z","refreshed_at":"2026-08-31T18:24:10.480073Z","freshness":{"state":"fresh","age_ms":29654,"threshold_ms":120000},"summary":{"completed_executions":0,"failed_executions":0,"failure_rate":null,"slot_utilization":null,"slot_coverage_ratio":null,"queue_wait_ms":{"p50":null,"p95":null,"samples":0},"execution_duration_ms":{"p50":null,"p95":null,"samples":0}},"agents":null,"projects":null,"diagnostics":{"invalid_facts":0,"late_events":0}}
+
+$ curl insight executions
+{"window":{"kind":"rolling","duration":"24h","start":"2026-08-30T18:24:40.155846Z","end":"2026-08-31T18:24:40.155846Z"},"as_of":"2026-08-31T18:24:40.155846Z","refreshed_at":"2026-08-31T18:24:10.480073Z","freshness":{"state":"fresh","age_ms":29675,"threshold_ms":120000},"executions":null}
+
+$ curl insight v2 overview
+{"metric_version":"insight.metrics.v2","time_window":{"kind":"rolling","duration":"24h","start":"2026-08-30T18:24:40.172686Z","end":"2026-08-31T18:24:40.172686Z"},"as_of":"2026-08-31T18:24:40.172686Z","health":{"status":"unknown","reason_codes":["coverage_unknown"],"evidence":[]},"meta":{"metric_version":"insight.metrics.v2","sample_count":0,"coverage":null,"freshness":{"state":"fresh","age_ms":29692,"threshold_ms":120000},"unknown_count":0,"known":true},"executions":{"value":0,"meta":{"metric_version":"insight.metrics.v2","sample_count":0,"coverage":null,"freshness":{"state":"fresh","age_ms":29692,"threshold_ms":120000},"unknown_count":0,"known":true}},"agents":null,"projects":[{"id":"project-360a6a8f","name":"Alpha","health":{"status":"unknown","reason_codes":["coverage_unknown"],"evidence":[]},"execution_count":{"value":0,"meta":{"metric_version":"insight.metrics.v2","sample_count":0,"coverage":null,"freshness":{"state":"fresh","age_ms":29692,"threshold_ms":120000},"unknown_count":0,"known":true}},"failure_rate":null,"open_issues":{"value":0,"meta":{"metric_version":"insight.metrics.v2","sample_count":0,"coverage":1,"freshness":{"state":"fresh","age_ms":29692,"threshold_ms":120000},"unknown_count":0,"known":true}},"blocked_tasks":{"value":0,"meta":{"metric_version":"insight.metrics.v2","sample_count":0,"coverage":1,"freshness":{"state":"fresh","age_ms":29692,"threshold_ms":120000},"unknown_count":0,"known":true}},"active_plans":{"value":0,"meta":{"metric_version":"insight.metrics.v2","sample_count":0,"coverage":1,"freshness":{"state":"fresh","age_ms":29692,"threshold_ms":120000},"unknown_count":0,"known":true}},"reason_codes":["coverage_unknown"]}]}
+
+$ curl insight v2 projects
+[{"id":"project-360a6a8f","name":"Alpha","health":{"status":"unknown","reason_codes":["coverage_unknown"],"evidence":[]},"execution_count":{"value":0,"meta":{"metric_version":"insight.metrics.v2","sample_count":0,"coverage":null,"freshness":{"state":"fresh","age_ms":29714,"threshold_ms":120000},"unknown_count":0,"known":true}},"failure_rate":null,"open_issues":{"value":0,"meta":{"metric_version":"insight.metrics.v2","sample_count":0,"coverage":1,"freshness":{"state":"fresh","age_ms":29714,"threshold_ms":120000},"unknown_count":0,"known":true}},"blocked_tasks":{"value":0,"meta":{"metric_version":"insight.metrics.v2","sample_count":0,"coverage":1,"freshness":{"state":"fresh","age_ms":29714,"threshold_ms":120000},"unknown_count":0,"known":true}},"active_plans":{"value":0,"meta":{"metric_version":"insight.metrics.v2","sample_count":0,"coverage":1,"freshness":{"state":"fresh","age_ms":29714,"threshold_ms":120000},"unknown_count":0,"known":true}},"reason_codes":["coverage_unknown"]}]
+
