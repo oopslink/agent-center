@@ -11,6 +11,7 @@ import {
   usePermissionExplain,
   useRevokeDirectPermission,
   type EffectivePermission,
+  type PermissionDefinition,
   type PermissionAuditEvent,
   type ResourceScope,
 } from '@/api/permissions';
@@ -51,6 +52,26 @@ function sourceLabel(source: string, t: (key: string, options?: Record<string, u
 
 function resourceText(resource: ResourceScope): string {
   return accessResourceLabel(resource);
+}
+
+function resourceKindLabel(kind: string): string {
+  if (kind === 'org') return 'Organization';
+  if (kind === 'admin_token') return 'Admin token';
+  return kind.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function actionLabel(action: string): string {
+  const normalized = action === 'update' ? 'write' : action;
+  return normalized.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function semanticPermissionLabel(key: string, definitions: PermissionDefinition[] | undefined, resource: ResourceScope | null): string {
+  const definition = definitions?.find((entry) => entry.key === key);
+  const kind = resource?.kind || definition?.resource_kinds[0] || key.split('.')[0] || 'resource';
+  const resourceLabel = resourceKindLabel(kind);
+  const scopeLabel = kind === 'org' ? 'Org-wide' : `This ${resourceLabel.toLowerCase()}`;
+  const action = actionLabel(definition?.actions[0] || key.split('.').at(-1) || 'use');
+  return `${resourceLabel} · ${scopeLabel} · ${action}`;
 }
 
 function evidenceText(p: EffectivePermission): string {
@@ -113,10 +134,11 @@ function EmptyLine({ children, testId }: { children: React.ReactNode; testId: st
   );
 }
 
-function PermissionPill({ permission }: { permission: string }): React.ReactElement {
+function PermissionPill({ permission, label }: { permission: string; label?: string }): React.ReactElement {
   return (
-    <span className="inline-flex rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 font-mono text-[0.6875rem] text-text-primary">
-      {permission}
+    <span className="inline-flex min-w-0 flex-col rounded border border-border-base bg-bg-subtle px-1.5 py-0.5 text-[0.6875rem] text-text-primary">
+      <span className="truncate font-semibold">{label ?? permission}</span>
+      {label && <span className="truncate font-mono text-text-muted">{permission}</span>}
     </span>
   );
 }
@@ -158,12 +180,14 @@ function PermissionRows({
   subjectRef,
   empty,
   testId,
+  definitions,
 }: {
   rows: EffectivePermission[];
   resource: ResourceScope;
   subjectRef: string;
   empty: string;
   testId: string;
+  definitions?: PermissionDefinition[];
 }): React.ReactElement {
   if (rows.length === 0) {
     return <EmptyLine testId={`${testId}-empty`}>{empty}</EmptyLine>;
@@ -179,7 +203,7 @@ function PermissionRows({
           data-source={p.source}
         >
           <span className="min-w-0">
-            <PermissionPill permission={p.key} />
+            <PermissionPill permission={p.key} label={semanticPermissionLabel(p.key, definitions, resource)} />
           </span>
           <SourceCell permission={p} resource={resource} subjectRef={subjectRef} />
           <AccessMetaPill>{p.delegatable ? 'delegable' : 'fixed'}</AccessMetaPill>
@@ -332,6 +356,7 @@ export function AccessPermissionsPanel({
           subjectRef={subjectRef}
           empty={t('access.effective.empty')}
           testId="access-effective-list"
+          definitions={definitions.data?.definitions}
         />
       </section>
 
@@ -346,7 +371,7 @@ export function AccessPermissionsPanel({
           >
             {candidatePermissions.map((key) => (
               <option key={key} value={key}>
-                {key}
+                {semanticPermissionLabel(key, definitions.data?.definitions, resource)}
               </option>
             ))}
           </select>
@@ -378,7 +403,7 @@ export function AccessPermissionsPanel({
               <ul className="divide-y divide-border-base" data-testid="access-explain-sources">
                 {explainRows.map((p) => (
                   <li key={`${p.key}:${p.source}:${p.evidence_ref}`} className="flex flex-wrap items-center gap-2 py-1.5">
-                    <PermissionPill permission={p.key} />
+                    <PermissionPill permission={p.key} label={semanticPermissionLabel(p.key, definitions.data?.definitions, explain.data.decision.resource)} />
                     <SourceCell permission={p} resource={explain.data.decision.resource} subjectRef={subjectRef} />
                   </li>
                 ))}
@@ -406,7 +431,7 @@ export function AccessPermissionsPanel({
           >
             {candidatePermissions.map((key) => (
               <option key={key} value={key}>
-                {key}
+                {semanticPermissionLabel(key, definitions.data?.definitions, resource)}
               </option>
             ))}
           </select>
@@ -431,7 +456,7 @@ export function AccessPermissionsPanel({
                 data-testid="access-direct-row"
               >
                 <span className="flex min-w-0 flex-col gap-1">
-                  <PermissionPill permission={p.key} />
+                  <PermissionPill permission={p.key} label={semanticPermissionLabel(p.key, definitions.data?.definitions, resource)} />
                   <span className="truncate font-mono text-[0.6875rem] text-text-muted" title={evidenceText(p)}>
                     {evidenceText(p)}
                   </span>
@@ -460,6 +485,7 @@ export function AccessPermissionsPanel({
           subjectRef={subjectRef}
           empty={t('access.inherited.empty')}
           testId="access-inherited-list"
+          definitions={definitions.data?.definitions}
         />
       </section>
 

@@ -288,7 +288,7 @@ describe('Access page', () => {
     await screen.findByTestId('access-grants');
     await waitFor(() => expect(screen.getByTestId('access-grants')).toHaveTextContent('agent:builder'));
     const grants = screen.getByTestId('access-grants');
-    fireEvent.click(within(grants).getByRole('checkbox', { name: /Select project\.write for revoke/ }));
+    fireEvent.click(within(grants).getByRole('checkbox', { name: /Select Project .* Write for revoke/ }));
     expect(within(grants).queryByRole('checkbox', { name: /org\.member\.role\.manage/ })).not.toBeInTheDocument();
     fireEvent.click(within(grants).getByTestId('access-revoke-preview'));
 
@@ -691,7 +691,7 @@ describe('Access page', () => {
     await waitFor(() => expect(screen.getByTestId('access-grants')).toHaveTextContent('agent:builder'));
     const grants = screen.getByTestId('access-grants');
     fireEvent.change(within(grants).getByLabelText('Reason'), { target: { value: 'original audit reason' } });
-    fireEvent.click(within(grants).getByRole('checkbox', { name: /Select project\.write for revoke/ }));
+    fireEvent.click(within(grants).getByRole('checkbox', { name: /Select Project .* Write for revoke/ }));
     fireEvent.click(within(grants).getByTestId('access-revoke-preview'));
 
     const preview = await within(grants).findByTestId('access-revoke-preview-panel');

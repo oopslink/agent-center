@@ -55,12 +55,22 @@ export interface AccessPermissionDefinition {
   key: string;
   label: string;
   description: string;
+  template?: AccessPermissionTemplate;
   resource_kinds: AccessResourceKind[];
   actions: string[];
   risk: AccessRisk;
   high_risk?: boolean;
   category: 'access';
   legacy_sources: AccessSource[];
+}
+
+export interface AccessPermissionTemplate {
+  resource: string;
+  scope: string;
+  action: string;
+  permission_key: string;
+  backend_resource_kind: AccessResourceKind | string;
+  description?: string;
 }
 
 export interface AccessRole {
@@ -124,6 +134,7 @@ export interface AccessDecision {
   allowed: boolean;
   subject_ref: string;
   permission: string;
+  template?: AccessPermissionTemplate;
   resource: AccessResourceScope;
   source: AccessSource;
   reason: string;
@@ -140,6 +151,7 @@ export interface AccessGrant {
   subject_ref: string;
   subject_name: string;
   permission: string;
+  template?: AccessPermissionTemplate;
   resource: AccessResourceScope;
   source: AccessSource;
   status: AccessGrantStatus;
@@ -194,6 +206,7 @@ export interface AccessBatchItem {
   role_id?: string;
   role_name?: string;
   permission: string;
+  template?: AccessPermissionTemplate;
   resource: AccessResourceScope;
   status: AccessStatus;
   risk: AccessRisk;

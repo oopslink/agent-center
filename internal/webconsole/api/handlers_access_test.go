@@ -14,6 +14,14 @@ import (
 	"github.com/oopslink/agent-center/internal/team"
 )
 
+type accessTemplateTestDTO struct {
+	Resource            string `json:"resource"`
+	Scope               string `json:"scope"`
+	Action              string `json:"action"`
+	PermissionKey       string `json:"permission_key"`
+	BackendResourceKind string `json:"backend_resource_kind"`
+}
+
 func TestAccessFilterDecisionsSupportsCanonicalSubjectProjectPermissionFilters(t *testing.T) {
 	decisions := []accessDecisionDTO{
 		{SubjectRef: "user:alice", Permission: "project.write", Resource: accessResourceScopeDTO{Kind: "project", ID: "project-atlas", ProjectID: "project-atlas"}, Risk: "medium", Status: "allowed"},
@@ -46,9 +54,10 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		}
 		var effective struct {
 			Decisions []struct {
-				Permission string `json:"permission"`
-				Status     string `json:"status"`
-				Reason     string `json:"reason"`
+				Permission string                `json:"permission"`
+				Template   accessTemplateTestDTO `json:"template"`
+				Status     string                `json:"status"`
+				Reason     string                `json:"reason"`
 			} `json:"decisions"`
 			Summary map[string]int `json:"summary"`
 		}
@@ -61,6 +70,9 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 		}
 		if len(effective.Decisions) == 0 || effective.Decisions[0].Status != "not_applicable" {
 			t.Fatalf("effective decisions did not expose not_applicable for %s: %+v", url, effective.Decisions)
+		}
+		if effective.Decisions[0].Template.PermissionKey == "" || effective.Decisions[0].Template.Resource == "" || effective.Decisions[0].Template.Scope == "" || effective.Decisions[0].Template.Action == "" {
+			t.Fatalf("effective decision missing semantic template for %s: %+v", url, effective.Decisions[0].Template)
 		}
 	}
 
@@ -85,9 +97,10 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 			NotApplicable int `json:"not_applicable"`
 		} `json:"summary"`
 		Items []struct {
-			Status string `json:"status"`
-			Risk   string `json:"risk"`
-			Reason string `json:"reason"`
+			Template accessTemplateTestDTO `json:"template"`
+			Status   string                `json:"status"`
+			Risk     string                `json:"risk"`
+			Reason   string                `json:"reason"`
 		} `json:"items"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&preview); err != nil {
@@ -96,6 +109,9 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	resp.Body.Close()
 	if preview.ExpiresAt == "" || preview.Summary.HighRisk == 0 || preview.Summary.Unauthorized == 0 || preview.Summary.NotApplicable == 0 {
 		t.Fatalf("preview did not expose expiry/high-risk/unauthorized/not-applicable: %+v", preview)
+	}
+	if len(preview.Items) == 0 || preview.Items[0].Template.PermissionKey == "" || preview.Items[0].Template.Resource == "" || preview.Items[0].Template.Scope == "" || preview.Items[0].Template.Action == "" {
+		t.Fatalf("preview item missing semantic template: %+v", preview.Items)
 	}
 
 	resp = orgScopedPost(t, server.URL+"/api/access/batch/apply", body, sess)
@@ -112,9 +128,10 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 			NotApplicable  int  `json:"not_applicable"`
 		} `json:"summary"`
 		Items []struct {
-			ID         string `json:"id"`
-			SubjectRef string `json:"subject_ref"`
-			Permission string `json:"permission"`
+			ID         string                `json:"id"`
+			SubjectRef string                `json:"subject_ref"`
+			Permission string                `json:"permission"`
+			Template   accessTemplateTestDTO `json:"template"`
 			Resource   struct {
 				Kind string `json:"kind"`
 				ID   string `json:"id"`
@@ -133,6 +150,9 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	for _, item := range applied.Items {
 		if item.SubjectRef == "unknown" || item.Permission == "unknown" || item.Resource.ID == "unknown" {
 			t.Fatalf("apply returned phantom unknown item: %+v", item)
+		}
+		if item.Template.PermissionKey == "" || item.Template.Resource == "" || item.Template.Scope == "" || item.Template.Action == "" {
+			t.Fatalf("apply item missing semantic template: %+v", item)
 		}
 	}
 
@@ -158,7 +178,8 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 			PartialFailure bool `json:"partial_failure"`
 		} `json:"summary"`
 		Items []struct {
-			Permission string `json:"permission"`
+			Permission string                `json:"permission"`
+			Template   accessTemplateTestDTO `json:"template"`
 			Resource   struct {
 				Kind string `json:"kind"`
 			} `json:"resource"`
@@ -175,6 +196,9 @@ func TestAccessEffectiveBatchAndRevokeContract(t *testing.T) {
 	statusByKind := map[string]string{}
 	for _, item := range mixed.Items {
 		statusByKind[item.Resource.Kind] = item.Status
+		if item.Template.PermissionKey == "" || item.Template.Resource == "" || item.Template.Scope == "" || item.Template.Action == "" {
+			t.Fatalf("mixed item missing semantic template: %+v", item)
+		}
 	}
 	if statusByKind["org"] != "allowed" || statusByKind["project"] != "not_applicable" {
 		t.Fatalf("mixed org/project item mapping mismatch: %+v", mixed.Items)

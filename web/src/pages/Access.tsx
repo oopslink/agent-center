@@ -13,6 +13,7 @@ import {
   type RAMRole,
   type RAMRoleDetail,
   type AccessPermissionDefinition,
+  type AccessPermissionTemplate,
   type AccessResourceScope,
   type AccessRisk,
   type AccessStatus,
@@ -74,6 +75,16 @@ type DirectGrantTemplate = {
   backendResourceKind: AccessResourceKind;
   description: string;
   risk: AccessRisk;
+};
+
+type SemanticPermission = {
+  label: string;
+  resource: string;
+  scope: string;
+  action: string;
+  implementationKey: string;
+  backendResourceKind: string;
+  description?: string;
 };
 
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
@@ -161,15 +172,16 @@ function buildDirectGrantTemplates(permissions: AccessPermissionDefinition[]): D
   };
 
   for (const permission of permissions) {
+    const semantic = semanticPermissionFromDefinition(permission);
     for (const kind of permission.resource_kinds) {
       addTemplate({
         id: `direct:${permission.key}:${kind}`,
-        resource: accessResourceKindLabel(kind),
-        scope: `This ${accessResourceKindLabel(kind).toLowerCase()}`,
-        action: accessActionLabel(permission),
+        resource: semantic.resource,
+        scope: kind === semantic.backendResourceKind ? semantic.scope : `This ${accessResourceKindLabel(kind).toLowerCase()}`,
+        action: semantic.action,
         permissionKey: permission.key,
         backendResourceKind: kind,
-        description: permission.description || permission.label,
+        description: semantic.description || permission.label,
         risk: permission.risk,
       });
     }
@@ -225,6 +237,47 @@ function roleTemplateDetail(role: AccessRole): string {
 
 function directTemplateLabel(template: DirectGrantTemplate): string {
   return `${template.resource} · ${template.scope} · ${template.action}`;
+}
+
+function semanticPermissionFromDefinition(permission: AccessPermissionDefinition): SemanticPermission {
+  return semanticPermission(permission.key, permission.template, permission.resource_kinds[0], permission.actions[0], permission.description || permission.label);
+}
+
+function semanticPermissionForDecision(
+  permissionKey: string,
+  template: AccessPermissionTemplate | undefined,
+  resource: AccessResourceScope,
+  permissionByKey?: Map<string, AccessPermissionDefinition>,
+): SemanticPermission {
+  const definition = permissionByKey?.get(permissionKey);
+  return semanticPermission(
+    permissionKey,
+    template ?? definition?.template,
+    resource.kind,
+    definition?.actions[0],
+    definition?.description ?? definition?.label,
+  );
+}
+
+function semanticPermission(
+  permissionKey: string,
+  template: AccessPermissionTemplate | undefined,
+  fallbackResourceKind: string | undefined,
+  fallbackAction: string | undefined,
+  fallbackDescription?: string,
+): SemanticPermission {
+  const resource = template?.resource || accessResourceKindLabel(fallbackResourceKind || permissionKey.split('.')[0] || 'resource');
+  const scope = template?.scope || (fallbackResourceKind === 'org' ? 'Org-wide' : `This ${accessResourceKindLabel(fallbackResourceKind || 'resource').toLowerCase()}`);
+  const action = template?.action || accessActionLabel({ key: permissionKey, actions: fallbackAction ? [fallbackAction] : [], resource_kinds: [], label: '', description: '', risk: 'low', category: 'access', legacy_sources: [] });
+  return {
+    label: `${resource} · ${scope} · ${action}`,
+    resource,
+    scope,
+    action,
+    implementationKey: template?.permission_key || permissionKey,
+    backendResourceKind: template?.backend_resource_kind || fallbackResourceKind || 'resource',
+    description: template?.description || fallbackDescription,
+  };
 }
 
 export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): React.ReactElement {
@@ -426,7 +479,7 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
                 memberEntries={memberEntries}
                 mappingEntries={mappingEntries}
               />
-            <GrantRevoke key={selectedSubjectRef} grants={data.grants} subjectRef={selectedSubjectRef} canManageAccess={canManageAccess} onToast={setToast} />
+            <GrantRevoke key={selectedSubjectRef} grants={data.grants} subjectRef={selectedSubjectRef} permissionByKey={permissionByKey} canManageAccess={canManageAccess} onToast={setToast} />
           </aside>}
         </div>
       )}
@@ -905,15 +958,17 @@ function PermissionSummary({ role, catalog }: { role: RAMRole; catalog: AccessPe
           <article key={key} className="rounded border border-border-base bg-bg-elevated p-2" data-testid={`access-role-permission-${key}`}>
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <div className="font-mono text-xs font-semibold text-text-primary">{key}</div>
-                <div className="mt-0.5 text-xs text-text-secondary">{definition?.label ?? 'Unregistered permission'}</div>
+                <div className="text-xs font-semibold text-text-primary">
+                  {definition ? semanticPermissionFromDefinition(definition).label : key}
+                </div>
+                <div className="mt-0.5 font-mono text-[0.6875rem] text-text-muted">{key}</div>
               </div>
               {definition ? <AccessRiskBadge risk={definition.risk} /> : <span className="rounded border border-danger/30 bg-danger/10 px-2 py-0.5 text-[0.6875rem] font-semibold text-danger">Invalid registry key</span>}
             </div>
             <p className="mt-1 text-xs text-text-muted">{definition?.description ?? 'This key is not present in the authoritative permission registry and cannot be selected for new writes.'}</p>
             {definition && (
-              <p className="mt-1 font-mono text-[0.6875rem] text-text-muted">
-                {definition.resource_kinds.join(', ')} · {definition.actions.join(', ')}
+              <p className="mt-1 text-[0.6875rem] text-text-muted">
+                Resource {semanticPermissionFromDefinition(definition).resource} · Scope {semanticPermissionFromDefinition(definition).scope} · Action {semanticPermissionFromDefinition(definition).action}
               </p>
             )}
           </article>
@@ -999,7 +1054,7 @@ function RAMRoleDrawer({
           <div>
             <h2 className="text-lg font-semibold">{title}</h2>
             <p className="mt-1 text-xs text-text-muted">
-              Approval fields mirror the RAM Role detail contract: stable key, scope, risk, permissions, and latest version.
+              Define a reusable role template with scope support and Resource / Scope / Action permissions.
             </p>
           </div>
           <button type="button" aria-label="Close" title="Close" className="rounded p-1.5 text-text-secondary hover:bg-bg-subtle" onClick={onClose}>
@@ -1098,23 +1153,29 @@ function RoleTextField({ label, value, onChange, testId }: { label: string; valu
 function PermissionChecklist({ catalog, selected, onToggle }: { catalog: AccessPermissionDefinition[]; selected: string[]; onToggle: (permission: string) => void }): React.ReactElement {
   return (
     <div className="mt-3" data-testid="access-role-permissions">
-      <div className="mb-1 flex items-center justify-between"><span className="text-xs font-semibold text-text-muted">Permissions</span><AccessMetaPill>{selected.length} selected</AccessMetaPill></div>
+      <div className="mb-1 flex items-center justify-between"><span className="text-xs font-semibold text-text-muted">Permission templates</span><AccessMetaPill>{selected.length} selected</AccessMetaPill></div>
       <div className="max-h-40 space-y-1 overflow-y-auto rounded border border-border-base p-2">
-      {catalog.map((permission) => (
-        <button
-          key={permission.key}
-          type="button"
-          aria-pressed={selected.includes(permission.key)}
-          className={[
-            'flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-xs',
-            selected.includes(permission.key) ? 'bg-status-emerald-bg text-status-emerald-fg' : 'text-text-secondary hover:bg-bg-subtle',
-          ].join(' ')}
-          onClick={() => onToggle(permission.key)}
-        >
-          <span className="font-mono">{permission.key}</span>
-          <AccessRiskBadge risk={permission.risk} />
-        </button>
-      ))}
+      {catalog.map((permission) => {
+        const semantic = semanticPermissionFromDefinition(permission);
+        return (
+          <button
+            key={permission.key}
+            type="button"
+            aria-pressed={selected.includes(permission.key)}
+            className={[
+              'flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-xs',
+              selected.includes(permission.key) ? 'bg-status-emerald-bg text-status-emerald-fg' : 'text-text-secondary hover:bg-bg-subtle',
+            ].join(' ')}
+            onClick={() => onToggle(permission.key)}
+          >
+            <span className="min-w-0">
+              <span className="block truncate font-semibold text-text-primary">{semantic.label}</span>
+              <span className="block truncate font-mono text-[0.6875rem] text-text-muted">{permission.key}</span>
+            </span>
+            <AccessRiskBadge risk={permission.risk} />
+          </button>
+        );
+      })}
       </div>
     </div>
   );
@@ -1290,12 +1351,13 @@ function SubjectDecisionView({
                 {selectedRows.filter((row) => row.allowed).slice(0, 6).map((row) => (
                   <div key={`${row.permission}:${row.evidence_ref}`} className="rounded border border-border-base p-2 text-xs">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono font-semibold text-text-primary">{row.permission}</span>
+                      <span className="font-semibold text-text-primary">{semanticPermissionForDecision(row.permission, row.template, row.resource, permissionByKey).label}</span>
                       <AccessStatusBadge status="allowed" />
                     </div>
                     <dl className="mt-2 grid grid-cols-[4.5rem_1fr] gap-x-2 gap-y-1 text-text-secondary">
                       <dt className="font-semibold text-text-muted">Result</dt><dd>Allowed · {row.reason}</dd>
                       <dt className="font-semibold text-text-muted">Resource</dt><dd>{accessResourceLabel(row.resource)} <span className="font-mono">({row.resource.kind}:{row.resource.id})</span></dd>
+                      <dt className="font-semibold text-text-muted">Key</dt><dd className="font-mono">{row.permission}</dd>
                       <dt className="font-semibold text-text-muted">Source chain</dt><dd className="font-mono">{sourceChain(row)} → final allow</dd>
                     </dl>
                   </div>
@@ -1309,11 +1371,11 @@ function SubjectDecisionView({
                 {selectedRows.filter((row) => !row.allowed).map((row) => (
                   <div key={`${row.permission}:${row.status}:${row.evidence_ref}`} className="text-xs">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono font-semibold text-text-primary">{row.permission}</span>
+                      <span className="font-semibold text-text-primary">{semanticPermissionForDecision(row.permission, row.template, row.resource, permissionByKey).label}</span>
                       <AccessStatusBadge status={row.status ?? 'denied'} />
                     </div>
                     <div className="mt-1 text-text-secondary">{row.reason}</div>
-                    <div className="font-mono text-text-muted">{row.evidence_ref}</div>
+                    <div className="font-mono text-text-muted">{row.permission} · {row.evidence_ref}</div>
                   </div>
                 ))}
                 {selectedRows.every((row) => row.allowed) && <p className="text-sm text-text-muted">No denied, unauthorized, or not-applicable decisions.</p>}
@@ -1325,7 +1387,7 @@ function SubjectDecisionView({
                 {selectedGrants.filter((grant) => grant.source === 'custom_role').map((grant) => (
                   <div key={grant.id} className="text-xs">
                     <div className="font-mono font-semibold text-text-primary">{grant.id}</div>
-                    <div className="text-text-secondary">{grant.permission} on {accessResourceLabel(grant.resource)}</div>
+                    <div className="text-text-secondary">{semanticPermissionForDecision(grant.permission, grant.template, grant.resource, permissionByKey).label} on {accessResourceLabel(grant.resource)}</div>
                     <div className="text-text-muted">{grant.status} · expires {displayAccessDate(grant.expires_at)}</div>
                   </div>
                 ))}
@@ -1353,7 +1415,7 @@ function SubjectDecisionView({
               ))}
               {selectedRows.filter((row) => row.source === 'custom_role').map((row) => (
                 <p key={`${row.permission}:${row.evidence_ref}:detail`} className="rounded border border-border-base p-2">
-                  <span className="font-mono text-text-primary">direct binding</span> -&gt; grant {row.grant_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'} -&gt; {row.permission} on {accessResourceLabel(row.resource)}
+                  <span className="font-mono text-text-primary">direct binding</span> -&gt; grant {row.grant_id || roleIDFromEvidence(row.evidence_ref) || 'unknown'} -&gt; {semanticPermissionForDecision(row.permission, row.template, row.resource, permissionByKey).label} on {accessResourceLabel(row.resource)}
                 </p>
               ))}
               {selectedRows.some((row) => !['team_member', 'team_role_ram', 'custom_role'].includes(row.source)) && (
@@ -1424,6 +1486,7 @@ function DecisionTable({
           {decisions.map((decision) => {
             const subject = subjectByRef.get(decision.subject_ref);
             const permission = permissionByKey.get(decision.permission);
+            const semantic = semanticPermissionForDecision(decision.permission, decision.template, decision.resource, permissionByKey);
             const rowKey = `${decision.subject_ref}-${decision.permission}-${accessResourceKey(decision.resource)}-${decision.source}-${decision.evidence_ref}-${decision.status}`;
             return (
               <tr key={rowKey} className="border-b border-border-base last:border-0">
@@ -1432,7 +1495,8 @@ function DecisionTable({
                   <div className="font-mono text-xs text-text-muted">{decision.subject_ref}</div>
                 </td>
                 <td className="px-4 py-3">
-                  <div className="font-mono text-xs font-semibold text-text-primary">{decision.permission}</div>
+                  <div className="text-xs font-semibold text-text-primary">{semantic.label}</div>
+                  <div className="font-mono text-[0.6875rem] text-text-muted">{decision.permission}</div>
                   {permission?.label && <div className="text-xs text-text-muted">{permission.label}</div>}
                 </td>
                 <td className="px-4 py-3">
@@ -1503,36 +1567,36 @@ function SubjectAccessSidebar({
               {direct.map((grant) => (
                 <div key={`${grant.id}:trace`} className="rounded border border-border-base bg-bg-base p-2 text-xs">
                   <div className="font-semibold text-text-primary">Direct union</div>
-                  <p className="mt-1 text-text-secondary">direct binding → grant {grant.id} → {grant.permission}</p>
+                  <p className="mt-1 text-text-secondary">direct binding → grant {grant.id} → {semanticPermissionForDecision(grant.permission, grant.template, grant.resource, permissionByKey).label}</p>
                 </div>
               ))}
               {deniedRows.map((row) => (
                 <div key={`${row.permission}:${row.evidence_ref}:deny`} className="rounded border border-danger/40 bg-danger/5 p-2 text-xs">
                   <div className="font-semibold text-danger">Explicit deny</div>
-                  <p className="mt-1 text-text-secondary">{row.permission} → {row.evidence_ref}</p>
+                  <p className="mt-1 text-text-secondary">{semanticPermissionForDecision(row.permission, row.template, row.resource, permissionByKey).label} → {row.evidence_ref}</p>
                 </div>
               ))}
               {effectiveRows.slice(0, 8).map((row) => (
                 <div key={`${row.permission}:${row.source}:${row.evidence_ref}`} className="rounded border border-border-base bg-bg-base p-2 text-xs">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono font-semibold text-text-primary">{row.permission}</span>
+                    <span className="font-semibold text-text-primary">{semanticPermissionForDecision(row.permission, row.template, row.resource, permissionByKey).label}</span>
                     <AccessRiskBadge risk={row.risk ?? permissionByKey.get(row.permission)?.risk ?? 'low'} />
                   </div>
                   <p className="mt-1 text-text-secondary">
                     Final → allowed · {sourceChain(row)}
                   </p>
-                  <p className="mt-1 font-mono text-[0.6875rem] text-text-muted">{row.evidence_ref}</p>
+                  <p className="mt-1 font-mono text-[0.6875rem] text-text-muted">{row.permission} · {row.evidence_ref}</p>
                 </div>
               ))}
               {deniedRows.map((row) => (
                 <div key={`${row.permission}:${row.evidence_ref}:final`} className="rounded border border-danger/40 bg-danger/5 p-2 text-xs">
-                  <div className="font-mono font-semibold text-danger">{row.permission}</div>
+                  <div className="font-semibold text-danger">{semanticPermissionForDecision(row.permission, row.template, row.resource, permissionByKey).label}</div>
                   <p className="mt-1 text-text-secondary">Final → denied · explicit deny takes precedence over inherited and direct allows.</p>
                 </div>
               ))}
               {notApplicableRows.map((row) => (
                 <div key={`${row.permission}:${row.evidence_ref}:na`} className="rounded border border-warning/40 bg-warning/5 p-2 text-xs">
-                  <div className="font-mono font-semibold text-warning">{row.permission}</div>
+                  <div className="font-semibold text-warning">{semanticPermissionForDecision(row.permission, row.template, row.resource, permissionByKey).label}</div>
                   <p className="mt-1 text-text-secondary">Final → N/A · {row.reason}</p>
                 </div>
               ))}
@@ -1547,9 +1611,9 @@ function SubjectAccessSidebar({
             <div className="mt-2 space-y-2">
               {direct.map((grant) => (
                 <div key={grant.id} className="rounded border border-border-base bg-bg-base p-2 text-xs">
-                  <div className="font-mono font-semibold text-text-primary">{grant.permission}</div>
+                  <div className="font-semibold text-text-primary">{semanticPermissionForDecision(grant.permission, grant.template, grant.resource, permissionByKey).label}</div>
                   <div className="mt-1 text-text-secondary">{accessResourceLabel(grant.resource)} · {displayAccessDate(grant.expires_at)}</div>
-                  <div className="mt-1 font-mono text-text-muted">{grant.id}</div>
+                  <div className="mt-1 font-mono text-text-muted">{grant.permission} · {grant.id}</div>
                 </div>
               ))}
             </div>
@@ -1581,7 +1645,7 @@ function AuditHistory({ events, loading, error }: { events: PermissionAuditEvent
   );
 }
 
-function GrantRevoke({ grants, subjectRef, canManageAccess, onToast }: { grants: AccessGrant[]; subjectRef: string; canManageAccess: boolean; onToast: (toast: AccessToast) => void }): React.ReactElement {
+function GrantRevoke({ grants, subjectRef, permissionByKey, canManageAccess, onToast }: { grants: AccessGrant[]; subjectRef: string; permissionByKey: Map<string, AccessPermissionDefinition>; canManageAccess: boolean; onToast: (toast: AccessToast) => void }): React.ReactElement {
   const revoke = useAccessBulkRevoke();
   const previewRevoke = useAccessRevokePreview();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -1654,17 +1718,18 @@ function GrantRevoke({ grants, subjectRef, canManageAccess, onToast }: { grants:
                       checked={selected.has(grant.id)}
                       disabled={!canManageAccess}
                       onChange={() => toggle(grant.id)}
-                      aria-label={`Select ${grant.permission} for revoke`}
+                      aria-label={`Select ${semanticPermissionForDecision(grant.permission, grant.template, grant.resource, permissionByKey).label} for revoke`}
                       data-testid="access-grant-select"
                     />
                   </td>
                   <td className="min-w-0 px-2 py-3">
-                    <span className="block font-mono text-xs font-semibold text-text-primary">{grant.permission}</span>
+                    <span className="block text-xs font-semibold text-text-primary">{semanticPermissionForDecision(grant.permission, grant.template, grant.resource, permissionByKey).label}</span>
                     <span className="block truncate text-xs text-text-secondary">
                       {grant.subject_name}
                       {' -> '}
                       {accessResourceLabel(grant.resource)}
                     </span>
+                    <span className="mt-1 block truncate font-mono text-[0.6875rem] text-text-muted">{grant.permission}</span>
                     <span className="mt-1 flex flex-wrap gap-1">
                       <AccessRiskBadge risk={grant.risk} />
                       <AccessMetaPill>{grant.source}</AccessMetaPill>
@@ -2226,7 +2291,10 @@ function BatchItemsTable({ items }: { items: AccessBatchItem[] }): React.ReactEl
                     <span className="block font-mono text-xs text-text-muted">{item.role_id}</span>
                   </span>
                 ) : (
-                  <span className="font-mono text-xs">{item.permission}</span>
+                  <span>
+                    <span className="block text-xs font-semibold text-text-primary">{semanticPermission(item.permission, item.template, item.resource.kind, undefined).label}</span>
+                    <span className="block font-mono text-[0.6875rem] text-text-muted">{item.permission}</span>
+                  </span>
                 )}
               </td>
               <td className="px-3 py-2">{accessResourceLabel(item.resource)}</td>

@@ -38,15 +38,25 @@ type accessSubjectDTO struct {
 }
 
 type accessPermissionDefinitionDTO struct {
-	Key           string   `json:"key"`
-	Label         string   `json:"label"`
-	Description   string   `json:"description"`
-	ResourceKinds []string `json:"resource_kinds"`
-	Actions       []string `json:"actions"`
-	Risk          string   `json:"risk"`
-	HighRisk      bool     `json:"high_risk,omitempty"`
-	Category      string   `json:"category"`
-	LegacySources []string `json:"legacy_sources"`
+	Key           string                      `json:"key"`
+	Label         string                      `json:"label"`
+	Description   string                      `json:"description"`
+	Template      accessPermissionTemplateDTO `json:"template"`
+	ResourceKinds []string                    `json:"resource_kinds"`
+	Actions       []string                    `json:"actions"`
+	Risk          string                      `json:"risk"`
+	HighRisk      bool                        `json:"high_risk,omitempty"`
+	Category      string                      `json:"category"`
+	LegacySources []string                    `json:"legacy_sources"`
+}
+
+type accessPermissionTemplateDTO struct {
+	Resource            string `json:"resource"`
+	Scope               string `json:"scope"`
+	Action              string `json:"action"`
+	PermissionKey       string `json:"permission_key"`
+	BackendResourceKind string `json:"backend_resource_kind"`
+	Description         string `json:"description,omitempty"`
 }
 
 type accessRoleDTO struct {
@@ -111,35 +121,37 @@ type accessRAMRoleRevokeDTO struct {
 }
 
 type accessDecisionDTO struct {
-	Allowed     bool                   `json:"allowed"`
-	SubjectRef  string                 `json:"subject_ref"`
-	Permission  string                 `json:"permission"`
-	Resource    accessResourceScopeDTO `json:"resource"`
-	Source      string                 `json:"source"`
-	Reason      string                 `json:"reason"`
-	EvidenceRef string                 `json:"evidence_ref"`
-	Status      string                 `json:"status,omitempty"`
-	ExpiresAt   *string                `json:"expires_at,omitempty"`
-	GrantID     string                 `json:"grant_id,omitempty"`
-	RoleID      string                 `json:"role_id,omitempty"`
-	Risk        string                 `json:"risk,omitempty"`
+	Allowed     bool                        `json:"allowed"`
+	SubjectRef  string                      `json:"subject_ref"`
+	Permission  string                      `json:"permission"`
+	Template    accessPermissionTemplateDTO `json:"template"`
+	Resource    accessResourceScopeDTO      `json:"resource"`
+	Source      string                      `json:"source"`
+	Reason      string                      `json:"reason"`
+	EvidenceRef string                      `json:"evidence_ref"`
+	Status      string                      `json:"status,omitempty"`
+	ExpiresAt   *string                     `json:"expires_at,omitempty"`
+	GrantID     string                      `json:"grant_id,omitempty"`
+	RoleID      string                      `json:"role_id,omitempty"`
+	Risk        string                      `json:"risk,omitempty"`
 }
 
 type accessGrantDTO struct {
-	ID          string                 `json:"id"`
-	SubjectRef  string                 `json:"subject_ref"`
-	SubjectName string                 `json:"subject_name"`
-	Permission  string                 `json:"permission"`
-	Resource    accessResourceScopeDTO `json:"resource"`
-	Source      string                 `json:"source"`
-	Status      string                 `json:"status"`
-	StartsAt    *string                `json:"starts_at,omitempty"`
-	ExpiresAt   *string                `json:"expires_at,omitempty"`
-	CreatedBy   string                 `json:"created_by"`
-	CreatedAt   string                 `json:"created_at"`
-	RevokedAt   *string                `json:"revoked_at,omitempty"`
-	RoleID      string                 `json:"role_id,omitempty"`
-	Risk        string                 `json:"risk"`
+	ID          string                      `json:"id"`
+	SubjectRef  string                      `json:"subject_ref"`
+	SubjectName string                      `json:"subject_name"`
+	Permission  string                      `json:"permission"`
+	Template    accessPermissionTemplateDTO `json:"template"`
+	Resource    accessResourceScopeDTO      `json:"resource"`
+	Source      string                      `json:"source"`
+	Status      string                      `json:"status"`
+	StartsAt    *string                     `json:"starts_at,omitempty"`
+	ExpiresAt   *string                     `json:"expires_at,omitempty"`
+	CreatedBy   string                      `json:"created_by"`
+	CreatedAt   string                      `json:"created_at"`
+	RevokedAt   *string                     `json:"revoked_at,omitempty"`
+	RoleID      string                      `json:"role_id,omitempty"`
+	Risk        string                      `json:"risk"`
 }
 
 type accessBatchRequestDTO struct {
@@ -153,20 +165,21 @@ type accessBatchRequestDTO struct {
 }
 
 type accessBatchItemDTO struct {
-	ID          string                 `json:"id"`
-	SubjectRef  string                 `json:"subject_ref"`
-	SubjectName string                 `json:"subject_name"`
-	RoleID      string                 `json:"role_id,omitempty"`
-	RoleName    string                 `json:"role_name,omitempty"`
-	Permission  string                 `json:"permission"`
-	Resource    accessResourceScopeDTO `json:"resource"`
-	Status      string                 `json:"status"`
-	Risk        string                 `json:"risk"`
-	HighRisk    bool                   `json:"high_risk"`
-	Reason      string                 `json:"reason"`
-	Code        string                 `json:"code,omitempty"`
-	EvidenceRef string                 `json:"evidence_ref,omitempty"`
-	GrantID     string                 `json:"grant_id,omitempty"`
+	ID          string                      `json:"id"`
+	SubjectRef  string                      `json:"subject_ref"`
+	SubjectName string                      `json:"subject_name"`
+	RoleID      string                      `json:"role_id,omitempty"`
+	RoleName    string                      `json:"role_name,omitempty"`
+	Permission  string                      `json:"permission"`
+	Template    accessPermissionTemplateDTO `json:"template"`
+	Resource    accessResourceScopeDTO      `json:"resource"`
+	Status      string                      `json:"status"`
+	Risk        string                      `json:"risk"`
+	HighRisk    bool                        `json:"high_risk"`
+	Reason      string                      `json:"reason"`
+	Code        string                      `json:"code,omitempty"`
+	EvidenceRef string                      `json:"evidence_ref,omitempty"`
+	GrantID     string                      `json:"grant_id,omitempty"`
 }
 
 type accessRevokeRequestDTO struct {
@@ -321,10 +334,81 @@ func accessCatalogFromDefinitions(definitions []authz.PermissionDefinition) []ac
 			entry.Risk = accessPermissionRisk(def)
 		}
 		entry.HighRisk = entry.Risk == "high"
+		entry.Template = accessTemplateForPermission(entry.Key, firstString(entry.ResourceKinds), firstString(entry.Actions), entry.Description)
 		out = append(out, entry)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out
+}
+
+func accessTemplateForPermission(permissionKey, resourceKind, action, description string) accessPermissionTemplateDTO {
+	if resourceKind == "" {
+		resourceKind = "resource"
+	}
+	normalizedAction := action
+	if normalizedAction == "" {
+		parts := strings.Split(permissionKey, ".")
+		normalizedAction = parts[len(parts)-1]
+	}
+	if normalizedAction == "update" {
+		normalizedAction = "write"
+	}
+	return accessPermissionTemplateDTO{
+		Resource:            accessResourceKindTitle(resourceKind),
+		Scope:               accessScopeTitle(resourceKind),
+		Action:              accessActionTitle(normalizedAction),
+		PermissionKey:       permissionKey,
+		BackendResourceKind: resourceKind,
+		Description:         description,
+	}
+}
+
+func accessTemplateForDecision(permissionKey string, resource accessResourceScopeDTO, catalog map[string]accessPermissionDefinitionDTO) accessPermissionTemplateDTO {
+	if def, ok := catalog[permissionKey]; ok && def.Template.PermissionKey != "" {
+		template := def.Template
+		template.BackendResourceKind = resource.Kind
+		template.Scope = accessScopeTitle(resource.Kind)
+		return template
+	}
+	return accessTemplateForPermission(permissionKey, resource.Kind, "", "")
+}
+
+func accessResourceKindTitle(kind string) string {
+	switch kind {
+	case "org":
+		return "Organization"
+	case "admin_token":
+		return "Admin token"
+	default:
+		parts := strings.Split(strings.ReplaceAll(kind, "_", " "), " ")
+		for i := range parts {
+			parts[i] = strings.Title(parts[i])
+		}
+		return strings.Join(parts, " ")
+	}
+}
+
+func accessScopeTitle(kind string) string {
+	if kind == "org" {
+		return "Org-wide"
+	}
+	return "This " + strings.ToLower(accessResourceKindTitle(kind))
+}
+
+func accessActionTitle(action string) string {
+	action = strings.ReplaceAll(action, "_", " ")
+	parts := strings.Split(action, " ")
+	for i := range parts {
+		parts[i] = strings.Title(parts[i])
+	}
+	return strings.Join(parts, " ")
+}
+
+func firstString(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
 }
 
 func accessPermissionMetadata(key string) accessPermissionDefinitionDTO {
@@ -1404,6 +1488,7 @@ func (s *accessDerivedState) addDecision(subjectRef, permission string, resource
 		Allowed:     allowed,
 		SubjectRef:  subjectRef,
 		Permission:  permission,
+		Template:    accessTemplateForDecision(permission, resource, s.catalogByKey),
 		Resource:    resource,
 		Source:      source,
 		Reason:      reason,
@@ -1545,6 +1630,7 @@ func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Conte
 					Allowed:     false,
 					SubjectRef:  subj.Ref,
 					Permission:  "access.resolve",
+					Template:    accessTemplateForPermission("access.resolve", resource.Kind, "resolve", "Resolve effective access for this resource."),
 					Resource:    resource,
 					Source:      string(authz.SourceSystem),
 					Reason:      "resolver failed closed: " + err.Error(),
@@ -1571,6 +1657,7 @@ func (s accessDerivedState) appendAdditionalEffectiveDecisions(ctx context.Conte
 					Allowed:     true,
 					SubjectRef:  subj.Ref,
 					Permission:  string(permission.Key),
+					Template:    accessTemplateForDecision(string(permission.Key), resolved, s.catalogByKey),
 					Resource:    resolved,
 					Source:      string(permission.Source),
 					Reason:      "matched unified authorization service",
@@ -1800,11 +1887,13 @@ func accessNotApplicableRows(state accessDerivedState) []accessDecisionDTO {
 	}
 	subj := state.subjects[0]
 	def := state.catalogByKey["file.download"]
+	resource := accessResourceScopeDTO{Kind: "org", ID: orgID, OrgID: orgID, Label: orgID}
 	rows = append(rows, accessDecisionDTO{
 		Allowed:     false,
 		SubjectRef:  subj.Ref,
 		Permission:  "file.download",
-		Resource:    accessResourceScopeDTO{Kind: "org", ID: orgID, OrgID: orgID, Label: orgID},
+		Template:    accessTemplateForDecision("file.download", resource, state.catalogByKey),
+		Resource:    resource,
 		Source:      "file_scope",
 		Reason:      "file.download does not apply to org resources",
 		EvidenceRef: "permission_registry:file.download",
@@ -1831,6 +1920,7 @@ func accessGrantsFromDecisions(now time.Time, decisions []accessDecisionDTO, sub
 			SubjectRef:  d.SubjectRef,
 			SubjectName: subj.Name,
 			Permission:  d.Permission,
+			Template:    d.Template,
 			Resource:    d.Resource,
 			Source:      d.Source,
 			Status:      "active",
@@ -1992,6 +2082,7 @@ func accessEvaluateBatchRoleItem(ctx context.Context, svc *authz.Service, orgID 
 		RoleID:      roleID,
 		RoleName:    role.Name,
 		Permission:  "role:" + roleID,
+		Template:    accessPermissionTemplateDTO{Resource: "Role", Scope: accessScopeTitle(resource.Kind), Action: "Assign", PermissionKey: "role:" + roleID, BackendResourceKind: resource.Kind, Description: role.Description},
 		Resource:    resource,
 		Status:      "denied",
 		Risk:        accessRoleRisk(role, state.catalogByKey),
@@ -2083,6 +2174,7 @@ func accessEvaluateBatchItem(ctx context.Context, svc *authz.Service, orgID stri
 		SubjectRef:  subjectRef,
 		SubjectName: fallback(subj.Name, subjectRef),
 		Permission:  permission,
+		Template:    accessTemplateForDecision(permission, resource, state.catalogByKey),
 		Resource:    resource,
 		Status:      "denied",
 		Risk:        fallback(def.Risk, "medium"),
@@ -2362,6 +2454,7 @@ func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, act
 		SubjectRef:  id,
 		SubjectName: id,
 		Permission:  "unknown",
+		Template:    accessTemplateForPermission("unknown", "org", "unknown", ""),
 		Resource:    accessResourceScopeDTO{Kind: "org", ID: orgID, OrgID: orgID, Label: orgID},
 		Status:      "not_applicable",
 		Risk:        "medium",
@@ -2374,6 +2467,7 @@ func accessRevokeItem(ctx context.Context, svc *authz.Service, orgID string, act
 	item.SubjectRef = grant.SubjectRef
 	item.SubjectName = grant.SubjectName
 	item.Permission = grant.Permission
+	item.Template = grant.Template
 	item.Resource = grant.Resource
 	item.Risk = grant.Risk
 	item.HighRisk = grant.Risk == "high"
