@@ -1,0 +1,317 @@
+{
+  "task_id": "task-a8f1efe7",
+  "execution_id": "exec-6fc7b6a3",
+  "reviewed_sha": "ccf4acb3262edbb86bfe3f467df67a2eaf64e0c3",
+  "base_sha": "ccf4acb3262edbb86bfe3f467df67a2eaf64e0c3",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1 | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type f \\\\( -name 'package.json' -o -name 'pnpm-lock.yaml' -o -name 'yarn.lock' -o -name 'package-lock.json' -o -name 'vite.config.*' -o -name 'playwright.config.*' -o -name 'tsconfig.json' \\\\) -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"rg --files | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'rg -n \"HR-1|HR-2|HR-3|HR-4|hard red|hard-red|provenance|lineage|task-input|version|health|race|deployed|SHA|sha\" . -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/reports/t1850-worker-readback-replay.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'rg -n \"worker.*readback|readback|Expected.*SHA|expected.*sha|source_commit|required_chain_anchor|deployed_sha|git_sha|BuildCommit|Commit|/api/health|health\" internal cmd web tests -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"sed -n '180,270p' internal/admin/api/agent_tools_runtime_deploy.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"sed -n '1,360p' internal/workerdaemon/runtime_deployer.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"rg -n \\\"RuntimeDeploy|runtime deploy|readback|stale running|full expected|find-by-id|post-restart\\\" internal/workerdaemon internal/admin tests -S --glob '*_test.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"sed -n '1,340p' tests/e2e/deployed_runtime_version_smoke_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"mkdir -p docs/acceptance/g36-insight-prod-reverify-20260831/raw docs/acceptance/g36-insight-prod-reverify-20260831/screenshots \u0026\u0026 printf 'created=%s\\\\nhead=%s\\\\nbranch=%s\\\\n' \\\"\"'$(date -u +%Y-%m-%dT%H:%M:%SZ)\" \"$(git rev-parse HEAD)\" \"$(git branch --show-current)\" \u003e docs/acceptance/g36-insight-prod-reverify-20260831/raw/00-session.txt \u0026\u0026 find task-input/v1 -type f -maxdepth 3 -print0 | sort -z | xargs -0 shasum -a 256 \u003e docs/acceptance/g36-insight-prod-reverify-20260831/raw/01-task-input-sha256.txt \u0026\u0026 cat docs/acceptance/g36-insight-prod-reverify-20260831/raw/00-session.txt \u0026\u0026 cat docs/acceptance/g36-insight-prod-reverify-20260831/raw/01-task-input-sha256.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"find tests -maxdepth 4 -type f \\\\( -name '*deploy*' -o -name '*runtime*' -o -name '*version*' -o -name '*insight*' \\\\) -print | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"rg -n \\\"HR-[1-4]|hard red|硬红|G36|Insight|insight|structured PASS|verdict\\\" docs internal tests web -S --glob '\"'!tests/e2e/v2/artifacts/**'\"' --glob '\"'!internal/webconsole/spa/dist/**'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"find internal -maxdepth 4 -type f \\\\( -name '*deploy*' -o -name '*runtime*' -o -name '*version*' -o -name '*insight*' \\\\) -print | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '1,420p' docs/design/features/insight-phase-1-contract.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '1,280p' internal/webconsole/api/handlers_insights_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"sed -n '1,300p' internal/insight/service_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"sed -n '1,280p' web/src/pages/InsightOverview.test.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"set -o pipefail\n{\n  echo '\"'$ git rev-parse HEAD'\"'\n  git rev-parse HEAD\n  echo '\"'$ git show -s --format=%H%n%P%n%ci%n%s HEAD'\"'\n  git show -s --format='%H%n%P%n%ci%n%s' HEAD\n  echo '\"'$ git merge-base HEAD 65eab385a93199d98fe3b367d4d07bc627cda7f2'\"'\n  git merge-base HEAD 65eab385a93199d98fe3b367d4d07bc627cda7f2\n  echo '\"'$ git merge-base HEAD 7f4cfcc43e0360f31e756bb453e675db50cc26c6'\"'\n  git merge-base HEAD 7f4cfcc43e0360f31e756bb453e675db50cc26c6\n  echo '\"'$ git merge-base --is-ancestor 7f4cfcc43e0360f31e756bb453e675db50cc26c6 HEAD; echo exit=$?'\"'\n  git merge-base --is-ancestor 7f4cfcc43e0360f31e756bb453e675db50cc26c6 HEAD; echo exit=\"'$?\n  echo '\"'\"'$ git branch --all --contains HEAD'\"'\n  git branch --all --contains HEAD\n  echo '\"'$ git for-each-ref --contains=HEAD --format=%(refname)'\"'\n  git for-each-ref --contains=HEAD --format='%(refname)'\n} 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/02-provenance-unique-sha.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc 'set -o pipefail\n(cd web \u0026\u0026 pnpm exec vitest run src/pages/InsightOverview.test.tsx) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/13-hr4-insight-ui-vitest.log'",
+      "exit_status": 254
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc 'set -o pipefail\n(go test ./internal/insight -count=1) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/10-hr1-insight-projection.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"set -o pipefail\n(go test ./internal/workerdaemon -run 'Test(SourceRuntimeDeployer|ControllerHandler_RuntimeDeploy)' -count=1) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/12-runtime-deploy-readback.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"set -o pipefail\n(go test ./internal/webconsole/api -run 'TestInsights' -count=1) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/11-hr2-insight-api.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc 'set -o pipefail\n(cd web \u0026\u0026 pnpm install --frozen-lockfile) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/09-web-pnpm-install.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc 'set -o pipefail\n(cd web \u0026\u0026 pnpm exec vitest run src/pages/InsightOverview.test.tsx) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/13-hr4-insight-ui-vitest.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc 'set -o pipefail\n(make lint-spa-tsc) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/20-tsc.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc 'set -o pipefail\n(go test ./... -count=1) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/22-go-test-all.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc 'set -o pipefail\n(make test-race) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/21-race.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc 'set -o pipefail\n(make build) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/30-make-build.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc 'set -o pipefail\nFULL_SHA=$(git rev-parse HEAD)\nVERSION=\"g36-prod-reverify-${FULL_SHA}\"\n(make build COMMIT=\"$FULL_SHA\" VERSION=\"$VERSION\") 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/31-make-build-full-sha.log\n./bin/agent-center --version 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/32-binary-version.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc 'set -o pipefail\n(./bin/agent-center version) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/32-binary-version.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'set -o pipefail\nWEB_PORT=$(awk -F= '\"'/web_port=/{print \"'$2}'\"' docs/acceptance/g36-insight-prod-reverify-20260831/raw/40-live-server-env.txt)\n{\n  echo '\"'$ curl -sS -i http://127.0.0.1:'\"'\\\"\"'$WEB_PORT\"'\"'/api/health'\n  curl -sS -i \\\"http://127.0.0.1:\"'$WEB_PORT/api/health\"\n  echo\n  echo '\"'\"'$ curl -sS -i http://127.0.0.1:'\"'\\\"\"'$WEB_PORT\"'\"'/api/system/version'\n  curl -sS -i \\\"http://127.0.0.1:\"'$WEB_PORT/api/system/version\"\n  echo\n  echo '\"'\"'$ curl -sS -i http://127.0.0.1:'\"'\\\"\"'$WEB_PORT\"'\"'/organizations/acme/insights/overview'\n  curl -sS -i \\\"http://127.0.0.1:\"'$WEB_PORT/organizations/acme/insights/overview\" | sed -n '\"'1,30p'\n} 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/42-live-health-version-api.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_61",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' /Users/oopslink/.agents/skills/agent-browser/SKILL.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc 'set -o pipefail\nWEB_PORT=$(awk -F= '\"'/web_port=/{print \"'$2}'\"' docs/acceptance/g36-insight-prod-reverify-20260831/raw/40-live-server-env.txt)\n(agent-browser open \\\"http://127.0.0.1:\"'$WEB_PORT/organizations/acme/insights/overview\" \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser snapshot -i \u0026\u0026 agent-browser screenshot docs/acceptance/g36-insight-prod-reverify-20260831/screenshots/43-live-ui-insight-route.png) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/43-live-ui-insight-route.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc 'set -o pipefail\nWEB_PORT=$(awk -F= '\"'/web_port=/{print \"'$2}'\"' docs/acceptance/g36-insight-prod-reverify-20260831/raw/40-live-server-env.txt)\n(agent-browser fill @e1 \\\"G36 Verifier\\\" \u0026\u0026 agent-browser fill @e2 \\\"g36-verifier@example.test\\\" \u0026\u0026 agent-browser fill @e3 \\\"passcode-12345\\\" \u0026\u0026 agent-browser fill @e4 \\\"passcode-12345\\\" \u0026\u0026 agent-browser fill @e5 \\\"Acme\\\" \u0026\u0026 agent-browser snapshot -i \u0026\u0026 agent-browser click @e6 \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser open \\\"http://127.0.0.1:\"'$WEB_PORT/organizations/acme/insights/overview\" \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser snapshot -i \u0026\u0026 agent-browser screenshot docs/acceptance/g36-insight-prod-reverify-20260831/screenshots/44-live-ui-authenticated-insight.png) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/44-live-ui-authenticated-insight.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc 'set -o pipefail\n(agent-browser click @e1 \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser get url \u0026\u0026 agent-browser snapshot -i) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/45-live-ui-org-url.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc 'set -o pipefail\n(agent-browser click @e6 \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser wait 1500 \u0026\u0026 agent-browser get url \u0026\u0026 agent-browser snapshot -i \u0026\u0026 agent-browser screenshot docs/acceptance/g36-insight-prod-reverify-20260831/screenshots/46-live-ui-insight-auth-org.png) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/46-live-ui-insight-auth-org.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'set -o pipefail\nWEB_PORT=$(awk -F= '\"'/web_port=/{print \"'$2}'\"' docs/acceptance/g36-insight-prod-reverify-20260831/raw/40-live-server-env.txt)\n(agent-browser open \\\"http://127.0.0.1:\"'$WEB_PORT/api/orgs/org-a1b84568/insights/overview?window=24h\" \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser get text body \u0026\u0026 agent-browser screenshot docs/acceptance/g36-insight-prod-reverify-20260831/screenshots/47-live-api-insight-overview-browser.png) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/47-live-api-insight-overview-browser.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc 'set -o pipefail\nWEB_PORT=$(awk -F= '\"'/web_port=/{print \"'$2}'\"' docs/acceptance/g36-insight-prod-reverify-20260831/raw/40-live-server-env.txt)\n(agent-browser open \\\"http://127.0.0.1:\"'$WEB_PORT/organizations/org-a1b84568/insights/overview\" \u0026\u0026 agent-browser wait --load networkidle \u0026\u0026 agent-browser wait 1000 \u0026\u0026 agent-browser get text body) 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/48-live-ui-insight-body-text.log'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc 'SANDBOX=$(mktemp -d /tmp/g36-insight-live.XXXXXX)\nWEB_PORT=$(python3 - \u003c\u003c'\"'PY'\nimport socket\ns=socket.socket(); s.bind(('127.0.0.1',0)); print(s.getsockname()[1]); s.close()\nPY\n)\nAPI_PORT=\"'$(python3 - \u003c\u003c'\"'PY'\nimport socket\ns=socket.socket(); s.bind(('127.0.0.1',0)); print(s.getsockname()[1]); s.close()\nPY\n)\nKEY=\\\"\"'$SANDBOX/master.key\"\npython3 - \u003c\u003cPY\nfrom pathlib import Path\nimport base64, os\nPath('\"'\"'$KEY'\"').write_text(base64.b64encode(os.urandom(32)).decode()+'\\\\n')\nPY\nchmod 600 \\\"\"'$KEY\"\nprintf '\"'server:\\\\n  listen_addr: \\\"127.0.0.1:%s\\\"\\\\n  sqlite_path: \\\"%s/agent-center.db\\\"\\\\n  admin_socket_path: \\\"%s/admin.sock\\\"\\\\nweb_console:\\\\n  enabled: true\\\\n  listen_addr: \\\"127.0.0.1:%s\\\"\\\\nsecret_management:\\\\n  master_key_file: \\\"%s\\\"\\\\n  skip_perms_check: true\\\\n' \\\"\"'$API_PORT\" \"$SANDBOX\" \"$SANDBOX\" \"$WEB_PORT\" \"$KEY\" \u003e \"$SANDBOX/config.yaml\"\nprintf '\"'sandbox=%s\\\\napi_port=%s\\\\nweb_port=%s\\\\nconfig=%s\\\\n' \\\"\"'$SANDBOX\" \"$API_PORT\" \"$WEB_PORT\" \"$SANDBOX/config.yaml\" | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/40-live-server-env.txt\n./bin/agent-center --config=\"$SANDBOX/config.yaml\" server 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/41-live-server.log'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_77",
+      "command": "/bin/zsh -lc 'agent-browser close 2\u003e\u00261 | tee docs/acceptance/g36-insight-prod-reverify-20260831/raw/49-browser-close.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_79",
+      "command": "/bin/zsh -lc 'find docs/acceptance/g36-insight-prod-reverify-20260831 -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_80",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc 'tail -n 20 docs/acceptance/g36-insight-prod-reverify-20260831/raw/22-go-test-all.log \u0026\u0026 tail -n 20 docs/acceptance/g36-insight-prod-reverify-20260831/raw/21-race.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_85",
+      "command": "/bin/zsh -lc 'find docs/acceptance/g36-insight-prod-reverify-20260831 -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 shasum -a 256 \u003e docs/acceptance/g36-insight-prod-reverify-20260831/SHA256SUMS\nprintf '\"'Evidence bundle:\\\\n'\nfind docs/acceptance/g36-insight-prod-reverify-20260831 -maxdepth 2 -type f | sort\nprintf '\\\\nGit status:\\\\n'\ngit status --short\nprintf '\\\\nVerdict:\\\\n'\nsed -n '1,220p' docs/acceptance/g36-insight-prod-reverify-20260831/verdict.json\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-6fc7b6a3/command_events.jsonl",
+  "command_event_digest": "sha256:21d90a0a8a21150ac6fb2791c9969acefbd9c38b011302f6719211bd60946c08",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "独立复验完成，结论：**FAIL，不能报 PASS**。",
+  "artifact_digest": "sha256:7c469767329b8bbd05f7d4e2e4ae034242c2ed1495ea6c0450ccd7834c8b097e",
+  "path": ".agent-center/evidence/task-a8f1efe7/exec-6fc7b6a3.json",
+  "branch": "ac-exec/task-a8f1efe7/exec-6fc7b6a3"
+}
