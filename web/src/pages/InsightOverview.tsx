@@ -198,8 +198,16 @@ function FreshnessBadge({ freshness }: { freshness: InsightFreshness }): React.R
 function FreshnessNotice({ data }: { data: Pick<InsightOverviewDTO, 'freshness' | 'refreshed_at'> }): React.ReactElement | null {
   const { t } = useTranslation('insights');
   if (data.freshness.state === 'fresh') return null;
-  const tone = data.freshness.state === 'stale' ? 'warn' : 'danger';
-  return <StatePanel testId={`insight-${data.freshness.state}`} tone={tone} title={t(`insight.state.${data.freshness.state}`)} body={t('insight.state.staleBody', { time: formatClock(data.refreshed_at) })} />;
+  if (data.freshness.state === 'stale') {
+    return <StatePanel testId="insight-stale" tone="warn" title={t('insight.state.stale')} body={t('insight.state.staleBody', { time: formatClock(data.refreshed_at) })} />;
+  }
+  if (data.freshness.state === 'rebuilding') {
+    return <StatePanel testId="insight-rebuilding" tone="danger" title={t('insight.state.rebuilding')} body={t('insight.state.staleBody', { time: formatClock(data.refreshed_at) })} />;
+  }
+  if (data.freshness.state === 'unavailable') {
+    return <StatePanel testId="insight-unavailable" tone="danger" title={t('insight.state.unavailable')} body={t('insight.state.staleBody', { time: formatClock(data.refreshed_at) })} />;
+  }
+  return <StatePanel testId="insight-freshness-unknown" tone="danger" title={t('insight.state.unknownFreshness')} body={t('insight.state.staleBody', { time: formatClock(data.refreshed_at) })} />;
 }
 
 function SummaryCards({ summary }: { summary: InsightSummary }): React.ReactElement {

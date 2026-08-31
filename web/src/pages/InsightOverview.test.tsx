@@ -105,6 +105,19 @@ describe('Insight pages', () => {
     expect(within(screen.getByTestId('insight-project-table')).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&project_id=proj-1');
   });
 
+  it('renders unknown overview freshness without exposing raw i18n keys', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/overview', () => HttpResponse.json(overview({
+      freshness: { state: 'future_freshness', age_ms: 60000, threshold_ms: 30000 },
+    }))));
+
+    renderAt('/organizations/acme/insights/overview');
+
+    expect(await screen.findByTestId('insight-freshness')).toHaveTextContent('Freshness unknown');
+    expect(screen.getByTestId('insight-freshness-unknown')).toHaveTextContent('Insight freshness is unknown');
+    expect(screen.getByTestId('page-InsightOverview')).not.toHaveTextContent('insight.freshness.');
+    expect(screen.getByTestId('page-InsightOverview')).not.toHaveTextContent('insight.state.');
+  });
+
   it('treats null, zero, low, partial, and representative coverage without guessing missing data as zero', async () => {
     const cases = [
       { slot_coverage_ratio: null, slot_utilization: null, want: 'Cannot determine' },
@@ -178,11 +191,26 @@ describe('Insight pages', () => {
     expect(table).toHaveTextContent('Data needs review');
     expect(table).not.toHaveTextContent('quiet_finalized');
     expect(table).not.toHaveTextContent('invalid_time_order');
+    expect(table).not.toHaveTextContent('insight.status.');
+    expect(table).not.toHaveTextContent('insight.quality.');
   });
 
-  it('renders object detail, failure_message, fallback reason, invalid quality, and not-found state', async () => {
+  it('renders object detail, failure_message, fallback reason, invalid quality, unknown fallback, and not-found state', async () => {
     server.use(http.get('/api/orgs/:slug/insights/executions/:executionId', ({ params }) => {
       if (params.executionId === 'missing') return HttpResponse.json({ error: 'not_found', message: 'execution not found' }, { status: 404 });
+      if (params.executionId === 'unknown-enum') {
+        return HttpResponse.json({
+          ...windowEnvelope,
+          execution: {
+            ...execution,
+            execution_id: 'unknown-enum',
+            outcome: 'future_outcome',
+            failure_reason: 'future_reason',
+            failure_message: null,
+            quality: 'future_quality',
+          },
+        });
+      }
       return HttpResponse.json({ ...windowEnvelope, execution: { ...execution, quality: 'invalid_time_order' } });
     }));
 
@@ -193,6 +221,14 @@ describe('Insight pages', () => {
     expect(detail).toHaveTextContent('Process exited with code 1.');
     expect(detail).toHaveTextContent('Invalid time data');
     expect(detail).toHaveTextContent('Execution ID');
+    cleanup();
+
+    renderAt('/organizations/acme/insights/executions/unknown-enum');
+    const unknownDetail = await screen.findByTestId('insight-execution-detail');
+    expect(unknownDetail).toHaveTextContent('Outcome unavailable');
+    expect(unknownDetail).toHaveTextContent('The execution was not successful.');
+    expect(unknownDetail).toHaveTextContent('Data needs review');
+    expect(unknownDetail).not.toHaveTextContent('insight.reason.');
     cleanup();
 
     renderAt('/organizations/acme/insights/executions/missing');
