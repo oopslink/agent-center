@@ -644,7 +644,7 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
 
       {!overview.isLoading && !overview.isError && data && (
         isGrantAccess ? (
-        <BatchGrantDrawer
+        <BatchGrantPanel
           subjects={data.subjects}
           roles={data.roles}
           permissions={data.catalog}
@@ -654,7 +654,7 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
           canManageAccess={canManageAccess}
           contextSubjectRef={selectedSubjectRef}
           onToast={setToast}
-          onClose={() => navigate(org?.slug ? `/organizations/${org.slug}/access/subject-access` : '/access/subject-access')}
+          onBack={() => navigate(org?.slug ? `/organizations/${org.slug}/access/subject-access` : '/access/subject-access')}
         />
         ) : (
         <div className={page === 'subject-access' ? 'grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_22rem]' : 'grid min-w-0 gap-4'}>
@@ -1978,7 +1978,7 @@ function GrantRevoke({ grants, subjectRef, permissionByKey, canManageAccess, onT
   );
 }
 
-function BatchGrantDrawer({
+function BatchGrantPanel({
   subjects,
   roles,
   permissions,
@@ -1988,7 +1988,7 @@ function BatchGrantDrawer({
   canManageAccess,
   contextSubjectRef,
   onToast,
-  onClose,
+  onBack,
 }: {
   subjects: AccessSubject[];
   roles: AccessRole[];
@@ -1999,7 +1999,7 @@ function BatchGrantDrawer({
   canManageAccess: boolean;
   contextSubjectRef: string;
   onToast: (toast: AccessToast) => void;
-  onClose: () => void;
+  onBack: () => void;
 }): React.ReactElement {
   const previewMutation = useAccessBatchPreview();
   const applyMutation = useAccessBatchApply();
@@ -2278,37 +2278,34 @@ function BatchGrantDrawer({
     <div className="flex min-h-0 min-w-0 flex-1 overflow-hidden" data-testid="access-batch-drawer-backdrop">
       <div
         aria-label={title}
-        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded border border-border-base bg-bg-elevated text-text-primary"
+        className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-bg-base text-text-primary"
         data-testid="access-batch-drawer"
       >
-        <div className="flex items-start justify-between gap-3 border-b border-border-base px-5 py-4">
-          <div>
-            <h2 className="text-lg font-semibold">{title}</h2>
-            <div className="mt-2 flex flex-wrap gap-1">
-              {['Scope', 'Preview', 'Confirm', 'Result'].map((label, idx) => (
-                <span
-                  key={label}
-                  className={[
-                    'rounded px-2 py-1 text-[0.6875rem] font-semibold',
-                    step === idx ? 'bg-brand text-white' : step > idx ? 'bg-status-emerald-bg text-status-emerald-fg' : 'bg-bg-subtle text-text-secondary',
-                  ].join(' ')}
-                >
-                  {idx + 1}. {label}
-                </span>
-              ))}
-            </div>
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border-base bg-bg-base px-1 pb-3">
+          <div className="flex flex-wrap gap-1">
+            {['Scope', 'Preview', 'Confirm', 'Result'].map((label, idx) => (
+              <span
+                key={label}
+                className={[
+                  'rounded px-2 py-1 text-[0.6875rem] font-semibold',
+                  step === idx ? 'bg-brand text-white' : step > idx ? 'bg-status-emerald-bg text-status-emerald-fg' : 'bg-bg-subtle text-text-secondary',
+                ].join(' ')}
+              >
+                {idx + 1}. {label}
+              </span>
+            ))}
           </div>
           <button
             type="button"
             aria-label="Back to Subject access"
             title="Back to Subject access"
-            className="rounded p-1.5 text-text-secondary hover:bg-bg-subtle"
-            onClick={onClose}
+            className="rounded border border-border-base px-3 py-1.5 text-sm font-medium text-text-secondary hover:bg-bg-subtle"
+            onClick={onBack}
           >
-            <IconClose />
+            Back to Subject access
           </button>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto py-4">
           {step === 0 && (
             <div className="space-y-4">
               <section className="rounded border border-border-base bg-bg-base" data-testid="access-grant-subjects">
@@ -2541,10 +2538,10 @@ function BatchGrantDrawer({
           <button
             type="button"
             className="rounded px-3 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle"
-            onClick={step === 0 ? onClose : () => setStep(Math.max(0, step - 1))}
+            onClick={step === 0 ? onBack : () => setStep(Math.max(0, step - 1))}
             disabled={previewMutation.isPending || applyMutation.isPending}
           >
-            {step === 0 ? 'Cancel' : 'Back'}
+            {step === 0 ? 'Back to Subject access' : 'Back'}
           </button>
           <div className="flex gap-2">
             {step === 0 && (
@@ -2585,7 +2582,7 @@ function BatchGrantDrawer({
               <button
                 type="button"
                 className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
-                onClick={onClose}
+                onClick={onBack}
               >
                 Done
               </button>

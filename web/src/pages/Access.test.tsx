@@ -245,7 +245,12 @@ describe('Access page', () => {
     const drawer = await screen.findByTestId('access-batch-drawer');
     expect(drawer).toHaveClass('overflow-hidden');
     expect(drawer).toHaveClass('flex-1', 'min-h-0');
+    expect(drawer).toHaveClass('bg-bg-base');
     expect(drawer).not.toHaveClass('h-full');
+    expect(drawer).not.toHaveClass('rounded');
+    expect(drawer).not.toHaveClass('bg-bg-elevated');
+    expect(screen.queryByRole('dialog', { name: 'Batch authorization' })).not.toBeInTheDocument();
+    expect(within(drawer).getAllByRole('button', { name: 'Back to Subject access' }).length).toBeGreaterThan(0);
     const backdrop = await screen.findByTestId('access-batch-drawer-backdrop');
     expect(backdrop).toHaveClass('flex-1', 'min-h-0', 'overflow-hidden');
     expect(backdrop).not.toHaveClass('h-full');
