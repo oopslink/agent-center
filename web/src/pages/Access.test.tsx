@@ -235,6 +235,29 @@ describe('Access page', () => {
     expect(within(drawer).getAllByTestId('access-grant-subject-select').filter((input) => (input as HTMLInputElement).checked)).toHaveLength(1);
   });
 
+  it('filters permission groups and gives visible feedback when adding grant rows', async () => {
+    renderPage('/organizations/test/access/grant-access');
+    const page = await screen.findByTestId('page-Access');
+    expect(page).toHaveClass('overflow-hidden');
+    const drawer = await screen.findByTestId('access-batch-drawer');
+    expect(drawer).toHaveClass('overflow-hidden');
+
+    const picker = within(drawer).getByTestId('access-permission-picker');
+    const list = within(drawer).getByTestId('access-grant-list');
+    fireEvent.change(within(picker).getByTestId('access-picker-keyword'), { target: { value: 'project write' } });
+    expect(within(picker).getByTestId('access-picker-group-Project')).toBeInTheDocument();
+    expect(within(picker).queryByTestId('access-picker-group-Agent')).not.toBeInTheDocument();
+
+    fireEvent.click(within(picker).getByTestId('access-picker-select-permission-direct-project-write-project'));
+    const addSelected = within(picker).getByTestId('access-add-selected-grants');
+    expect(addSelected).toHaveTextContent('Add selected (1)');
+    fireEvent.click(addSelected);
+
+    expect(within(list).getByTestId('access-grant-notice')).toHaveTextContent('Added 1 grant entry.');
+    expect(within(list).getByText('Project · This project · Write')).toBeInTheDocument();
+    expect(within(list).getByText('project.write')).toBeInTheDocument();
+  });
+
   it('previews and applies a four-step batch grant without deriving final permissions in the UI', async () => {
     renderPage('/organizations/test/access/subject-access');
     expect(await screen.findByTestId('page-Access')).toBeInTheDocument();

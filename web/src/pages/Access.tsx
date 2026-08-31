@@ -457,9 +457,14 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
   const titleId = `access-${page}-title`;
 
   return (
-    <section className="min-w-0 space-y-4" data-testid="page-Access" aria-labelledby={titleId} data-access-page={page}>
+    <section
+      className={isGrantAccess ? 'flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden' : 'min-w-0 space-y-4'}
+      data-testid="page-Access"
+      aria-labelledby={titleId}
+      data-access-page={page}
+    >
       {toast && <AccessToastNotice toast={toast} onDismiss={() => setToast(null)} />}
-      <header className="flex flex-wrap items-start justify-between gap-3">
+      <header className="flex shrink-0 flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">Access</p>
           <h1 id={titleId} className="font-heading text-2xl font-semibold text-text-primary">{title}</h1>
@@ -1933,12 +1938,14 @@ function BatchGrantDrawer({
   const [subjectQuery, setSubjectQuery] = useState('');
   const [subjectProjectID, setSubjectProjectID] = useState('all');
   const [subjectTeamName, setSubjectTeamName] = useState('all');
+  const [permissionQuery, setPermissionQuery] = useState('');
   const [selectedPickerIDs, setSelectedPickerIDs] = useState<string[]>([]);
   const [pickerResources, setPickerResources] = useState<Record<string, string>>({});
   const [collapsedPickerGroups, setCollapsedPickerGroups] = useState<Record<string, boolean>>({});
   const [scopePickerRowID, setScopePickerRowID] = useState<string | null>(null);
   const [grantEntries, setGrantEntries] = useState<GrantEntry[]>([]);
   const [selectedGrantIDs, setSelectedGrantIDs] = useState<string[]>([]);
+  const [grantNotice, setGrantNotice] = useState<{ tone: 'success' | 'warning'; message: string } | null>(null);
   const title = 'Batch authorization';
   const assignableRoles = useMemo(() => assignableRAMRoles(roles), [roles]);
   const directTemplates = useMemo(() => buildDirectGrantTemplates(permissions), [permissions]);
@@ -1970,9 +1977,17 @@ function BatchGrantDrawer({
       compatibleKinds: [template.backendResourceKind],
     })),
   ], [assignableRoles, directTemplates, permissions]);
+  const filteredPickerRows = useMemo(() => {
+    const q = permissionQuery.trim().toLowerCase();
+    if (!q) return pickerRows;
+    return pickerRows.filter((row) => [row.label, row.resource, row.permission, row.scope, row.action, row.detail]
+      .join(' ')
+      .toLowerCase()
+      .includes(q));
+  }, [permissionQuery, pickerRows]);
   const pickerGroups = useMemo(() => {
     const byResource = new Map<string, PermissionPickerRow[]>();
-    for (const row of pickerRows) {
+    for (const row of filteredPickerRows) {
       const group = byResource.get(row.resource) ?? [];
       group.push(row);
       byResource.set(row.resource, group);
@@ -1983,7 +1998,7 @@ function BatchGrantDrawer({
         resource,
         rows: rows.sort((a, b) => `${a.scope}:${a.action}:${a.label}`.localeCompare(`${b.scope}:${b.action}:${b.label}`)),
       }));
-  }, [pickerRows]);
+  }, [filteredPickerRows]);
   const resourceByKey = useMemo(() => new Map(resources.map((resource) => [accessResourceKey(resource), resource])), [resources]);
   const projectSubjectRefs = useMemo(() => {
     const byProject = new Map<string, Set<string>>();
@@ -2066,12 +2081,31 @@ function BatchGrantDrawer({
   const compatibleResources = (kinds: string[]): AccessResourceScope[] => resources.filter((resource) => kinds.includes('mixed') || kinds.includes(resource.kind));
   const scopePickerRow = scopePickerRowID ? pickerRows.find((row) => row.id === scopePickerRowID) : undefined;
   const scopePickerResources = scopePickerRow ? compatibleResources(scopePickerRow.compatibleKinds) : [];
-  const selectedPickerRows = pickerRows.filter((row) => selectedPickerIDs.includes(row.id));
-  const addPickerRows = (rows = selectedPickerRows): void => {
+  const visibleSelectedPickerRows = filteredPickerRows.filter((row) => selectedPickerIDs.includes(row.id));
+  const filteredPickerIDs = filteredPickerRows.map((row) => row.id);
+  const allFilteredPickerRowsSelected = filteredPickerRows.length > 0 && filteredPickerRows.every((row) => selectedPickerIDs.includes(row.id));
+  const toggleAllFilteredPickerRows = (): void => {
+    setSelectedPickerIDs((prev) => allFilteredPickerRowsSelected
+      ? prev.filter((id) => !filteredPickerIDs.includes(id))
+      : [...new Set([...prev, ...filteredPickerIDs])]);
+  };
+  const addPickerRows = (rows = visibleSelectedPickerRows): void => {
     const next: GrantEntry[] = [];
+    let skipped = 0;
     for (const row of rows) {
       const resource = resourceByKey.get(pickerResources[row.id]) ?? compatibleResources(row.compatibleKinds)[0];
-      if (!resource) continue;
+      if (!resource) {
+        skipped += 1;
+        continue;
+      }
+      if (row.kind === 'role' && !row.role) {
+        skipped += 1;
+        continue;
+      }
+      if (row.kind === 'permission' && !row.template) {
+        skipped += 1;
+        continue;
+      }
       next.push({
         id: `grant:${row.id}:${accessResourceKey(resource)}:${Date.now()}:${next.length}`,
         kind: row.kind,
@@ -2083,11 +2117,19 @@ function BatchGrantDrawer({
         risk: row.risk,
       });
     }
-    if (next.length > 0) setGrantEntries((prev) => [...prev, ...next]);
+    if (next.length > 0) {
+      const addedPickerIDs = new Set(rows.map((row) => row.id));
+      setGrantEntries((prev) => [...prev, ...next]);
+      setSelectedPickerIDs((prev) => prev.filter((id) => !addedPickerIDs.has(id)));
+      setGrantNotice({ tone: skipped > 0 ? 'warning' : 'success', message: skipped > 0 ? `Added ${next.length}; ${skipped} had no compatible scope.` : `Added ${next.length} grant ${next.length === 1 ? 'entry' : 'entries'}.` });
+      return;
+    }
+    setGrantNotice({ tone: 'warning', message: rows.length === 0 ? 'Select a visible permission before adding.' : 'No grant entry was added. Choose a compatible scope first.' });
   };
   const removeSelectedGrants = (): void => {
     setGrantEntries((prev) => prev.filter((entry) => !selectedGrantIDs.includes(entry.id)));
     setSelectedGrantIDs([]);
+    setGrantNotice({ tone: 'success', message: `Deleted ${selectedGrantIDs.length} grant ${selectedGrantIDs.length === 1 ? 'entry' : 'entries'}.` });
   };
   const runPreview = (): void => {
     previewMutation.mutate(effectiveRequest, {
@@ -2117,7 +2159,7 @@ function BatchGrantDrawer({
   };
 
   return (
-    <div className={mode === 'dialog' ? 'fixed inset-0 z-50 bg-black/30' : 'min-w-0'} data-testid="access-batch-drawer-backdrop">
+    <div className={mode === 'dialog' ? 'fixed inset-0 z-50 bg-black/30' : 'flex min-h-0 min-w-0 flex-1'} data-testid="access-batch-drawer-backdrop">
       <div
         ref={containerRef}
         role={mode === 'dialog' ? 'dialog' : undefined}
@@ -2125,7 +2167,7 @@ function BatchGrantDrawer({
         aria-label={title}
         className={mode === 'dialog'
           ? 'fixed inset-x-4 top-6 mx-auto flex max-h-[calc(100vh-3rem)] max-w-6xl flex-col rounded border border-border-base bg-bg-elevated text-text-primary shadow-2xl'
-          : 'flex min-h-[calc(100vh-12rem)] min-w-0 flex-col rounded border border-border-base bg-bg-elevated text-text-primary'}
+          : 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded border border-border-base bg-bg-elevated text-text-primary'}
         data-testid="access-batch-drawer"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border-base px-5 py-4">
@@ -2193,17 +2235,29 @@ function BatchGrantDrawer({
                   </table>
                 </div>
               </section>
-              <div className="grid gap-4 xl:grid-cols-2">
-                <section className="rounded border border-border-base bg-bg-base" data-testid="access-permission-picker">
-                  <div className="flex items-center justify-between border-b border-border-base px-3 py-2">
+              <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1.15fr)_minmax(22rem,0.85fr)]">
+                <section className="min-w-0 rounded border border-border-base bg-bg-base" data-testid="access-permission-picker">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-base px-3 py-2">
                     <h3 className="text-xs font-semibold uppercase text-text-muted">Permission picker</h3>
-                    <button type="button" className="rounded border border-border-base px-2 py-1 text-xs font-semibold disabled:opacity-50" disabled={selectedPickerRows.length === 0} onClick={() => addPickerRows()} data-testid="access-add-selected-grants">Add selected</button>
+                    <div className="flex min-w-0 flex-[1_1_22rem] items-center justify-end gap-2">
+                      <label className="min-w-0 flex-1">
+                        <span className="sr-only">Filter permissions</span>
+                        <input
+                          className="w-full rounded border border-border-base bg-bg-elevated px-2 py-1.5 text-sm"
+                          value={permissionQuery}
+                          onChange={(e) => setPermissionQuery(e.target.value)}
+                          placeholder="Filter permissions"
+                          data-testid="access-picker-keyword"
+                        />
+                      </label>
+                      <button type="button" className="shrink-0 rounded border border-border-base px-2 py-1 text-xs font-semibold disabled:opacity-50" disabled={visibleSelectedPickerRows.length === 0} onClick={() => addPickerRows()} data-testid="access-add-selected-grants">Add selected{visibleSelectedPickerRows.length > 0 ? ` (${visibleSelectedPickerRows.length})` : ''}</button>
+                    </div>
                   </div>
-                  <div className="max-h-80 overflow-auto">
-                    <table className="w-full min-w-[44rem] text-left text-sm">
+                  <div className="max-h-80 min-w-0 overflow-auto">
+                    <table className="w-full min-w-[36rem] text-left text-sm">
                       <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
                         <tr>
-                          <th className="w-10 px-3 py-2"><input type="checkbox" checked={pickerRows.length > 0 && pickerRows.every((row) => selectedPickerIDs.includes(row.id))} onChange={() => setSelectedPickerIDs(selectedPickerIDs.length === pickerRows.length ? [] : pickerRows.map((row) => row.id))} aria-label="Select all permissions" /></th>
+                          <th className="w-10 px-3 py-2"><input type="checkbox" checked={allFilteredPickerRowsSelected} onChange={toggleAllFilteredPickerRows} aria-label="Select all visible permissions" /></th>
                           <th className="px-3 py-2 font-semibold">Resource</th>
                           <th className="px-3 py-2 font-semibold">Permission</th>
                           <th className="px-3 py-2 font-semibold">Scope</th>
@@ -2263,17 +2317,30 @@ function BatchGrantDrawer({
                             </Fragment>
                           );
                         })}
+                        {filteredPickerRows.length === 0 && <tr><td colSpan={6} className="px-3 py-6 text-center text-sm text-text-muted">No permissions match the current filter.</td></tr>}
                       </tbody>
                     </table>
                   </div>
                 </section>
-                <section className="rounded border border-border-base bg-bg-base" data-testid="access-grant-list">
+                <section className="min-w-0 rounded border border-border-base bg-bg-base" data-testid="access-grant-list">
                   <div className="flex items-center justify-between border-b border-border-base px-3 py-2">
                     <h3 className="text-xs font-semibold uppercase text-text-muted">Grant list</h3>
                     <button type="button" className="rounded border border-danger/30 px-2 py-1 text-xs font-semibold text-danger disabled:opacity-50" disabled={selectedGrantIDs.length === 0} onClick={removeSelectedGrants} data-testid="access-remove-selected-grants">Delete selected</button>
                   </div>
-                  <div className="max-h-80 overflow-auto">
-                    <table className="w-full min-w-[40rem] text-left text-sm">
+                  {grantNotice && (
+                    <p
+                      className={[
+                        'border-b px-3 py-2 text-xs',
+                        grantNotice.tone === 'success' ? 'border-status-emerald-border bg-status-emerald-bg text-status-emerald-fg' : 'border-warning/30 bg-warning/10 text-warning',
+                      ].join(' ')}
+                      role="status"
+                      data-testid="access-grant-notice"
+                    >
+                      {grantNotice.message}
+                    </p>
+                  )}
+                  <div className="max-h-80 min-w-0 overflow-auto">
+                    <table className="w-full min-w-[32rem] text-left text-sm">
                       <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
                         <tr>
                           <th className="w-10 px-3 py-2"><input type="checkbox" checked={grantEntries.length > 0 && grantEntries.every((entry) => selectedGrantIDs.includes(entry.id))} onChange={() => setSelectedGrantIDs(selectedGrantIDs.length === grantEntries.length ? [] : grantEntries.map((entry) => entry.id))} aria-label="Select all grant entries" /></th>
