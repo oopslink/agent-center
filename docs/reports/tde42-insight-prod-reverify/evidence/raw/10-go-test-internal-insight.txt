@@ -1,0 +1,4 @@
+$ date -u
+2026-08-31T04:23:09Z
+$ go test ./internal/insight -count=1
+ok  	github.com/oopslink/agent-center/internal/insight	2.604s

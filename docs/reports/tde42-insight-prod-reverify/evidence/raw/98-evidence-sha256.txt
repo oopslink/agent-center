@@ -1,0 +1,29 @@
+$ date -u
+2026-08-31T04:28:11Z
+$ find docs/reports/tde42-insight-prod-reverify -maxdepth 4 -type f -print | sort | xargs shasum -a 256
+49923f4e2faeff4f44610e8fa91abf86cdb21f75209b6828c5755dfd8db967e9  docs/reports/tde42-insight-prod-reverify/INDEX.md
+3ebd02c04cc99594cd2611d50b42bb57b021032acb7ea1aed5691549a2035a63  docs/reports/tde42-insight-prod-reverify/evidence/raw/00-worktree.txt
+4f55ebb10afceacb505b3202d7ee522791f3fbb07a981a82f063db11201adaad  docs/reports/tde42-insight-prod-reverify/evidence/raw/01-candidate-worktree-add.txt
+bfc02f69e0de3ea2dfc6d137cb199fa7481c012f4b1e5f80ce87116dbdcd8f9a  docs/reports/tde42-insight-prod-reverify/evidence/raw/02-candidate-provenance.txt
+649b122df5dcbd3852e797c04ba2e650a9c156017a9f59bbde9e752f1b1a45c7  docs/reports/tde42-insight-prod-reverify/evidence/raw/03-task-input-presence.txt
+f471de5c82a1790870fc0e681c6fff1f194580741d920e4de89ccdb2087f589f  docs/reports/tde42-insight-prod-reverify/evidence/raw/04-hard-reds-branch.txt
+2c190f92fbc40d8a558ca35df5596dad271471b67379e60e1cc1b7a4caa895e6  docs/reports/tde42-insight-prod-reverify/evidence/raw/05-explicit-url-env.txt
+8f3e39449ac536ae7de6a7264e29ece1aa360c674271575ed626c37139abba79  docs/reports/tde42-insight-prod-reverify/evidence/raw/06-hard-red-fix-not-contained.txt
+a9d86a0f31b2c9796ed76d2025a3c5f266377f666ec2875de3d3403b798456c2  docs/reports/tde42-insight-prod-reverify/evidence/raw/10-go-test-internal-insight.txt
+5930e8bd0aefe08ea5f277aa4120850a6ff7790422a7d152db838dfe0596e145  docs/reports/tde42-insight-prod-reverify/evidence/raw/11-go-test-webconsole-insights.txt
+2956654935fb2f9448289d3b89645da8de63049ccda55f5e7d626828a43d97cc  docs/reports/tde42-insight-prod-reverify/evidence/raw/12-vitest-insight-pages.txt
+dbc7f6fc191f6d46c33a7b4a6cd1e6b3605c8c6a0362d131d3230323aa32550e  docs/reports/tde42-insight-prod-reverify/evidence/raw/13-pnpm-install.txt
+9b248b529f101cdf7a64d1f53d89ccc865049a8b414ea59e3979c0bd1e96ec49  docs/reports/tde42-insight-prod-reverify/evidence/raw/14-vitest-insight-pages-rerun.txt
+aee326e6ed026153e8c08c3d06ee982b8845ad64276c74e28a9bad27e82e2ba7  docs/reports/tde42-insight-prod-reverify/evidence/raw/15-vitest-ia-project-plan.txt
+41ed77403f445077800bf0f6174f6d4807c5e8ffc97a3ae56a3df219541ffeb1  docs/reports/tde42-insight-prod-reverify/evidence/raw/16-go-test-project-plan-insight.txt
+d02f61794e92d1d776b92dc57bd8009243be2c4975ba764639991c55186a134a  docs/reports/tde42-insight-prod-reverify/evidence/raw/17-hard-red-empty-collections-probe-current.txt
+c1ba56d2a72117852aaa8f7f9c39faa38dee4f9427b9a4917d95610f8e6108de  docs/reports/tde42-insight-prod-reverify/evidence/raw/18-hard-red-empty-collections-probe-current-fixed.txt
+cc3c12882d5e25e26a724df3b316b6af7410bcdb2aff651040cd2ce2d720e6ef  docs/reports/tde42-insight-prod-reverify/evidence/raw/20-candidate-go-test-internal-insight.txt
+e90c325195d67c5423647aae9e20c89f86d7522f24a189dcbab50f4020c95d91  docs/reports/tde42-insight-prod-reverify/evidence/raw/21-candidate-go-test-webconsole-insights.txt
+589db95f0f4dfcc2393772cf27648efa2731c4a24933df1224c8a08420a2a73b  docs/reports/tde42-insight-prod-reverify/evidence/raw/22-candidate-vitest-insight-pages.txt
+42107ae1fb68d0495fd10e75cc976a3023e283c26a308f0a196b41a5a0e47ce0  docs/reports/tde42-insight-prod-reverify/evidence/raw/23-candidate-vitest-ia-project-plan.txt
+797e1fabdb69bb2cf9c3c7ef58469c2a064eb193a14926452217221b80e1045b  docs/reports/tde42-insight-prod-reverify/evidence/raw/24-candidate-go-test-project-plan-insight.txt
+310db198798c2369829c2146367081596a901fb2747f875dcf9fbfa08df2fa06  docs/reports/tde42-insight-prod-reverify/evidence/raw/25-candidate-hard-red-empty-collections-probe.txt
+b5de0ac95270ff9e443401513b67c17a5ac9f5e725e4fb2f2623bb4a9cc39585  docs/reports/tde42-insight-prod-reverify/evidence/raw/98-evidence-sha256.txt
+dc9dc4e9dc1cd17ab4dc1f2c528edaaf524b926d738e609845926e64d307b4de  docs/reports/tde42-insight-prod-reverify/evidence/raw/99-pre-report-status.txt
+7241af1631b6689305029293b9770ec9fd677e8f4be51c87ef77a8413237e153  docs/reports/tde42-insight-prod-reverify/verdict.json

@@ -1,0 +1,15 @@
+$ date -u
+2026-08-31T04:24:09Z
+$ pnpm exec vitest run src/pages/InsightOverview.test.tsx src/pages/InsightExecutionDetail.test.tsx
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-79c42637/web
+
+(node:1390) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/pages/InsightOverview.test.tsx (6 tests) 533ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  12:24:11
+   Duration  3.79s (transform 419ms, setup 1.09s, collect 154ms, tests 533ms, environment 839ms, prepare 138ms)
+

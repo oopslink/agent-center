@@ -1,0 +1,2 @@
+Preparing worktree (detached HEAD 16dc5815)
+HEAD is now at 16dc5815 docs(insight): converge S3 candidate identity

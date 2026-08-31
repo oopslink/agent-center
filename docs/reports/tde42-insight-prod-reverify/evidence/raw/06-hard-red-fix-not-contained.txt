@@ -1,0 +1,102 @@
+$ date -u
+2026-08-31T04:26:09Z
+$ git show --stat --patch --max-count=1 origin/fix/t1820-hard-reds -- internal/insight/service.go internal/webconsole/api/handlers_insights_test.go
+commit ed4ef11a30e996f8855c2f37f15561b94b20ea95
+Author: agent-center-dev1 <01KTVBAC4VM65H9ZFZBM1Q6P3F@agent-center>
+Date:   Mon Aug 31 09:02:09 2026 +0800
+
+    fix(insight): restore frozen empty collection contract
+---
+ internal/insight/service.go                       | 11 +++++-
+ internal/webconsole/api/handlers_insights_test.go | 45 +++++++++++++++++++++++
+ 2 files changed, 55 insertions(+), 1 deletion(-)
+
+diff --git a/internal/insight/service.go b/internal/insight/service.go
+index 2449c9d2..98a6824d 100644
+--- a/internal/insight/service.go
++++ b/internal/insight/service.go
+@@ -167,6 +167,15 @@ func (s *Service) Overview(ctx context.Context, orgID string, asOf time.Time) (O
+ 	if err != nil {
+ 		return Overview{}, err
+ 	}
++	// Collections are part of the frozen Insight wire contract. Keep empty
++	// query results as JSON arrays rather than leaking Go's nil-slice encoding
++	// (`null`) to API clients.
++	if agents == nil {
++		agents = []LeaderRow{}
++	}
++	if projects == nil {
++		projects = []LeaderRow{}
++	}
+ 	diag, err := s.diagnostics(ctx, orgID, asOf)
+ 	if err != nil {
+ 		return Overview{}, err
+@@ -219,7 +228,7 @@ func (s *Service) Executions(ctx context.Context, orgID string, f ExecutionFilte
+ 		return ExecutionsResponse{}, err
+ 	}
+ 	defer rows.Close()
+-	var out []ExecutionRow
++	out := make([]ExecutionRow, 0)
+ 	var cursorKey, cursorID string
+ 	hasNext := false
+ 	for rows.Next() {
+diff --git a/internal/webconsole/api/handlers_insights_test.go b/internal/webconsole/api/handlers_insights_test.go
+index 53781d5e..3b23abbb 100644
+--- a/internal/webconsole/api/handlers_insights_test.go
++++ b/internal/webconsole/api/handlers_insights_test.go
+@@ -77,6 +77,51 @@ func TestInsightsOverviewAPI_WindowValidationAndShape(t *testing.T) {
+ 	}
+ }
+ 
++func TestInsightsAPIs_EmptyCollectionsEncodeAsArrays(t *testing.T) {
++	deps, db := setupAPIWithAuth(t)
++	sess := setupTestSession(t, db, deps)
++	svc, err := insight.Open(context.Background(), db, t.TempDir()+"/insight.duckdb", time.Minute)
++	if err != nil {
++		t.Fatal(err)
++	}
++	defer svc.Close()
++	if err := svc.Refresh(context.Background()); err != nil {
++		t.Fatal(err)
++	}
++	deps.Insight = svc
++	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
++	defer ts.Close()
++
++	for _, tc := range []struct {
++		path string
++		keys []string
++	}{
++		{path: "/api/orgs/" + sess.OrgSlug + "/insights/overview?window=24h", keys: []string{"agents", "projects"}},
++		{path: "/api/orgs/" + sess.OrgSlug + "/insights/executions?window=24h", keys: []string{"executions"}},
++	} {
++		req, _ := http.NewRequest(http.MethodGet, ts.URL+tc.path, nil)
++		req.AddCookie(sess.Cookie)
++		resp, err := http.DefaultClient.Do(req)
++		if err != nil {
++			t.Fatal(err)
++		}
++		var body map[string]json.RawMessage
++		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
++			_ = resp.Body.Close()
++			t.Fatal(err)
++		}
++		_ = resp.Body.Close()
++		if resp.StatusCode != http.StatusOK {
++			t.Fatalf("GET %s status = %d, want 200", tc.path, resp.StatusCode)
++		}
++		for _, key := range tc.keys {
++			if got := string(body[key]); got != "[]" {
++				t.Errorf("GET %s field %s = %s, want []", tc.path, key, got)
++			}
++		}
++	}
++}
++
+ func TestInsightsHTTPReadDoesNotTriggerProjection(t *testing.T) {
+ 	deps, db := setupAPIWithAuth(t)
+ 	sess := setupTestSession(t, db, deps)
+$ git merge-base --is-ancestor origin/fix/t1820-hard-reds 16dc58155dfa0cafd79c08595c8a8e378b5eede9
+exit=1
+$ git merge-base --is-ancestor origin/fix/t1820-hard-reds HEAD
+exit=1

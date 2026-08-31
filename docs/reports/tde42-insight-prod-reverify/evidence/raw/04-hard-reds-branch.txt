@@ -1,0 +1,12 @@
+$ date -u
+2026-08-31T04:24:39Z
+$ git show --stat --oneline origin/fix/t1820-hard-reds --
+ed4ef11a fix(insight): restore frozen empty collection contract
+ internal/admin/api/agent_tools_write.go           | 26 -------------
+ internal/insight/service.go                       | 11 +++++-
+ internal/webconsole/api/handlers_insights_test.go | 45 +++++++++++++++++++++++
+ scripts/lint/doc-impl-drift.sh                    | 10 +++--
+ 4 files changed, 62 insertions(+), 30 deletions(-)
+$ git branch -r --contains origin/fix/t1820-hard-reds
+  origin-push/immutable/t1820-isolation-deploy-ed4ef11a
+  origin/fix/t1820-hard-reds

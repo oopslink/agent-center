@@ -1,0 +1,10 @@
+$ date -u
+2026-08-31T04:26:38Z
+$ go test ./internal/webconsole/api -run TestProbeInsightsAPIsEmptyCollectionsEncodeAsArrays -count=1
+--- FAIL: TestProbeInsightsAPIsEmptyCollectionsEncodeAsArrays (0.94s)
+    insight_empty_collections_probe_test.go:53: GET /api/orgs/testorg/insights/overview?window=24h field agents = null, want []
+    insight_empty_collections_probe_test.go:53: GET /api/orgs/testorg/insights/overview?window=24h field projects = null, want []
+    insight_empty_collections_probe_test.go:53: GET /api/orgs/testorg/insights/executions?window=24h field executions = null, want []
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/webconsole/api	1.638s
+FAIL

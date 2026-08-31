@@ -1,0 +1,5 @@
+$ date -u
+2026-08-31T04:25:22Z
+$ go test ./internal/projectmanager ./internal/webconsole/api -run "Plan|Project|Evolution|Insight" -count=1
+ok  	github.com/oopslink/agent-center/internal/projectmanager	0.725s
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	17.727s

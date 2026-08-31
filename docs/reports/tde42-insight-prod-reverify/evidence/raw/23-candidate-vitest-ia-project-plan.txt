@@ -1,0 +1,1359 @@
+$ date -u
+2026-08-31T04:24:39Z
+$ pnpm exec vitest run src/AppLayout.sidebar.test.tsx src/pages/Projects.test.tsx src/pages/ProjectDetail.test.tsx src/pages/ProjectPlans.test.tsx src/pages/OrgPlans.test.tsx src/pages/PlanDetail.test.tsx src/components/IssueRelatedPlansBlock.test.tsx
+
+ RUN  v2.1.9 /private/tmp/agent-center-candidate-16dc-79c42637/web
+
+(node:5177) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5175) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5178) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5176) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5180) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5179) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:5181) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/IssueRelatedPlansBlock.test.tsx (3 tests) 129ms
+ ✓ src/pages/Projects.test.tsx (11 tests) 1054ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > desktop two-pane: title bar has name + ref; info rail has status + failed + progress + creator
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/OrgPlans.test.tsx (8 tests) 3043ms
+   ✓ OrgPlans — global cross-project Plan list (v2.10.0 [T6]) > renders the cross-project plan table (name / status / project / progress / updated) 602ms
+   ✓ OrgPlans — global cross-project Plan list (v2.10.0 [T6]) > status filter chips send the status param 307ms
+   ✓ OrgPlans — global cross-project Plan list (v2.10.0 [T6]) > discarded chip sends status=discarded and renders discarded plans 550ms
+   ✓ OrgPlans — global cross-project Plan list (v2.10.0 [T6]) > search is sent SERVER-side as ?q= (so it spans all pages, not just the loaded one) 472ms
+   ✓ OrgPlans — global cross-project Plan list (v2.10.0 [T6]) > selecting a plan opens the col④ summary with an Open-plan link 309ms
+   ✓ OrgPlans — global cross-project Plan list (v2.10.0 [T6]) > renders a mobile card per plan, with a name link to the plan detail 313ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > info rail: the @creator tag opens the (unchanged) agent-activity sidebar
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/users/owner
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > info rail: Progress shows a bar with the done/total label + percentage
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > info rail: Up next lists the non-terminal nodes (excludes done/failed)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > info rail: Up next task titles open TaskDetail in a new tab
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > info rail: Up next is collapsible via its header toggle (@oopslink)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > shows Pause (→ paused) when running and calls usePausePlan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/ProjectDetail.test.tsx (18 tests) 6178ms
+   ✓ ProjectDetail page > T566: auto-assign toggle defaults ON and PATCHes auto_assign_enabled:false when turned off 1104ms
+   ✓ ProjectDetail page > renders header + per-project Issues / Tasks tabs + Fleet link 923ms
+   ✓ ProjectDetail page > stats block: shows the project counts + the 3 newest work items (merged, updated_at desc) 376ms
+   ✓ ProjectDetail page > renders Issues/Tasks as tables: id-tail handle (+hover) / status chip / title link / task assignee+priority (#242) 481ms
+   ✓ ProjectDetail page > shows org_ref (T<n>/I<n>) in the ID column when present, hash id on hover (#245) 367ms
+   ✓ ProjectDetail page > shows the per-project empty hint when both panels return [] 471ms
+   ✓ ProjectDetail page > renders Members + Code repos tabs reading the pm model (#135) 336ms
+   ✓ ProjectDetail page > Plans filter: status chip sends ?status=, search sends ?q=, and both reset to page 1 319ms
+   ✓ ProjectDetail page > Plans bulk archive selects only terminal plans, confirms, and archives each through the canonical endpoint 327ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > paused node shows a Resume button that POSTs the node resume (T53)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > paused node shows a Resume button that POSTs the node resume (T53)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > shows an accurate hint (not the generic error) when resume fails agent_busy (T101)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > shows a "nothing to resume" hint when resume fails node_not_paused (T101)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > shows Start when pending (not Stop) and calls useStartPlan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/AppLayout.sidebar.test.tsx (16 tests) 7614ms
+   ✓ col② secondary nav — active-module group + sub-lists > renders the active module as a collapsible group with its items expanded by default 738ms
+   ✓ col② secondary nav — active-module group + sub-lists > I23: col① Conversations icon shows the cross-source unread badge (brand on @me) 1437ms
+   ✓ col② secondary nav — active-module group + sub-lists > Channels item exposes a sub-list of channel names when expanded 1063ms
+   ✓ col② secondary nav — active-module group + sub-lists > DMs item exposes a sub-list of DM peers when expanded 398ms
+   ✓ col② secondary nav — active-module group + sub-lists > shows a manual delete action for deleted-peer DMs in the sidebar 400ms
+   ✓ col② secondary nav — active-module group + sub-lists > confirms before deleting a deleted-peer DM from the sidebar 481ms
+   ✓ col② secondary nav — active-module group + sub-lists > sub-item state persists to localStorage 432ms
+   ✓ col② secondary nav — active-module group + sub-lists > count badges reflect real hook counts with accessible labels 912ms
+   ✓ col② secondary nav — active-module group + sub-lists > renders unread/mention badges in the channel sub-list from row counts 478ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > shows Reopen when done with an active generation and calls useReopenPlan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > three tabs (chat/DAG/tasks); chat is default; switching shows DAG / task list; task-list count = node count
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > maximizes via the tab-row toggle / restores via the overlay button (T347)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > shows the plan goal (description) on the detail page (T347)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > collapses a long plan goal (clamped by default; Show more / less) — T349
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > DAG renders a node per task with the 6-state chips (label + color) + Advance
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > DAG canvas pans on a background drag but not when starting on a node link
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/ProjectPlans.test.tsx (48 tests) 8278ms
+   ✓ ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan) > renders the board: Backlog column (unplanned tasks) + Plan columns + new-Plan column 1099ms
+   ✓ ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan) > projects each live task into exactly one column with Plan > Pool > Backlog priority 363ms
+   ✓ ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan) > backlog card shows the human task id (org_ref T-number) 347ms
+   ✓ ProjectPlans Work Board (#291 — Backlog + Plan columns + new-Plan) > clicking an agent assignee opens the agent activity sidebar 407ms
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > legend includes a paused chip with the stone palette (T53)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > point 1 (T126): DAG nodes + task-list rows show the Task id from node.org_ref; no-org_ref → FULL id, never a #hash
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > clicking a DAG node assignee opens the agent-activity sidebar
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > point 2: compact toggle zooms the DAG down so a long plan fits
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > DAG computes a layered left→right layout from depends_on
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > DAG draws an edge per depends_on relation (upstream→downstream)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > running plan exposes NO manual Advance button (auto-advance only) — @oopslink
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > DAG is display-only: note never claims an edge editor, and no edge-edit control exists
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > running plan is display-only: NO in-graph connect / edge-delete controls (and no old editor box)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > done plan is display-only: NO in-graph connect / edge-delete controls
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > lifecycle controls (Start/Stop) each render exactly once, status-gated
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > lifecycle controls (Start/Stop) each render exactly once, status-gated
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > task-list tab lists nodes with task_status + node_status chips
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T570: a DONE node shows its completion time; non-done nodes do not
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > task list shows a Created column with a full timestamp + timezone (— when absent)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T570: rail drops the Threads/Files panel; title bar has no bottom border
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T570: Edit / Discard / Delete share one button row for a pending plan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > conversation side renders ConversationView with the plan conversation_id
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > empty conversation_id → friendly initializing state (no crash)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > running plan shows the auto-advancing indicator (near the status chip)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending plan does NOT show the auto-advancing indicator
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > done plan does NOT show the auto-advancing indicator
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending plan shows in-graph affordances: a connect button per node + a delete control per edge
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: clicking a node connect button enters connect mode and lights up valid targets
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: activating a valid target calls useAddDependency with { from_task_id, to_task_id } (from depends_on to)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: a cycle/self/existing target is NOT offered as an activatable target (UI-layer block)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: an already-existing edge target is NOT offered again (exists excluded)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: Escape exits connect mode without adding; the Cancel affordance also exits
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: an edge delete control FIRES the DELETE request with the correct ids (real wiring)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > #218: a cycle error from add surfaces the FRIENDLY message (not the raw API error)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > pending: plan-dag-note states dependencies ARE editable here (in-graph)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > error surface + in-graph controls use solid danger/semantic tokens (no raw red, no alpha-tint)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A2 task-list: PENDING plan rows have a Remove button that DELETEs by task_id
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A2 task-list: PENDING plan rows have a Remove button that DELETEs by task_id
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A6 §4.2: a DAG node title is a new-tab link to TaskDetail (href + target=_blank + rel noopener)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > opens TaskDetail from the whole desktop DAG node card, without double-opening the title link
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A6 §4.2: a task-list row title is a new-tab link AND coexists with the A2 remove button (pending)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A2 task-list: running plan rows have NO Remove control (§9.4 pending-only)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A2 task-list: done plan rows have NO Remove control (§9.4 pending-only)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A2 task-list #218: a remove failure shows a friendly inline message (no raw API error)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > T238: running plan opens the edit modal with name/goal but NO target-date field
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A3: clicking Edit opens the modal pre-filled with name/goal/target_date
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A3: editing + submit PATCHes only the CHANGED fields (name/description), absolute target_date
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A3: clearing target_date sends target_date: "" (clear); unchanged name/goal omitted
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A3: setting a new target_date sends an absolute RFC3339 instant
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A3: Cancel closes the modal WITHOUT a PATCH
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 #287 execution view > A3 #218: a PATCH failure surfaces a FRIENDLY inline message (no raw API error)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > renders distinct Start + End anchors (default fixture)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > synthetic anchors are NOT counted as task nodes (real node count unchanged)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > real depends_on edges are unchanged; synthetic edges are on a separate testid
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > multi-parallel: 3 independent tasks → Start→all 3, all 3→End (left→right flow)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > single chain A→B→C: Start→A only, C→End only
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > single node: Start→node and node→End
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > empty plan: no synthetic anchors, no crash
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > anchors use solid tokens (no alpha-tint, no raw red, not the 6-state border)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > shows Delete + Discard, but not Archive, for a PENDING plan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > shows Archive only for a DONE plan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > offers Pause + Discard, but not Delete/Archive, for a RUNNING plan
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > an ARCHIVED plan is terminal: NO Delete / Archive entries (read-only)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > clicking Delete opens a CONSEQUENCE-explaining modal (not just "are you sure?")
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > Delete confirm DELETEs /{id} and navigates AWAY to the plans board
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > Delete Cancel closes the modal WITHOUT a DELETE
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > Delete #218: a 409 surfaces a FRIENDLY message and the modal STAYS OPEN
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > clicking Archive opens a CONSEQUENCE-explaining modal (terminal, cannot be undone)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > Archive confirm POSTs /{id}/archive (and stays on the detail view)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > Archive Cancel closes the modal WITHOUT an archive POST
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > Archive #218: a 409 already-archived surfaces a FRIENDLY message, modal stays open
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > task-list row shows the Archived badge when task.archived (coexists with status chips)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > archive badge uses a curated SOLID amber pair (no alpha-tint, no raw red, no emoji)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > PlanStatusChip preserves discarded lifecycle color after archival
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > T41: Task tab renders ALL nodes of a big plan (no cap)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > T41: search filters by title; clearing restores all; no-match shows empty state
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > T41: search filters by Task-id (org_ref) and by assignee handle
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > T41/T147: the single per-row assignee dropdown fires the assign mutation with {assignee}
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.9 Stage B delete + archive > T41/T147: choosing Unassigned routes to the unassign endpoint
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper > renders a vertical stepper with one node per task (topological order) alongside the desktop graph
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper > each stepper node shows a status dot + state chip + a tappable title link to the task
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > DAG tab survives a loading→has_graph:true resolve: legacy first, then PlanGraphDag, no #300 crash
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > graph that stays has_graph:false keeps the legacy renderer (zero-regression fallback)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > legacy DAG groups tasks into stage boxes with status/progress/retry
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > does not manufacture PlanGeneration history from Stage generation integers
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > Plan generation read model shows active/history progress, diff, and node ownership
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > keeps long PlanGeneration history in a compact horizontal strip without hiding DAG
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > renders an orchestration-graph history revision from its immutable snapshot
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > connects staged orchestration-graph history revisions through gate topology
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > running/paused plans POST the parent, version, evidence, idempotency key, and complete generation diff
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > Replace resolves the current blocked context inside one evolution request
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > Evolution shows whole-request rejection and recovery action for in-flight conflicts
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > Evolution rejects malformed diffs before POST and distinguishes stale and idempotency conflicts
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > mobile stage audit exposes a visible API error state
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/pages/PlanDetail.test.tsx > PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > no-stage plan renders no stage panel (backward compatible)
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/related-issues
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/projects/proj-a/plans/PL-1/graph
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/pages/PlanDetail.test.tsx (111 tests) 26967ms
+   ✓ PlanDetail — v2.9 #287 execution view > desktop two-pane: title bar has name + ref; info rail has status + failed + progress + creator 1672ms
+   ✓ PlanDetail — v2.9 #287 execution view > info rail: the @creator tag opens the (unchanged) agent-activity sidebar 852ms
+   ✓ PlanDetail — v2.9 #287 execution view > info rail: Progress shows a bar with the done/total label + percentage 511ms
+   ✓ PlanDetail — v2.9 #287 execution view > info rail: Up next lists the non-terminal nodes (excludes done/failed) 404ms
+   ✓ PlanDetail — v2.9 #287 execution view > info rail: Up next task titles open TaskDetail in a new tab 411ms
+   ✓ PlanDetail — v2.9 #287 execution view > info rail: Up next is collapsible via its header toggle (@oopslink) 393ms
+   ✓ PlanDetail — v2.9 #287 execution view > shows Pause (→ paused) when running and calls usePausePlan 614ms
+   ✓ PlanDetail — v2.9 #287 execution view > paused node shows a Resume button that POSTs the node resume (T53) 733ms
+   ✓ PlanDetail — v2.9 #287 execution view > shows an accurate hint (not the generic error) when resume fails agent_busy (T101) 435ms
+   ✓ PlanDetail — v2.9 #287 execution view > shows a "nothing to resume" hint when resume fails node_not_paused (T101) 352ms
+   ✓ PlanDetail — v2.9 #287 execution view > shows Start when pending (not Stop) and calls useStartPlan 372ms
+   ✓ PlanDetail — v2.9 #287 execution view > shows Reopen when done with an active generation and calls useReopenPlan 311ms
+   ✓ PlanDetail — v2.9 #287 execution view > DAG renders a node per task with the 6-state chips (label + color) + Advance 336ms
+   ✓ PlanDetail — v2.9 #287 execution view > legend includes a paused chip with the stone palette (T53) 350ms
+   ✓ PlanDetail — v2.9 #287 execution view > pending: activating a valid target calls useAddDependency with { from_task_id, to_task_id } (from depends_on to) 399ms
+   ✓ PlanDetail — v2.9 #287 execution view > pending: Escape exits connect mode without adding; the Cancel affordance also exits 345ms
+   ✓ PlanDetail — v2.9 #287 execution view > pending: an edge delete control FIRES the DELETE request with the correct ids (real wiring) 403ms
+   ✓ PlanDetail — v2.9 #287 execution view > #218: a cycle error from add surfaces the FRIENDLY message (not the raw API error) 314ms
+   ✓ PlanDetail — v2.9 #287 execution view > A2 task-list: PENDING plan rows have a Remove button that DELETEs by task_id 321ms
+   ✓ PlanDetail — v2.9 #287 execution view > T238: Edit button shows for active lifecycle states and hides for terminal/archived plans 623ms
+   ✓ PlanDetail — v2.9 A5 synthetic Start/End DAG anchors > multi-parallel: 3 independent tasks → Start→all 3, all 3→End (left→right flow) 514ms
+   ✓ PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (React #300 guard) > legacy DAG groups tasks into stage boxes with status/progress/retry 317ms
+
+ Test Files  7 passed (7)
+      Tests  215 passed (215)
+   Start at  12:24:40
+   Duration  33.32s (transform 4.61s, setup 11.85s, collect 9.12s, tests 53.26s, environment 9.95s, prepare 1.83s)
+

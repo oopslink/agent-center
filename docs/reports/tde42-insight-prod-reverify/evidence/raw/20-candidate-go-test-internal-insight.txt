@@ -1,0 +1,6 @@
+$ date -u
+2026-08-31T04:23:35Z
+$ git rev-parse HEAD
+16dc58155dfa0cafd79c08595c8a8e378b5eede9
+$ go test ./internal/insight -count=1
+ok  	github.com/oopslink/agent-center/internal/insight	7.611s

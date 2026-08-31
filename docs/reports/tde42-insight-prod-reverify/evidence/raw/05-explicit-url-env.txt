@@ -1,0 +1,3 @@
+$ date -u
+2026-08-31T04:25:52Z
+$ env | LC_ALL=C sort | rg "^(AC_|AGENT_CENTER_|WEB_|BASE_|PROD_|DEPLOY_|APP_).*URL=|^(AC_|AGENT_CENTER_).*PORT="

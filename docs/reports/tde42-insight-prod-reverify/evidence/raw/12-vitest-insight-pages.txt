@@ -1,0 +1,12 @@
+$ date -u
+2026-08-31T04:23:10Z
+$ pnpm exec vitest run src/pages/InsightOverview.test.tsx src/pages/InsightExecutionDetail.test.tsx
+NOTE: first attempt was run from web/ before node_modules existed, but tee used
+an invalid output path and did not persist the original stream. The console
+showed:
+tee: ../exec-79c42637/docs/reports/tde42-insight-prod-reverify/evidence/raw/12-vitest-insight-pages.txt: No such file or directory
+ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL Command "vitest" not found
+
+Superseding persisted reruns:
+- current HEAD: evidence/raw/14-vitest-insight-pages-rerun.txt
+- S3 candidate: evidence/raw/22-candidate-vitest-insight-pages.txt

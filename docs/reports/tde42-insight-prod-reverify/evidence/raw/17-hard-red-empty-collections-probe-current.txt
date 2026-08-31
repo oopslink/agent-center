@@ -1,0 +1,9 @@
+$ date -u
+2026-08-31T04:26:30Z
+$ git rev-parse HEAD
+3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5
+$ go test ./internal/webconsole/api -run TestProbeInsightsAPIsEmptyCollectionsEncodeAsArrays -count=1
+# github.com/oopslink/agent-center/internal/webconsole/api [github.com/oopslink/agent-center/internal/webconsole/api.test]
+internal/webconsole/api/insight_empty_collections_probe_test.go:5:2: "database/sql" imported and not used
+FAIL	github.com/oopslink/agent-center/internal/webconsole/api [build failed]
+FAIL
