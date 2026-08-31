@@ -1,0 +1,167 @@
+{
+  "task_id": "task-7e8ef88f",
+  "execution_id": "exec-ad2156ff",
+  "reviewed_sha": "173fdb0913450370fae51831f0008d2f10165f8c",
+  "base_sha": "173fdb0913450370fae51831f0008d2f10165f8c",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'ls -la'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find . -maxdepth 4 -type f \\\\( -name README.md -o -name manifest.json \\\\) -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'find . -maxdepth 3 -type d -print'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'rg -n \"Runtime Control|running_sha|running_version|restart|health|idempot|timeout|merge-base|actual running|contract-to-production-chain|evidence-before-verdict|verify-world-state\" docs internal tests .github README.md CHANGELOG.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git remote -v \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' docs/reports/t1802-runtime-control-integration.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'find docs/acceptance docs/reports -maxdepth 3 -type f | sort | rg -i \"runtime|control|t1802|deploy|restart|running|sha\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'rg -n \"runtime_deploy_restart|running_sha|running_version|ControlLog|idempotency_key|attempt|timeout\" internal cmd tests docs/reports/t1802-runtime-control-integration.md'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate -n 12 --all --no-abbrev-commit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git fetch origin main --prune'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD main origin/main origin/HEAD FETCH_HEAD origin-push/ac-exec/task-184a7b75/exec-2fe5e0f6 origin-push/t1831-runtime-deploy-async-readback 2\u003e/dev/null'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"git merge-base HEAD main \u0026\u0026 git merge-base --is-ancestor HEAD main; printf 'HEAD_ancestor_main=%s\\\\n' \"'$?; git merge-base 7f4cfcc43e0360f31e756bb453e675db50cc26c6 main \u0026\u0026 git merge-base --is-ancestor 7f4cfcc43e0360f31e756bb453e675db50cc26c6 main; printf '\"'candidate_ancestor_main=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"git show -s --format='%H%n%P%n%s%n%cI' HEAD main 7f4cfcc43e0360f31e756bb453e675db50cc26c6 b9c002eba17fb3e6588f372fbfea9b72925b339d 61b217ff7d88e88fdfeaca04c754de67807ae155\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"git show --name-only --format='' 7f4cfcc43e0360f31e756bb453e675db50cc26c6\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate 7f4cfcc43e0360f31e756bb453e675db50cc26c6'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"git show --format=fuller --no-ext-diff --unified=80 7f4cfcc43e0360f31e756bb453e675db50cc26c6 -- internal/runtimedeploy internal/workerdaemon internal/admin/api internal/mcphost tests docs | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"git show --no-ext-diff --unified=100 --format='' 7f4cfcc43e0360f31e756bb453e675db50cc26c6 -- internal/runtimedeploy/deploy.go internal/workerdaemon/runtime_deployer.go internal/workerdaemon/runtime_deployer_test.go internal/workerdaemon/worker_controller.go internal/workerdaemon/worker_controller_test.go | sed -n '1,420p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc 'rg -n \"running_sha|running_version|restart_terminal_success|post_restart_health_status|missing|succeeded|version_readback|RestartTerminalSuccess|PostRestartHealthStatus|RunningSHA\" internal/runtimedeploy internal/workerdaemon internal/admin/api'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc 'git diff --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"find . -name 'task-input' -o -path './task-input/*' -o -path '*/task-input/v1/*' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"git merge-base b9c002eba17fb3e6588f372fbfea9b72925b339d 7f4cfcc43e0360f31e756bb453e675db50cc26c6 \u0026\u0026 git merge-base --is-ancestor b9c002eba17fb3e6588f372fbfea9b72925b339d 7f4cfcc43e0360f31e756bb453e675db50cc26c6; printf 'base_ancestor_candidate=%s\\\\n' \"'$?; git merge-base 7f4cfcc43e0360f31e756bb453e675db50cc26c6 3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5 \u0026\u0026 git merge-base --is-ancestor 7f4cfcc43e0360f31e756bb453e675db50cc26c6 3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5; printf '\"'candidate_ancestor_remote_main=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-ad2156ff/command_events.jsonl",
+  "command_event_digest": "sha256:4c567f1c40fac7b26afec68e4eea4c37ba3cd376904ca706bb30444511fd749f",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "{",
+  "artifact_digest": "sha256:b8e52db517506e5961e4cfdad021c6b31e7f0e3073592876d12fbabc5656d8f0",
+  "path": ".agent-center/evidence/task-7e8ef88f/exec-ad2156ff.json",
+  "branch": "ac-exec/task-7e8ef88f/exec-ad2156ff"
+}
