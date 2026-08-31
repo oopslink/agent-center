@@ -1,0 +1,173 @@
+{
+  "task_id": "task-18a101c9",
+  "execution_id": "exec-55a028bd",
+  "reviewed_sha": "3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5",
+  "base_sha": "3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files task-input/v1 . | sed -n '1,160p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git remote -v \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type f \\\\( -name '*test*.sh' -o -name 'Makefile' -o -name '*.md' \\\\) | sort | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"rg -n \\\"7f4cfcc|current-main|worker.*health|health.*worker|fail-closed|fail closed|authoritative|authority|consumer chain|production consumer|focused|race|vet\\\" . --glob '\"'!web/node_modules/**'\"' --glob '\"'!**/.git/**'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"find .. -maxdepth 4 -path '*/task-input/v1/*' -print | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/reports/t1802-runtime-control-integration.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"sed -n '1,150p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate --no-renames 7f4cfcc'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git fetch origin main --prune'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD origin/main origin/HEAD ; git merge-base --is-ancestor 7f4cfcc origin/main ; echo merge_base_exit=$? ; git log --oneline --decorate --max-count=8 origin/main ; git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'rg -n \"Test.*RuntimeDeploy|Test.*Readback|Test.*Health|RejectsNonWorkerToken|RejectsWrongWorkerAgent|verified_target_sha|runtime_deploy_restart|RuntimeDeploy|ParseAgentCenterVersionReadback|fail closed|fail-closed\" internal/admin/api internal/workerdaemon internal/runtimedeploy internal/mcphost internal/agentruntime'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'git diff --stat 7f4cfcc..origin/main -- internal/admin/api/agent_tools_runtime_deploy.go internal/admin/api/health.go internal/admin/api/server.go internal/cli/admin_wiring.go internal/runtimedeploy/deploy.go internal/workerdaemon/run.go internal/workerdaemon/runtime_deployer.go internal/workerdaemon/worker_controller.go internal/admin/api/agent_tools_runtime_deploy_test.go internal/workerdaemon/runtime_deployer_test.go internal/workerdaemon/worker_controller_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git show --name-only --oneline --no-renames 7f4cfcc'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'go test ./internal/runtimedeploy ./internal/mcphost ./internal/agentruntime ./internal/admin/api ./internal/workerdaemon ; echo exit=$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"go test ./internal/mcphost -run 'TestRequireTools_TieredCatalogIncludesSupervisorCore|TestAgentFacingToolParity' ; echo exit=\"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"go test ./internal/admin/api -run 'TestRuntimeDeployRestartHandler_(VerifiesRemoteBeforeEnqueue|RejectsMismatchedRemoteSHA|RejectsNonWorkerToken|RejectsWrongWorkerAgent|IdempotencyKeyDoesNotDoubleMutate|LongTimeoutReturnsBeforeTerminal)|TestRuntimeDeployStatusHandler_ReadsTerminalAttemptByIdempotencyKey' ; echo exit=\"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"go test ./internal/workerdaemon -run 'TestControllerHandler_RuntimeDeploy|TestSourceRuntimeDeployer|TestReadCenterAdminHealthUsesRunningEndpointBuildIdentity|TestParseAgentCenterVersionReadback' ; echo exit=\"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'go test ./... ; echo exit=$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc 'make test-race ; echo exit=$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc 'make vet ; echo exit=$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"sed -n '1,280p' internal/workerdaemon/runtime_deployer.go ; sed -n '180,270p' internal/workerdaemon/worker_controller.go ; sed -n '1,130p' internal/admin/api/health.go ; sed -n '60,125p' internal/mcphost/agent_facing_set.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc 'git status --short ; git diff --stat ; git rev-parse HEAD origin/main origin/HEAD ; git merge-base --is-ancestor 7f4cfcc origin/main ; echo contains_7f4cfcc_exit=$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"go test ./internal/agentruntime -run 'TestStartCodex_PreflightsFullCatalogForNativeToolSearch|TestStartCodex_WritesMCPConfigAndCodexHome|TestStartCodex_BlocksWhenSupervisorMCPPreflightFails|TestStartClaude_BlocksWhenSupervisorMCPPreflightFails' ; echo exit=\"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"go test ./internal/admin/api -run 'TestAdminServer_HealthOverUnixSocket|TestAdminServer_TCPOnly_Health|TestAdminServer_BothTransports_Health|TestAuthMiddleware_PublicHealthPassThrough' ; echo exit=\"'$?'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-55a028bd/command_events.jsonl",
+  "command_event_digest": "sha256:f9399b4aa91a7494fadc0bd30a02c41def5ccf1a401cf7f3aee23ff2d85db7e5",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "STRUCTURED PASS",
+  "artifact_digest": "sha256:8736d7c01f7c61e9dfd9b6c09acc51076948b18d01554adf1f48167cf0e9079f",
+  "path": ".agent-center/evidence/task-18a101c9/exec-55a028bd.json",
+  "branch": "ac-exec/task-18a101c9/exec-55a028bd"
+}
