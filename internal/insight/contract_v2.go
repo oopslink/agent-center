@@ -186,15 +186,43 @@ func (s *Service) V2ProjectEvolution(ctx context.Context, orgID, projectID strin
 	plans, _ := s.sqliteCount(ctx, `SELECT COUNT(*) FROM pm_plans WHERE project_id=?`, projectID)
 	evolved, _ := s.sqliteCount(ctx, `SELECT COUNT(DISTINCT g.plan_id) FROM pm_plan_generations g JOIN pm_plans p ON p.id=g.plan_id WHERE p.project_id=? AND g.parent_generation_id<>''`, projectID)
 	gens, _ := s.sqliteCount(ctx, `SELECT COUNT(*) FROM pm_plan_generations g JOIN pm_plans p ON p.id=g.plan_id WHERE p.project_id=?`, projectID)
-	var rate *float64
-	if plans > 0 {
-		v := float64(evolved) / float64(plans)
-		rate = &v
+	rework, err := s.v2EvolutionReworkCount(ctx, projectID)
+	if err != nil {
+		return V2EvolutionResponse{}, err
+	}
+	recoveryAttempts, recoverySuccesses, err := s.v2EvolutionRecovery(ctx, projectID)
+	if err != nil {
+		return V2EvolutionResponse{}, err
+	}
+	maxLoopDepth, err := s.v2EvolutionMaxLoopDepth(ctx, projectID)
+	if err != nil {
+		return V2EvolutionResponse{}, err
+	}
+	residue, err := s.v2EvolutionResidue(ctx, projectID)
+	if err != nil {
+		return V2EvolutionResponse{}, err
 	}
 	env := s.v2Envelope(ctx, asOf, gens, fullCoverage(), 0, true)
-	return V2EvolutionResponse{V2WindowedEnvelope: env, ProjectID: projectID, Evolution: map[string]any{
-		"plans": plans, "evolved_plans": evolved, "evolution_rate": rate, "generation_count": gens,
-	}}, nil
+	summary := V2EvolutionSummary{
+		Plans:                 plans,
+		EvolvedPlans:          evolved,
+		EvolutionRate:         ratioPtr(evolved, plans),
+		GenerationCount:       gens,
+		ReworkCount:           rework,
+		ReworkRatio:           ratioPtr(rework, gens),
+		RecoveryAttempts:      recoveryAttempts,
+		RecoverySuccesses:     recoverySuccesses,
+		RecoveryEffectiveness: ratioPtr(recoverySuccesses, recoveryAttempts),
+		MaxLoopDepth:          maxLoopDepth,
+		StaleOrphanResidue:    residue,
+		AnomalyDrilldowns: V2EvolutionAnomalyDrilldowns{
+			Rework:    map[string]any{"project_id": projectID, "anomaly_kind": "rework", "generation_parent": "non_empty", "reason_in": []string{"review_reject", "execution_failure"}},
+			Recovery:  map[string]any{"project_id": projectID, "anomaly_kind": "recovery", "generation_parent": "non_empty", "reason_in": []string{"blocked", "review_reject", "execution_failure"}},
+			LoopDepth: map[string]any{"project_id": projectID, "anomaly_kind": "loop_depth", "metric": "max_loop_depth", "generation_parent": "non_empty"},
+			Residue:   map[string]any{"project_id": projectID, "anomaly_kind": "residue", "task_status_in": []string{"open", "assigned", "running", "blocked", "pool"}, "generation_parent": "non_empty"},
+		},
+	}
+	return V2EvolutionResponse{V2WindowedEnvelope: env, ProjectID: projectID, Evolution: summary}, nil
 }
 
 func (s *Service) V2PlanLineage(ctx context.Context, orgID, projectID, planID string, asOf time.Time) (V2PlanLineageResponse, error) {
@@ -274,6 +302,61 @@ func (s *Service) v2DeliveryBreaks(ctx context.Context, projectID string, asOf t
 		out = append(out, V2FunnelBreak{Kind: kind, Count: s.v2Count(counts[kind], counts[kind], fullCoverage(), 0, true, asOf), Drilldown: map[string]any{"project_id": projectID, "break_kind": kind}})
 	}
 	return out, unknown, nil
+}
+
+func (s *Service) v2EvolutionReworkCount(ctx context.Context, projectID string) (int64, error) {
+	return s.sqliteCount(ctx, `SELECT COUNT(*) FROM pm_plan_generations g JOIN pm_plans p ON p.id=g.plan_id WHERE p.project_id=? AND g.parent_generation_id<>'' AND g.reason IN ('review_reject','execution_failure')`, projectID)
+}
+
+func (s *Service) v2EvolutionRecovery(ctx context.Context, projectID string) (int64, int64, error) {
+	attempts, err := s.sqliteCount(ctx, `SELECT COUNT(*) FROM pm_plan_generations g JOIN pm_plans p ON p.id=g.plan_id WHERE p.project_id=? AND g.parent_generation_id<>'' AND g.reason IN ('blocked','review_reject','execution_failure')`, projectID)
+	if err != nil {
+		return 0, 0, err
+	}
+	successes, err := s.sqliteCount(ctx, `SELECT COUNT(DISTINCT g.id) FROM pm_plan_generations g
+		JOIN pm_plans p ON p.id=g.plan_id
+		JOIN pm_delivery_subjects ds ON ds.plan_id=g.plan_id AND ds.created_at>=g.created_at
+		JOIN pm_acceptances a ON a.subject_id=ds.id
+		WHERE p.project_id=? AND g.parent_generation_id<>'' AND g.reason IN ('blocked','review_reject','execution_failure')
+		AND a.verdict IN ('passed','waived_by_authority')`, projectID)
+	if err != nil {
+		return 0, 0, err
+	}
+	return attempts, successes, nil
+}
+
+func (s *Service) v2EvolutionMaxLoopDepth(ctx context.Context, projectID string) (int64, error) {
+	rows, err := s.sqlite.QueryContext(ctx, `SELECT COUNT(*) FROM pm_plan_generations g JOIN pm_plans p ON p.id=g.plan_id WHERE p.project_id=? AND g.parent_generation_id<>'' GROUP BY g.plan_id`, projectID)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	var max int64
+	for rows.Next() {
+		var n int64
+		if err := rows.Scan(&n); err != nil {
+			return 0, err
+		}
+		if n > max {
+			max = n
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+	return max, nil
+}
+
+func (s *Service) v2EvolutionResidue(ctx context.Context, projectID string) (int64, error) {
+	return s.sqliteCount(ctx, `SELECT COUNT(*) FROM pm_tasks t WHERE t.project_id=? AND t.status IN ('open','assigned','running','blocked','pool') AND EXISTS (SELECT 1 FROM pm_plan_generations g JOIN pm_plans p ON p.id=g.plan_id WHERE p.id=t.plan_id AND p.project_id=t.project_id AND g.parent_generation_id<>'')`, projectID)
+}
+
+func ratioPtr(numerator, denominator int64) *float64 {
+	if denominator <= 0 || numerator < 0 || numerator > denominator {
+		return nil
+	}
+	v := float64(numerator) / float64(denominator)
+	return &v
 }
 
 func (s *Service) v2Envelope(ctx context.Context, asOf time.Time, sample int64, coverage *float64, unknown int64, known bool) V2WindowedEnvelope {

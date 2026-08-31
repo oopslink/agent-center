@@ -105,6 +105,19 @@ describe('Insight pages', () => {
     expect(within(screen.getByTestId('insight-project-table')).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&project_id=proj-1');
   });
 
+  it('renders unknown overview freshness without exposing raw i18n keys', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/overview', () => HttpResponse.json(overview({
+      freshness: { state: 'future_freshness', age_ms: 60000, threshold_ms: 30000 },
+    }))));
+
+    renderAt('/organizations/acme/insights/overview');
+
+    expect(await screen.findByTestId('insight-freshness')).toHaveTextContent('Freshness unknown');
+    expect(screen.getByTestId('insight-freshness-unknown')).toHaveTextContent('Insight freshness is unknown');
+    expect(screen.getByTestId('page-InsightOverview')).not.toHaveTextContent('insight.freshness.');
+    expect(screen.getByTestId('page-InsightOverview')).not.toHaveTextContent('insight.state.');
+  });
+
   it('treats null, zero, low, partial, and representative coverage without guessing missing data as zero', async () => {
     const cases = [
       { slot_coverage_ratio: null, slot_utilization: null, want: 'Cannot determine' },
@@ -154,6 +167,17 @@ describe('Insight pages', () => {
     expect(new URL(seen[2]).searchParams.get('cursor')).toBe('next-opaque');
   });
 
+  it('shows rebuilding envelope for the execution list without rendering stale rows', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/executions', () =>
+      HttpResponse.json({ error: 'insight_rebuilding', message: 'rebuilding', ...windowEnvelope, freshness: { state: 'rebuilding', age_ms: 0, threshold_ms: 30000 } }, { status: 503 }),
+    ));
+
+    renderAt('/organizations/acme/insights/executions?window=24h');
+
+    expect(await screen.findByTestId('insight-executions-rebuilding')).toHaveTextContent('Insight is rebuilding');
+    expect(screen.queryByTestId('insight-execution-table')).not.toBeInTheDocument();
+  });
+
   it('maps execution status, recovery, quality, and reasons without exposing raw enums in the main row', async () => {
     const rows = [
       { ...execution, execution_id: 'ok', outcome: 'succeeded', failure_reason: null, failure_message: null, recovered: true },
@@ -178,11 +202,26 @@ describe('Insight pages', () => {
     expect(table).toHaveTextContent('Data needs review');
     expect(table).not.toHaveTextContent('quiet_finalized');
     expect(table).not.toHaveTextContent('invalid_time_order');
+    expect(table).not.toHaveTextContent('insight.status.');
+    expect(table).not.toHaveTextContent('insight.quality.');
   });
 
-  it('renders object detail, failure_message, fallback reason, invalid quality, and not-found state', async () => {
+  it('renders object detail, failure_message, fallback reason, invalid quality, unknown fallback, and not-found state', async () => {
     server.use(http.get('/api/orgs/:slug/insights/executions/:executionId', ({ params }) => {
       if (params.executionId === 'missing') return HttpResponse.json({ error: 'not_found', message: 'execution not found' }, { status: 404 });
+      if (params.executionId === 'unknown-enum') {
+        return HttpResponse.json({
+          ...windowEnvelope,
+          execution: {
+            ...execution,
+            execution_id: 'unknown-enum',
+            outcome: 'future_outcome',
+            failure_reason: 'future_reason',
+            failure_message: null,
+            quality: 'future_quality',
+          },
+        });
+      }
       return HttpResponse.json({ ...windowEnvelope, execution: { ...execution, quality: 'invalid_time_order' } });
     }));
 
@@ -195,8 +234,59 @@ describe('Insight pages', () => {
     expect(detail).toHaveTextContent('Execution ID');
     cleanup();
 
+    renderAt('/organizations/acme/insights/executions/exec-24h-1?window=24h&agent_ref=agent%3Abuilder&project_id=proj-1&cursor=page-2');
+    expect(await screen.findByRole('link', { name: 'Task executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder&project_id=proj-1&cursor=page-2');
+    cleanup();
+
+    renderAt('/organizations/acme/insights/executions/unknown-enum');
+    const unknownDetail = await screen.findByTestId('insight-execution-detail');
+    expect(unknownDetail).toHaveTextContent('Outcome unavailable');
+    expect(unknownDetail).toHaveTextContent('The execution was not successful.');
+    expect(unknownDetail).toHaveTextContent('Data needs review');
+    expect(unknownDetail).not.toHaveTextContent('insight.reason.');
+    cleanup();
+
     renderAt('/organizations/acme/insights/executions/missing');
     expect(await screen.findByTestId('insight-execution-not-found')).toHaveTextContent('This TaskExecution was not found');
+  });
+
+  it('keeps future execution enums out of the DOM until diagnostics are explicitly opened', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/executions/:executionId', () => HttpResponse.json({
+      ...windowEnvelope,
+      execution: {
+        ...execution,
+        outcome: 'future_outcome',
+        failure_reason: 'raw_future_enum',
+        failure_message: null,
+        command_status: 'unknown_status',
+        status_reason: 'arbitrary_future_token',
+        quality: 'future_quality',
+      },
+    })));
+
+    renderAt('/organizations/acme/insights/executions/future');
+
+    const detail = await screen.findByTestId('insight-execution-detail');
+    for (const raw of ['future_outcome', 'raw_future_enum', 'unknown_status', 'arbitrary_future_token', 'future_quality']) {
+      expect(detail).not.toHaveTextContent(raw);
+    }
+    expect(detail).toHaveTextContent('Outcome unavailable');
+    expect(detail).toHaveTextContent('The execution was not successful.');
+    expect(detail).toHaveTextContent('Data needs review');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
+    expect(detail).toHaveTextContent('future_outcome');
+  });
+
+  it('shows unavailable envelope for execution detail', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/executions/:executionId', () =>
+      HttpResponse.json({ error: 'insight_unavailable', message: 'duckdb unavailable', ...windowEnvelope, freshness: { state: 'unavailable', age_ms: 30000, threshold_ms: 30000 } }, { status: 503 }),
+    ));
+
+    renderAt('/organizations/acme/insights/executions/exec-24h-1');
+
+    expect(await screen.findByTestId('insight-execution-unavailable')).toHaveTextContent('Insight is unavailable');
+    expect(screen.queryByTestId('insight-execution-detail')).not.toBeInTheDocument();
   });
 
   it('renders rebuilding/auth errors explicitly and supports Chinese copy', async () => {

@@ -1,20 +1,35 @@
-import type React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
+import { InsightExecutionStatusBadge, InsightFreshnessBadge, InsightQualityBadge, InsightStatePanel } from '@/components/insight/InsightPresentation';
 import {
   useInsightExecution,
   useInsightExecutions,
   useInsightOverview,
   type InsightExecutionFilters,
   type InsightExecutionRow,
-  type InsightFreshness,
   type InsightOverview as InsightOverviewDTO,
   type InsightPercentiles,
   type InsightSummary,
 } from '@/api/insights';
+import {
+  INSIGHT_EMPTY,
+  classifyInsightCoverage,
+  formatInsightClock,
+  formatInsightDuration,
+  formatInsightFailure,
+  formatInsightPercentiles,
+  formatInsightRatio,
+  formatInsightTimeOrLabel,
+  formatInsightWindowTime,
+  insightExecutionStatus,
+  insightFailureMessage,
+  insightQualityLabel,
+  localInsightUTCOffset,
+} from '@/utils/insightPresentation';
 
-const EMPTY = '—';
+const EMPTY = INSIGHT_EMPTY;
 
 export default function InsightOverview(): React.ReactElement {
   const { t } = useTranslation('insights');
@@ -27,7 +42,7 @@ export default function InsightOverview(): React.ReactElement {
     <section className="space-y-4" data-testid="page-InsightOverview">
       <InsightHeader title={t('insight.overview.title')} action={<LinkButton to={`${base}/executions?window=24h`}>{t('insight.actions.viewAll')}</LinkButton>} />
 
-      {overview.isLoading && <StatePanel testId="insight-loading" title={t('insight.state.loadingOverview')} />}
+      {overview.isLoading && <InsightStatePanel testId="insight-loading" title={t('insight.state.loadingOverview')} />}
 
       {overview.data && (
         <>
@@ -48,7 +63,7 @@ export default function InsightOverview(): React.ReactElement {
             />
           </section>
           <MethodNote diagnostics={overview.data.diagnostics} />
-          {isOverviewEmpty(overview.data) && <StatePanel testId="insight-empty" title={t('insight.state.emptyOverview')} body={t('insight.state.emptyOverviewBody')} />}
+          {isOverviewEmpty(overview.data) && <InsightStatePanel testId="insight-empty" title={t('insight.state.emptyOverview')} body={t('insight.state.emptyOverviewBody')} />}
         </>
       )}
 
@@ -57,7 +72,7 @@ export default function InsightOverview(): React.ReactElement {
       {unavailableEnvelope && (
         <>
           <WindowBar data={unavailableEnvelope} />
-          <StatePanel
+          <InsightStatePanel
             testId={unavailableEnvelope.freshness.state === 'rebuilding' ? 'insight-rebuilding' : 'insight-unavailable'}
             tone="danger"
             title={unavailableEnvelope.freshness.state === 'rebuilding' ? t('insight.state.rebuilding') : t('insight.state.unavailable')}
@@ -76,6 +91,7 @@ export function InsightExecutionsPage(): React.ReactElement {
   const [params, setParams] = useSearchParams();
   const filters = filtersFromParams(params);
   const query = useInsightExecutions({ ...filters, limit: 50 }, true);
+  const unavailableEnvelope = envelopeFromError(query.error);
 
   const removeFilter = (key: 'agent_ref' | 'project_id') => {
     const next = new URLSearchParams(params);
@@ -97,14 +113,25 @@ export function InsightExecutionsPage(): React.ReactElement {
     <section className="space-y-4" data-testid="page-InsightExecutions">
       <InsightHeader title={t('insight.executions.title')} subtitle={t('insight.executions.subtitle')} />
       <FilterSummary filters={filters} onRemove={removeFilter} onClear={clearFilters} />
-      {query.isLoading && <StatePanel testId="insight-executions-loading" title={t('insight.state.loadingExecutions')} />}
-      {query.isError && <InsightError testIdPrefix="insight-executions" error={query.error} fallbackTitle={t('insight.state.executionsFailed')} />}
+      {query.isLoading && <InsightStatePanel testId="insight-executions-loading" title={t('insight.state.loadingExecutions')} />}
+      {query.isError && !unavailableEnvelope && <InsightError testIdPrefix="insight-executions" error={query.error} fallbackTitle={t('insight.state.executionsFailed')} />}
+      {unavailableEnvelope && (
+        <>
+          <WindowBar data={unavailableEnvelope} />
+          <InsightStatePanel
+            testId={unavailableEnvelope.freshness.state === 'rebuilding' ? 'insight-executions-rebuilding' : 'insight-executions-unavailable'}
+            tone="danger"
+            title={unavailableEnvelope.freshness.state === 'rebuilding' ? t('insight.state.rebuilding') : t('insight.state.unavailable')}
+            body={query.error instanceof Error ? query.error.message : undefined}
+          />
+        </>
+      )}
       {query.data && (
         <>
           <WindowBar data={query.data} />
           <FreshnessNotice data={query.data} />
           {query.data.executions.length === 0 ? (
-            <StatePanel testId="insight-executions-empty" title={hasExecutionFilter(filters) ? t('insight.state.emptyFiltered') : t('insight.state.emptyList')} />
+            <InsightStatePanel testId="insight-executions-empty" title={hasExecutionFilter(filters) ? t('insight.state.emptyFiltered') : t('insight.state.emptyList')} />
           ) : (
             <TaskExecutionTable rows={query.data.executions} base={base} />
           )}
@@ -129,7 +156,9 @@ export function InsightExecutionDetailPage(): React.ReactElement {
   const location = useLocation();
   const query = useInsightExecution(executionId);
   const isNotFound = query.error instanceof ApiError && query.error.status === 404;
-  const listBack = typeof location.state === 'object' && location.state && 'from' in location.state ? String((location.state as { from?: string }).from ?? '') : `${base}/executions?window=24h`;
+  const unavailableEnvelope = envelopeFromError(query.error);
+  const stateBack = typeof location.state === 'object' && location.state && 'from' in location.state ? String((location.state as { from?: string }).from ?? '') : '';
+  const listBack = stateBack || listHrefFromDetailSearch(location.search, base);
 
   return (
     <section className="space-y-4" data-testid="page-InsightExecutionDetail">
@@ -143,9 +172,20 @@ export function InsightExecutionDetailPage(): React.ReactElement {
         <span className="text-text-muted">/</span>
         <Link to={listBack} className="text-brand hover:underline">{t('insight.executions.title')}</Link>
       </nav>
-      {query.isLoading && <StatePanel testId="insight-execution-loading" title={t('insight.state.loadingDetail')} />}
-      {isNotFound && <StatePanel testId="insight-execution-not-found" title={t('insight.state.detailMissing')} body={t('insight.state.detailMissingBody')} />}
-      {query.isError && !isNotFound && <InsightError testIdPrefix="insight-execution" error={query.error} fallbackTitle={t('insight.state.detailFailed')} />}
+      {query.isLoading && <InsightStatePanel testId="insight-execution-loading" title={t('insight.state.loadingDetail')} />}
+      {isNotFound && <InsightStatePanel testId="insight-execution-not-found" title={t('insight.state.detailMissing')} body={t('insight.state.detailMissingBody')} />}
+      {query.isError && !isNotFound && !unavailableEnvelope && <InsightError testIdPrefix="insight-execution" error={query.error} fallbackTitle={t('insight.state.detailFailed')} />}
+      {unavailableEnvelope && (
+        <>
+          <WindowBar data={unavailableEnvelope} />
+          <InsightStatePanel
+            testId={unavailableEnvelope.freshness.state === 'rebuilding' ? 'insight-execution-rebuilding' : 'insight-execution-unavailable'}
+            tone="danger"
+            title={unavailableEnvelope.freshness.state === 'rebuilding' ? t('insight.state.rebuilding') : t('insight.state.unavailable')}
+            body={query.error instanceof Error ? query.error.message : undefined}
+          />
+        </>
+      )}
       {query.data && (
         <>
           <WindowBar data={query.data} />
@@ -179,36 +219,38 @@ function WindowBar({ data }: { data: Pick<InsightOverviewDTO, 'window' | 'refres
   return (
     <div className="flex flex-wrap items-center gap-3 rounded border border-border-base bg-bg-elevated px-3 py-2 text-xs text-text-secondary" data-testid="insight-window">
       <strong className="text-text-primary">{t('insight.window.title')}</strong>
-      <span title={data.window.start}>{formatWindowTime(data.window.start)}</span>
+      <span title={data.window.start}>{formatInsightWindowTime(data.window.start)}</span>
       <span aria-hidden="true">–</span>
-      <span title={data.window.end}>{formatWindowTime(data.window.end)}</span>
-      <span>{t('insight.window.localTz', { tz: localUTCOffset() })}</span>
-      <span className="text-text-muted">{t('insight.window.refreshed', { time: formatClock(data.refreshed_at) })}</span>
-      <FreshnessBadge freshness={data.freshness} />
+      <span title={data.window.end}>{formatInsightWindowTime(data.window.end)}</span>
+      <span>{t('insight.window.localTz', { tz: localInsightUTCOffset() })}</span>
+      <span className="text-text-muted">{t('insight.window.refreshed', { time: formatInsightClock(data.refreshed_at) })}</span>
+      <InsightFreshnessBadge freshness={data.freshness} />
     </div>
   );
-}
-
-function FreshnessBadge({ freshness }: { freshness: InsightFreshness }): React.ReactElement {
-  const { t } = useTranslation('insights');
-  const tone = freshness.state === 'fresh' ? 'border-success/30 bg-success/10 text-success' : freshness.state === 'stale' ? 'border-warning/30 bg-warning/10 text-warning' : 'border-danger/30 bg-danger/10 text-danger';
-  return <span className={`rounded-full border px-2 py-0.5 font-medium ${tone}`} title={`${humanDuration(freshness.age_ms)} / ${humanDuration(freshness.threshold_ms)}`} data-testid="insight-freshness">{t(`insight.freshness.${freshness.state}`)}</span>;
 }
 
 function FreshnessNotice({ data }: { data: Pick<InsightOverviewDTO, 'freshness' | 'refreshed_at'> }): React.ReactElement | null {
   const { t } = useTranslation('insights');
   if (data.freshness.state === 'fresh') return null;
-  const tone = data.freshness.state === 'stale' ? 'warn' : 'danger';
-  return <StatePanel testId={`insight-${data.freshness.state}`} tone={tone} title={t(`insight.state.${data.freshness.state}`)} body={t('insight.state.staleBody', { time: formatClock(data.refreshed_at) })} />;
+  if (data.freshness.state === 'stale') {
+    return <InsightStatePanel testId="insight-stale" tone="warn" title={t('insight.state.stale')} body={t('insight.state.staleBody', { time: formatInsightClock(data.refreshed_at) })} />;
+  }
+  if (data.freshness.state === 'rebuilding') {
+    return <InsightStatePanel testId="insight-rebuilding" tone="danger" title={t('insight.state.rebuilding')} body={t('insight.state.staleBody', { time: formatInsightClock(data.refreshed_at) })} />;
+  }
+  if (data.freshness.state === 'unavailable') {
+    return <InsightStatePanel testId="insight-unavailable" tone="danger" title={t('insight.state.unavailable')} body={t('insight.state.staleBody', { time: formatInsightClock(data.refreshed_at) })} />;
+  }
+  return <InsightStatePanel testId="insight-freshness-unknown" tone="danger" title={t('insight.state.unknownFreshness')} body={t('insight.state.staleBody', { time: formatInsightClock(data.refreshed_at) })} />;
 }
 
 function SummaryCards({ summary }: { summary: InsightSummary }): React.ReactElement {
   const { t } = useTranslation('insights');
-  const coverage = classifyCoverage(summary.slot_coverage_ratio, summary.slot_utilization, t);
+  const coverage = classifyInsightCoverage(summary.slot_coverage_ratio, summary.slot_utilization, t);
   return (
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5" data-testid="insight-summary">
       <MetricCard label={t('insight.metric.completed')} value={String(summary.completed_executions)} sub={t('insight.metric.completedHint')} />
-      <MetricCard label={t('insight.metric.failureRate')} value={formatRatio(summary.failure_rate)} sub={summary.failure_rate === null ? t('insight.metric.noCompleted') : t('insight.metric.failureFormula', { failed: summary.failed_executions, completed: summary.completed_executions })} />
+      <MetricCard label={t('insight.metric.failureRate')} value={formatInsightRatio(summary.failure_rate)} sub={summary.failure_rate === null ? t('insight.metric.noCompleted') : t('insight.metric.failureFormula', { failed: summary.failed_executions, completed: summary.completed_executions })} />
       <MetricCard label={t('insight.metric.utilization')} value={coverage.value} sub={coverage.sub} tone={coverage.tone} testId="insight-utilization-card" />
       <PercentileCard label={t('insight.metric.queue')} data={summary.queue_wait_ms} sampleText={t('insight.metric.queueSamples', { count: summary.queue_wait_ms.samples })} />
       <PercentileCard label={t('insight.metric.duration')} data={summary.execution_duration_ms} sampleText={t('insight.metric.durationSamples', { count: summary.execution_duration_ms.samples })} />
@@ -229,16 +271,16 @@ function MetricCard({ label, value, sub, tone = 'normal', testId }: { label: str
 
 function PercentileCard({ label, data, sampleText }: { label: string; data: InsightPercentiles; sampleText: string }): React.ReactElement {
   const { t } = useTranslation('insights');
-  const value = data.samples === 0 ? EMPTY : humanDuration(data.p50);
-  const tail = data.samples === 0 ? t('insight.metric.noSamples') : `${t('insight.metric.p95')}: ${humanDuration(data.p95)}`;
+  const value = data.samples === 0 ? EMPTY : formatInsightDuration(data.p50, t);
+  const tail = data.samples === 0 ? t('insight.metric.noSamples') : `${t('insight.metric.p95')}: ${formatInsightDuration(data.p95, t)}`;
   return <MetricCard label={label} value={`${t('insight.metric.p50')}: ${value}`} sub={`${tail} · ${sampleText}`} />;
 }
 
 function CoverageNotice({ summary }: { summary: InsightSummary }): React.ReactElement | null {
   const { t } = useTranslation('insights');
-  const c = classifyCoverage(summary.slot_coverage_ratio, summary.slot_utilization, t);
+  const c = classifyInsightCoverage(summary.slot_coverage_ratio, summary.slot_utilization, t);
   if (c.kind === 'representative') return null;
-  return <StatePanel testId="insight-coverage-notice" tone={c.kind === 'partial' ? 'warn' : 'muted'} title={t('insight.coverage.noticeTitle')} body={c.sub} />;
+  return <InsightStatePanel testId="insight-coverage-notice" tone={c.kind === 'partial' ? 'warn' : 'neutral'} title={t('insight.coverage.noticeTitle')} body={c.sub} />;
 }
 
 function DimensionTable({ title, kind, rows }: { title: string; kind: 'agent' | 'project'; rows: Array<{ id: string; name: string; summary: InsightSummary; to: string }> }): React.ReactElement {
@@ -270,9 +312,9 @@ function DimensionTable({ title, kind, rows }: { title: string; kind: 'agent' | 
                     <div className="font-mono text-xs text-text-muted">{row.id}</div>
                   </td>
                   <td className="px-3 py-2 tabular-nums">{t('insight.table.completedValue', { count: row.summary.completed_executions })}</td>
-                  <td className="px-3 py-2 tabular-nums">{formatFailure(row.summary)}</td>
-                  <td className="px-3 py-2 tabular-nums">{formatPercentiles(row.summary.queue_wait_ms)}</td>
-                  <td className="px-3 py-2 tabular-nums">{formatPercentiles(row.summary.execution_duration_ms)}</td>
+                  <td className="px-3 py-2 tabular-nums">{formatInsightFailure(row.summary, t)}</td>
+                  <td className="px-3 py-2 tabular-nums">{formatInsightPercentiles(row.summary.queue_wait_ms, t)}</td>
+                  <td className="px-3 py-2 tabular-nums">{formatInsightPercentiles(row.summary.execution_duration_ms, t)}</td>
                   <td className="px-3 py-2"><Link to={row.to} className="text-brand hover:underline">{t('insight.actions.viewExecutions')}</Link></td>
                 </tr>
               ))}
@@ -316,35 +358,38 @@ function TaskExecutionTable({ rows, base }: { rows: InsightExecutionRow[]; base:
   const location = useLocation();
   return (
     <div className="overflow-x-auto rounded border border-border-base bg-bg-elevated" data-testid="insight-execution-table">
-      <table className="w-full min-w-[58rem] text-left text-sm">
+      <table className="w-full min-w-[34rem] text-left text-sm md:min-w-[44rem] lg:min-w-[58rem]">
         <thead className="text-xs uppercase tracking-wide text-text-muted">
           <tr>
             <th className="px-3 py-2 font-medium">{t('insight.execution.status')}</th>
             <th className="px-3 py-2 font-medium">{t('insight.execution.task')}</th>
             <th className="px-3 py-2 font-medium">{t('insight.execution.agent')}</th>
-            <th className="px-3 py-2 font-medium">{t('insight.execution.queued')}</th>
-            <th className="px-3 py-2 font-medium">{t('insight.execution.started')}</th>
-            <th className="px-3 py-2 font-medium">{t('insight.execution.finished')}</th>
-            <th className="px-3 py-2 font-medium">{t('insight.execution.queueWait')}</th>
+            <th className="hidden px-3 py-2 font-medium lg:table-cell">{t('insight.execution.queued')}</th>
+            <th className="hidden px-3 py-2 font-medium lg:table-cell">{t('insight.execution.started')}</th>
+            <th className="hidden px-3 py-2 font-medium lg:table-cell">{t('insight.execution.finished')}</th>
+            <th className="hidden px-3 py-2 font-medium lg:table-cell">{t('insight.execution.queueWait')}</th>
             <th className="px-3 py-2 font-medium">{t('insight.execution.duration')}</th>
-            <th className="px-3 py-2 font-medium">{t('insight.execution.dataHint')}</th>
+            <th className="hidden px-3 py-2 font-medium md:table-cell">{t('insight.execution.dataHint')}</th>
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.execution_id} className="border-t border-border-base" data-testid="insight-execution-row">
-              <td className="px-3 py-2 align-top"><ExecutionStatusBadge row={row} /></td>
+              <td className="px-3 py-2 align-top"><InsightExecutionStatusBadge row={row} /></td>
               <td className="px-3 py-2 align-top">
                 <Link to={`${base}/executions/${encodeURIComponent(row.execution_id)}`} state={{ from: `${location.pathname}${location.search}` }} className="font-medium text-brand hover:underline">{row.task_title ?? row.task_ref ?? row.task_id ?? row.execution_id}</Link>
                 <div className="font-mono text-xs text-text-muted">{row.project_name ?? row.project_id ?? EMPTY}</div>
               </td>
-              <td className="px-3 py-2 align-top">{row.agent_name ?? row.agent_ref}</td>
-              <td className="px-3 py-2 align-top tabular-nums">{timeOrLabel(row.queued_at, EMPTY)}</td>
-              <td className="px-3 py-2 align-top tabular-nums">{timeOrLabel(row.started_at, t('insight.execution.notStarted'))}</td>
-              <td className="px-3 py-2 align-top tabular-nums">{timeOrLabel(row.finished_at, t('insight.execution.notFinished'))}</td>
-              <td className="px-3 py-2 align-top tabular-nums">{humanDuration(row.queue_wait_ms)}</td>
-              <td className="px-3 py-2 align-top tabular-nums">{humanDuration(row.duration_ms)}</td>
-              <td className="px-3 py-2 align-top"><QualityBadge quality={row.quality} /></td>
+              <td className="px-3 py-2 align-top">
+                <div>{row.agent_name ?? row.agent_ref}</div>
+                {row.recovered && <span className="mt-1 inline-flex rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">{t('insight.execution.recovered')}</span>}
+              </td>
+              <td className="hidden px-3 py-2 align-top tabular-nums lg:table-cell">{formatInsightTimeOrLabel(row.queued_at, EMPTY)}</td>
+              <td className="hidden px-3 py-2 align-top tabular-nums lg:table-cell">{formatInsightTimeOrLabel(row.started_at, t('insight.execution.notStarted'))}</td>
+              <td className="hidden px-3 py-2 align-top tabular-nums lg:table-cell">{formatInsightTimeOrLabel(row.finished_at, t('insight.execution.notFinished'))}</td>
+              <td className="hidden px-3 py-2 align-top tabular-nums lg:table-cell">{formatInsightDuration(row.queue_wait_ms, t)}</td>
+              <td className="px-3 py-2 align-top tabular-nums">{formatInsightDuration(row.duration_ms, t)}</td>
+              <td className="hidden px-3 py-2 align-top md:table-cell"><InsightQualityBadge quality={row.quality} /></td>
             </tr>
           ))}
         </tbody>
@@ -355,12 +400,13 @@ function TaskExecutionTable({ rows, base }: { rows: InsightExecutionRow[]; base:
 
 function ExecutionDetail({ execution }: { execution: InsightExecutionRow }): React.ReactElement {
   const { t } = useTranslation('insights');
-  const status = executionStatus(execution, t);
-  const reason = failureMessage(execution, t);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const status = insightExecutionStatus(execution, t);
+  const reason = insightFailureMessage(execution, t);
   return (
     <article className="space-y-4 rounded border border-border-base bg-bg-elevated p-4" data-testid="insight-execution-detail">
       <div className="flex flex-wrap items-center gap-2">
-        <ExecutionStatusBadge row={execution} />
+        <InsightExecutionStatusBadge row={execution} />
         {execution.recovered && <span className="rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">{t('insight.execution.recovered')}</span>}
       </div>
       <h2 className="text-lg font-semibold text-text-primary">{execution.task_title ?? execution.task_ref ?? execution.execution_id}</h2>
@@ -369,11 +415,11 @@ function ExecutionDetail({ execution }: { execution: InsightExecutionRow }): Rea
       <section>
         <h3 className="text-sm font-semibold text-text-primary">{t('insight.detail.timeline')}</h3>
         <div className="mt-2 grid gap-2 text-sm text-text-secondary md:grid-cols-5">
-          <TimelineCell label={t('insight.execution.queued')} value={timeOrLabel(execution.queued_at, EMPTY)} />
-          <TimelineCell label={t('insight.execution.queueWait')} value={humanDuration(execution.queue_wait_ms)} />
-          <TimelineCell label={t('insight.execution.started')} value={timeOrLabel(execution.started_at, t('insight.execution.notStarted'))} />
-          <TimelineCell label={t('insight.execution.duration')} value={humanDuration(execution.duration_ms)} />
-          <TimelineCell label={t('insight.execution.finished')} value={timeOrLabel(execution.finished_at, t('insight.execution.notFinished'))} />
+          <TimelineCell label={t('insight.execution.queued')} value={formatInsightTimeOrLabel(execution.queued_at, EMPTY)} />
+          <TimelineCell label={t('insight.execution.queueWait')} value={formatInsightDuration(execution.queue_wait_ms, t)} />
+          <TimelineCell label={t('insight.execution.started')} value={formatInsightTimeOrLabel(execution.started_at, t('insight.execution.notStarted'))} />
+          <TimelineCell label={t('insight.execution.duration')} value={formatInsightDuration(execution.duration_ms, t)} />
+          <TimelineCell label={t('insight.execution.finished')} value={formatInsightTimeOrLabel(execution.finished_at, t('insight.execution.notFinished'))} />
         </div>
       </section>
 
@@ -392,11 +438,11 @@ function ExecutionDetail({ execution }: { execution: InsightExecutionRow }): Rea
         <Info label="Command ID" value={execution.command_id ?? EMPTY} mono />
       </dl>
 
-      {execution.quality !== 'valid' && <StatePanel testId="insight-execution-quality" tone="warn" title={qualityLabel(execution.quality, t)} body={t('insight.quality.invalidBody')} />}
-      <details className="text-xs text-text-muted">
-        <summary className="cursor-pointer text-text-secondary">{t('insight.detail.technical')}</summary>
-        <pre className="mt-2 overflow-x-auto rounded bg-bg-subtle p-2">{JSON.stringify({ outcome: execution.outcome, failure_reason: execution.failure_reason, command_status: execution.command_status, status_reason: execution.status_reason, quality: execution.quality }, null, 2)}</pre>
-      </details>
+      {execution.quality !== 'valid' && <InsightStatePanel testId="insight-execution-quality" tone="warn" title={insightQualityLabel(execution.quality, t) ?? t('insight.quality.check')} body={t('insight.quality.invalidBody')} />}
+      <section className="text-xs text-text-muted">
+        <button type="button" className="text-text-secondary hover:underline" aria-expanded={showDiagnostics} onClick={() => setShowDiagnostics((shown) => !shown)}>{t('insight.detail.technical')}</button>
+        {showDiagnostics && <pre className="mt-2 overflow-x-auto rounded bg-bg-subtle p-2">{JSON.stringify({ outcome: execution.outcome, failure_reason: execution.failure_reason, command_status: execution.command_status, status_reason: execution.status_reason, quality: execution.quality }, null, 2)}</pre>}
+      </section>
     </article>
   );
 }
@@ -409,27 +455,10 @@ function Info({ label, value, mono }: { label: string; value: string; mono?: boo
   return <div><dt className="text-xs text-text-muted">{label}</dt><dd className={`mt-1 text-text-primary ${mono ? 'font-mono text-xs' : ''}`}>{value}</dd></div>;
 }
 
-function ExecutionStatusBadge({ row }: { row: InsightExecutionRow }): React.ReactElement {
-  const { t } = useTranslation('insights');
-  const status = executionStatus(row, t);
-  return <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${status.className}`}>{status.label}</span>;
-}
-
-function QualityBadge({ quality }: { quality: string }): React.ReactElement | null {
-  const { t } = useTranslation('insights');
-  if (quality === 'valid') return null;
-  return <span className="rounded-full border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">{qualityLabel(quality, t)}</span>;
-}
-
-function StatePanel({ testId, title, body, tone = 'muted' }: { testId: string; title: string; body?: string; tone?: 'muted' | 'warn' | 'danger' }): React.ReactElement {
-  const cls = tone === 'danger' ? 'border-danger/30 bg-danger/5 text-danger' : tone === 'warn' ? 'border-warning/30 bg-warning/5 text-warning' : 'border-border-base bg-bg-elevated text-text-secondary';
-  return <div className={`rounded border p-3 text-sm ${cls}`} data-testid={testId}><div className="font-medium">{title}</div>{body && <p className="mt-1 text-xs">{body}</p>}</div>;
-}
-
 function InsightError({ testIdPrefix, error, fallbackTitle }: { testIdPrefix: string; error: unknown; fallbackTitle: string }): React.ReactElement {
   const { t } = useTranslation('insights');
   const auth = isAuthError(error);
-  return <StatePanel testId={auth ? `${testIdPrefix}-auth-error` : `${testIdPrefix}-error`} tone="danger" title={auth ? t('insight.state.unauthorized') : fallbackTitle} body={error instanceof Error ? error.message : undefined} />;
+  return <InsightStatePanel testId={auth ? `${testIdPrefix}-auth-error` : `${testIdPrefix}-error`} tone="danger" title={auth ? t('insight.state.unauthorized') : fallbackTitle} body={error instanceof Error ? error.message : undefined} />;
 }
 
 function filtersFromParams(params: URLSearchParams): InsightExecutionFilters {
@@ -444,116 +473,17 @@ function hasExecutionFilter(filters: InsightExecutionFilters): boolean {
   return Boolean(filters.agent_ref || filters.project_id);
 }
 
-function classifyCoverage(coverage: number | null, utilization: number | null, t: (key: string, options?: Record<string, unknown>) => string): { kind: 'unknown' | 'insufficient' | 'partial' | 'representative'; value: string; sub: string; tone: 'unknown' | 'warn' | 'normal' } {
-  const coverageLabel = formatCoverage(coverage);
-  if (coverage === null) return { kind: 'unknown', value: t('insight.coverage.unknown'), sub: t('insight.coverage.noBaseline'), tone: 'unknown' };
-  if (coverage === 0) return { kind: 'unknown', value: t('insight.coverage.unknown'), sub: t('insight.coverage.noObservation'), tone: 'unknown' };
-  if (coverage < 0.5) return { kind: 'insufficient', value: t('insight.coverage.insufficient'), sub: t('insight.coverage.insufficientSub', { coverage: coverageLabel }), tone: 'warn' };
-  if (utilization === null) return { kind: 'unknown', value: t('insight.coverage.unknown'), sub: t('insight.coverage.noAvailable'), tone: 'unknown' };
-  if (coverage < 0.9) return { kind: 'partial', value: `${formatRatio(utilization)} ${t('insight.coverage.partialSuffix')}`, sub: t('insight.coverage.partialSub', { coverage: coverageLabel }), tone: 'warn' };
-  return { kind: 'representative', value: formatRatio(utilization), sub: t('insight.coverage.representativeSub', { coverage: coverageLabel }), tone: 'normal' };
+function listHrefFromDetailSearch(search: string, base: string): string {
+  const current = new URLSearchParams(search);
+  const next = new URLSearchParams({ window: '24h' });
+  const agentRef = current.get('agent_ref');
+  const projectId = current.get('project_id');
+  const cursor = current.get('cursor');
+  if (agentRef) next.set('agent_ref', agentRef);
+  if (projectId) next.set('project_id', projectId);
+  if (cursor) next.set('cursor', cursor);
+  return `${base}/executions?${next.toString()}`;
 }
-
-function executionStatus(row: InsightExecutionRow, t: (key: string, options?: Record<string, unknown>) => string): { label: string; className: string } {
-  if (row.outcome === 'succeeded') return { label: t('insight.status.completed'), className: 'border-success/30 bg-success/10 text-success' };
-  if (row.outcome === 'failed') return { label: t('insight.status.failed'), className: 'border-danger/30 bg-danger/10 text-danger' };
-  if (row.outcome === 'crashed') return { label: t('insight.status.interrupted'), className: 'border-danger/30 bg-danger/10 text-danger' };
-  if (row.outcome === 'quiet_finalized') return { label: t('insight.status.quietFinalized'), className: 'border-danger/30 bg-danger/10 text-danger' };
-  if (row.finished_at) return { label: t('insight.status.outcomeUnknown'), className: 'border-warning/30 bg-warning/10 text-warning' };
-  if (row.started_at) return { label: t('insight.status.running'), className: 'border-brand/30 bg-brand/10 text-brand' };
-  if (row.command_status === 'rejected' || row.command_status === 'failed' || row.command_status === 'expired') return { label: t('insight.status.didNotStart'), className: 'border-danger/30 bg-danger/10 text-danger' };
-  if (row.queued_at) return { label: t('insight.status.waiting'), className: 'border-border-base bg-bg-subtle text-text-secondary' };
-  return { label: t('insight.status.unknown'), className: 'border-warning/30 bg-warning/10 text-warning' };
-}
-
-function qualityLabel(quality: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  if (quality === 'invalid_time_order') return t('insight.quality.invalidTime');
-  return t('insight.quality.check');
-}
-
-function failureMessage(row: InsightExecutionRow, t: (key: string, options?: Record<string, unknown>) => string): string | null {
-  if (row.failure_message) return row.failure_message;
-  if (row.status_message && !row.started_at) return row.status_message;
-  const reason = row.failure_reason || row.status_reason;
-  if (!reason) return null;
-  const key = reasonMap[reason] ?? 'generic';
-  return t(`insight.reason.${key}`);
-}
-
-const reasonMap: Record<string, string> = {
-  nonzero_exit: 'nonzeroExit',
-  output_failure: 'outputFailure',
-  status_failed: 'outputFailure',
-  process_gone: 'processGone',
-  clean_exit_no_output: 'cleanExitNoOutput',
-  done_no_output: 'cleanExitNoOutput',
-  stalled: 'stalled',
-  non_delivery: 'nonDelivery',
-  evidence_persistence: 'evidencePersistence',
-  repo_source_unavailable: 'repoSourceUnavailable',
-  no_backfill_guard: 'noBackfillGuard',
-};
-
-function formatFailure(summary: InsightSummary): string {
-  if (summary.completed_executions === 0 || summary.failure_rate === null) return `${EMPTY} (0)`;
-  return `${summary.failed_executions}/${summary.completed_executions} (${formatRatio(summary.failure_rate)})`;
-}
-
-function formatPercentiles(data: InsightPercentiles): string {
-  if (data.samples === 0) return `${EMPTY} · 0`;
-  return `P50 ${humanDuration(data.p50)} / P95 ${humanDuration(data.p95)} · ${data.samples}`;
-}
-
-function formatRatio(value: number | null): string {
-  if (value === null) return EMPTY;
-  return `${Math.round(value * 1000) / 10}%`;
-}
-
-function formatCoverage(value: number | null): string {
-  if (value === null) return EMPTY;
-  if (value > 0 && value < 0.001) return '<0.1%';
-  return `${Math.round(value * 1000) / 10}%`;
-}
-
-function humanDuration(value: number | null): string {
-  if (value === null) return EMPTY;
-  if (value < 0) return 'Invalid time data';
-  if (value < 1000) return `${Math.round(value)} ms`;
-  const seconds = value / 1000;
-  if (seconds < 60) return `${Math.round(seconds * 10) / 10}`.replace(/\.0$/, '') + ' s';
-  const minutes = Math.floor(seconds / 60);
-  const wholeSeconds = Math.round(seconds % 60);
-  if (minutes < 60) return wholeSeconds === 0 ? `${minutes} min` : `${minutes} min ${String(wholeSeconds).padStart(2, '0')} s`;
-  const hours = Math.floor(minutes / 60);
-  const remMinutes = minutes % 60;
-  if (hours < 24) return `${hours} h ${String(remMinutes).padStart(2, '0')} min`;
-  const days = Math.floor(hours / 24);
-  return `${days} d ${hours % 24} h`;
-}
-
-function formatWindowTime(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(d);
-}
-
-function formatClock(value: string): string {
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return value;
-  return new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(d);
-}
-
-function timeOrLabel(value: string | null, label: string): string {
-  return value ? formatClock(value) : label;
-}
-
-function localUTCOffset(): string {
-  const minutes = -new Date().getTimezoneOffset();
-  const sign = minutes >= 0 ? '+' : '-';
-  const abs = Math.abs(minutes);
-  return `UTC${sign}${String(Math.floor(abs / 60)).padStart(2, '0')}:${String(abs % 60).padStart(2, '0')}`;
-}
-
 function isOverviewEmpty(data: InsightOverviewDTO): boolean {
   return data.summary.completed_executions === 0 && data.agents.length === 0 && data.projects.length === 0;
 }

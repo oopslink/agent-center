@@ -8,6 +8,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vite
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
+import i18n from '@/i18n';
 import { FakeEventSource } from '@/sse/fakeEventSource';
 import { ContextPanel, useContextPanelMobileTrigger } from '@/shell/contextPanel';
 import AppLayout from './AppLayout';
@@ -27,6 +28,10 @@ function renderShell(initial = '/projects') {
             <Route path="/issues" element={<div data-testid="page-Issues">issues</div>} />
             <Route path="/tasks" element={<div data-testid="page-Tasks">tasks</div>} />
             <Route path="/plans" element={<div data-testid="page-Plans">plans</div>} />
+            <Route path="/insights/overview" element={<div data-testid="page-InsightOverview">overview</div>} />
+            <Route path="/insights/agents" element={<div data-testid="page-InsightAgents">agents</div>} />
+            <Route path="/insights/projects" element={<div data-testid="page-InsightProjects">projects</div>} />
+            <Route path="/insights/executions" element={<div data-testid="page-InsightExecutions">executions</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -35,7 +40,10 @@ function renderShell(initial = '/projects') {
 }
 
 describe('Mobile module nav sheet — col② reflowed into a bottom sheet', () => {
-  afterEach(() => cleanup());
+  afterEach(async () => {
+    cleanup();
+    await i18n.changeLanguage('en');
+  });
 
   it('top-bar title opens a sheet exposing the Workspace sections (Issues/Tasks/Plans), not just Projects', async () => {
     renderShell('/projects');
@@ -61,6 +69,33 @@ describe('Mobile module nav sheet — col② reflowed into a bottom sheet', () =
     // Route-change effect dismisses the sheet so it doesn't cover the new screen.
     await waitFor(() => expect(screen.queryByTestId('mobile-nav-sheet')).toBeNull());
     expect(screen.getByTestId('page-Tasks')).toBeInTheDocument();
+  });
+
+  it('uses localized Insight labels in desktop col2 and exposes every Insight section in the mobile sheet', async () => {
+    await i18n.changeLanguage('zh');
+    renderShell('/insights/overview');
+    expect(screen.getByTestId('mobile-nav-toggle')).toHaveTextContent('洞察');
+    expect(screen.getByTestId('tab-insight')).toHaveTextContent('洞察');
+
+    const desktopNav = screen.getByRole('navigation', { name: /^primary$/ });
+    expect(within(desktopNav).getByRole('link', { name: '概览' })).toHaveAttribute('href', '/insights/overview');
+    expect(within(desktopNav).getByRole('link', { name: '智能体' })).toHaveAttribute('href', '/insights/agents');
+    expect(within(desktopNav).getByRole('link', { name: '项目' })).toHaveAttribute('href', '/insights/projects');
+    expect(within(desktopNav).getByRole('link', { name: 'Task executions' })).toHaveAttribute('href', '/insights/executions?window=24h');
+    expect(desktopNav).not.toHaveTextContent('Overview');
+
+    fireEvent.click(screen.getByTestId('mobile-nav-toggle'));
+    const sheet = await screen.findByTestId('mobile-nav-sheet');
+    const nav = within(sheet).getByTestId('insight-secondary-nav');
+    expect(within(nav).getByRole('link', { name: '概览' })).toHaveAttribute('href', '/insights/overview');
+    expect(within(nav).getByRole('link', { name: '智能体' })).toHaveAttribute('href', '/insights/agents');
+    expect(within(nav).getByRole('link', { name: '项目' })).toHaveAttribute('href', '/insights/projects');
+    expect(within(nav).getByRole('link', { name: 'Task executions' })).toHaveAttribute('href', '/insights/executions?window=24h');
+    fireEvent.click(within(nav).getByRole('link', { name: '智能体' }));
+    await waitFor(() => expect(screen.queryByTestId('mobile-nav-sheet')).toBeNull());
+    expect(screen.getByTestId('page-InsightAgents')).toBeInTheDocument();
+    expect(sheet).not.toHaveTextContent('Overview');
+    expect(sheet).not.toHaveTextContent('insight.overview.title');
   });
 });
 

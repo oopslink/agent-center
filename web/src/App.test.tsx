@@ -1,9 +1,11 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { http, HttpResponse } from 'msw';
 import type React from 'react';
 import { App } from './App';
 import { FakeEventSource } from './sse/fakeEventSource';
+import { server } from './test/mswServer';
 
 // AppLayout opens a single EventSource on mount via useSSE. jsdom has no
 // EventSource global, so install the FakeEventSource shim for the
@@ -11,6 +13,37 @@ import { FakeEventSource } from './sse/fakeEventSource';
 beforeAll(() => {
   (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource =
     FakeEventSource;
+});
+
+beforeEach(() => {
+  const envelope = {
+    window: { kind: 'rolling', duration: '24h', start: '2026-08-26T00:00:00Z', end: '2026-08-27T00:00:00Z' },
+    as_of: '2026-08-27T00:00:00Z',
+    refreshed_at: '2026-08-27T00:00:01Z',
+    freshness: { state: 'fresh', age_ms: 1200, threshold_ms: 30000 },
+  };
+  server.use(
+    http.get('/api/orgs/:slug/insights/overview', () => HttpResponse.json({
+      ...envelope,
+      summary: {
+        completed_executions: 0,
+        failed_executions: 0,
+        failure_rate: null,
+        slot_utilization: null,
+        slot_coverage_ratio: null,
+        queue_wait_ms: { p50: null, p95: null, samples: 0 },
+        execution_duration_ms: { p50: null, p95: null, samples: 0 },
+      },
+      agents: [],
+      projects: [],
+      diagnostics: { invalid_facts: 0, late_events: 0 },
+    })),
+    http.get('/api/orgs/:slug/insights/executions', () => HttpResponse.json({
+      ...envelope,
+      executions: [],
+      next_cursor: null,
+    })),
+  );
 });
 
 afterEach(() => cleanup());
@@ -73,6 +106,10 @@ describe('App shell + route tree', () => {
       [`${ORG_BASE}/projects/proj-a/plans/PL-1`, 'page-PlanDetail'],
       // v2.10.0 [T6]: global cross-project Plan list.
       [`${ORG_BASE}/plans`, 'page-OrgPlans'],
+      [`${ORG_BASE}/insights/overview`, 'page-InsightOverview'],
+      [`${ORG_BASE}/insights/agents`, 'page-InsightAgents'],
+      [`${ORG_BASE}/insights/projects`, 'page-InsightProjects'],
+      [`${ORG_BASE}/insights/executions`, 'page-InsightExecutions'],
       [`${ORG_BASE}/secrets`, 'page-Secrets'],
       [`${ORG_BASE}/environment`, 'page-Environment'],
       // v2.7 #164: Fleet merged into Environment; /fleet redirects to /environment.
@@ -176,6 +213,12 @@ describe('App shell + route tree', () => {
       [`${ORG_BASE}/access/ram-roles`, [
         ['RAM Roles', `${ORG_BASE}/access/ram-roles`],
         ['Subject access', `${ORG_BASE}/access/subject-access`],
+      ]],
+      [`${ORG_BASE}/insights/overview`, [
+        ['Overview', `${ORG_BASE}/insights/overview`],
+        ['Agents', `${ORG_BASE}/insights/agents`],
+        ['Projects', `${ORG_BASE}/insights/projects`],
+        ['Task executions', `${ORG_BASE}/insights/executions?window=24h`],
       ]],
       [`${ORG_BASE}/environment`, [
         ['Environment', `${ORG_BASE}/environment`],
