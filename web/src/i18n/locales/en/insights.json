@@ -11,6 +11,186 @@
       "title": "Task executions",
       "subtitle": "Each row is one execution attempt"
     },
+    "agents": {
+      "title": "Agents",
+      "subtitle": "Organization agents using the Insight v2 metric contract",
+      "loading": "Loading Insight agents",
+      "loadingDetail": "Loading Insight agent",
+      "failed": "Insight agents failed",
+      "failedDetail": "Insight agent failed",
+      "empty": "No agents in this organization",
+      "notFound": "This Insight agent was not found in the current organization",
+      "confidence": "Metric confidence",
+      "sampleCount": "Sample count",
+      "col": {
+        "agent": "Agent",
+        "health": "Health",
+        "executions": "Executions",
+        "unknown": "Unknown",
+        "coverage": "Coverage"
+      },
+      "metric": {
+        "executions": "Executions",
+        "openIssues": "Open issues",
+        "blockedTasks": "Blocked tasks",
+        "activePlans": "Active plans"
+      },
+      "health": {
+        "healthy": "Healthy",
+        "elevated": "Elevated",
+        "degraded": "Degraded",
+        "unknown": "Unknown"
+      }
+    },
+    "projects": {
+      "title": "Insight projects",
+      "subtitle": "Business delivery and runtime-health decision surface for each project.",
+      "loading": "Loading Insight projects",
+      "failed": "Project Insight request failed",
+      "empty": "No projects are available for Insight",
+      "emptyBody": "The backend returned an empty v2 project set.",
+      "project": "Project",
+      "health": "Health",
+      "executions": "Executions",
+      "openIssues": "Open issues",
+      "blockedTasks": "Blocked tasks",
+      "activePlans": "Active plans",
+      "reasonCodes": "Reason codes",
+      "back": "Back to Insight projects"
+    },
+    "projectDetail": {
+      "subtitle": "Project delivery funnel, Plan evolution, and runtime health.",
+      "loading": "Loading project Insight",
+      "failed": "Project Insight failed",
+      "runtimeHealth": "Runtime health"
+    },
+    "health": {
+      "healthy": "Healthy",
+      "elevated": "Elevated",
+      "degraded": "Degraded",
+      "unknown": "Unknown"
+    },
+    "v2": {
+      "asOf": "As of {{time}}",
+      "healthDecision": "Backend health decision",
+      "known": "known",
+      "unknown": "unknown",
+      "meta": "{{known}} · samples {{sample}} · coverage {{coverage}} · unknown {{unknown}}",
+      "noReasons": "No backend reason codes",
+      "noDrilldown": "No drilldown filter"
+    },
+    "delivery": {
+      "title": "Issue / Task / Plan / Done funnel",
+      "subtitle": "Diagnostic counts from the backend. Funnel breaks use the exact returned DrilldownFilter.",
+      "loading": "Loading delivery funnel",
+      "failed": "Delivery funnel failed",
+      "breakKind": "Break kind",
+      "count": "Count",
+      "drilldown": "DrilldownFilter",
+      "stage": {
+        "issues": "Issues",
+        "tasks": "Tasks",
+        "plans": "Plans",
+        "done": "Done"
+      },
+      "break": {
+        "issue_without_task": "Issue without task",
+        "task_without_plan": "Task without plan",
+        "task_multiple_containers": "Task in multiple containers",
+        "done_plan_non_terminal_task": "Done Plan has non-terminal Task",
+        "done_plan_open_issue": "Done Plan has open Issue",
+        "evolution_old_generation_residue": "Old-generation residue",
+        "delivery_sha_lineage_mismatch": "Delivery SHA lineage mismatch",
+        "unknown": "Backend-defined break"
+      },
+      "breakDescription": {
+        "issue_without_task": "An issue is not connected to a task.",
+        "task_without_plan": "A task is not assigned to a Plan.",
+        "task_multiple_containers": "A task is linked to more than one container.",
+        "done_plan_non_terminal_task": "A completed Plan still has unfinished task work.",
+        "done_plan_open_issue": "A completed Plan still has open issues.",
+        "evolution_old_generation_residue": "Older Plan generation work remains active.",
+        "delivery_sha_lineage_mismatch": "Delivery SHA does not match Plan lineage.",
+        "unknown": "The backend returned a newer break type."
+      }
+    },
+    "evolution": {
+      "title": "Plan Evolution",
+      "subtitle": "Generation counts, evolution rate, rework, recovery, loop depth, and residue metrics are rendered from backend fields when present.",
+      "loading": "Loading Plan Evolution",
+      "failed": "Plan Evolution failed",
+      "plans": "Plans",
+      "evolvedPlans": "Evolved plans",
+      "evolutionRate": "Evolution rate",
+      "generationCount": "Generation count",
+      "reworkCount": "Rework count",
+      "reworkRatio": "Rework ratio",
+      "recoveryEffectiveness": "Recovery effectiveness",
+      "maxLoopDepth": "Max loop depth",
+      "staleOrphanResidue": "Stale/orphan residue",
+      "anomaly": {
+        "rework": "Rework",
+        "recovery": "Recovery",
+        "loop_depth": "Loop depth",
+        "residue": "Residue",
+        "unknown": "Backend-defined anomaly"
+      }
+    },
+    "reasonCode": {
+      "coverage_low": "Low observation coverage",
+      "coverage_unknown": "Coverage not yet measured",
+      "freshness_stale": "Data is delayed",
+      "lineage.integrity_broken": "Lineage integrity issue",
+      "metric_unknown": "Metric cannot be determined",
+      "sample_empty": "No matching samples",
+      "unknown_source_state": "Source state is not yet known",
+      "unknown": "Backend-defined reason"
+    },
+    "drilldown": {
+      "anomaly": "Anomaly",
+      "anomaly_kind": "Anomaly",
+      "break_kind": "Break",
+      "project_id": "Project",
+      "source": "Source",
+      "status": "Status"
+    },
+    "lineage": {
+      "title": "Lineage {{planId}}",
+      "subtitle": "G0..Gn generation lineage with trigger, evidence, node changes, delivery SHA, and verdict.",
+      "panelTitle": "Plan lineage",
+      "panelBody": "Open G0..Gn lineage for {{planId}}.",
+      "open": "Open lineage",
+      "back": "Back to project Insight",
+      "loading": "Loading lineage",
+      "failed": "Plan lineage failed",
+      "noPlan": "No Plan selected for lineage",
+      "noPlanBody": "Open this page with ?plan_id=<plan-id> or use the lineage route directly.",
+      "empty": "No generations returned",
+      "emptyBody": "The backend marked lineage as empty or unknown for this Plan.",
+      "anomaly": "Lineage anomaly",
+      "triggeredBy": "Triggered by",
+      "reason": "Trigger reason",
+      "recoveryDuration": "Recovery duration",
+      "recoveryOutcome": "Recovery outcome",
+      "deliveryBranch": "Delivery branch",
+      "deliverySha": "Delivery SHA",
+      "verdict": "Verdict",
+      "evidence": "Evidence",
+      "nodeChanges": "Node changes",
+      "reasonValue": {
+        "blocked": "Blocked",
+        "review_reject": "Review rejected",
+        "requirement_change": "Requirement changed",
+        "execution_failure": "Execution failed",
+        "manual_adjustment": "Manual adjustment",
+        "unknown": "Unknown"
+      },
+      "verdictValue": {
+        "pass": "Pass",
+        "reject": "Reject",
+        "pending": "Pending"
+      }
+    },
     "detail": {
       "title": "TaskExecution detail",
       "timeline": "Execution timeline",
@@ -38,7 +218,17 @@
       "fresh": "Fresh data",
       "stale": "Data delayed",
       "rebuilding": "Rebuilding",
-      "unavailable": "Unavailable"
+      "unavailable": "Unavailable",
+      "unknown": "Freshness unavailable"
+    },
+    "duration": {
+      "invalid": "Invalid time data",
+      "ms": "{{count}} ms",
+      "seconds": "{{value}} s",
+      "minutesOnly": "{{minutes}} min",
+      "minutesSeconds": "{{minutes}} min {{seconds}} s",
+      "hoursMinutes": "{{hours}} h {{minutes}} min",
+      "daysHours": "{{days}} d {{hours}} h"
     },
     "state": {
       "loadingOverview": "Loading Insight overview",
@@ -94,7 +284,11 @@
       "queue": "Queue P50 / P95",
       "duration": "Duration P50 / P95",
       "action": "Action",
-      "completedValue": "{{count}} completed"
+      "completedValue": "{{count}} completed",
+      "failureValue": "{{failed}}/{{completed}} ({{rate}})",
+      "noCompletedFailure": "— (0 completed)",
+      "percentileValue": "P50 {{p50}} / P95 {{p95}} · {{samples}} samples",
+      "noPercentileSamples": "— (0 valid samples)"
     },
     "filters": {
       "agent": "Agent: {{value}}",

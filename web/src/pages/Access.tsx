@@ -119,6 +119,46 @@ type PermissionPickerRow = {
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
 const SUBJECT_OPTIONS: Array<AccessSubjectKind | 'all'> = ['all', 'human', 'agent', 'team_role', 'worker', 'system'];
+
+function SelectionMark({ selected }: { selected: boolean }): React.ReactElement {
+  return (
+    <span
+      aria-hidden="true"
+      className={[
+        'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border text-[0.625rem] font-semibold',
+        selected ? 'border-accent bg-accent text-btn-primary-fg' : 'border-border-strong bg-bg-base text-transparent',
+      ].join(' ')}
+    >
+      {selected ? 'x' : ''}
+    </span>
+  );
+}
+
+function SelectButton({
+  selected,
+  onClick,
+  label,
+  testId,
+}: {
+  selected: boolean;
+  onClick: () => void;
+  label: string;
+  testId?: string;
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-pressed={selected}
+      className="inline-flex rounded p-1 hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
+      onClick={onClick}
+      data-testid={testId}
+    >
+      <SelectionMark selected={selected} />
+    </button>
+  );
+}
+
 function emptyBatchRequest(subjectRef = ''): AccessBatchRequest {
   return {
     subject_refs: subjectRef ? [subjectRef] : [],
@@ -2387,7 +2427,7 @@ function BatchGrantPanel({
                   <table className="w-full min-w-[44rem] text-left text-sm" data-testid="access-grant-subject-table">
                     <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
                       <tr>
-                        <th className="w-10 px-3 py-2"><input type="checkbox" checked={visibleSubjects.length > 0 && visibleSubjects.every((subject) => request.subject_refs.includes(subject.ref))} onChange={toggleAllVisibleSubjects} aria-label="Select all visible subjects" /></th>
+                        <th className="w-10 px-3 py-2"><SelectButton selected={visibleSubjects.length > 0 && visibleSubjects.every((subject) => request.subject_refs.includes(subject.ref))} onClick={toggleAllVisibleSubjects} label="Select all visible subjects" /></th>
                         <th className="px-3 py-2 font-semibold">Subject</th>
                         <th className="px-3 py-2 font-semibold">Type</th>
                         <th className="px-3 py-2 font-semibold">Team</th>
@@ -2397,7 +2437,7 @@ function BatchGrantPanel({
                     <tbody>
                       {visibleSubjects.map((subject) => (
                         <tr key={subject.ref} className="border-b border-border-base last:border-0">
-                          <td className="px-3 py-2"><input type="checkbox" checked={request.subject_refs.includes(subject.ref)} onChange={() => toggleSubject(subject.ref)} data-testid="access-grant-subject-select" /></td>
+                          <td className="px-3 py-2"><SelectButton selected={request.subject_refs.includes(subject.ref)} onClick={() => toggleSubject(subject.ref)} label={`Select ${subject.name}`} testId="access-grant-subject-select" /></td>
                           <td className="px-3 py-2"><div className="font-medium">{subject.name}</div><div className="font-mono text-xs text-text-muted">{subject.ref}</div></td>
                           <td className="px-3 py-2">{subject.kind === 'team_role' ? 'team role' : subject.kind}</td>
                           <td className="px-3 py-2 text-xs text-text-secondary">{(subject.team_names ?? []).join(', ') || '—'}</td>
@@ -2431,7 +2471,7 @@ function BatchGrantPanel({
                     <table className="w-full min-w-[36rem] text-left text-sm">
                       <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
                         <tr>
-                          <th className="w-10 px-3 py-2"><input type="checkbox" checked={allFilteredPickerRowsSelected} onChange={toggleAllFilteredPickerRows} aria-label="Select all visible permissions" /></th>
+                          <th className="w-10 px-3 py-2"><SelectButton selected={allFilteredPickerRowsSelected} onClick={toggleAllFilteredPickerRows} label="Select all visible permissions" /></th>
                           <th className="px-3 py-2 font-semibold">Resource</th>
                           <th className="px-3 py-2 font-semibold">Permission</th>
                           <th className="px-3 py-2 font-semibold">Scope</th>
@@ -2466,7 +2506,7 @@ function BatchGrantPanel({
                                 const selectedResource = selectedResourceKey ? (resourceByKey.get(selectedResourceKey) ?? rowResources.find((resource) => accessResourceKey(resource) === selectedResourceKey)) : undefined;
                                 return (
                                   <tr key={row.id} className="border-b border-border-base last:border-0" data-testid={`access-picker-row-${accessTestIDToken(row.id)}`}>
-                                    <td className="px-3 py-2"><input type="checkbox" checked={selectedPickerIDs.includes(row.id)} onChange={() => setSelectedPickerIDs((prev) => toggleValue(prev, row.id))} data-testid={`access-picker-select-${accessTestIDToken(row.id)}`} /></td>
+                                    <td className="px-3 py-2"><SelectButton selected={selectedPickerIDs.includes(row.id)} onClick={() => setSelectedPickerIDs((prev) => toggleValue(prev, row.id))} label={`Select ${row.label}`} testId={`access-picker-select-${accessTestIDToken(row.id)}`} /></td>
                                     <td className="px-3 py-2">{row.resource}</td>
                                     <td className="px-3 py-2"><div className="font-medium">{row.label}</div><div className="text-xs text-text-muted">{row.detail}</div></td>
                                     <td className="px-3 py-2">
@@ -2522,7 +2562,7 @@ function BatchGrantPanel({
                     <table className="w-full min-w-[32rem] text-left text-sm">
                       <thead className="border-b border-border-base text-[0.6875rem] uppercase text-text-muted">
                         <tr>
-                          <th className="w-10 px-3 py-2"><input type="checkbox" checked={grantEntries.length > 0 && grantEntries.every((entry) => selectedGrantIDs.includes(entry.id))} onChange={() => setSelectedGrantIDs(selectedGrantIDs.length === grantEntries.length ? [] : grantEntries.map((entry) => entry.id))} aria-label="Select all grant entries" /></th>
+                          <th className="w-10 px-3 py-2"><SelectButton selected={grantEntries.length > 0 && grantEntries.every((entry) => selectedGrantIDs.includes(entry.id))} onClick={() => setSelectedGrantIDs(selectedGrantIDs.length === grantEntries.length ? [] : grantEntries.map((entry) => entry.id))} label="Select all grant entries" /></th>
                           <th className="px-3 py-2 font-semibold">Resource</th>
                           <th className="px-3 py-2 font-semibold">Permission</th>
                           <th className="px-3 py-2 font-semibold">Scope</th>
@@ -2532,7 +2572,7 @@ function BatchGrantPanel({
                       <tbody>
                         {grantEntries.map((entry) => (
                           <tr key={entry.id} className="border-b border-border-base last:border-0" data-testid={`access-grant-entry-${accessTestIDToken(entry.id)}`}>
-                            <td className="px-3 py-2"><input type="checkbox" checked={selectedGrantIDs.includes(entry.id)} onChange={() => setSelectedGrantIDs((prev) => toggleValue(prev, entry.id))} data-testid="access-grant-entry-select" /></td>
+                            <td className="px-3 py-2"><SelectButton selected={selectedGrantIDs.includes(entry.id)} onClick={() => setSelectedGrantIDs((prev) => toggleValue(prev, entry.id))} label={`Select ${entry.roleId ?? entry.permissionKey ?? entry.id}`} testId="access-grant-entry-select" /></td>
                             <td className="px-3 py-2">{entry.kind === 'role' ? 'Role template' : entry.template?.resource}</td>
                             <td className="px-3 py-2"><div className="font-medium">{entry.kind === 'role' ? entry.roleName : directTemplateLabelForResource(entry.template!, entry.resource)}</div><div className="font-mono text-xs text-text-muted">{entry.roleId ?? entry.permissionKey}</div></td>
                             <td className="px-3 py-2">{grantEntryScopeLabel(entry)}</td>
@@ -2581,10 +2621,19 @@ function BatchGrantPanel({
             <div className="space-y-4">
               <PreviewSummary preview={preview} />
               {preview.summary.high_risk > 0 && (
-                <label className="flex gap-2 rounded border border-status-rose-border bg-status-rose-bg px-3 py-2 text-sm text-status-rose-fg">
-                  <input type="checkbox" checked={highRiskAck} onChange={(e) => setHighRiskAck(e.target.checked)} data-testid="access-high-risk-ack" />
+                <div className="flex gap-2 rounded border border-status-rose-border bg-status-rose-bg px-3 py-2 text-sm text-status-rose-fg">
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={highRiskAck}
+                    className={`mt-0.5 h-5 w-9 shrink-0 rounded-full p-0.5 transition-colors ${highRiskAck ? 'bg-status-rose-fg' : 'bg-border-strong'}`}
+                    onClick={() => setHighRiskAck((value) => !value)}
+                    data-testid="access-high-risk-ack"
+                  >
+                    <span className={`block h-4 w-4 rounded-full bg-white transition-transform ${highRiskAck ? 'translate-x-4' : ''}`} />
+                  </button>
                   <span>Acknowledge high-risk grants</span>
-                </label>
+                </div>
               )}
               <BatchItemsTable items={preview.items} />
             </div>
@@ -2825,7 +2874,7 @@ function ScopePickerModal({
                           data-testid={`access-scope-picker-option-${accessTestIDToken(key)}`}
                         >
                           <span className="flex min-w-0 items-start gap-2">
-                            <input className="mt-0.5" type="checkbox" checked={draftKeys.includes(key)} onChange={() => toggleDraftKey(key)} onClick={(event) => event.stopPropagation()} />
+                            <SelectionMark selected={draftKeys.includes(key)} />
                             <span className="min-w-0">
                             <span className="block font-medium text-text-primary">{accessResourceLabel(org)}</span>
                             <span className="block text-xs text-text-muted">All {workItemPlural(projectScopedWorkItemKind)} in all projects</span>
@@ -2859,7 +2908,7 @@ function ScopePickerModal({
                           data-testid={`access-scope-picker-option-${accessTestIDToken(projectKey)}`}
                         >
                           <span className="flex min-w-0 items-start gap-2">
-                            <input className="mt-0.5" type="checkbox" checked={draftKeys.includes(projectKey)} onChange={() => toggleDraftKey(projectKey)} onClick={(event) => event.stopPropagation()} />
+                            <SelectionMark selected={draftKeys.includes(projectKey)} />
                             <span className="min-w-0">
                             <span className="block font-medium text-text-primary">{accessResourceLabel(project)}</span>
                             <span className="block text-xs text-text-muted">All {workItemPlural(projectScopedWorkItemKind)} in this project</span>
@@ -2881,7 +2930,7 @@ function ScopePickerModal({
                               data-testid={`access-scope-picker-option-${accessTestIDToken(key)}`}
                             >
                               <span className="flex min-w-0 items-start gap-2">
-                                <input className="mt-0.5" type="checkbox" checked={draftKeys.includes(key)} onChange={() => toggleDraftKey(key)} onClick={(event) => event.stopPropagation()} />
+                                <SelectionMark selected={draftKeys.includes(key)} />
                                 <span className="min-w-0">
                                 <span className="block font-medium text-text-primary">{accessResourceLabel(resource)}</span>
                                 <span className="block text-xs text-text-muted">Specific {accessResourceKindLabel(projectScopedWorkItemKind).toLowerCase()}</span>
@@ -2954,7 +3003,7 @@ function ScopePickerModal({
                           data-testid={`access-scope-picker-option-${accessTestIDToken(key)}`}
                         >
                           <span className="flex min-w-0 items-start gap-2">
-                            <input className="mt-0.5" type="checkbox" checked={draftKeys.includes(key)} onChange={() => toggleDraftKey(key)} onClick={(event) => event.stopPropagation()} />
+                            <SelectionMark selected={draftKeys.includes(key)} />
                             <span className="min-w-0">
                             <span className="block font-medium text-text-primary">{accessResourceLabel(resource)}</span>
                             <span className="block text-xs text-text-muted">{scopePickerResourceMeta(row, resource) || accessResourceMetaLabel(resource)}</span>
