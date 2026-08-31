@@ -1,0 +1,1 @@
+Error: app_bootstrap: load master key: secretmgmt: master key must be 32 bytes after base64 decode

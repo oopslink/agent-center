@@ -1,0 +1,5 @@
+2026-08-31T16:55:21Z
+928eae010f2f8925e3deab6e4cb6cf2f1da58e7b
+## HEAD (no branch)
+?? docs/reports/g6-insight-enum-semantics-928eae01/
+928eae010f2f8925e3deab6e4cb6cf2f1da58e7b	refs/heads/candidate/g6-insight-enum-semantics-928eae01

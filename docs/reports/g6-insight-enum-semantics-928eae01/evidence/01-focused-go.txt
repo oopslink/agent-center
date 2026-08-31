@@ -1,0 +1,2 @@
+ok  	github.com/oopslink/agent-center/internal/insight	3.850s
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	49.384s

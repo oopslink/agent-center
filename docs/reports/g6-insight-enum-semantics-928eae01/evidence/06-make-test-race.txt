@@ -1,0 +1,10 @@
+go test -race -count=10 ./internal/agentruntime/...
+ok  	github.com/oopslink/agent-center/internal/agentruntime	85.352s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/executor	124.507s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/modelrouter	3.357s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/orchestrator	10.010s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/reporepo	85.691s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/sessioninstance	4.352s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/skillscan	3.163s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/taskexec	3.087s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/tasklog	4.509s

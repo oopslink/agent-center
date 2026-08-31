@@ -1,0 +1,7 @@
+[server] admin token bootstrap: wrote /tmp/g6-insight-live4-8094/bootstrap_token (scope=* owner=system:bootstrap)
+agent-center server: db=/tmp/g6-insight-live4-8094/agent-center.db web=127.0.0.1:17183 admin=/tmp/g6-insight-live4-8094/admin.sock (escalator running)
+[server] webconsole progress watchdog: authorization: permission denied
+[server] webconsole progress wake drain: authorization: permission denied
+[server] webconsole progress wake drain: authorization: permission denied
+[server] webconsole progress watchdog: authorization: permission denied
+signal terminated received; shutting down
