@@ -1,0 +1,287 @@
+{
+  "task_id": "task-54540f86",
+  "execution_id": "exec-79311595",
+  "reviewed_sha": "f6ad272bc995e459db7af2162c1fa9d1a3490a6b",
+  "base_sha": "ccf4acb3262edbb86bfe3f467df67a2eaf64e0c3",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files -g 'task-input/v1/**' -g '\"'!node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'jq . task-input/v1/manifest.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"rg --files -g '\"'!node_modules'\"' -g '\"'!task-input/v1/**'\"' | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"ls -la \u0026\u0026 find . -maxdepth 3 -type f \\\\( -name 'package.json' -o -name 'Makefile' -o -name 'go.mod' -o -name 'pnpm-lock.yaml' -o -name 'docker-compose.yml' -o -name '.env*' \\\\) -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"rg -n \\\"G37|hard-red|hard red|provenance|lineage|task-input/v1|health/version|version\\\" -S . -g '\"'!node_modules'\"' -g '\"'!dist'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git remote -v \u0026\u0026 git log --oneline --decorate -n 20'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' scripts/smoke/deploy-smoke.sh\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/reports/t1850-worker-readback-replay.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"find .agent-center -maxdepth 4 -type f -print | sed -n '1,100p' \u0026\u0026 find .github -maxdepth 4 -type f -print | sed -n '1,100p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"find docs/acceptance -maxdepth 3 -type f | rg -i 'g37|g36|g35|1850|runtime|worker|deploy|readback'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"find internal cmd tests -type f | rg 'worker|runtime|deploy' | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc 'rg -n \"worker.*readback|readback|runtime_deploy_restart|Test.*Runtime|test-race|lint-spa-tsc|go vet|''^test|''^race|''^lint|''^build|''^smoke\" Makefile internal tests cmd web -S -g '\"'\"'!node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"sed -n '390,490p' internal/workerdaemon/worker_controller_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"sed -n '1,340p' internal/workerdaemon/runtime_deployer_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"sed -n '1,330p' internal/admin/api/agent_tools_runtime_deploy_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' internal/admin/api/task_input_runtime_integration_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/g37-independent-prod-recheck/raw \u0026\u0026 {\n  echo \"date_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)\"\n  echo \"cwd=$(pwd)\"\n  echo \"branch=$(git branch --show-current)\"\n  echo \"head=$(git rev-parse HEAD)\"\n  echo \"origin_main=$(git rev-parse origin/main)\"\n  echo \"origin_push_main=$(git rev-parse origin-push/main 2\u003e/dev/null || true)\"\n  echo \"status_short_begin=$(git status --short | wc -l | tr -d '\"' ')\\\"\n  echo \\\"task_input_readme_sha256=\"'$(shasum -a 256 task-input/v1/README.md | awk '\"'{print \"'$1}'\"')\\\"\n  echo \\\"task_input_manifest_sha256=\"'$(shasum -a 256 task-input/v1/manifest.json | awk '\"'{print \"'$1}'\"')\\\"\n} | tee docs/acceptance/g37-independent-prod-recheck/raw/00-environment.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"{ set -x; jq -S . task-input/v1/manifest.json; find task-input/v1 -maxdepth 3 -type f -print -exec shasum -a 256 {} \\\\; ; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/02-task-input-v1.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc '{ set -x; git merge-base HEAD 65eab385a93199d98fe3b367d4d07bc627cda7f2; git merge-base --is-ancestor 65eab385a93199d98fe3b367d4d07bc627cda7f2 HEAD; echo source_ancestor_exit=$?; git merge-base HEAD 7f4cfcc43e0360f31e756bb453e675db50cc26c6; git merge-base --is-ancestor 7f4cfcc43e0360f31e756bb453e675db50cc26c6 HEAD; echo anchor_ancestor_exit=$?; git show -s --format='\"'HEAD %H %P %D %s' HEAD; git show -s --format='SOURCE %H %P %D %s' 65eab385a93199d98fe3b367d4d07bc627cda7f2; git show -s --format='ANCHOR %H %P %D %s' 7f4cfcc43e0360f31e756bb453e675db50cc26c6; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/01-lineage-provenance.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc '{ set -x; git ls-remote origin HEAD refs/heads/main; git ls-remote origin-push HEAD refs/heads/main; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/03-remote-deployed-sha.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"{ set -x; git fetch --prune origin '+refs/heads/main:refs/remotes/origin/main'; git fetch --prune origin-push '+refs/heads/main:refs/remotes/origin-push/main'; git rev-parse HEAD; git rev-parse origin/main; git rev-parse origin-push/main; git status --short; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/04-fetch-and-sha-readback.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc '{ set -x; git merge --ff-only origin/main; git rev-parse HEAD; git status --short; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/05-fast-forward-to-deployed-sha.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc '{ set -x; git merge-base HEAD 65eab385a93199d98fe3b367d4d07bc627cda7f2; git merge-base --is-ancestor 65eab385a93199d98fe3b367d4d07bc627cda7f2 HEAD; echo source_ancestor_exit=$?; git merge-base HEAD 7f4cfcc43e0360f31e756bb453e675db50cc26c6; git merge-base --is-ancestor 7f4cfcc43e0360f31e756bb453e675db50cc26c6 HEAD; echo anchor_ancestor_exit=$?; git show -s --format='\"'HEAD %H %P %D %s' HEAD; git show -s --format='SOURCE %H %P %D %s' 65eab385a93199d98fe3b367d4d07bc627cda7f2; git show -s --format='ANCHOR %H %P %D %s' 7f4cfcc43e0360f31e756bb453e675db50cc26c6; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/06-lineage-provenance-deployed-sha.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"{ set -x; go test ./internal/admin/api -run 'Test(RuntimeDeployRestartHandler_VerifiesRemoteBeforeEnqueue|RuntimeDeployRestartHandler_RejectsMismatchedRemoteSHA|RuntimeDeployRestartHandler_IdempotencyKeyDoesNotDoubleMutate|RuntimeDeployRestartHandler_LongTimeoutReturnsBeforeTerminal|RuntimeDeployRestartHandler_IdempotencyConflictDifferentPayload|RuntimeDeployStatusHandler_ReadsTerminalAttemptByIdempotencyKey|RuntimeDeployStatusHandler_UnknownAttempt|RuntimeDeployRestartHandler_RejectsNonWorkerToken|RuntimeDeployRestartHandler_RejectsWrongWorkerAgent|TaskInputPlan569_RealAdminHandlersEndToEnd)\"'$'\"' -count=1 -v; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/08-admin-api-provenance-taskinput.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"{ set -x; go test ./internal/workerdaemon -run 'Test(SourceRuntimeDeployerReportsAuthoritativeReadback|SourceRuntimeDeployerRejectsInstalledArtifactMismatchReadback|ReadWorkerAdminReadbackUsesAuthenticatedWorkerProjection|ReadWorkerAdminReadbackFailClosedStates|ReadWorkerAdminReadbackDisconnectedFailsClosed|ReadWorkerAdminReadbackTimeoutFailsClosed|ControllerHandler_RuntimeDeployRequiresServerVerification|ControllerHandler_RuntimeDeployReportsSucceeded|ControllerHandler_RuntimeDeployInvalidSuccessReadbackFails)\"'$'\"' -count=1 -v; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/07-workerdaemon-hard-reds.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc '{ set -x; make lint-spa-tsc; cd web \u0026\u0026 pnpm test -- --run src/pages/Access.test.tsx src/pages/AiRuntime.test.tsx src/components/RuntimeSelectors.test.tsx; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/10-spa-tsc-ui.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc '{ set -x; make build VERSION=g37-d44fb334 COMMIT=d44fb334 BRANCH=main BUILT_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ); ./bin/agent-center version; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/09-build-health-version.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"{ set -x; go test ./tests/e2e -run 'TestRuntimeVersionAssertions|TestDeployedBinaryRuntimeVersion' -count=1 -v; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/11-e2e-runtime-version.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc '{ set -x; make lint-spa-tsc; cd web \u0026\u0026 pnpm exec vitest run src/pages/Access.test.tsx src/pages/AiRuntime.test.tsx src/components/RuntimeSelectors.test.tsx; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/12-spa-tsc-ui-rerun.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc '{ set -x; go vet ./...; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/15-go-vet.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc '{ set -x; go test ./...; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/13-go-test-all.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc '{ set -x; make test-race; } 2\u003e\u00261 | tee docs/acceptance/g37-independent-prod-recheck/raw/14-make-test-race.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc \"git diff -- internal/webconsole/spa/dist/.gitkeep web/pnpm-lock.yaml web/package.json | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc \"find docs/acceptance/g37-independent-prod-recheck/raw -type f -maxdepth 1 -print -exec wc -l {} \\\\; -exec shasum -a 256 {} \\\\; | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/g37-independent-prod-recheck/REPORT.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc 'jq . docs/acceptance/g37-independent-prod-recheck/verdict.json \u003e/dev/null \u0026\u0026 echo verdict_json_ok \u0026\u0026 git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/g37-independent-prod-recheck \u0026\u0026 git commit -m \"chore(acceptance): add g37 independent production recheck\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-54540f86/exec-79311595'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate -n 3'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_70",
+      "command": "/bin/zsh -lc 'jq -S . docs/acceptance/g37-independent-prod-recheck/verdict.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-54540f86/exec-79311595 \u0026\u0026 git rev-parse HEAD \u0026\u0026 git status --short'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-79311595/command_events.jsonl",
+  "command_event_digest": "sha256:87a159052e644a3e76195a1e397f2b003aaf83e48a3bf1a42a0c3adf5788a2f9",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "PASS.",
+  "artifact_digest": "sha256:ce53979708b46472f3231f8a79c1a356efd7edf66d805bd0036de6fc3f8d67c9",
+  "path": ".agent-center/evidence/task-54540f86/exec-79311595.json",
+  "branch": "ac-exec/task-54540f86/exec-79311595"
+}
