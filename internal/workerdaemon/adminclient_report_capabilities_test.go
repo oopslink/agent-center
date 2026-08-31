@@ -3,6 +3,7 @@ package workerdaemon
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/workforce"
@@ -84,5 +85,29 @@ func TestAdminClient_ReportCapabilities_EmptyWorkerIDFails(t *testing.T) {
 	defer cleanup()
 	if err := client.ReportCapabilities(context.Background(), "  ", nil, workforce.SystemInfo{}); err == nil {
 		t.Fatal("expected error for empty worker_id")
+	}
+}
+
+func TestAdminClient_FindWorkerByID_UsesAuthenticatedControlEndpoint(t *testing.T) {
+	fs, client, cleanup := newFakeServer(t)
+	defer cleanup()
+	client = client.WithToken("tok-worker")
+
+	got, err := client.FindWorkerByID(context.Background(), "w-1")
+	if err != nil {
+		t.Fatalf("FindWorkerByID: %v", err)
+	}
+	if got.WorkerID != "w-1" || got.Status != "online" ||
+		got.SystemInfo.WorkerVersion != "runtime-deploy-aaaaaaaaaaaa" ||
+		got.SystemInfo.BuildCommit != "aaaaaaaaaaaabbbbbbbbbbbbccccccccccccdddd" {
+		t.Fatalf("unexpected readback: %+v", got)
+	}
+	reqs := fs.reqs()
+	if len(reqs) != 1 || reqs[0].Method != "GET" || reqs[0].Path != "/admin/workforce/worker/find-by-id" ||
+		!strings.Contains(reqs[0].Query, "id=w-1") {
+		t.Fatalf("expected GET find-by-id endpoint, got %+v", reqs)
+	}
+	if reqs[0].Auth != "Bearer tok-worker" {
+		t.Fatalf("missing bearer auth: %+v", reqs[0])
 	}
 }

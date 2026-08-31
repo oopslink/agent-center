@@ -12,19 +12,33 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/runtimedeploy"
+	"github.com/oopslink/agent-center/internal/workforce"
 )
 
 type sourceRuntimeDeployer struct {
 	workRoot string
 	workerID string
+	readback workerIdentityReadback
 	log      func(string)
 	run      func(context.Context, string, string, []string, []string) ([]byte, error)
 }
 
-func newSourceRuntimeDeployer(workRoot, workerID string, log func(string)) *sourceRuntimeDeployer {
+type workerIdentityReadback interface {
+	FindWorkerByID(context.Context, string) (WorkerReadback, error)
+}
+
+type WorkerReadback struct {
+	WorkerID   string               `json:"worker_id"`
+	Status     string               `json:"status"`
+	Version    int                  `json:"version"`
+	SystemInfo workforce.SystemInfo `json:"system_info"`
+}
+
+func newSourceRuntimeDeployer(workRoot, workerID string, readback workerIdentityReadback, log func(string)) *sourceRuntimeDeployer {
 	return &sourceRuntimeDeployer{
 		workRoot: workRoot,
 		workerID: workerID,
+		readback: readback,
 		log:      log,
 		run:      runDeployCommand,
 	}
@@ -92,7 +106,7 @@ func (d *sourceRuntimeDeployer) DeployRestart(ctx context.Context, req runtimede
 		return runtimedeploy.Result{}, fmt.Errorf("checkout verified sha: %w", err)
 	}
 	version := "runtime-deploy-" + sha[:12]
-	if err := run(sourceDir, "make", "release-dir", "VERSION="+version, "OUT="+stageDir); err != nil {
+	if err := run(sourceDir, "make", "release-dir", "VERSION="+version, "COMMIT="+sha, "OUT="+stageDir); err != nil {
 		return runtimedeploy.Result{}, fmt.Errorf("build release: %w", err)
 	}
 	upgrade := filepath.Join(stageDir, "upgrade")
@@ -109,7 +123,7 @@ func (d *sourceRuntimeDeployer) DeployRestart(ctx context.Context, req runtimede
 	if err := run(stageDir, upgrade, args...); err != nil {
 		return runtimedeploy.Result{}, fmt.Errorf("upgrade %s: %w", mode, err)
 	}
-	runningVersion, runningCommit, err := d.readStagedBuildIdentity(ctx, stageDir, sha)
+	runningVersion, runningCommit, health, err := d.readPostRestartWorkerIdentity(ctx, sha)
 	if err != nil {
 		return runtimedeploy.Result{}, fmt.Errorf("post-restart health readback: %w", err)
 	}
@@ -119,40 +133,66 @@ func (d *sourceRuntimeDeployer) DeployRestart(ctx context.Context, req runtimede
 		RunningSHA:              sha,
 		RunningVersion:          runningVersion,
 		RunningCommit:           runningCommit,
-		PostRestartHealthStatus: "version_readback_ok",
+		PostRestartHealthStatus: health,
 		Output:                  trimDeployTranscript(transcript.String()),
 	}, nil
 }
 
-func (d *sourceRuntimeDeployer) readStagedBuildIdentity(ctx context.Context, stageDir, sha string) (version, commit string, err error) {
-	out, err := d.run(ctx, stageDir, filepath.Join(stageDir, "bin", "agent-center"), []string{"version"}, deployCommandEnv())
-	if err != nil {
-		return "", "", fmt.Errorf("agent-center version: %w: %s", err, trimDeployTranscript(string(out)))
+func (d *sourceRuntimeDeployer) readPostRestartWorkerIdentity(ctx context.Context, sha string) (version, commit, health string, err error) {
+	if d.readback == nil {
+		return "", "", "", errors.New("authenticated worker identity readback not configured")
 	}
-	version, commit, err = parseAgentCenterVersionReadback(string(out))
-	if err != nil {
-		return "", "", err
+	if strings.TrimSpace(d.workerID) == "" {
+		return "", "", "", errors.New("worker identity readback requires worker id")
 	}
-	if version != "runtime-deploy-"+sha[:12] {
-		return "", "", fmt.Errorf("running version %q does not match target sha %s", version, sha)
+	deadline := time.Now().Add(45 * time.Second)
+	var lastErr error
+	for {
+		readCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		rb, rerr := d.readback.FindWorkerByID(readCtx, d.workerID)
+		cancel()
+		if rerr != nil {
+			lastErr = fmt.Errorf("worker identity endpoint unavailable: %w", rerr)
+		} else if err := validatePostRestartWorkerIdentity(rb, d.workerID, sha); err != nil {
+			lastErr = err
+		} else {
+			si := rb.SystemInfo
+			return strings.TrimSpace(si.WorkerVersion), strings.ToLower(strings.TrimSpace(si.BuildCommit)), "worker_identity_readback_ok", nil
+		}
+		if time.Now().After(deadline) || ctx.Err() != nil {
+			if ctx.Err() != nil {
+				return "", "", "", fmt.Errorf("worker identity readback timed out: %w", ctx.Err())
+			}
+			return "", "", "", fmt.Errorf("worker identity readback timed out waiting for target sha %s: %w", sha, lastErr)
+		}
+		select {
+		case <-time.After(500 * time.Millisecond):
+		case <-ctx.Done():
+			return "", "", "", fmt.Errorf("worker identity readback timed out: %w", ctx.Err())
+		}
 	}
-	if !strings.HasPrefix(sha, strings.ToLower(commit)) {
-		return "", "", fmt.Errorf("running commit %q does not match target sha %s", commit, sha)
-	}
-	return version, strings.ToLower(commit), nil
 }
 
-func parseAgentCenterVersionReadback(out string) (version, commit string, err error) {
-	fields := strings.Fields(strings.TrimSpace(out))
-	if len(fields) != 4 || fields[0] != "agent-center" || fields[2] != "(commit" || !strings.HasSuffix(fields[3], ")") {
-		return "", "", fmt.Errorf("unexpected version readback %q", strings.TrimSpace(out))
+func validatePostRestartWorkerIdentity(rb WorkerReadback, workerID, sha string) error {
+	if strings.TrimSpace(rb.WorkerID) != workerID {
+		return fmt.Errorf("worker identity endpoint returned worker_id %q, want %q", rb.WorkerID, workerID)
 	}
-	version = strings.TrimSpace(fields[1])
-	commit = strings.TrimSuffix(fields[3], ")")
+	if strings.TrimSpace(rb.Status) != workforce.WorkerOnline.String() {
+		return fmt.Errorf("worker %s unhealthy after restart: status=%q", workerID, rb.Status)
+	}
+	si := rb.SystemInfo
+	version := strings.TrimSpace(si.WorkerVersion)
+	commit := strings.ToLower(strings.TrimSpace(si.BuildCommit))
 	if version == "" || commit == "" || commit == "unknown" {
-		return "", "", fmt.Errorf("incomplete version readback %q", strings.TrimSpace(out))
+		return fmt.Errorf("incomplete worker identity readback: version=%q commit=%q", version, commit)
 	}
-	return version, commit, nil
+	if version != "runtime-deploy-"+sha[:12] {
+		return fmt.Errorf("running worker version %q does not match target sha %s", version, sha)
+	}
+	if !strings.HasPrefix(sha, commit) {
+		return fmt.Errorf("running worker commit %q does not match target sha %s", commit, sha)
+	}
+	return nil
 }
 
 func fullDeploySHA(s string) bool {

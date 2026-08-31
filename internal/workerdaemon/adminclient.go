@@ -237,6 +237,22 @@ func (c *AdminClient) ReportCapabilities(ctx context.Context, workerID string, c
 	return c.doJSON(ctx, http.MethodPost, "/admin/workforce/worker/capabilities", body, nil)
 }
 
+// FindWorkerByID GETs the authenticated worker projection from the control
+// plane. Runtime deploy uses this after upgrade returns so success is based on
+// the restarted worker's reported system_info/status, never on the old process
+// launch opts or the staged artifact.
+func (c *AdminClient) FindWorkerByID(ctx context.Context, workerID string) (WorkerReadback, error) {
+	workerID = strings.TrimSpace(workerID)
+	if workerID == "" {
+		return WorkerReadback{}, errors.New("adminclient: worker_id required")
+	}
+	var out WorkerReadback
+	if err := c.doJSON(ctx, http.MethodGet, "/admin/workforce/worker/find-by-id?id="+url.QueryEscape(workerID), nil, &out); err != nil {
+		return WorkerReadback{}, err
+	}
+	return out, nil
+}
+
 // Heartbeat asserts liveness for an already-enrolled worker.
 //
 // v2.3-1 (task #24): now POSTs to the dedicated

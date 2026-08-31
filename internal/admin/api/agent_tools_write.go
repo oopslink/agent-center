@@ -772,50 +772,10 @@ func (s *Server) blockTaskHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "failed"})
 }
 
-// --- unblock_task (v2.9.1 P0 recovery) ---------------------------------------
+// --- unblock_task (retired) ----------------------------------------------------
 
-type unblockTaskReq struct {
-	AgentID string `json:"agent_id"`
-	TaskID  string `json:"task_id"`
-}
-
-// unblockTaskHandler RECOVERS a blocked task: blocked→running plus a fresh
-// re-dispatch (UnblockTask emits pm.task.assigned → the WorkItemProjector mints a
-// NEW WorkItem, re-waking the assignee). This is the recovery entry point for the
-// "restart / stale-release → deadlocked blocked" class (v2.9.1 P0): a Task blocked
-// with reason "agent execution failed" otherwise had no path back to executable.
-//
-// Cross-agent BY DESIGN — an owner/PD recovers ANOTHER agent's stuck task — so it
-// does NOT requireOwnTask; the pm service enforces project membership (+ rejects an
-// archived project). Unblocking a non-blocked task is an illegal transition (4xx).
 func (s *Server) unblockTaskHandler(w http.ResponseWriter, r *http.Request) {
 	writeError(w, http.StatusGone, "unblock_retired", "unblock_task is retired; failed tasks are terminal")
-	return
-	d := hd(r)
-	var req unblockTaskReq
-	if err := decodeJSON(r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
-		return
-	}
-	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
-	if !ok {
-		return
-	}
-	if d.PMService == nil {
-		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
-		return
-	}
-	if !s.requireAgentTaskWrite(w, r, d, a, req.TaskID) {
-		return
-	}
-	if err := d.PMService.UnblockTask(r.Context(), pmservice.UnblockTaskCommand{
-		TaskID: pm.TaskID(req.TaskID),
-		Actor:  pm.IdentityRef(agentActor(a)),
-	}); err != nil {
-		mapDomainError(w, err)
-		return
-	}
-	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "running"})
 }
 
 // --- reset_task (T862 tier-3 recovery) ---------------------------------------

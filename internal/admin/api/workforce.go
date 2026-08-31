@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
@@ -245,6 +246,13 @@ func (s *Server) workerFindByIDHandler(w http.ResponseWriter, r *http.Request) {
 	id := r.URL.Query().Get("id")
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "missing_id", "")
+		return
+	}
+	if auth, ok := AuthFromContext(r.Context()); !ok {
+		writeError(w, http.StatusUnauthorized, "auth_missing", "endpoint requires authenticated bearer")
+		return
+	} else if strings.HasPrefix(string(auth.Owner), "worker:") && string(auth.Owner) != "worker:"+id {
+		writeError(w, http.StatusForbidden, "worker_mismatch", "a worker may only read its own identity")
 		return
 	}
 	ww, err := d.WorkerRepo.FindByID(r.Context(), workforce.WorkerID(id))

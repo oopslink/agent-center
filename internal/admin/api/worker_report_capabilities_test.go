@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -77,6 +78,23 @@ func (f *reportCapsFixture) postReport(t *testing.T, bearer string, body any) in
 	return resp.StatusCode
 }
 
+func (f *reportCapsFixture) getWorker(t *testing.T, bearer, workerID string) (int, []byte) {
+	t.Helper()
+	srv := NewServerWithDeps("", ServerDeps{})
+	h := AuthMiddleware(f.verifier)(WithDeps(f.deps)(srv.Handler()))
+	httpsrv := httptest.NewServer(h)
+	defer httpsrv.Close()
+	req, _ := http.NewRequest(http.MethodGet, httpsrv.URL+"/admin/workforce/worker/find-by-id?id="+workerID, nil)
+	req.Header.Set("Authorization", "Bearer "+bearer)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(resp.Body)
+	return resp.StatusCode, raw
+}
+
 // §-1①: a worker token may only report ITS OWN capabilities. A token owned by
 // worker B reporting for worker A must be rejected 403 (no cross-worker write).
 func TestWorkerReportCapabilities_CrossWorkerRejected(t *testing.T) {
@@ -97,6 +115,35 @@ func TestWorkerReportCapabilities_CrossWorkerRejected(t *testing.T) {
 		if c.AgentCLI == "codex" {
 			t.Fatal("cross-worker report leaked codex onto W-1")
 		}
+	}
+}
+
+func TestWorkerFindByID_WorkerCanReadOwnIdentity(t *testing.T) {
+	f := newReportCapsFixture(t)
+	f.seedWorker(t, "W-1", nil)
+	f.addWorkerToken(t, "acat_w1", "W-1")
+
+	status, raw := f.getWorker(t, "acat_w1", "W-1")
+	if status != http.StatusOK {
+		t.Fatalf("own worker identity read must be 200, got %d body=%s", status, string(raw))
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if body["worker_id"] != "W-1" {
+		t.Fatalf("worker_id=%v", body["worker_id"])
+	}
+}
+
+func TestWorkerFindByID_CrossWorkerRejected(t *testing.T) {
+	f := newReportCapsFixture(t)
+	f.seedWorker(t, "W-1", nil)
+	f.addWorkerToken(t, "acat_w2", "W-2")
+
+	status, raw := f.getWorker(t, "acat_w2", "W-1")
+	if status != http.StatusForbidden {
+		t.Fatalf("cross-worker identity read must be 403, got %d body=%s", status, string(raw))
 	}
 }
 

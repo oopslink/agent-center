@@ -41,6 +41,7 @@ type recordedReq struct {
 	Method string
 	Path   string
 	Query  string
+	Auth   string
 	Body   []byte
 }
 
@@ -88,6 +89,7 @@ func (fs *fakeServer) record(r *http.Request) {
 		Method: r.Method,
 		Path:   r.URL.Path,
 		Query:  r.URL.RawQuery,
+		Auth:   r.Header.Get("Authorization"),
 		Body:   body,
 	})
 }
@@ -118,6 +120,11 @@ func (fs *fakeServer) registerRoutes() {
 		fs.record(r)
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"worker_id":"w-1","version":2}`))
+	})
+	fs.mux.HandleFunc("/admin/workforce/worker/find-by-id", func(w http.ResponseWriter, r *http.Request) {
+		fs.record(r)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"worker_id":"w-1","status":"online","version":3,"system_info":{"worker_version":"runtime-deploy-aaaaaaaaaaaa","build_commit":"aaaaaaaaaaaabbbbbbbbbbbbccccccccccccdddd"}}`))
 	})
 	fs.mux.HandleFunc("/admin/taskruntime/exec/report-progress", func(w http.ResponseWriter, r *http.Request) {
 		fs.record(r)
