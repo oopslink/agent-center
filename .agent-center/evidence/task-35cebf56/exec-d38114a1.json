@@ -1,0 +1,695 @@
+{
+  "task_id": "task-35cebf56",
+  "execution_id": "exec-d38114a1",
+  "reviewed_sha": "6968ec788077e26aa6c7b27a648c2e6ae2f22139",
+  "base_sha": "fddd073cd4208825086fc62d11fb6ba5a4d4655f",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1 \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_5",
+      "command": "/bin/zsh -lc 'ls -la'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'git remote -v \u0026\u0026 git branch --show-current \u0026\u0026 git rev-parse HEAD \u0026\u0026 git status --porcelain=v1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"rg --files | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git status --porcelain=v1 \u0026\u0026 git diff --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git fetch origin candidate/g8-insight-product-visual-a9c45725'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git show-ref --verify refs/remotes/origin/candidate/g8-insight-product-visual-a9c45725 || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git fetch origin refs/heads/candidate/g8-insight-product-visual-a9c45725:refs/remotes/origin/candidate/g8-insight-product-visual-a9c45725'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'git config --get-all remote.origin.fetch \u0026\u0026 git worktree list --porcelain'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/candidate/g8-insight-product-visual-a9c45725'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git -c remote.origin.fetch= fetch origin refs/heads/candidate/g8-insight-product-visual-a9c45725:refs/validation/g8-insight-product-visual-a9c45725 \u0026\u0026 git rev-parse refs/validation/g8-insight-product-visual-a9c45725 \u0026\u0026 git merge-base --is-ancestor 230fca7008eb66c1ffcf51dffe1a71d834a78793 refs/validation/g8-insight-product-visual-a9c45725 \u0026\u0026 git merge-base --is-ancestor refs/validation/g8-insight-product-visual-a9c45725 230fca7008eb66c1ffcf51dffe1a71d834a78793 \u0026\u0026 git status --porcelain=v1'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"git fetch --refmap='' origin refs/heads/candidate/g8-insight-product-visual-a9c45725:refs/validation/g8-insight-product-visual-a9c45725 \u0026\u0026 git rev-parse refs/validation/g8-insight-product-visual-a9c45725 \u0026\u0026 git merge-base --is-ancestor 230fca7008eb66c1ffcf51dffe1a71d834a78793 refs/validation/g8-insight-product-visual-a9c45725 \u0026\u0026 git merge-base --is-ancestor refs/validation/g8-insight-product-visual-a9c45725 230fca7008eb66c1ffcf51dffe1a71d834a78793 \u0026\u0026 git status --porcelain=v1\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"rg -n \\\"insight|projector|Overview|overview|i18n|sqlite|dashboard|status\\\" README.md docs sites web cmd internal tests -g '\"'!**/*.png'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'mktemp -d /tmp/g8-insight-fresh-230fca7.XXXXXX'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"find . -maxdepth 3 -type f \\\\( -name 'package.json' -o -name 'vite.config.*' -o -name 'playwright.config.*' -o -name 'go.mod' \\\\) -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'git worktree add --detach /tmp/g8-insight-fresh-230fca7.KrNiIn/wt 230fca7008eb66c1ffcf51dffe1a71d834a78793'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"find tests/e2e web/src -maxdepth 4 -type f \\\\( -name '*insight*' -o -name '*Insight*' -o -name 'package.json' \\\\) -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc 'git -C /tmp/g8-insight-fresh-230fca7.KrNiIn/wt rev-parse HEAD \u0026\u0026 git -C /tmp/g8-insight-fresh-230fca7.KrNiIn/wt status --porcelain=v1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"rg -n \\\"Insight|insight|Overview|overview|data-testid|freshness|i18n\\\" web/src internal/insight tests/e2e -g '\"'!**/*.png'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"sed -n '1,360p' tests/e2e/v2/capture-v2103.mjs\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/pages/InsightOverview.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' web/src/api/insights.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"sed -n '220,520p' web/src/api/insights.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"sed -n '260,620p' web/src/pages/InsightOverview.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/i18n/locales/en/insights.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"find cmd internal -maxdepth 3 -type f | sort | rg 'web|server|insight|main|http'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"rg -n \\\"test-instance|web_console|listen_addr|sqlite_path|install\\\" cmd internal/cli README.md tests/e2e -g '\"'!**/*.png'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/webconsole/api/handlers_insights.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/webconsole/api/handlers_insights_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/insight/service.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc \"sed -n '260,390p' internal/cli/handlers_test_instance.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc 'find web -maxdepth 2 -type d -name node_modules -print \u0026\u0026 find . -maxdepth 3 -type f -name pnpm-lock.yaml -print'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc \"rg -n \\\"Insight|StartProjector|DefaultDuckDBPath|insight\\\" internal/cli internal/webconsole cmd -g '\"'!**/*test*'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' /Users/oopslink/.agents/skills/agent-browser/SKILL.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc 'pnpm --dir web install --frozen-lockfile'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc \"go test ./internal/insight ./internal/webconsole/api -run 'TestInsight|TestInsights' -count=1\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'pnpm --dir web exec vitest run src/pages/InsightOverview.test.tsx src/pages/InsightAgents.test.tsx src/pages/InsightProjects.test.tsx src/utils/insightPresentation.test.ts'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc \"ps -o pid,ppid,stat,etime,command -p 25570 || true\npgrep -P 25570 -lf . || true\nps -ax -o pid,ppid,stat,etime,command | rg '/tmp/g8-insight-fresh-230fca7|vite|tsc|go build|agent-center-web'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'ps -o pid,ppid,stat,etime,%cpu,%mem,rss,command -p 93793 -p 93789 || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'make build'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_76",
+      "command": "/bin/zsh -lc './bin/agent-center install test-instance --id g8insight230fca7 --with-agent --workers 1 --output json'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc \"rg -n \\\"runtime_model_not_found|claude-opus|with-agent|Model|model\\\" internal/cli web/src tests/e2e/v2 -g '\"'!**/*.png'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_79",
+      "command": "/bin/zsh -lc './bin/agent-center install test-instance --id g8insight230fca7seed --with-seed --workers 0 --output json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' /Users/oopslink/.agent-center-test/g8insight230fca7seed/etc/config.yaml\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_83",
+      "command": "/bin/zsh -lc 'curl -fsS http://127.0.0.1:62662/api/health'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_82",
+      "command": "/bin/zsh -lc \"rg -n \\\"func seedInsightHTTPFacts|insertActivity|insertQueue|execution_fact|activity_events|task_commands|executor\\\" internal/insight internal/webconsole/api tests -g '\"'!**/*.png'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_85",
+      "command": "/bin/zsh -lc \"find /Users/oopslink/.agent-center-test/g8insight230fca7seed -maxdepth 4 -type f \\\\( -name config.yaml -o -name '*.db' -o -name '*.duckdb' -o -name '*.log' \\\\) -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_84",
+      "command": "/bin/zsh -lc \"sed -n '341,390p' internal/webconsole/api/handlers_insights_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_86",
+      "command": "/bin/zsh -lc \"sed -n '652,680p' internal/insight/service_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_88",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' /Users/oopslink/.agent-center-test/g8insight230fca7seed/center/etc/config.yaml\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc 'rg -n \"sqlite|modernc|mattn\" go.mod internal/persistence cmd internal/cli/app.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_92",
+      "command": "/bin/zsh -lc \"sed -n '1,170p' internal/persistence/db.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_90",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' web/src/utils/insightPresentation.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_91",
+      "command": "/bin/zsh -lc \"sed -n '450,735p' internal/insight/service.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_93",
+      "command": "/bin/zsh -lc \"sed -n '1,200p' internal/persistence/migrations/0145_insight_concurrency_observations.up.sql\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_94",
+      "command": "/bin/zsh -lc \"sed -n '735,880p' internal/insight/service.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_95",
+      "command": "/bin/zsh -lc 'rg -n \"CREATE TABLE.*worker_control_events|CREATE TABLE.*agent_activity_events|CREATE TABLE.*agent_concurrency_observations|agent_concurrency_observations\" internal/persistence/migrations'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_96",
+      "command": "/bin/zsh -lc \"sed -n '1,90p' internal/persistence/migrations/0043_v27_agent_work_items.up.sql\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_97",
+      "command": "/bin/zsh -lc \"sed -n '1,80p' internal/persistence/migrations/0044_environment_worker.up.sql\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_98",
+      "command": "/bin/zsh -lc 'rg -n \"type AgentSnapshot|type SlotSnapshot|StateDraining|State\" internal/concurrency'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_99",
+      "command": "/bin/zsh -lc \"sed -n '1,75p' internal/concurrency/concurrency.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_100",
+      "command": "/bin/zsh -lc \"rg -n \\\"func \\\\(s \\\\*Service\\\\) dimensions|type dimension\\\" internal/insight/helpers.go internal/insight/service.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_101",
+      "command": "/bin/zsh -lc \"sed -n '76,135p' internal/insight/helpers.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_103",
+      "command": "/bin/zsh -lc 'mkdir -p cmd/g8insightseed'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_107",
+      "command": "/bin/zsh -lc 'go run ./cmd/g8insightseed /Users/oopslink/.agent-center-test/g8insight230fca7seed/center/var/agent-center.db organization-51076edd'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_109",
+      "command": "/bin/zsh -lc \"curl -i -sS -X POST http://127.0.0.1:62662/api/auth/signin -H 'content-type: application/json' --data '{\\\"display_name\\\":\\\"Owner g8insight230fca7seed\\\",\\\"passcode\\\":\\\"SeedPass1\"'!\",\"org_slug\":\"org-5eb9775f\"}'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_111",
+      "command": "/bin/zsh -lc \"curl -sS http://127.0.0.1:62662/api/orgs/org-5eb9775f/insights/overview?window=24h -H 'cookie: ac_session=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLWI1MGNhNTE5IiwiZXhwIjoxNzg4ODA4ODQxLCJpYXQiOjE3ODgyMDQwNDEsImp0aSI6IjE3ZDQwOWMzMjM4MDhjNzRiZDg5MmI1M2U5MmZkY2ZkIn0.iA24dWfY47D5OWwQl4PjdzsVou9nWiKLELy71NGN8DQ'\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_113",
+      "command": "/bin/zsh -lc \"curl -sS 'http://127.0.0.1:62662/api/orgs/org-5eb9775f/insights/overview?window=24h' -H 'cookie: ac_session=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLWI1MGNhNTE5IiwiZXhwIjoxNzg4ODA4ODQxLCJpYXQiOjE3ODgyMDQwNDEsImp0aSI6IjE3ZDQwOWMzMjM4MDhjNzRiZDg5MmI1M2U5MmZkY2ZkIn0.iA24dWfY47D5OWwQl4PjdzsVou9nWiKLELy71NGN8DQ'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_115",
+      "command": "/bin/zsh -lc \"sed -n '1,160p' tests/e2e/v2/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_116",
+      "command": "/bin/zsh -lc 'pnpm --dir tests/e2e/v2 install --frozen-lockfile'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_118",
+      "command": "/bin/zsh -lc 'mkdir -p /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_122",
+      "command": "/bin/zsh -lc 'node tests/e2e/v2/g8-insight-product-visual-acceptance.mjs'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_136",
+      "command": "/bin/zsh -lc \"sed -n '1,120p' web/src/shell/nav/InsightSecondaryNav.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_137",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_138",
+      "command": "/bin/zsh -lc \"ls -1 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/screenshots | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_139",
+      "command": "/bin/zsh -lc 'find /Users/oopslink/.agent-center-test/g8insight230fca7seed/center/logs -type f -maxdepth 1 -print'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_140",
+      "command": "/bin/zsh -lc \"rg -n '\\\"status\\\"|outcomeUnknown|completed|didNotStart|running' web/src/i18n/locales/en/insights.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_141",
+      "command": "/bin/zsh -lc 'tail -n 120 /Users/oopslink/.agent-center-test/g8insight230fca7seed/center/logs/com.agent-center.center.test-g8insight230fca7seed.err.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_145",
+      "command": "/bin/zsh -lc 'node tests/e2e/v2/g8-insight-product-visual-acceptance.mjs'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_159",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7/verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_160",
+      "command": "/bin/zsh -lc 'find /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-d38114a1/docs/acceptance/g8-insight-product-visual-230fca7 -type f -maxdepth 3 -print | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_161",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_164",
+      "command": "/bin/zsh -lc \"nl -ba /tmp/g8-insight-fresh-230fca7.KrNiIn/wt/web/src/shell/nav/InsightSecondaryNav.tsx | sed -n '15,45p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_168",
+      "command": "/bin/zsh -lc 'find docs/acceptance/g8-insight-product-visual-230fca7 -type f -maxdepth 3 -print | sort | wc -l'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_169",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_170",
+      "command": "/bin/zsh -lc 'du -sh docs/acceptance/g8-insight-product-visual-230fca7'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_172",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/g8-insight-product-visual-230fca7 \u0026\u0026 git commit -m \"docs: add g8 insight product visual acceptance\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_174",
+      "command": "/bin/zsh -lc 'git push origin HEAD'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_176",
+      "command": "/bin/zsh -lc 'git config --get-all remote.origin.mirror || true \u0026\u0026 git config --get-all remote.origin.push || true \u0026\u0026 git config --get-all remote.origin-push.mirror || true \u0026\u0026 git config --get-all remote.origin-push.push || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_177",
+      "command": "/bin/zsh -lc 'git branch --show-current \u0026\u0026 git rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_179",
+      "command": "/bin/zsh -lc 'git -c remote.origin.mirror=false push origin HEAD:refs/heads/ac-exec/task-35cebf56/exec-d38114a1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_182",
+      "command": "/bin/zsh -lc 'git status --porcelain=v1 \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_183",
+      "command": "/bin/zsh -lc \"git rev-parse HEAD \u0026\u0026 git merge-base HEAD refs/validation/g8-insight-product-visual-a9c45725 \u0026\u0026 git merge-base --is-ancestor refs/validation/g8-insight-product-visual-a9c45725 HEAD; printf 'candidate_ancestor_exit=%s\\\\n' \"'$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_181",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/ac-exec/task-35cebf56/exec-d38114a1 refs/heads/candidate/g8-insight-product-visual-a9c45725 refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_186",
+      "command": "/bin/zsh -lc 'git rev-list --left-right --count 230fca7008eb66c1ffcf51dffe1a71d834a78793...HEAD \u0026\u0026 git merge-base HEAD 230fca7008eb66c1ffcf51dffe1a71d834a78793'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_187",
+      "command": "/bin/zsh -lc 'git merge-base HEAD fddd073cd4208825086fc62d11fb6ba5a4d4655f \u0026\u0026 git rev-list --left-right --count fddd073cd4208825086fc62d11fb6ba5a4d4655f...HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_188",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --name-only HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_192",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/g8-insight-product-visual-230fca7/REPORT.md \u0026\u0026 git commit --amend --no-edit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_194",
+      "command": "/bin/zsh -lc 'git -c remote.origin.mirror=false push --force-with-lease origin HEAD:refs/heads/ac-exec/task-35cebf56/exec-d38114a1'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_196",
+      "command": "/bin/zsh -lc 'git -c remote.origin.mirror=false push --force-with-lease=refs/heads/ac-exec/task-35cebf56/exec-d38114a1:e85bf888a134a39b7a4bc71daf0d622e6a4b8738 origin HEAD:refs/heads/ac-exec/task-35cebf56/exec-d38114a1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_202",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/g8-insight-product-visual-230fca7/REPORT.md \u0026\u0026 git commit --amend --no-edit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_204",
+      "command": "/bin/zsh -lc 'git -c remote.origin.mirror=false push --force-with-lease=refs/heads/ac-exec/task-35cebf56/exec-d38114a1:847f08261552cbdb241a88c64ea1d73a7b54d7d6 origin HEAD:refs/heads/ac-exec/task-35cebf56/exec-d38114a1'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_206",
+      "command": "/bin/zsh -lc 'git ls-remote origin refs/heads/ac-exec/task-35cebf56/exec-d38114a1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_208",
+      "command": "/bin/zsh -lc 'git -c remote.origin.mirror=false push --force-with-lease=refs/heads/ac-exec/task-35cebf56/exec-d38114a1:847f08260d95ee68a1b0427580f61656e5386328 origin HEAD:refs/heads/ac-exec/task-35cebf56/exec-d38114a1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_210",
+      "command": "/bin/zsh -lc 'git merge-base HEAD fddd073cd4208825086fc62d11fb6ba5a4d4655f \u0026\u0026 git rev-list --left-right --count fddd073cd4208825086fc62d11fb6ba5a4d4655f...HEAD \u0026\u0026 git status --porcelain=v1 \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_212",
+      "command": "/bin/zsh -lc 'git -C /tmp/g8-insight-fresh-230fca7.KrNiIn/wt status --porcelain=v1 \u0026\u0026 git -C /tmp/g8-insight-fresh-230fca7.KrNiIn/wt rev-parse HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_211",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git ls-remote origin refs/heads/ac-exec/task-35cebf56/exec-d38114a1 refs/heads/candidate/g8-insight-product-visual-a9c45725 refs/heads/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_216",
+      "command": "/bin/zsh -lc 'git status --porcelain=v1 \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_217",
+      "command": "/bin/zsh -lc 'git -C /tmp/g8-insight-fresh-230fca7.KrNiIn/wt status --porcelain=v1 \u0026\u0026 git -C /tmp/g8-insight-fresh-230fca7.KrNiIn/wt status --short --branch'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-d38114a1/command_events.jsonl",
+  "command_event_digest": "sha256:4b5f102395e5e725dbf1124fda1e758877289980e4594a53124be34956155f42",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "完成 G8 exact SHA `230fca7008eb66c1ffcf51dffe1a71d834a78793` 的全新隔离产品/视觉复验。",
+  "artifact_digest": "sha256:b4cad6db0fb8f17d7711a7ecff5ef4f0f1a8c0e3e8ff0488de1a7afd69b1896e",
+  "path": ".agent-center/evidence/task-35cebf56/exec-d38114a1.json",
+  "branch": "ac-exec/task-35cebf56/exec-d38114a1"
+}
