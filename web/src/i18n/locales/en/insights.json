@@ -38,7 +38,17 @@
       "fresh": "Fresh data",
       "stale": "Data delayed",
       "rebuilding": "Rebuilding",
-      "unavailable": "Unavailable"
+      "unavailable": "Unavailable",
+      "unknown": "Freshness unavailable"
+    },
+    "duration": {
+      "invalid": "Invalid time data",
+      "ms": "{{count}} ms",
+      "seconds": "{{value}} s",
+      "minutesOnly": "{{minutes}} min",
+      "minutesSeconds": "{{minutes}} min {{seconds}} s",
+      "hoursMinutes": "{{hours}} h {{minutes}} min",
+      "daysHours": "{{days}} d {{hours}} h"
     },
     "state": {
       "loadingOverview": "Loading Insight overview",
@@ -94,7 +104,11 @@
       "queue": "Queue P50 / P95",
       "duration": "Duration P50 / P95",
       "action": "Action",
-      "completedValue": "{{count}} completed"
+      "completedValue": "{{count}} completed",
+      "failureValue": "{{failed}}/{{completed}} ({{rate}})",
+      "noCompletedFailure": "— (0 completed)",
+      "percentileValue": "P50 {{p50}} / P95 {{p95}} · {{samples}} samples",
+      "noPercentileSamples": "— (0 valid samples)"
     },
     "filters": {
       "agent": "Agent: {{value}}",
