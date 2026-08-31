@@ -25,6 +25,7 @@ function renderShell(initial = '/environment') {
             <Route path="/ai-runtime" element={<div data-testid="page-AiRuntime">runtime</div>} />
             <Route path="/settings" element={<div data-testid="page-Settings">settings</div>} />
             <Route path="/version" element={<div data-testid="page-Version">version</div>} />
+            <Route path="/access/grant-access" element={<div data-testid="page-GrantAccess">grant</div>} />
           </Route>
         </Routes>
       </MemoryRouter>
@@ -75,6 +76,14 @@ describe('col②/④ System module — three-column shell integration (v2.10.0 [
     const nav = screen.getByRole('navigation', { name: /^primary$/ });
     fireEvent.click(within(nav).getByRole('link', { name: /settings/i }));
     expect(screen.getByTestId('page-Settings')).toBeInTheDocument();
+  });
+
+  it('keeps grant-access inside the viewport shell instead of the page scroll container', () => {
+    renderShell('/access/grant-access');
+    expect(screen.getByTestId('page-GrantAccess')).toBeInTheDocument();
+    const shell = screen.getByTestId('app-content-shell');
+    expect(shell).toHaveClass('overflow-hidden');
+    expect(shell).not.toHaveClass('overflow-y-auto');
   });
 
   // Regression (issue: clicking Version flipped col② to the Workspace group).

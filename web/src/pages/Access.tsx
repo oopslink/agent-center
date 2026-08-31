@@ -2243,7 +2243,7 @@ function BatchGrantDrawer({
   };
 
   return (
-    <div className={mode === 'dialog' ? 'fixed inset-0 z-50 bg-black/30' : 'flex min-h-0 min-w-0 flex-1'} data-testid="access-batch-drawer-backdrop">
+    <div className={mode === 'dialog' ? 'fixed inset-0 z-50 bg-black/30' : 'flex h-full min-h-0 min-w-0 flex-1 overflow-hidden'} data-testid="access-batch-drawer-backdrop">
       <div
         ref={containerRef}
         role={mode === 'dialog' ? 'dialog' : undefined}
@@ -2251,7 +2251,7 @@ function BatchGrantDrawer({
         aria-label={title}
         className={mode === 'dialog'
           ? 'fixed inset-x-4 top-6 mx-auto flex max-h-[calc(100vh-3rem)] max-w-6xl flex-col rounded border border-border-base bg-bg-elevated text-text-primary shadow-2xl'
-          : 'flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded border border-border-base bg-bg-elevated text-text-primary'}
+          : 'flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded border border-border-base bg-bg-elevated text-text-primary'}
         data-testid="access-batch-drawer"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border-base px-5 py-4">
