@@ -7,7 +7,9 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
+	adminapi "github.com/oopslink/agent-center/internal/admin/api"
 	"github.com/oopslink/agent-center/internal/runtimedeploy"
 )
 
@@ -17,6 +19,12 @@ func TestSourceRuntimeDeployerReportsAuthoritativeReadback(t *testing.T) {
 	sha := "aaaaaaaaaaaabbbbbbbbbbbbccccccccccccdddd"
 	var commands []string
 	d := newSourceRuntimeDeployer(root, "worker-1", func(string) {})
+	d.readback = func(_ context.Context, mode, gotPrefix, _ string) (runtimeBuildReadback, error) {
+		if mode != "center" || gotPrefix != prefix {
+			t.Fatalf("readback mode/prefix = %s/%s", mode, gotPrefix)
+		}
+		return runtimeBuildReadback{Version: "runtime-deploy-" + sha[:12], Commit: sha, Health: "healthy"}, nil
+	}
 	d.run = func(_ context.Context, dir, name string, args []string, _ []string) ([]byte, error) {
 		commands = append(commands, name+" "+strings.Join(args, " "))
 		switch {
@@ -28,8 +36,6 @@ func TestSourceRuntimeDeployerReportsAuthoritativeReadback(t *testing.T) {
 			if err := os.MkdirAll(filepath.Join(root, "stage-"+sha[:12], "bin"), 0o700); err != nil {
 				return nil, err
 			}
-		case name == filepath.Join(prefix, "current", "bin", "agent-center") && strings.Join(args, " ") == "version":
-			return []byte("agent-center runtime-deploy-" + sha[:12] + " (commit " + sha + ")\n"), nil
 		}
 		return []byte("ok\n"), nil
 	}
@@ -48,35 +54,32 @@ func TestSourceRuntimeDeployerReportsAuthoritativeReadback(t *testing.T) {
 		t.Fatalf("DeployRestart: %v", err)
 	}
 	if got.TargetSHA != sha || got.RunningSHA != sha || got.RunningVersion != "runtime-deploy-"+sha[:12] ||
-		got.RunningCommit != sha || got.PostRestartHealthStatus != "version_readback_ok" {
+		got.RunningCommit != sha || !got.RestartTerminalSuccess || got.PostRestartHealthStatus != "healthy" {
 		t.Fatalf("deploy result missing authoritative readback: %+v", got)
 	}
 	if !slices.Contains(commands, "make release-dir VERSION=runtime-deploy-"+sha[:12]+" COMMIT="+sha+" OUT="+filepath.Join(root, "stage-"+sha[:12])) {
 		t.Fatalf("make release-dir did not receive full COMMIT; commands=%v", commands)
 	}
-	if !slices.Contains(commands, filepath.Join(prefix, "current", "bin", "agent-center")+" version") {
-		t.Fatalf("installed version readback command not run; commands=%v", commands)
+	for _, command := range commands {
+		if strings.Contains(command, filepath.Join(prefix, "current", "bin", "agent-center")+" version") {
+			t.Fatalf("must not use installed artifact version as running readback; commands=%v", commands)
+		}
 	}
 }
 
-func TestParseAgentCenterVersionReadbackRejectsUnknownCommit(t *testing.T) {
-	_, _, err := parseAgentCenterVersionReadback("agent-center runtime-deploy-aaaaaaaaaaaa (commit unknown)\n")
-	if err == nil || !strings.Contains(err.Error(), "incomplete version readback") {
-		t.Fatalf("parse should reject unknown commit, got %v", err)
-	}
-}
-
-func TestSourceRuntimeDeployerRejectsNonExactInstalledCommitReadback(t *testing.T) {
+func TestSourceRuntimeDeployerRejectsInstalledArtifactMismatchReadback(t *testing.T) {
 	root := t.TempDir()
 	prefix := filepath.Join(root, "install")
 	sha := "aaaaaaaaaaaabbbbbbbbbbbbccccccccccccdddd"
+	installedSHA := strings.Repeat("b", 40)
 	d := newSourceRuntimeDeployer(root, "worker-1", func(string) {})
+	d.readback = func(context.Context, string, string, string) (runtimeBuildReadback, error) {
+		return runtimeBuildReadback{Version: "runtime-deploy-" + installedSHA[:12], Commit: installedSHA, Health: "healthy"}, nil
+	}
 	d.run = func(_ context.Context, _ string, name string, args []string, _ []string) ([]byte, error) {
 		switch {
 		case name == "git" && len(args) > 0 && args[0] == "clone":
 			return []byte("ok\n"), os.MkdirAll(runtimedeploy.ManagedSourceDir(root, sha), 0o700)
-		case name == filepath.Join(prefix, "current", "bin", "agent-center") && strings.Join(args, " ") == "version":
-			return []byte("agent-center runtime-deploy-" + sha[:12] + " (commit " + sha[:7] + ")\n"), nil
 		default:
 			return []byte("ok\n"), nil
 		}
@@ -91,7 +94,58 @@ func TestSourceRuntimeDeployerRejectsNonExactInstalledCommitReadback(t *testing.
 		Mode:              "center",
 		Prefix:            prefix,
 	})
-	if err == nil || !strings.Contains(err.Error(), "does not match target sha") {
-		t.Fatalf("short/non-exact installed commit should fail closed, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "running_sha "+installedSHA+" does not match verified target "+sha) {
+		t.Fatalf("installed-artifact mismatch should fail closed, got %v", err)
+	}
+}
+
+func TestReadCenterAdminHealthUsesRunningEndpointBuildIdentity(t *testing.T) {
+	root := t.TempDir()
+	prefix := filepath.Join(root, "install")
+	sock := filepath.Join("/tmp", "ac-rd-"+strings.ReplaceAll(t.Name(), "/", "-")+".sock")
+	_ = os.Remove(sock)
+	t.Cleanup(func() { _ = os.Remove(sock) })
+	if err := os.MkdirAll(filepath.Join(prefix, "etc"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(prefix, "etc", "config.yaml"), []byte("server:\n  sqlite_path: \""+filepath.Join(root, "center.db")+"\"\n  admin_socket_path: \""+sock+"\"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sha := "aaaaaaaaaaaabbbbbbbbbbbbccccccccccccdddd"
+	srv := adminapi.NewServerWithDeps(sock, adminapi.ServerDeps{
+		Version: "runtime-deploy-" + sha[:12],
+		Commit:  sha,
+		Branch:  "test",
+		BuiltAt: "2026-08-31T00:00:00Z",
+	})
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.ListenAndServe() }()
+	defer func() { _ = srv.Shutdown(context.Background()) }()
+	waitForRuntimeDeploySocket(t, sock, errCh)
+
+	got, err := readCenterAdminHealth(context.Background(), prefix)
+	if err != nil {
+		t.Fatalf("readCenterAdminHealth: %v", err)
+	}
+	if got.Version != "runtime-deploy-"+sha[:12] || got.Commit != sha || got.Health != "healthy" {
+		t.Fatalf("readback = %+v", got)
+	}
+}
+
+func waitForRuntimeDeploySocket(t *testing.T, sock string, errCh <-chan error) {
+	t.Helper()
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case err := <-errCh:
+			t.Fatalf("admin server exited before socket ready: %v", err)
+		case <-deadline:
+			t.Fatalf("socket %s not ready", sock)
+		default:
+			if _, err := os.Stat(sock); err == nil {
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
 	}
 }

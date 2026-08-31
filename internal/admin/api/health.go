@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 )
 
 // healthHandler is the smallest possible smoke endpoint — used by
@@ -21,5 +22,16 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 		"ok":        true,
 		"transport": transport,
 		"endpoint":  "admin",
+		"version":   fallbackHealthIdentity(s.deps.Version, "dev"),
+		"branch":    fallbackHealthIdentity(s.deps.Branch, "unknown"),
+		"commit":    fallbackHealthIdentity(s.deps.Commit, "unknown"),
+		"built_at":  fallbackHealthIdentity(s.deps.BuiltAt, "unknown"),
 	})
+}
+
+func fallbackHealthIdentity(v, fallback string) string {
+	if strings.TrimSpace(v) == "" {
+		return fallback
+	}
+	return strings.TrimSpace(v)
 }

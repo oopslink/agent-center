@@ -407,7 +407,11 @@ func TestControllerHandler_RuntimeDeployRequiresServerVerification(t *testing.T)
 func TestControllerHandler_RuntimeDeployReportsSucceeded(t *testing.T) {
 	r := &fakeCommandStatusReporter{}
 	sha := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-	deployer := &fakeRuntimeDeployer{res: runtimedeploy.Result{TargetSHA: sha, Mode: "center"}}
+	deployer := &fakeRuntimeDeployer{res: runtimedeploy.Result{
+		TargetSHA: sha, Mode: "center", RunningSHA: sha, RunningCommit: sha,
+		RunningVersion: "runtime-deploy-" + sha[:12], RestartTerminalSuccess: true,
+		PostRestartHealthStatus: "healthy",
+	}}
 	h := controllerHandler{reporter: r, deployer: deployer, log: func(string) {}}
 	payload := `{"agent_id":"a","repo_url":"https://example.invalid/repo.git","target_ref":"refs/heads/main","target_sha":"` + sha + `","verified_target_sha":"` + sha + `","verified_base_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","verified_at":"2026-08-31T00:00:00Z"}`
 	if err := h.Handle(context.Background(), ControlCommand{
@@ -426,6 +430,55 @@ func TestControllerHandler_RuntimeDeployReportsSucceeded(t *testing.T) {
 	if len(r.commands) != 2 || r.commands[0].status != environment.CommandStatusStarted ||
 		r.commands[1].status != environment.CommandStatusSucceeded {
 		t.Fatalf("status reports = %+v", r.commands)
+	}
+}
+
+func TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails(t *testing.T) {
+	sha := "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	valid := runtimedeploy.Result{
+		TargetSHA: sha, Mode: "center", RunningSHA: sha, RunningCommit: sha,
+		RunningVersion: "runtime-deploy-" + sha[:12], RestartTerminalSuccess: true,
+		PostRestartHealthStatus: "healthy",
+	}
+	cases := []struct {
+		name string
+		mut  func(*runtimedeploy.Result)
+		want string
+	}{
+		{name: "missing running sha", mut: func(r *runtimedeploy.Result) { r.RunningSHA, r.RunningCommit = "", "" }, want: "running_sha must be a full 40 character commit SHA"},
+		{name: "short running sha", mut: func(r *runtimedeploy.Result) { r.RunningSHA, r.RunningCommit = "abc123", "abc123" }, want: "running_sha must be a full 40 character commit SHA"},
+		{name: "wrong running sha", mut: func(r *runtimedeploy.Result) {
+			r.RunningSHA, r.RunningCommit = strings.Repeat("b", 40), strings.Repeat("b", 40)
+		}, want: "does not match verified target"},
+		{name: "missing version", mut: func(r *runtimedeploy.Result) { r.RunningVersion = "" }, want: "running_version required"},
+		{name: "wrong version", mut: func(r *runtimedeploy.Result) { r.RunningVersion = "runtime-deploy-bbbbbbbbbbbb" }, want: "running_version"},
+		{name: "restart not terminal success", mut: func(r *runtimedeploy.Result) { r.RestartTerminalSuccess = false }, want: "restart terminal success required"},
+		{name: "health not healthy", mut: func(r *runtimedeploy.Result) { r.PostRestartHealthStatus = "starting" }, want: "post_restart_health_status must be healthy"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			res := valid
+			tc.mut(&res)
+			r := &fakeCommandStatusReporter{}
+			deployer := &fakeRuntimeDeployer{res: res}
+			h := controllerHandler{reporter: r, deployer: deployer, log: func(string) {}}
+			payload := `{"agent_id":"a","repo_url":"https://example.invalid/repo.git","target_ref":"refs/heads/main","target_sha":"` + sha + `","verified_target_sha":"` + sha + `","verified_base_sha":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","verified_at":"2026-08-31T00:00:00Z"}`
+			if err := h.Handle(context.Background(), ControlCommand{
+				ID:          "cmd-deploy",
+				CommandType: cmdTypeRuntimeDeploy,
+				Status:      environment.CommandStatusPending,
+				Payload:     payload,
+			}); err != nil {
+				t.Fatalf("runtime deploy handle: %v", err)
+			}
+			r.mu.Lock()
+			defer r.mu.Unlock()
+			if len(r.commands) != 2 || r.commands[1].status != environment.CommandStatusFailed ||
+				r.commands[1].reason != "runtime_deploy_result_invalid" ||
+				!strings.Contains(r.commands[1].detail, tc.want) {
+				t.Fatalf("status reports = %+v, want failed detail containing %q", r.commands, tc.want)
+			}
+		})
 	}
 }
 

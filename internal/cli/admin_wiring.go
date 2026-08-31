@@ -104,7 +104,13 @@ func runAdminEndpoint(ctx context.Context, app *App, tc AdminTransportConfig, lo
 			}
 		}
 	}
-	srv := api.NewServerWithTransports(tc.SocketPath, tc.TCPListenAddr, tlsCert, tlsFingerprint, api.ServerDeps{GitHandler: gitHandler})
+	srv := api.NewServerWithTransports(tc.SocketPath, tc.TCPListenAddr, tlsCert, tlsFingerprint, api.ServerDeps{
+		GitHandler: gitHandler,
+		Version:    ResolvedBuildVersion(),
+		Branch:     ResolvedBuildBranch(),
+		Commit:     ResolvedBuildCommit(),
+		BuiltAt:    ResolvedBuildBuiltAt(),
+	})
 	// Wrap the inner mux with deps middleware (parallel to
 	// webconsole_wiring.go pattern), then rate-limit (v2.3-7c task #27),
 	// then auth on top so every non-public request must carry a valid

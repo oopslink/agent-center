@@ -3,14 +3,19 @@ package workerdaemon
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/admin/clienttransport"
+	"github.com/oopslink/agent-center/internal/config"
 	"github.com/oopslink/agent-center/internal/runtimedeploy"
 )
 
@@ -19,6 +24,13 @@ type sourceRuntimeDeployer struct {
 	workerID string
 	log      func(string)
 	run      func(context.Context, string, string, []string, []string) ([]byte, error)
+	readback func(context.Context, string, string, string) (runtimeBuildReadback, error)
+}
+
+type runtimeBuildReadback struct {
+	Version string
+	Commit  string
+	Health  string
 }
 
 func newSourceRuntimeDeployer(workRoot, workerID string, log func(string)) *sourceRuntimeDeployer {
@@ -27,6 +39,7 @@ func newSourceRuntimeDeployer(workRoot, workerID string, log func(string)) *sour
 		workerID: workerID,
 		log:      log,
 		run:      runDeployCommand,
+		readback: defaultRuntimeBuildReadback,
 	}
 }
 
@@ -109,91 +122,91 @@ func (d *sourceRuntimeDeployer) DeployRestart(ctx context.Context, req runtimede
 	if err := run(stageDir, upgrade, args...); err != nil {
 		return runtimedeploy.Result{}, fmt.Errorf("upgrade %s: %w", mode, err)
 	}
-	runningVersion, runningCommit, err := d.readInstalledBuildIdentity(ctx, mode, req.Prefix, sha)
+	rb, err := d.readback(ctx, mode, req.Prefix, d.workerID)
 	if err != nil {
 		return runtimedeploy.Result{}, fmt.Errorf("post-restart health readback: %w", err)
 	}
-	return runtimedeploy.Result{
+	res := runtimedeploy.Result{
 		TargetSHA:               sha,
 		Mode:                    mode,
-		RunningSHA:              sha,
-		RunningVersion:          runningVersion,
-		RunningCommit:           runningCommit,
-		PostRestartHealthStatus: "version_readback_ok",
+		RunningSHA:              strings.ToLower(strings.TrimSpace(rb.Commit)),
+		RunningVersion:          strings.TrimSpace(rb.Version),
+		RunningCommit:           strings.ToLower(strings.TrimSpace(rb.Commit)),
+		RestartTerminalSuccess:  true,
+		PostRestartHealthStatus: strings.TrimSpace(rb.Health),
 		Output:                  trimDeployTranscript(transcript.String()),
-	}, nil
+	}
+	if err := runtimedeploy.ValidateTerminalSuccessResult(res, sha); err != nil {
+		return runtimedeploy.Result{}, err
+	}
+	return res, nil
 }
 
-func (d *sourceRuntimeDeployer) readInstalledBuildIdentity(ctx context.Context, mode, prefix, sha string) (version, commit string, err error) {
-	bin, err := d.installedAgentCenterBin(mode, prefix)
-	if err != nil {
-		return "", "", err
+func defaultRuntimeBuildReadback(ctx context.Context, mode, prefix, workerID string) (runtimeBuildReadback, error) {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "worker":
+		return runtimeBuildReadback{}, errors.New("worker process readback not configured")
+	default:
+		return readCenterAdminHealth(ctx, prefix)
 	}
-	out, err := d.run(ctx, filepath.Dir(bin), bin, []string{"version"}, deployCommandEnv())
-	if err != nil {
-		return "", "", fmt.Errorf("agent-center version: %w: %s", err, trimDeployTranscript(string(out)))
-	}
-	version, commit, err = parseAgentCenterVersionReadback(string(out))
-	if err != nil {
-		return "", "", err
-	}
-	if version != "runtime-deploy-"+sha[:12] {
-		return "", "", fmt.Errorf("running version %q does not match target sha %s", version, sha)
-	}
-	if !strings.EqualFold(sha, strings.ToLower(commit)) {
-		return "", "", fmt.Errorf("running commit %q does not match target sha %s", commit, sha)
-	}
-	return version, strings.ToLower(commit), nil
 }
 
-func (d *sourceRuntimeDeployer) installedAgentCenterBin(mode, prefix string) (string, error) {
+func readCenterAdminHealth(ctx context.Context, prefix string) (runtimeBuildReadback, error) {
+	cfg, err := loadRuntimeDeployConfig(prefix)
+	if err != nil {
+		return runtimeBuildReadback{}, err
+	}
+	targetSpec := strings.TrimSpace(cfg.Server.AdminSocketPath)
+	if targetSpec == "" && strings.TrimSpace(cfg.Server.AdminTCPListen) != "" {
+		targetSpec = "tcp://" + strings.TrimSpace(cfg.Server.AdminTCPListen)
+	}
+	target, err := clienttransport.ParseTarget(targetSpec)
+	if err != nil {
+		return runtimeBuildReadback{}, err
+	}
+	tr, err := clienttransport.NewHTTPTransport(target, "", 5*time.Second)
+	if err != nil {
+		return runtimeBuildReadback{}, err
+	}
+	defer tr.CloseIdleConnections()
+	httpc := &http.Client{Transport: tr, Timeout: 10 * time.Second}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.BaseURL()+"/admin/health", nil)
+	if err != nil {
+		return runtimeBuildReadback{}, err
+	}
+	resp, err := httpc.Do(req)
+	if err != nil {
+		return runtimeBuildReadback{}, fmt.Errorf("admin health readback: %w", err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode != http.StatusOK {
+		return runtimeBuildReadback{}, fmt.Errorf("admin health readback status=%d body=%s", resp.StatusCode, trimDeployTranscript(string(body)))
+	}
+	var doc struct {
+		OK      bool   `json:"ok"`
+		Version string `json:"version"`
+		Commit  string `json:"commit"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return runtimeBuildReadback{}, fmt.Errorf("admin health readback json: %w", err)
+	}
+	if !doc.OK {
+		return runtimeBuildReadback{}, errors.New("admin health readback not ok")
+	}
+	return runtimeBuildReadback{Version: doc.Version, Commit: doc.Commit, Health: "healthy"}, nil
+}
+
+func loadRuntimeDeployConfig(prefix string) (config.Config, error) {
 	prefix = strings.TrimSpace(prefix)
 	if prefix == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return "", fmt.Errorf("resolve install prefix: %w", err)
+			return config.Config{}, fmt.Errorf("resolve install prefix: %w", err)
 		}
-		switch strings.ToLower(strings.TrimSpace(mode)) {
-		case "worker":
-			if strings.TrimSpace(d.workerID) == "" {
-				return "", errors.New("worker deploy requires worker id")
-			}
-			prefix = filepath.Join(home, ".agent-center", "workers", sanitizeRuntimeDeployPathPart(d.workerID))
-		default:
-			prefix = filepath.Join(home, ".agent-center")
-		}
+		prefix = filepath.Join(home, ".agent-center")
 	}
-	return filepath.Join(prefix, "current", "bin", "agent-center"), nil
-}
-
-func sanitizeRuntimeDeployPathPart(s string) string {
-	s = strings.TrimSpace(s)
-	var b strings.Builder
-	for _, r := range s {
-		switch {
-		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_', r == '.':
-			b.WriteRune(r)
-		default:
-			b.WriteByte('-')
-		}
-	}
-	if b.Len() == 0 {
-		return "worker"
-	}
-	return b.String()
-}
-
-func parseAgentCenterVersionReadback(out string) (version, commit string, err error) {
-	fields := strings.Fields(strings.TrimSpace(out))
-	if len(fields) != 4 || fields[0] != "agent-center" || fields[2] != "(commit" || !strings.HasSuffix(fields[3], ")") {
-		return "", "", fmt.Errorf("unexpected version readback %q", strings.TrimSpace(out))
-	}
-	version = strings.TrimSpace(fields[1])
-	commit = strings.TrimSuffix(fields[3], ")")
-	if version == "" || commit == "" || commit == "unknown" {
-		return "", "", fmt.Errorf("incomplete version readback %q", strings.TrimSpace(out))
-	}
-	return version, commit, nil
+	return config.Load(config.LoadOptions{Path: filepath.Join(prefix, "etc", "config.yaml")})
 }
 
 func fullDeploySHA(s string) bool {

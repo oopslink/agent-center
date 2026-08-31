@@ -217,6 +217,16 @@ func (h controllerHandler) handleRuntimeDeploy(ctx context.Context, cmd ControlC
 	if err != nil {
 		return h.reportRuntimeDeployStatus(ctx, rep, cmd, agentID, environment.CommandStatusFailed, "runtime_deploy_failed", err.Error())
 	}
+	if err := runtimedeploy.ValidateTerminalSuccessResult(res, req.VerifiedTargetSHA); err != nil {
+		detailBytes, _ := json.Marshal(res)
+		detail := strings.TrimSpace(string(detailBytes))
+		if detail == "" || detail == "{}" {
+			detail = err.Error()
+		} else {
+			detail = err.Error() + ": " + detail
+		}
+		return h.reportRuntimeDeployStatus(ctx, rep, cmd, agentID, environment.CommandStatusFailed, "runtime_deploy_result_invalid", detail)
+	}
 	detailBytes, _ := json.Marshal(res)
 	return h.reportRuntimeDeployStatus(ctx, rep, cmd, agentID, environment.CommandStatusSucceeded, "runtime_deploy_succeeded", string(detailBytes))
 }

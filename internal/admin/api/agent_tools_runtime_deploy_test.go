@@ -218,7 +218,7 @@ func TestRuntimeDeployStatusHandler_ReadsTerminalAttemptByIdempotencyKey(t *test
 	if _, err := fx.deps.EnvControlSvc.UpdateCommandStatus(context.Background(), environment.UpdateCommandStatusInput{
 		WorkerID: environment.WorkerID(atWorker1), CommandID: cmdID, AgentID: atAgent1,
 		Status: environment.CommandStatusSucceeded, StatusReason: "runtime_deploy_succeeded",
-		StatusDetail: `{"running_sha":"` + sha + `","running_version":"runtime-deploy-` + sha[:12] + `","post_restart_health_status":"version_readback_ok"}`,
+		StatusDetail: `{"running_sha":"` + sha + `","running_version":"runtime-deploy-` + sha[:12] + `","restart_terminal_success":true,"post_restart_health_status":"healthy"}`,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -231,6 +231,8 @@ func TestRuntimeDeployStatusHandler_ReadsTerminalAttemptByIdempotencyKey(t *test
 		"agent_id": atAgent1, "idempotency_key": "read-key",
 	})
 	if st != http.StatusOK || status["command_status"] != environment.CommandStatusSucceeded || status["terminal"] != true ||
+		status["running_sha"] != sha || status["running_version"] != "runtime-deploy-"+sha[:12] ||
+		status["restart_terminal_success"] != true || status["post_restart_health_status"] != "healthy" ||
 		!strings.Contains(status["status_detail"].(string), `"running_sha":"`+sha+`"`) {
 		t.Fatalf("status=%d body=%v", st, status)
 	}

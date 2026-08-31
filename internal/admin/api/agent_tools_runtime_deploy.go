@@ -184,5 +184,19 @@ func runtimeDeployAttemptStatus(evt *environment.WorkerControlEvent, idempotency
 		out.VerifiedTargetSHA = payload.VerifiedTargetSHA
 		out.VerifiedBaseSHA = payload.VerifiedBaseSHA
 	}
+	var rawDetail map[string]json.RawMessage
+	var detail runtimedeploy.Result
+	if err := json.Unmarshal([]byte(evt.StatusDetail()), &rawDetail); err == nil && len(rawDetail) > 0 {
+		_ = json.Unmarshal([]byte(evt.StatusDetail()), &detail)
+		out.RunningSHA = detail.RunningSHA
+		if strings.TrimSpace(out.RunningSHA) == "" {
+			out.RunningSHA = detail.RunningCommit
+		}
+		out.RunningVersion = detail.RunningVersion
+		if _, ok := rawDetail["restart_terminal_success"]; ok {
+			out.RestartTerminalSuccess = &detail.RestartTerminalSuccess
+		}
+		out.PostRestartHealthStatus = detail.PostRestartHealthStatus
+	}
 	return out
 }

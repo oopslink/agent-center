@@ -33,6 +33,10 @@ type ServerDeps struct {
 	// (constructed once at boot with the git Host + membership) rather than
 	// per-request. nil → the /admin/git/ route returns git_not_wired (501).
 	GitHandler http.Handler
+	Version    string
+	Branch     string
+	Commit     string
+	BuiltAt    string
 }
 
 // Server is the admin endpoint HTTP server. v2.2 bound only to a unix

@@ -46,7 +46,13 @@ type AttemptStatus struct {
 	IdempotencyKey    string `json:"idempotency_key"`
 	VerifiedTargetSHA string `json:"verified_target_sha,omitempty"`
 	VerifiedBaseSHA   string `json:"verified_base_sha,omitempty"`
-	Terminal          bool   `json:"terminal"`
+	RunningSHA        string `json:"running_sha,omitempty"`
+	RunningVersion    string `json:"running_version,omitempty"`
+	// RestartTerminalSuccess is a pointer so omitted/false remain distinguishable
+	// when status_detail is absent or malformed.
+	RestartTerminalSuccess  *bool  `json:"restart_terminal_success,omitempty"`
+	PostRestartHealthStatus string `json:"post_restart_health_status,omitempty"`
+	Terminal                bool   `json:"terminal"`
 }
 
 type VerifiedRef struct {
@@ -60,8 +66,35 @@ type Result struct {
 	RunningSHA              string `json:"running_sha,omitempty"`
 	RunningVersion          string `json:"running_version,omitempty"`
 	RunningCommit           string `json:"running_commit,omitempty"`
+	RestartTerminalSuccess  bool   `json:"restart_terminal_success"`
 	PostRestartHealthStatus string `json:"post_restart_health_status,omitempty"`
 	Output                  string `json:"output,omitempty"`
+}
+
+func ValidateTerminalSuccessResult(res Result, verifiedTargetSHA string) error {
+	target := strings.ToLower(strings.TrimSpace(verifiedTargetSHA))
+	if !fullSHARe.MatchString(target) {
+		return fmt.Errorf("verified target sha must be a full 40 character commit SHA")
+	}
+	running := strings.ToLower(strings.TrimSpace(res.RunningSHA))
+	if running == "" {
+		running = strings.ToLower(strings.TrimSpace(res.RunningCommit))
+	}
+	switch {
+	case !fullSHARe.MatchString(running):
+		return fmt.Errorf("running_sha must be a full 40 character commit SHA")
+	case running != target:
+		return fmt.Errorf("running_sha %s does not match verified target %s", running, target)
+	case strings.TrimSpace(res.RunningVersion) == "":
+		return errors.New("running_version required")
+	case strings.TrimSpace(res.RunningVersion) != "runtime-deploy-"+target[:12]:
+		return fmt.Errorf("running_version %q does not match verified target %s", res.RunningVersion, target)
+	case !res.RestartTerminalSuccess:
+		return errors.New("restart terminal success required")
+	case strings.TrimSpace(res.PostRestartHealthStatus) != "healthy":
+		return fmt.Errorf("post_restart_health_status must be healthy, got %q", res.PostRestartHealthStatus)
+	}
+	return nil
 }
 
 var fullSHARe = regexp.MustCompile(`^[0-9a-fA-F]{40}$`)

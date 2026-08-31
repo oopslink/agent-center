@@ -206,12 +206,24 @@ func RunDaemon(ctx context.Context, opts RunOptions, logf func(string)) error {
 		return fmt.Errorf("worker daemon: controller: %w", werr)
 	}
 	reconcileControllerFromResumeState(ctx, wctrl, client, opts.WorkerID, logf)
+	deployer := newSourceRuntimeDeployer(filepath.Join(workerStateDir(cfg, opts.ConfigPath, opts.WorkerID), "deploy"), opts.WorkerID, logf)
+	defaultReadback := deployer.readback
+	deployer.readback = func(ctx context.Context, mode, prefix, workerID string) (runtimeBuildReadback, error) {
+		if strings.EqualFold(strings.TrimSpace(mode), "worker") {
+			return runtimeBuildReadback{
+				Version: strings.TrimSpace(opts.AgentCenterVersion),
+				Commit:  strings.TrimSpace(opts.BuildCommit),
+				Health:  "healthy",
+			}, nil
+		}
+		return defaultReadback(ctx, mode, prefix, workerID)
+	}
 	rtCfg.ControlHandler = controllerHandler{
 		ctrl:     wctrl,
 		reporter: client,
 		homeBase: agentHomeBase(cfg, opts.ConfigPath, opts.WorkerID),
 		poster:   client,
-		deployer: newSourceRuntimeDeployer(filepath.Join(workerStateDir(cfg, opts.ConfigPath, opts.WorkerID), "deploy"), opts.WorkerID, logf),
+		deployer: deployer,
 		log:      logf,
 	}
 	logf("worker running in controller mode (process-per-agent)")
