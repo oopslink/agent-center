@@ -1,0 +1,42 @@
+# deployed-smoke asserted on installed launchd test-instance
+binary=./bin/agent-center
+instance=insight-smoke-20260831
+web=http://127.0.0.1:49515
+## health
+HTTP 200
+{"status":"ok","version":"ac-exec/task-bc021533/exec-8d107cb7-0a02c230"}
+## signin
+HTTP 200
+{"identity_id":"user-9a901750"}
+## me
+HTTP 200
+{"display_name":"Owner insight-smoke-20260831","identity_id":"user-9a901750","kind":"user"}
+## orgs-list
+HTTP 200
+[{"created_at":"2026-08-31T00:29:11Z","description":"","disabled":false,"id":"organization-340fdd93","name":"Acme insight-smoke-20260831","role":"owner","slug":"org-75edacca"}]
+## projects-list
+HTTP 200
+{"projects":[{"created_at":"2026-08-31T00:29:11.409893Z","created_by":"user:user-9a901750","description":"seeded by install test-instance --with-seed","id":"project-0f187407","issue_count":0,"name":"Alpha","organization_id":"organization-340fdd93","plan_count":0,"repo_count":0,"status":"active","task_count":0,"updated_at":"2026-08-31T00:29:11.409893Z","version":1}]}
+## seeded-project
+HTTP 200
+{"auto_assign_enabled":true,"created_at":"2026-08-31T00:29:11.409893Z","created_by":"user:user-9a901750","description":"seeded by install test-instance --with-seed","id":"project-0f187407","issue_count":0,"name":"Alpha","organization_id":"organization-340fdd93","plan_count":0,"repo_count":0,"status":"active","task_count":0,"updated_at":"2026-08-31T00:29:11.409893Z","version":1}
+## conversations-list
+HTTP 200
+[{"created_at":"2026-08-31T00:29:11.410719Z","created_by":"user:user-9a901750","description":"","followed":true,"id":"channel-9af573ea","kind":"channel","mention_count":0,"name":"general","owner_ref":"id://organizations/organization-340fdd93","parent_conversation_id":"","participant_count":1,"participants":[{"display_name":"Owner insight-smoke-20260831","identity_id":"user:user-9a901750","kind":"human"}],"recent_messages":[],"status":"active","unread_count":0,"updated_at":"2026-08-31T00:29:11.410719Z","version":1}]
+## seeded-channel
+HTTP 200
+{"created_at":"2026-08-31T00:29:11.410719Z","created_by":"user:user-9a901750","description":"","followed":true,"id":"channel-9af573ea","kind":"channel","mention_count":0,"name":"general","owner_ref":"id://organizations/organization-340fdd93","parent_conversation_id":"","participants":[{"identity_id":"user:user-9a901750","joined_at":"2026-08-31T00:29:11.410719Z","joined_by":"user:user-9a901750","left_at":"","left_reason":"","role":"owner"}],"status":"active","unread_count":0,"updated_at":"2026-08-31T00:29:11.410719Z","version":1}
+## fleet
+HTTP 200
+{"tasks":[],"workers":[],"pending_issues":[],"generated_at":"2026-08-31T00:31:21.631194Z"}
+## files create upload
+HTTP 201
+{"file_uri":"ac://files/01M1AKMNH9T7NRDMN7QGZ28X14","transfer_id":"01M1AKMNH9T7NRDMN7QMR8A39G","transfer_uri":"ac://transfers/01M1AKMNH9T7NRDMN7QMR8A39G"}
+transfer_id=01M1AKMNH9T7NRDMN7QMR8A39G
+## files put bytes
+HTTP 200
+{"written":true}
+## files complete
+HTTP 200
+{"completed":true}
+deployed_smoke_asserted=PASS

@@ -1,0 +1,73 @@
+# service logs tail
+## center out
+[server] admin token bootstrap: wrote /Users/oopslink/.agent-center-test/insight-smoke-20260831/center/var/bootstrap_token (scope=* owner=system:bootstrap)
+agent-center server: db=/Users/oopslink/.agent-center-test/insight-smoke-20260831/center/var/agent-center.db web=127.0.0.1:49515 admin=/Users/oopslink/.agent-center-test/insight-smoke-20260831/center/var/admin.sock (escalator running)
+  admin tcp:  127.0.0.1:49517 (TLS, auto-generated)
+              cert valid until 2027-08-31 (364 days)
+              fingerprint: sha256:13:94:D1:6A:FF:BA:85:97:61:09:ED:8A:4A:71:6D:EC:14:C1:9E:E9:BD:86:63:99:B3:B4:0D:8B:26:FB:6A:BF
+
+## center err
+[server] webconsole progress wake drain: authorization: permission denied
+[server] webconsole progress watchdog: authorization: permission denied
+
+## worker out
+
+## worker err
+[worker] enrolled + persisted long-term token to /Users/oopslink/.agent-center-test/insight-smoke-20260831/worker-1/var/worker-token
+[worker] reported 3 probed capabilities
+[worker] controller: reconciled 0 desired-running agent(s) at boot
+[worker] worker running in controller mode (process-per-agent)
+[worker] starting: worker_id=test-insight-smoke-20260831-w1 target=tcp://127.0.0.1:49517 poll=1s overrides=0
+[worker] control loop started worker_id=test-insight-smoke-20260831-w1
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)
+[worker] control: connect test-insight-smoke-20260831-w1: admin endpoint POST /admin/environment/worker/connect: status=409 body={"error":"worker_not_org_enrolled","message":"worker is not enrolled in an organization; enroll it via the org install command before connecting"}
+ (will retry; control disabled until then)

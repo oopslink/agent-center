@@ -1,0 +1,14 @@
+dc341f5e326b787d326380eb4531ad959be377dd8107b19ec5a9f534929d896a  docs/acceptance/insight-test-instance-20260831/REPORT.md
+7121df6a4ec11484dae729ac622391b3dd879310ae2939b21a233d3dab504508  docs/acceptance/insight-test-instance-20260831/run_deployed_smoke.sh
+fc8683c1da554e136254182b6eae9d8edce6b829c158044e4b46ff3022c68ee6  docs/acceptance/insight-test-instance-20260831/raw/00-provenance.log
+ccfe8cdd0b5ffe99717391c5dd433cbf2f04613ac442f68a467f89810c325229  docs/acceptance/insight-test-instance-20260831/raw/01-make-lint.log
+06410140788f2aa6e5b6e761af34ea76022682cbb27ff2bc0fc3cc941feda6ca  docs/acceptance/insight-test-instance-20260831/raw/02-make-build.log
+0335369d0e32df7e8fbecfcdad795bbfa0eb2149ec782c800f313cc9414a02ca  docs/acceptance/insight-test-instance-20260831/raw/03-install-test-instance.log
+d5010d9fb308418e8bcd7413d76e736d81dbbe492ef78fcc5ce00dbab2c86309  docs/acceptance/insight-test-instance-20260831/raw/04-health-version-auth.log
+4e8ae71310844b6e7d9ed30d2f2c18434faaccd6b5ffaa44fa3fdd5eddb385bb  docs/acceptance/insight-test-instance-20260831/raw/05-generated-config.log
+1d0b2055e26b85f9a0ce0e09f420ea6643b21d1fe2f154efbd9a4079be392a1d  docs/acceptance/insight-test-instance-20260831/raw/06-launchctl-status.log
+7f55898ae46c3af3db6c83dc2b06c475749a668df4bf4ca35fb2a318fc11d725  docs/acceptance/insight-test-instance-20260831/raw/07-service-logs-tail.log
+6aa871547da126ee67f62f7ad6d4c8ca0270649f55faf78ef0bf7f1bcc1b2abf  docs/acceptance/insight-test-instance-20260831/raw/08-deployed-smoke.log
+eba2cd0ba8f63ed7b9c8c0aeab45e78ec0deac02d88c94bed6266957e90958b5  docs/acceptance/insight-test-instance-20260831/raw/09-deployed-smoke-asserted.log
+85478f935d4a48aa2f89848fee50bd3570f930064ed79b858500af071e58ed3c  docs/acceptance/insight-test-instance-20260831/raw/10-list-test-instances.log
+ac4432b9dbe948e6369f10c1278cedf78ee4a8d45a1cc8883d6ca2cf17697693  docs/acceptance/insight-test-instance-20260831/raw/11-secret-scan.log

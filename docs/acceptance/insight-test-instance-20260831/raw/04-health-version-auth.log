@@ -1,0 +1,32 @@
+# health and authenticated version
+## health
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:29:36 GMT
+Content-Length: 73
+
+{"status":"ok","version":"ac-exec/task-bc021533/exec-8d107cb7-0a02c230"}
+
+## signin
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:29:36 GMT
+Content-Length: 62
+
+{"error":"auth_failed","message":"invalid login or passcode"}
+
+## version authenticated
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:29:36 GMT
+Content-Length: 58
+
+{"error":"unauthenticated","message":"no session cookie"}
+
+## me authenticated
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:29:36 GMT
+Content-Length: 51
+
+{"error":"unauthenticated","message":"no session"}

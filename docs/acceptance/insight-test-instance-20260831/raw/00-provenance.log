@@ -1,0 +1,10 @@
+# candidate provenance
+utc=2026-08-31T00:28:24Z
+branch=ac-exec/task-bc021533/exec-8d107cb7
+head=0a02c230b0df9a885eccecf17482920f929b230a
+origin_main=0a02c230b0df9a885eccecf17482920f929b230a
+status:
+## ac-exec/task-bc021533/exec-8d107cb7
+?? docs/acceptance/insight-test-instance-20260831/
+version:
+agent-center ac-exec/task-bc021533/exec-8d107cb7-0a02c230 (commit 0a02c230)

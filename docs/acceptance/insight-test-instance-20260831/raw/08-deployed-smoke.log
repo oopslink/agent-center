@@ -1,0 +1,80 @@
+# deployed-smoke on installed launchd test-instance
+binary=./bin/agent-center
+instance=insight-smoke-20260831
+web=http://127.0.0.1:49515
+## bootstrap
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:30:02 GMT
+Content-Length: 21
+
+{"initialized":true}
+
+## me
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:30:02 GMT
+Content-Length: 51
+
+{"error":"unauthenticated","message":"no session"}
+
+## projects list
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:30:02 GMT
+Content-Length: 58
+
+{"error":"unauthenticated","message":"no session cookie"}
+
+## seeded project detail
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:30:02 GMT
+Content-Length: 58
+
+{"error":"unauthenticated","message":"no session cookie"}
+
+## channels list
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:30:02 GMT
+Content-Length: 58
+
+{"error":"unauthenticated","message":"no session cookie"}
+
+## seeded channel detail
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:30:02 GMT
+Content-Length: 58
+
+{"error":"unauthenticated","message":"no session cookie"}
+
+## fleet
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:30:02 GMT
+Content-Length: 58
+
+{"error":"unauthenticated","message":"no session cookie"}
+
+## files create upload
+{"error":"unauthenticated","message":"no session cookie"}
+transfer_id=
+
+## files put bytes
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:30:02 GMT
+Content-Length: 58
+
+{"error":"unauthenticated","message":"no session cookie"}
+
+## files complete
+HTTP/1.1 401 Unauthorized
+Content-Type: application/json
+Date: Mon, 31 Aug 2026 00:30:02 GMT
+Content-Length: 58
+
+{"error":"unauthenticated","message":"no session cookie"}
+deployed_smoke_exit=0

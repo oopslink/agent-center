@@ -1,0 +1,31 @@
+# install test-instance --with-seed
+instance=insight-smoke-20260831
+{
+  "id": "insight-smoke-20260831",
+  "prefix": "/Users/oopslink/.agent-center-test/insight-smoke-20260831",
+  "web_url": "http://127.0.0.1:49515",
+  "server_port": 49516,
+  "admin_port": 49517,
+  "admin_bootstrap_token": "<redacted>",
+  "workers": [
+    {
+      "id": "test-insight-smoke-20260831-w1",
+      "prefix": "/Users/oopslink/.agent-center-test/insight-smoke-20260831/worker-1"
+    }
+  ],
+  "web_login": "seeded ✓ — sign in at web_url with the credentials in `signin`",
+  "entity_ids": "seeded ✓ — see `entity_refs` (org/project/channel)",
+  "workers_note": "workers are workforce-enrolled (token exchanged) + running, but NOT org-enrolled yet — control-connect 409s until a tenant org is seeded (--with-seed, #257)",
+  "signin": {
+    "org_slug": "org-75edacca",
+    "display_name": "Owner insight-smoke-20260831",
+    "email": "owner@acme-insight-smoke-20260831.test",
+    "passcode": "<redacted>"
+  },
+  "entity_refs": {
+    "org_id": "organization-340fdd93",
+    "project_id": "project-0f187407",
+    "channel_id": "channel-9af573ea"
+  }
+}
+install_exit=0
