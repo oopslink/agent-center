@@ -192,11 +192,14 @@ function enrichAccessResourceLabel(
   },
 ): AccessResourceScope {
   if (resource.kind === 'org') {
+    const label = resource.label && resource.label !== resource.id && resource.label !== resource.org_id
+      ? resource.label
+      : context.orgName;
     return {
       ...resource,
       id: resource.id || context.orgId,
       org_id: resource.org_id || context.orgId,
-      label: resource.label || context.orgName,
+      label,
     };
   }
   const projectID = projectIDForAccessResource(resource);

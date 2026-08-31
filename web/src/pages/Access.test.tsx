@@ -645,6 +645,14 @@ describe('Access page', () => {
     expect(within(drawer).getByTestId('access-picker-row-permission-direct-project-write-project')).toBeInTheDocument();
     expect(within(drawer).getByTestId('access-picker-resource-permission-direct-org-read-org')).toHaveValue('org:org-test');
     expect(within(drawer).getByTestId('access-picker-resource-permission-direct-org-read-org')).toHaveTextContent('Test Org');
+    const orgScopeButton = within(drawer).getByTestId('access-picker-scope-permission-direct-org-read-org');
+    expect(orgScopeButton).toHaveTextContent('Test Org');
+    expect(orgScopeButton).not.toHaveTextContent('org-test');
+    fireEvent.click(orgScopeButton);
+    const scopePicker = await screen.findByTestId('access-scope-picker');
+    expect(within(scopePicker).getByText('Test Org')).toBeInTheDocument();
+    expect(within(scopePicker).queryByText('org-test')).not.toBeInTheDocument();
+    fireEvent.click(within(scopePicker).getByRole('button', { name: 'Close scope picker' }));
     addGrantEntry(drawer, 'permission-direct-org-read-org', 'org:org-test');
 
     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'org-only direct grant' } });
