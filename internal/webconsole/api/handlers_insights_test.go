@@ -77,6 +77,51 @@ func TestInsightsOverviewAPI_WindowValidationAndShape(t *testing.T) {
 	}
 }
 
+func TestInsightsAPIs_EmptyCollectionsEncodeAsArrays(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	svc, err := insight.Open(context.Background(), db, t.TempDir()+"/insight.duckdb", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer svc.Close()
+	if err := svc.Refresh(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	deps.Insight = svc
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	defer ts.Close()
+
+	for _, tc := range []struct {
+		path string
+		keys []string
+	}{
+		{path: "/api/orgs/" + sess.OrgSlug + "/insights/overview?window=24h", keys: []string{"agents", "projects"}},
+		{path: "/api/orgs/" + sess.OrgSlug + "/insights/executions?window=24h", keys: []string{"executions"}},
+	} {
+		req, _ := http.NewRequest(http.MethodGet, ts.URL+tc.path, nil)
+		req.AddCookie(sess.Cookie)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			_ = resp.Body.Close()
+			t.Fatal(err)
+		}
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("GET %s status = %d, want 200", tc.path, resp.StatusCode)
+		}
+		for _, key := range tc.keys {
+			if got := string(body[key]); got != "[]" {
+				t.Errorf("GET %s field %s = %s, want []", tc.path, key, got)
+			}
+		}
+	}
+}
+
 func TestInsightsHTTPReadDoesNotTriggerProjection(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)

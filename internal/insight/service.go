@@ -167,6 +167,15 @@ func (s *Service) Overview(ctx context.Context, orgID string, asOf time.Time) (O
 	if err != nil {
 		return Overview{}, err
 	}
+	// Collections are part of the frozen Insight wire contract. Keep empty
+	// query results as JSON arrays rather than leaking Go's nil-slice encoding
+	// (`null`) to API clients.
+	if agents == nil {
+		agents = []LeaderRow{}
+	}
+	if projects == nil {
+		projects = []LeaderRow{}
+	}
 	diag, err := s.diagnostics(ctx, orgID, asOf)
 	if err != nil {
 		return Overview{}, err
@@ -219,7 +228,7 @@ func (s *Service) Executions(ctx context.Context, orgID string, f ExecutionFilte
 		return ExecutionsResponse{}, err
 	}
 	defer rows.Close()
-	var out []ExecutionRow
+	out := make([]ExecutionRow, 0)
 	var cursorKey, cursorID string
 	hasNext := false
 	for rows.Next() {

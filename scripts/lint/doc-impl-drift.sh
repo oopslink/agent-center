@@ -73,7 +73,10 @@ check_admin_client_exists() {
 # signal is visible WITHOUT needing to run the Go test (e.g. quick
 # pre-commit). Same whitelist as arch_test.go.
 check_handlers_no_persistence_open() {
-  local whitelist_re='handlers_(migrate_v1_to_v2|system)\.go'
+  # Keep this in sync with internal/cli/arch_test.go. Both migration
+  # handlers are offline, DB-owning repair tools and cannot depend on a
+  # running admin endpoint for the database they are repairing.
+  local whitelist_re='handlers_(migrate_v1_to_v2|migrate_orphan_conditions|system)\.go'
   local hits
   set +e
   hits="$(grep -lE 'persistence\.Open' internal/cli/handlers_*.go 2>/dev/null)"
@@ -99,8 +102,9 @@ check_handlers_no_persistence_open() {
   echo "FAIL handlers_no_persistence_open:
   conventions § 0.4 (AppService is the only entry to domain state)
   forbids CLI handlers from opening sqlite directly. The whitelist is
-  handlers_migrate_v1_to_v2.go + handlers_system.go (the actual server
-  boot path). These files violate the rule:
+  handlers_migrate_v1_to_v2.go + handlers_migrate_orphan_conditions.go
+  (offline repair tools) + handlers_system.go (the actual server boot
+  path). These files violate the rule:
 $offenders
   Either route through the admin endpoint via internal/cli/admin_client.go,
   or — if the handler is genuinely DB-owning (rare) — extend the
