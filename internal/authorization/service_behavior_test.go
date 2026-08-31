@@ -384,6 +384,61 @@ func TestDirectGrantManagedCarrierEffectiveExpiryDenyAndRevoke(t *testing.T) {
 	}
 }
 
+func TestDirectGrantWildcardScopesCoverFutureResources(t *testing.T) {
+	ctx := context.Background()
+	db, svc := newAuthzTestService(t)
+	seedAuthzBase(t, db)
+	seedTeam(t, db)
+	seedProject(t, db, "project-1", "org-1")
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+
+	applied, err := svc.ApplyBatch(ctx, BatchRequest{
+		IdempotencyKey: "direct-grant-wildcard-team",
+		ActorRef:       "system",
+		OrgID:          "org-1",
+		Operations: []BatchOperation{{
+			ID:   "all-teams",
+			Type: "direct_grant",
+			DirectGrant: DirectGrantInput{
+				SubjectRef:    "user:user-member",
+				PermissionKey: "team.git.write",
+				Resource:      ResourceScope{Kind: "team", ID: "*", OrgID: "org-1"},
+			},
+		}},
+	})
+	if err != nil || len(applied.Operations) != 1 || applied.Operations[0].AssignmentID == "" {
+		t.Fatalf("wildcard team direct grant apply=%#v err=%v", applied, err)
+	}
+	execMany(t, db, `INSERT INTO teams (id, org_id, name, description, created_at, updated_at) VALUES ('team-future', 'org-1', 'Future Team', '', ?, ?)`, now, now)
+	decision, err := svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Permission: "team.git.write", Resource: ResourceScope{Kind: "team", ID: "team-future"}})
+	if err != nil || !decision.Allowed || decision.EvidenceRef != "authorization_role_assignments:"+applied.Operations[0].AssignmentID {
+		t.Fatalf("future team decision=%#v err=%v", decision, err)
+	}
+
+	applied, err = svc.ApplyBatch(ctx, BatchRequest{
+		IdempotencyKey: "direct-grant-wildcard-project-issue",
+		ActorRef:       "system",
+		OrgID:          "org-1",
+		Operations: []BatchOperation{{
+			ID:   "all-project-issues",
+			Type: "direct_grant",
+			DirectGrant: DirectGrantInput{
+				SubjectRef:    "user:user-member",
+				PermissionKey: "issue.read",
+				Resource:      ResourceScope{Kind: "issue", ID: "project:project-1:*", OrgID: "org-1", ProjectID: "project-1"},
+			},
+		}},
+	})
+	if err != nil || len(applied.Operations) != 1 || applied.Operations[0].AssignmentID == "" {
+		t.Fatalf("wildcard issue direct grant apply=%#v err=%v", applied, err)
+	}
+	execMany(t, db, `INSERT INTO pm_issues (id, project_id, title, status, created_by, created_at, updated_at) VALUES ('issue-future', 'project-1', 'Future issue', 'open', 'user:user-owner', ?, ?)`, now, now)
+	decision, err = svc.Check(ctx, CheckRequest{SubjectRef: "user:user-member", Permission: "issue.read", Resource: ResourceScope{Kind: "issue", ID: "issue-future"}})
+	if err != nil || !decision.Allowed || decision.EvidenceRef != "authorization_role_assignments:"+applied.Operations[0].AssignmentID {
+		t.Fatalf("future issue decision=%#v err=%v", decision, err)
+	}
+}
+
 func TestStoreRoleAssignmentLifecycleAndScopedRevoke(t *testing.T) {
 	ctx := context.Background()
 	db, svc := newAuthzTestService(t)

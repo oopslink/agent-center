@@ -1773,11 +1773,35 @@ func accessResourceLabelFromDB(ctx context.Context, db *sql.DB, orgID string, re
 	var label string
 	switch resource.Kind {
 	case "team":
+		if resource.ID == "*" {
+			return "All teams in organization"
+		}
 		_ = db.QueryRowContext(ctx, `SELECT name FROM teams WHERE org_id = ? AND id = ?`, orgID, resource.ID).Scan(&label)
 	case "project":
+		if resource.ID == "*" {
+			return "All projects in organization"
+		}
 		_ = db.QueryRowContext(ctx, `SELECT name FROM pm_projects WHERE organization_id = ? AND id = ?`, orgID, resource.ID).Scan(&label)
+	case "task", "issue", "plan":
+		if resource.ID == "*" {
+			return "All " + resource.Kind + "s in all projects"
+		}
+		if projectID, ok := authzProjectWildcardResourceID(resource.ID); ok {
+			_ = db.QueryRowContext(ctx, `SELECT name FROM pm_projects WHERE organization_id = ? AND id = ?`, orgID, projectID).Scan(&label)
+			if label != "" {
+				return "All " + resource.Kind + "s in " + label
+			}
+		}
 	}
 	return label
+}
+
+func authzProjectWildcardResourceID(id string) (string, bool) {
+	if !strings.HasPrefix(id, "project:") || !strings.HasSuffix(id, ":*") {
+		return "", false
+	}
+	projectID := strings.TrimSuffix(strings.TrimPrefix(id, "project:"), ":*")
+	return projectID, projectID != ""
 }
 
 func accessEffectiveDecisionKey(decision accessDecisionDTO) string {

@@ -371,12 +371,14 @@ function workItemScopeKind(kinds: string[]): Extract<AccessResourceKind, 'issue'
 function scopePickerResourceMeta(row: PermissionPickerRow, resource: AccessResourceScope): string {
   const concreteKind = workItemScopeKind(row.compatibleKinds);
   if (concreteKind && row.compatibleKinds.includes('project')) {
+    if (resource.kind === concreteKind && resource.id === '*' && !resource.project_id) return `All ${workItemPlural(concreteKind)} in all projects`;
+    if (resource.kind === concreteKind && isProjectWildcardResourceID(resource.id)) return `All ${workItemPlural(concreteKind)} in this project`;
     if (resource.kind === 'org') return `All ${workItemPlural(concreteKind)} in all projects`;
     if (resource.kind === 'project') return `All ${workItemPlural(concreteKind)} in this project`;
     if (resource.kind === concreteKind) return `Specific ${accessResourceKindLabel(concreteKind).toLowerCase()}`;
   }
-  if (resource.kind === 'org' && row.compatibleKinds.includes('project')) return 'All projects in this organization';
-  if (resource.kind === 'org' && row.compatibleKinds.includes('team')) return 'All teams in this organization';
+  if (resource.kind === 'project' && resource.id === '*') return 'All projects in this organization';
+  if (resource.kind === 'team' && resource.id === '*') return 'All teams in this organization';
   return row.scope;
 }
 
@@ -416,10 +418,33 @@ function permissionKeyForTemplateResource(template: DirectGrantTemplate, resourc
 }
 
 function directTemplateLabelForResource(template: DirectGrantTemplate, resource?: AccessResourceScope): string {
+  if (resource && resource.id === '*') return `${template.resource} · All ${workItemPlural(resource.kind)} · ${template.action}`;
+  if (resource && isProjectWildcardResourceID(resource.id)) return `${template.resource} · Project · ${template.action}`;
   const scope = resource && template.compatibleKinds?.includes(resource.kind)
     ? (resource.kind === 'project' ? 'Project' : `This ${accessResourceKindLabel(resource.kind).toLowerCase()}`)
     : template.scope;
   return `${template.resource} · ${scope} · ${template.action}`;
+}
+
+function grantEntryScopeLabel(entry: GrantEntry): string {
+  const resource = entry.resource;
+  if (entry.kind === 'permission' && resource.id === '*') {
+    if (resource.kind === 'project') return 'All projects in organization';
+    if (resource.kind === 'team') return 'All teams in organization';
+    if (resource.kind === 'issue' || resource.kind === 'plan' || resource.kind === 'task') {
+      return `All ${workItemPlural(resource.kind)} in all projects`;
+    }
+  }
+  if (entry.kind === 'permission' && isProjectWildcardResourceID(resource.id)) {
+    if (resource.kind === 'issue' || resource.kind === 'plan' || resource.kind === 'task') {
+      return `All ${workItemPlural(resource.kind)} in ${accessResourceLabel(resource)}`;
+    }
+  }
+  return accessResourceLabel(resource);
+}
+
+function isProjectWildcardResourceID(id?: string): boolean {
+  return Boolean(id?.startsWith('project:') && id.endsWith(':*'));
 }
 
 function semanticPermissionFromDefinition(permission: AccessPermissionDefinition): SemanticPermission {
@@ -2171,31 +2196,55 @@ function BatchGrantPanel({
   };
   const orgResources = resources.filter((resource) => resource.kind === 'org');
   const projectResources = resources.filter((resource) => resource.kind === 'project');
-  const teamResources = resources.filter((resource) => resource.kind === 'team');
-  const orgExpansionKind = (row: PermissionPickerRow): 'project' | 'team' | null => {
+  const dynamicScopeKind = (row: PermissionPickerRow): AccessResourceKind | null => {
+    const workItemKind = workItemScopeKind(row.compatibleKinds);
+    if (workItemKind && row.compatibleKinds.includes('project')) return workItemKind;
     if (row.compatibleKinds.includes('mixed')) return null;
     if (row.compatibleKinds.includes('project')) return 'project';
     if (row.compatibleKinds.includes('team')) return 'team';
     return null;
   };
+  const dynamicOrgResources = (row: PermissionPickerRow): AccessResourceScope[] => {
+    const kind = dynamicScopeKind(row);
+    if (!kind) return [];
+    return orgResources.map((resource) => ({
+      kind,
+      id: '*',
+      org_id: resource.org_id || resource.id,
+      label: accessResourceLabel(resource),
+    }));
+  };
+  const dynamicProjectResources = (row: PermissionPickerRow): AccessResourceScope[] => {
+    const kind = workItemScopeKind(row.compatibleKinds);
+    if (!kind || !row.compatibleKinds.includes('project')) return [];
+    return projectResources.map((resource) => ({
+      kind,
+      id: `project:${resource.id}:*`,
+      org_id: resource.org_id,
+      project_id: resource.id,
+      label: accessResourceLabel(resource),
+    }));
+  };
   const compatibleResources = (row: PermissionPickerRow): AccessResourceScope[] => {
+    const workItemKind = workItemScopeKind(row.compatibleKinds);
+    if (workItemKind && row.compatibleKinds.includes('project')) {
+      return uniqueAccessResources([
+        ...dynamicOrgResources(row),
+        ...dynamicProjectResources(row),
+        ...resources.filter((resource) => resource.kind === workItemKind),
+      ]);
+    }
     const matched = resources.filter((resource) => row.compatibleKinds.includes('mixed') || row.compatibleKinds.includes(resource.kind));
-    return orgExpansionKind(row) ? [...matched, ...orgResources] : matched;
+    return uniqueAccessResources([...dynamicOrgResources(row), ...matched]);
   };
   const selectedResourceKeysForRow = (row: PermissionPickerRow): string[] => {
-    const selected = pickerResourceSelections[row.id]?.filter((key) => resourceByKey.has(key)) ?? [];
+    const rowResourceByKey = new Map(compatibleResources(row).map((resource) => [accessResourceKey(resource), resource]));
+    const selected = pickerResourceSelections[row.id]?.filter((key) => resourceByKey.has(key) || rowResourceByKey.has(key)) ?? [];
     if (selected.length > 0) return selected;
     const legacySelected = pickerResources[row.id];
-    if (legacySelected && resourceByKey.has(legacySelected)) return [legacySelected];
+    if (legacySelected && (resourceByKey.has(legacySelected) || rowResourceByKey.has(legacySelected))) return [legacySelected];
     const first = compatibleResources(row)[0];
     return first ? [accessResourceKey(first)] : [];
-  };
-  const expandedResourcesForGrant = (row: PermissionPickerRow, resource: AccessResourceScope): AccessResourceScope[] => {
-    if (resource.kind !== 'org') return [resource];
-    const expansionKind = orgExpansionKind(row);
-    if (expansionKind === 'project') return projectResources;
-    if (expansionKind === 'team') return teamResources;
-    return [resource];
   };
   const scopePickerRow = scopePickerRowID ? pickerRows.find((row) => row.id === scopePickerRowID) : undefined;
   const scopePickerResources = scopePickerRow ? compatibleResources(scopePickerRow) : [];
@@ -2213,7 +2262,7 @@ function BatchGrantPanel({
     let skipped = 0;
     for (const row of rows) {
       const selectedResources = selectedResourceKeysForRow(row).flatMap((key) => {
-        const resource = resourceByKey.get(key);
+        const resource = resourceByKey.get(key) ?? compatibleResources(row).find((candidate) => accessResourceKey(candidate) === key);
         return resource ? [resource] : [];
       });
       if (selectedResources.length === 0) {
@@ -2228,24 +2277,24 @@ function BatchGrantPanel({
         skipped += 1;
         continue;
       }
-      const expandedResources = uniqueAccessResources(selectedResources.flatMap((resource) => expandedResourcesForGrant(row, resource)));
-      if (expandedResources.length === 0) {
+      const grantResources = uniqueAccessResources(selectedResources);
+      if (grantResources.length === 0) {
         skipped += 1;
         continue;
       }
-      for (const expandedResource of expandedResources) {
-        const permissionKey = row.kind === 'permission' && row.template ? permissionKeyForTemplateResource(row.template, expandedResource) : undefined;
-        const dedupeKey = `${row.kind}:${row.kind === 'role' ? row.role?.id : permissionKey}:${accessResourceKey(expandedResource)}`;
+      for (const grantResource of grantResources) {
+        const permissionKey = row.kind === 'permission' && row.template ? permissionKeyForTemplateResource(row.template, grantResource) : undefined;
+        const dedupeKey = `${row.kind}:${row.kind === 'role' ? row.role?.id : permissionKey}:${accessResourceKey(grantResource)}`;
         if (seen.has(dedupeKey)) continue;
         seen.add(dedupeKey);
         next.push({
-          id: `grant:${row.id}:${accessResourceKey(expandedResource)}:${Date.now()}:${next.length}`,
+          id: `grant:${row.id}:${accessResourceKey(grantResource)}:${Date.now()}:${next.length}`,
           kind: row.kind,
           roleId: row.kind === 'role' ? row.role?.id : undefined,
           roleName: row.kind === 'role' ? row.role?.name : undefined,
           permissionKey,
           template: row.kind === 'permission' ? row.template : undefined,
-          resource: expandedResource,
+          resource: grantResource,
           risk: row.risk,
         });
       }
@@ -2414,7 +2463,7 @@ function BatchGrantPanel({
                                 const rowResources = compatibleResources(row);
                                 const selectedResourceKeys = selectedResourceKeysForRow(row);
                                 const selectedResourceKey = selectedResourceKeys[0] || '';
-                                const selectedResource = selectedResourceKey ? resourceByKey.get(selectedResourceKey) : undefined;
+                                const selectedResource = selectedResourceKey ? (resourceByKey.get(selectedResourceKey) ?? rowResources.find((resource) => accessResourceKey(resource) === selectedResourceKey)) : undefined;
                                 return (
                                   <tr key={row.id} className="border-b border-border-base last:border-0" data-testid={`access-picker-row-${accessTestIDToken(row.id)}`}>
                                     <td className="px-3 py-2"><input type="checkbox" checked={selectedPickerIDs.includes(row.id)} onChange={() => setSelectedPickerIDs((prev) => toggleValue(prev, row.id))} data-testid={`access-picker-select-${accessTestIDToken(row.id)}`} /></td>
@@ -2486,7 +2535,7 @@ function BatchGrantPanel({
                             <td className="px-3 py-2"><input type="checkbox" checked={selectedGrantIDs.includes(entry.id)} onChange={() => setSelectedGrantIDs((prev) => toggleValue(prev, entry.id))} data-testid="access-grant-entry-select" /></td>
                             <td className="px-3 py-2">{entry.kind === 'role' ? 'Role template' : entry.template?.resource}</td>
                             <td className="px-3 py-2"><div className="font-medium">{entry.kind === 'role' ? entry.roleName : directTemplateLabelForResource(entry.template!, entry.resource)}</div><div className="font-mono text-xs text-text-muted">{entry.roleId ?? entry.permissionKey}</div></td>
-                            <td className="px-3 py-2">{accessResourceLabel(entry.resource)}</td>
+                            <td className="px-3 py-2">{grantEntryScopeLabel(entry)}</td>
                             <td className="px-3 py-2"><AccessRiskBadge risk={entry.risk} /></td>
                           </tr>
                         ))}
@@ -2664,7 +2713,10 @@ function ScopePickerModal({
     [row.compatibleKinds],
   );
   const projectScopedWorkItemKind = row.compatibleKinds.includes('project') ? workItemScopeKind(row.compatibleKinds) : null;
-  const projectResources = useMemo(() => resources.filter((resource) => resource.kind === 'project'), [resources]);
+  const projectResources = useMemo(
+    () => resources.filter((resource) => projectScopedWorkItemKind ? resource.kind === projectScopedWorkItemKind && isProjectWildcardResourceID(resource.id) : resource.kind === 'project'),
+    [projectScopedWorkItemKind, resources],
+  );
   const [specificKind, setSpecificKind] = useState<AccessResourceKind>(concreteKinds[0] ?? 'issue');
   const [specificProjectKey, setSpecificProjectKey] = useState(projectResources[0] ? accessResourceKey(projectResources[0]) : '');
   const [specificID, setSpecificID] = useState('');
@@ -2700,7 +2752,7 @@ function ScopePickerModal({
       kind: specificKind,
       id,
       org_id: selectedProject.org_id,
-      project_id: selectedProject.id,
+      project_id: selectedProject.project_id || selectedProject.id,
       label: `${accessResourceKindLabel(specificKind)} ${id}`,
     };
     const key = accessResourceKey(resource);
@@ -2710,11 +2762,16 @@ function ScopePickerModal({
   };
   const projectScopedSpecificResources = useMemo(
     () => projectScopedWorkItemKind
-      ? resources.filter((resource) => resource.kind === projectScopedWorkItemKind)
+      ? resources.filter((resource) => resource.kind === projectScopedWorkItemKind && resource.id !== '*' && !isProjectWildcardResourceID(resource.id))
       : [],
     [projectScopedWorkItemKind, resources],
   );
-  const orgResources = useMemo(() => resources.filter((resource) => resource.kind === 'org'), [resources]);
+  const orgResources = useMemo(
+    () => projectScopedWorkItemKind
+      ? resources.filter((resource) => resource.kind === projectScopedWorkItemKind && resource.id === '*')
+      : resources.filter((resource) => resource.kind === 'org'),
+    [projectScopedWorkItemKind, resources],
+  );
   const toggleDraftKey = (key: string): void => setDraftKeys((prev) => toggleValue(prev, key));
   const selectedCount = draftKeys.length;
   const applySelection = (): void => {
@@ -2788,7 +2845,8 @@ function ScopePickerModal({
                 <div className="divide-y divide-border-base">
                   {projectResources.map((project) => {
                     const projectKey = accessResourceKey(project);
-                    const specificResources = projectScopedSpecificResources.filter((resource) => projectIDForAccessResource(resource) === project.id);
+                    const projectID = projectIDForAccessResource(project);
+                    const specificResources = projectScopedSpecificResources.filter((resource) => projectIDForAccessResource(resource) === projectID);
                     return (
                       <div key={projectKey}>
                         <button

@@ -554,15 +554,43 @@ func (s *Store) findAssignmentForRevoke(ctx context.Context, orgID string, subje
 }
 
 func (s *Store) activeAssignmentsFor(ctx context.Context, orgID string, subject SubjectRef, kind, id string) ([]RoleAssignment, error) {
+	return s.activeAssignmentsForResourceIDs(ctx, orgID, subject, kind, []string{id})
+}
+
+func (s *Store) activeAssignmentsForResourceIDs(ctx context.Context, orgID string, subject SubjectRef, kind string, ids []string) ([]RoleAssignment, error) {
 	exec, err := s.exec(ctx)
 	if err != nil {
 		return nil, err
 	}
+	cleanIDs := make([]string, 0, len(ids))
+	seen := map[string]struct{}{}
+	for _, id := range ids {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		cleanIDs = append(cleanIDs, id)
+	}
+	if len(cleanIDs) == 0 {
+		return nil, nil
+	}
+	placeholders := strings.TrimRight(strings.Repeat("?,", len(cleanIDs)), ",")
+	args := []any{orgID, subject, strings.TrimSpace(kind)}
+	for _, id := range cleanIDs {
+		args = append(args, id)
+	}
 	rows, err := exec.QueryContext(ctx, `SELECT id, org_id, subject_ref, role_id, resource_kind, resource_id,
 		created_by, created_at, expires_at, revoked_at, revoked_by, revoked_reason, version
 		FROM authorization_role_assignments
-		WHERE org_id = ? AND subject_ref = ? AND resource_kind = ? AND resource_id = ? AND revoked_at IS NULL
-		ORDER BY created_at, id`, orgID, subject, kind, id)
+		WHERE org_id = ? AND subject_ref = ? AND resource_kind = ? AND resource_id IN (`+placeholders+`) AND revoked_at IS NULL
+		ORDER BY CASE resource_id
+			WHEN ? THEN 0
+			ELSE 1
+		END, created_at, id`, append(args, cleanIDs[0])...)
 	if err != nil {
 		return nil, err
 	}

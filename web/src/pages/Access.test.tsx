@@ -279,8 +279,19 @@ describe('Access page', () => {
     fireEvent.click(addSelected);
 
     expect(within(list).getByTestId('access-grant-notice')).toHaveTextContent('Added 1 grant entry.');
-    expect(within(list).getByText('Project · This project · Write')).toBeInTheDocument();
+    expect(within(list).getByText('Project · All projects · Write')).toBeInTheDocument();
+    expect(within(list).getByText('All projects in organization')).toBeInTheDocument();
+    expect(within(list).queryByText('Project · This project · Write')).not.toBeInTheDocument();
     expect(within(list).getByText('project.write')).toBeInTheDocument();
+
+    fireEvent.change(within(picker).getByTestId('access-picker-keyword'), { target: { value: 'review' } });
+    fireEvent.click(within(picker).getByTestId('access-picker-select-permission-direct-team-memory-review-team'));
+    fireEvent.click(addSelected);
+
+    expect(within(list).getByText('Team · All teams · Review')).toBeInTheDocument();
+    expect(within(list).getByText('All teams in organization')).toBeInTheDocument();
+    expect(within(list).queryByText('cyber-merit')).not.toBeInTheDocument();
+    expect(within(list).queryByText('dgx-spark')).not.toBeInTheDocument();
   });
 
   it('previews and applies a four-step batch grant without deriving final permissions in the UI', async () => {
@@ -562,7 +573,7 @@ describe('Access page', () => {
     expect(within(picker).getByText('Plan · Project or plan · Read')).toBeInTheDocument();
     expect(within(picker).queryByText('Issue · This issue · Read')).not.toBeInTheDocument();
 
-    addGrantEntry(drawer, 'permission-capability-issue-read', 'project:proj-a');
+    addGrantEntry(drawer, 'permission-capability-issue-read', 'issue:project:proj-a:*');
     addGrantEntry(drawer, 'permission-capability-issue-read', 'issue:issue-42');
     expect(within(drawer).getByTestId('access-picker-scope-permission-capability-issue-read')).toHaveTextContent('Specific issue');
     fireEvent.click(within(drawer).getByTestId('access-picker-scope-permission-capability-issue-read'));
@@ -586,38 +597,37 @@ describe('Access page', () => {
     addGrantEntry(drawer, 'permission-capability-issue-read');
     fireEvent.click(within(drawer).getByTestId('access-picker-scope-permission-capability-issue-read'));
     const orgScopePicker = await screen.findByTestId('access-scope-picker');
-    fireEvent.click(within(orgScopePicker).getByTestId('access-scope-picker-option-org-org-test'));
+    fireEvent.click(within(orgScopePicker).getByText('All issues in all projects'));
     expect(within(orgScopePicker).getByText('3 selected')).toBeInTheDocument();
     fireEvent.click(within(orgScopePicker).getByTestId('access-scope-picker-apply'));
     addGrantEntry(drawer, 'permission-capability-issue-read');
     fireEvent.click(within(drawer).getByTestId('access-picker-scope-permission-direct-project-read-project'));
     const projectScopePicker = await screen.findByTestId('access-scope-picker');
-    expect(within(projectScopePicker).getByTestId('access-scope-picker-group-org')).toHaveTextContent('All projects in this organization');
+    expect(within(projectScopePicker).getByTestId('access-scope-picker-group-project')).toHaveTextContent('All projects in this organization');
     fireEvent.click(within(projectScopePicker).getByRole('button', { name: 'Close scope picker' }));
     const grantList = within(drawer).getByTestId('access-grant-list');
     expect(grantList).toHaveTextContent('Issue · Project · Read');
     expect(grantList).toHaveTextContent('Issue · This issue · Read');
-    expect(grantList).toHaveTextContent('project.read');
     expect(grantList).toHaveTextContent('issue.read');
     expect(grantList).toHaveTextContent('Issue issue-99');
-    expect(grantList).toHaveTextContent('Project Beta');
+    expect(grantList).toHaveTextContent('All issues in all projects');
     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'grant project-scoped plan read' } });
     fireEvent.click(within(drawer).getByTestId('access-run-preview'));
 
     await within(drawer).findByTestId('access-preview-summary');
     const capturedPreviewBody = previewBody as PreviewRequestBody | null;
     expect(capturedPreviewBody?.entries).toEqual([
-      { permission_key: 'project.read', resource: { kind: 'project', id: 'proj-a', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' } },
+      { permission_key: 'issue.read', resource: { kind: 'issue', id: 'project:proj-a:*', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' } },
       { permission_key: 'issue.read', resource: { kind: 'issue', id: 'issue-42', org_id: 'org-test', project_id: 'proj-a', label: 'Issue 42' } },
       { permission_key: 'issue.read', resource: { kind: 'issue', id: 'issue-99', org_id: 'org-test', project_id: 'proj-a', label: 'Issue issue-99' } },
-      { permission_key: 'project.read', resource: { kind: 'project', id: 'proj-b', org_id: 'org-test', project_id: 'proj-b', label: 'Project Beta' } },
+      { permission_key: 'issue.read', resource: { kind: 'issue', id: '*', org_id: 'org-test', label: 'Test Org' } },
     ]);
-    expect(capturedPreviewBody?.permission_keys).toEqual(['project.read', 'issue.read']);
+    expect(capturedPreviewBody?.permission_keys).toEqual(['issue.read']);
     expect(capturedPreviewBody?.resources).toEqual([
-      { kind: 'project', id: 'proj-a', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' },
+      { kind: 'issue', id: 'project:proj-a:*', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' },
       { kind: 'issue', id: 'issue-42', org_id: 'org-test', project_id: 'proj-a', label: 'Issue 42' },
       { kind: 'issue', id: 'issue-99', org_id: 'org-test', project_id: 'proj-a', label: 'Issue issue-99' },
-      { kind: 'project', id: 'proj-b', org_id: 'org-test', project_id: 'proj-b', label: 'Project Beta' },
+      { kind: 'issue', id: '*', org_id: 'org-test', label: 'Test Org' },
     ]);
   });
 

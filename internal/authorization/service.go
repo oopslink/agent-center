@@ -910,7 +910,7 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 		if err := s.requireAssignmentSubjectApplicableForPermission(ctx, grant.SubjectRef, grant.PermissionKey, resolved); err != nil {
 			return OperationResult{}, err
 		}
-		if actor != "system" {
+		if actor != "system" && !isWildcardResource(resolved) {
 			exp, err := s.Explain(ctx, CheckRequest{
 				SubjectRef: actor,
 				Transport:  TransportSystem,
@@ -932,6 +932,10 @@ func (s *Service) runOperation(ctx context.Context, actor SubjectRef, orgID stri
 			}
 			if !delegatable {
 				return OperationResult{}, fmt.Errorf("%w: %s", ErrNotDelegatable, grant.PermissionKey)
+			}
+		} else if actor != "system" {
+			if _, err := s.Check(ctx, CheckRequest{SubjectRef: actor, Transport: TransportSystem, Permission: "org.member.role.manage", Resource: ResourceScope{Kind: "org", ID: orgID}}); err != nil {
+				return OperationResult{}, fmt.Errorf("%w: wildcard direct grants require org access management", ErrNotDelegatable)
 			}
 		}
 		role, roleStatus, err := s.store.upsertManagedInternalRole(ctx, orgID, grant.PermissionKey, kind, s.clock.Now())
@@ -2231,7 +2235,7 @@ func (s *Service) addCustomEffective(ctx context.Context, req CheckRequest, out 
 			return nil
 		}
 	}
-	assignments, err := s.store.activeAssignmentsFor(ctx, req.Resource.OrgID, req.SubjectRef, kind, id)
+	assignments, err := s.store.activeAssignmentsForResourceIDs(ctx, req.Resource.OrgID, req.SubjectRef, kind, customAssignmentResourceIDs(req.Resource))
 	if err != nil {
 		return err
 	}
@@ -2259,6 +2263,38 @@ func (s *Service) addCustomEffective(ctx context.Context, req CheckRequest, out 
 		}
 	}
 	return nil
+}
+
+func customAssignmentResourceIDs(r ResourceScope) []string {
+	kind, id := r.Key()
+	if kind == "" || id == "" {
+		return nil
+	}
+	ids := []string{id}
+	switch kind {
+	case "project", "team":
+		if id != "*" {
+			ids = append(ids, "*")
+		}
+	case "task", "issue", "plan":
+		if r.ProjectID != "" {
+			projectWildcard := "project:" + r.ProjectID + ":*"
+			if id != projectWildcard {
+				ids = append(ids, projectWildcard)
+			}
+		}
+		if id != "*" {
+			ids = append(ids, "*")
+		}
+	}
+	return ids
+}
+
+func isWildcardResource(r ResourceScope) bool {
+	if r.ID == "*" {
+		return true
+	}
+	return strings.HasPrefix(r.ID, "project:") && strings.HasSuffix(r.ID, ":*")
 }
 
 func compareEffective(req CheckRequest, legacy, equivalent []EffectivePermission) ShadowComparison {
@@ -2447,6 +2483,15 @@ func (s *Service) resolveResource(ctx context.Context, r ResourceScope) (Resourc
 		}
 		r.OrgID = r.ID
 	case "project":
+		if r.ID == "*" {
+			if r.OrgID == "" {
+				return r, nil, nil
+			}
+			if err := s.ensureOrg(ctx, r.OrgID); err != nil {
+				return r, []string{"org not found"}, err
+			}
+			return r, nil, nil
+		}
 		orgID, err := s.projectOrg(ctx, r.ID)
 		if err != nil {
 			return r, []string{"project not found"}, err
@@ -2457,6 +2502,23 @@ func (s *Service) resolveResource(ctx context.Context, r ResourceScope) (Resourc
 		r.OrgID = orgID
 	case "task", "issue", "plan":
 		if r.ID == "*" {
+			if r.OrgID == "" {
+				return r, nil, nil
+			}
+			if err := s.ensureOrg(ctx, r.OrgID); err != nil {
+				return r, []string{"org not found"}, err
+			}
+			return r, nil, nil
+		}
+		if projectID, ok := projectWildcardResourceID(r.ID); ok {
+			orgID, err := s.projectOrg(ctx, projectID)
+			if err != nil {
+				return r, []string{"parent project not found"}, err
+			}
+			if r.OrgID != "" && r.OrgID != orgID {
+				return r, []string{r.Kind + " wildcard belongs to another org"}, ErrNotFound
+			}
+			r.ProjectID, r.OrgID = projectID, orgID
 			return r, nil, nil
 		}
 		projectID, err := s.parentProject(ctx, r.Kind, r.ID)
@@ -2472,6 +2534,15 @@ func (s *Service) resolveResource(ctx context.Context, r ResourceScope) (Resourc
 		}
 		r.ProjectID, r.OrgID = projectID, orgID
 	case "team":
+		if r.ID == "*" {
+			if r.OrgID == "" {
+				return r, nil, nil
+			}
+			if err := s.ensureOrg(ctx, r.OrgID); err != nil {
+				return r, []string{"org not found"}, err
+			}
+			return r, nil, nil
+		}
 		orgID, err := s.teamOrg(ctx, r.ID)
 		if err != nil {
 			return r, []string{"team not found"}, err
@@ -2523,6 +2594,17 @@ func (s *Service) resolveResource(ctx context.Context, r ResourceScope) (Resourc
 		return r, []string{"unsupported resource kind"}, ErrInvalid
 	}
 	return r, nil, nil
+}
+
+func projectWildcardResourceID(id string) (string, bool) {
+	if !strings.HasPrefix(id, "project:") || !strings.HasSuffix(id, ":*") {
+		return "", false
+	}
+	projectID := strings.TrimSuffix(strings.TrimPrefix(id, "project:"), ":*")
+	if projectID == "" {
+		return "", false
+	}
+	return projectID, true
 }
 
 func (s *Service) ensureOrg(ctx context.Context, orgID string) error {
