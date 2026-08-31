@@ -1,5 +1,6 @@
 import type React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ApiError } from '@/api/client';
 import {
   type AccessBatchItem,
@@ -53,7 +54,7 @@ import {
   type TeamRAMRoleMapping,
   type TeamView,
 } from '@/api/teams';
-import { useProjects } from '@/api/projects';
+import { useProjects, type Project } from '@/api/projects';
 import {
   AccessMetaPill,
   AccessRiskBadge,
@@ -63,7 +64,7 @@ import {
   displayAccessDate,
 } from '@/components/access/kit';
 
-export type AccessPage = 'ram-roles' | 'subject-access';
+export type AccessPage = 'ram-roles' | 'subject-access' | 'grant-access';
 type AccessToast = { tone: 'success' | 'danger' | 'warning'; message: string } | null;
 type SelectOption = string | { value: string; label: string };
 type DirectGrantTemplate = {
@@ -98,6 +99,21 @@ type SemanticPermission = {
   description?: string;
 };
 
+type PermissionPickerRow = {
+  id: string;
+  kind: 'role' | 'permission';
+  label: string;
+  resource: string;
+  permission: string;
+  scope: string;
+  action: string;
+  detail: string;
+  risk: AccessRisk;
+  compatibleKinds: string[];
+  role?: AccessRole;
+  template?: DirectGrantTemplate;
+};
+
 const STATUS_OPTIONS: Array<AccessStatus | 'all'> = ['all', 'allowed', 'denied', 'unauthorized', 'not_applicable'];
 const RISK_OPTIONS: Array<AccessRisk | 'all'> = ['all', 'high', 'medium', 'low'];
 const SUBJECT_OPTIONS: Array<AccessSubjectKind | 'all'> = ['all', 'human', 'agent', 'team_role', 'worker', 'system'];
@@ -118,6 +134,86 @@ function uniqueResources(decisions: AccessDecision[], grants: AccessGrant[]): Ac
   for (const d of decisions) byKey.set(accessResourceKey(d.resource), d.resource);
   for (const g of grants) byKey.set(accessResourceKey(g.resource), g.resource);
   return [...byKey.values()].sort((a, b) => accessResourceLabel(a).localeCompare(accessResourceLabel(b)));
+}
+
+function buildAccessResourceCatalog({
+  decisions,
+  grants,
+  projects,
+  teams,
+  orgId,
+  orgName,
+}: {
+  decisions: AccessDecision[];
+  grants: AccessGrant[];
+  projects: Project[];
+  teams: TeamView[];
+  orgId: string;
+  orgName: string;
+}): AccessResourceScope[] {
+  const projectNameByID = new Map(projects.map((project) => [project.id, project.name]));
+  const teamByID = new Map(teams.map((team) => [team.id, team]));
+  const byKey = new Map<string, AccessResourceScope>();
+  const add = (resource: AccessResourceScope): void => {
+    const enriched = enrichAccessResourceLabel(resource, { orgId, orgName, projectNameByID, teamByID });
+    byKey.set(accessResourceKey(enriched), enriched);
+  };
+
+  add({ kind: 'org', id: orgId, org_id: orgId, label: orgName });
+  for (const project of projects) {
+    add({
+      kind: 'project',
+      id: project.id,
+      org_id: project.organization_id || orgId,
+      project_id: project.id,
+      label: project.name,
+    });
+  }
+  for (const team of teams) {
+    add({ kind: 'team', id: team.id, org_id: team.org_id || orgId, label: team.name });
+  }
+  for (const resource of uniqueResources(decisions, grants)) add(resource);
+
+  return [...byKey.values()].sort((a, b) => {
+    const kind = accessResourceKindLabel(a.kind).localeCompare(accessResourceKindLabel(b.kind));
+    return kind === 0 ? accessResourceLabel(a).localeCompare(accessResourceLabel(b)) : kind;
+  });
+}
+
+function enrichAccessResourceLabel(
+  resource: AccessResourceScope,
+  context: {
+    orgId: string;
+    orgName: string;
+    projectNameByID: Map<string, string>;
+    teamByID: Map<string, TeamView>;
+  },
+): AccessResourceScope {
+  if (resource.kind === 'org') {
+    return {
+      ...resource,
+      id: resource.id || context.orgId,
+      org_id: resource.org_id || context.orgId,
+      label: resource.label || context.orgName,
+    };
+  }
+  const projectID = projectIDForAccessResource(resource);
+  if (projectID) {
+    return {
+      ...resource,
+      project_id: resource.project_id || projectID,
+      label: context.projectNameByID.get(projectID) || resource.label,
+    };
+  }
+  if (resource.kind === 'team') {
+    const team = context.teamByID.get(resource.id);
+    return {
+      ...resource,
+      org_id: resource.org_id || team?.org_id || context.orgId,
+      label: team?.name || resource.label,
+    };
+  }
+  return resource;
 }
 
 function uniqueAccessResources(resources: AccessResourceScope[]): AccessResourceScope[] {
@@ -274,8 +370,13 @@ function semanticPermission(
 
 export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): React.ReactElement {
   const org = useOptionalOrgContext();
+  const navigate = useNavigate();
   const subjectRef = useAppStore((s) => s.currentUserId);
-  const orgResource = useMemo<ResourceScope>(() => ({ kind: 'org', id: org?.orgId ?? 'org-test' }), [org?.orgId]);
+  const isGrantAccess = page === 'grant-access';
+  const isSubjectAccess = page === 'subject-access' || isGrantAccess;
+  const orgID = org?.orgId ?? 'org-test';
+  const orgName = org?.orgName ?? 'Organization';
+  const orgResource = useMemo<ResourceScope>(() => ({ kind: 'org', id: orgID, org_id: orgID, label: orgName }), [orgID, orgName]);
   const currentPermissions = useCurrentSubjectEffectivePermissions(orgResource);
   const canManageAccess = hasEffectivePermission(currentPermissions.data, 'org.member.role.manage');
   const explainAccess = usePermissionExplain(
@@ -294,12 +395,12 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
   const [selectedSubjectRef, setSelectedSubjectRef] = useState('');
   const [toast, setToast] = useState<AccessToast>(null);
   const overview = useAccessOverview({
-    q: page === 'subject-access' ? query : '',
-    subject_kind: page === 'subject-access' ? subjectKind : 'all',
-    project_id: page === 'subject-access' ? projectID : 'all',
-    permission: page === 'subject-access' ? permission : 'all',
-    risk: page === 'subject-access' ? risk : 'all',
-    status: page === 'subject-access' ? status : 'all',
+    q: isSubjectAccess ? query : '',
+    subject_kind: isSubjectAccess ? subjectKind : 'all',
+    project_id: isSubjectAccess ? projectID : 'all',
+    permission: isSubjectAccess ? permission : 'all',
+    risk: isSubjectAccess ? risk : 'all',
+    status: isSubjectAccess ? status : 'all',
   }, currentPermissions.isSuccess && canManageAccess);
   const data = overview.data;
   const projects = useProjects();
@@ -307,8 +408,15 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
   const mappingEntries = useAllTeamRoleRAMMappings(teams.data ?? []);
   const memberEntries = useAllTeamMembers(teams.data ?? []);
   const resources = useMemo(
-    () => uniqueResources(data?.decisions ?? [], data?.grants ?? []),
-    [data?.decisions, data?.grants],
+    () => buildAccessResourceCatalog({
+      decisions: data?.decisions ?? [],
+      grants: data?.grants ?? [],
+      projects: projects.data ?? [],
+      teams: teams.data ?? [],
+      orgId: orgID,
+      orgName,
+    }),
+    [data?.decisions, data?.grants, orgID, orgName, projects.data, teams.data],
   );
   const projectNameByID = useMemo(() => new Map((projects.data ?? []).map((project) => [project.id, project.name])), [projects.data]);
   const projectOptions = useMemo(() => {
@@ -345,7 +453,7 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
     for (const permission of data?.catalog ?? []) byKey.set(permission.key, permission);
     return byKey;
   }, [data?.catalog]);
-  const title = page === 'ram-roles' ? 'RAM Roles' : 'Subject access';
+  const title = page === 'ram-roles' ? 'RAM Roles' : isGrantAccess ? 'Grant access' : 'Subject access';
   const titleId = `access-${page}-title`;
 
   return (
@@ -357,16 +465,26 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
           <h1 id={titleId} className="font-heading text-2xl font-semibold text-text-primary">{title}</h1>
         </div>
         {page === 'subject-access' && <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
-            onClick={() => setDrawerOpen(true)}
-            disabled={!canManageAccess || (data?.subjects.length ?? 0) === 0}
-            title={!canManageAccess ? 'Requires org.member.role.manage' : (data?.subjects.length ?? 0) === 0 ? 'No subjects available' : undefined}
-            data-testid="access-open-batch"
-          >
-            Grant access
-          </button>
+          {!canManageAccess || (data?.subjects.length ?? 0) === 0 ? (
+            <button
+              type="button"
+              className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg opacity-50"
+              disabled
+              title={!canManageAccess ? 'Requires org.member.role.manage' : 'No subjects available'}
+              data-testid="access-open-batch"
+            >
+              Grant access
+            </button>
+          ) : (
+            <OrgLink
+              to="/access/grant-access"
+              className="rounded bg-btn-primary-bg px-3 py-1.5 text-sm font-medium text-btn-primary-fg hover:opacity-90"
+              onClick={() => setDrawerOpen(true)}
+              data-testid="access-open-batch"
+            >
+              Grant access
+            </OrgLink>
+          )}
         </div>}
       </header>
 
@@ -427,6 +545,21 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
       )}
 
       {!overview.isLoading && !overview.isError && data && (
+        isGrantAccess ? (
+        <BatchGrantDrawer
+          subjects={data.subjects}
+          roles={data.roles}
+          permissions={data.catalog}
+          resources={resources}
+          decisions={data.decisions}
+          teams={teams.data ?? []}
+          canManageAccess={canManageAccess}
+          contextSubjectRef={selectedSubjectRef}
+          onToast={setToast}
+          onClose={() => navigate(org?.slug ? `/organizations/${org.slug}/access/subject-access` : '/access/subject-access')}
+          mode="page"
+        />
+        ) : (
         <div className={page === 'subject-access' ? 'grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_22rem]' : 'grid min-w-0 gap-4'}>
           <div className="space-y-4">
             {page === 'ram-roles' && (
@@ -463,6 +596,7 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
             <GrantRevoke key={selectedSubjectRef} grants={data.grants} subjectRef={selectedSubjectRef} permissionByKey={permissionByKey} canManageAccess={canManageAccess} onToast={setToast} />
           </aside>}
         </div>
+        )
       )}
 
       {drawerOpen && data && (
@@ -477,6 +611,7 @@ export default function Access({ page = 'ram-roles' }: { page?: AccessPage }): R
           contextSubjectRef={selectedSubjectRef}
           onToast={setToast}
           onClose={() => setDrawerOpen(false)}
+          mode="dialog"
         />
       )}
       </>
@@ -1773,6 +1908,7 @@ function BatchGrantDrawer({
   contextSubjectRef,
   onToast,
   onClose,
+  mode = 'dialog',
 }: {
   subjects: AccessSubject[];
   roles: AccessRole[];
@@ -1784,8 +1920,9 @@ function BatchGrantDrawer({
   contextSubjectRef: string;
   onToast: (toast: AccessToast) => void;
   onClose: () => void;
+  mode?: 'dialog' | 'page';
 }): React.ReactElement {
-  const containerRef = useModalA11y({ open: true, onClose });
+  const containerRef = useModalA11y({ open: mode === 'dialog', onClose });
   const previewMutation = useAccessBatchPreview();
   const applyMutation = useAccessBatchApply();
   const [step, setStep] = useState(0);
@@ -1798,12 +1935,14 @@ function BatchGrantDrawer({
   const [subjectTeamName, setSubjectTeamName] = useState('all');
   const [selectedPickerIDs, setSelectedPickerIDs] = useState<string[]>([]);
   const [pickerResources, setPickerResources] = useState<Record<string, string>>({});
+  const [collapsedPickerGroups, setCollapsedPickerGroups] = useState<Record<string, boolean>>({});
+  const [scopePickerRowID, setScopePickerRowID] = useState<string | null>(null);
   const [grantEntries, setGrantEntries] = useState<GrantEntry[]>([]);
   const [selectedGrantIDs, setSelectedGrantIDs] = useState<string[]>([]);
   const title = 'Batch authorization';
   const assignableRoles = useMemo(() => assignableRAMRoles(roles), [roles]);
   const directTemplates = useMemo(() => buildDirectGrantTemplates(permissions), [permissions]);
-  const pickerRows = useMemo(() => [
+  const pickerRows = useMemo<PermissionPickerRow[]>(() => [
     ...assignableRoles.map((role) => ({
       id: `role:${role.id}`,
       kind: 'role' as const,
@@ -1831,6 +1970,20 @@ function BatchGrantDrawer({
       compatibleKinds: [template.backendResourceKind],
     })),
   ], [assignableRoles, directTemplates, permissions]);
+  const pickerGroups = useMemo(() => {
+    const byResource = new Map<string, PermissionPickerRow[]>();
+    for (const row of pickerRows) {
+      const group = byResource.get(row.resource) ?? [];
+      group.push(row);
+      byResource.set(row.resource, group);
+    }
+    return [...byResource.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([resource, rows]) => ({
+        resource,
+        rows: rows.sort((a, b) => `${a.scope}:${a.action}:${a.label}`.localeCompare(`${b.scope}:${b.action}:${b.label}`)),
+      }));
+  }, [pickerRows]);
   const resourceByKey = useMemo(() => new Map(resources.map((resource) => [accessResourceKey(resource), resource])), [resources]);
   const projectSubjectRefs = useMemo(() => {
     const byProject = new Map<string, Set<string>>();
@@ -1911,6 +2064,8 @@ function BatchGrantDrawer({
     }));
   };
   const compatibleResources = (kinds: string[]): AccessResourceScope[] => resources.filter((resource) => kinds.includes('mixed') || kinds.includes(resource.kind));
+  const scopePickerRow = scopePickerRowID ? pickerRows.find((row) => row.id === scopePickerRowID) : undefined;
+  const scopePickerResources = scopePickerRow ? compatibleResources(scopePickerRow.compatibleKinds) : [];
   const selectedPickerRows = pickerRows.filter((row) => selectedPickerIDs.includes(row.id));
   const addPickerRows = (rows = selectedPickerRows): void => {
     const next: GrantEntry[] = [];
@@ -1920,9 +2075,9 @@ function BatchGrantDrawer({
       next.push({
         id: `grant:${row.id}:${accessResourceKey(resource)}:${Date.now()}:${next.length}`,
         kind: row.kind,
-        roleId: row.kind === 'role' ? row.role.id : undefined,
-        roleName: row.kind === 'role' ? row.role.name : undefined,
-        permissionKey: row.kind === 'permission' ? row.template.permissionKey : undefined,
+        roleId: row.kind === 'role' ? row.role?.id : undefined,
+        roleName: row.kind === 'role' ? row.role?.name : undefined,
+        permissionKey: row.kind === 'permission' ? row.template?.permissionKey : undefined,
         template: row.kind === 'permission' ? row.template : undefined,
         resource,
         risk: row.risk,
@@ -1962,13 +2117,15 @@ function BatchGrantDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/30" data-testid="access-batch-drawer-backdrop">
+    <div className={mode === 'dialog' ? 'fixed inset-0 z-50 bg-black/30' : 'min-w-0'} data-testid="access-batch-drawer-backdrop">
       <div
         ref={containerRef}
-        role="dialog"
-        aria-modal="true"
+        role={mode === 'dialog' ? 'dialog' : undefined}
+        aria-modal={mode === 'dialog' ? 'true' : undefined}
         aria-label={title}
-        className="fixed inset-x-4 top-6 mx-auto flex max-h-[calc(100vh-3rem)] max-w-6xl flex-col rounded border border-border-base bg-bg-elevated text-text-primary shadow-2xl"
+        className={mode === 'dialog'
+          ? 'fixed inset-x-4 top-6 mx-auto flex max-h-[calc(100vh-3rem)] max-w-6xl flex-col rounded border border-border-base bg-bg-elevated text-text-primary shadow-2xl'
+          : 'flex min-h-[calc(100vh-12rem)] min-w-0 flex-col rounded border border-border-base bg-bg-elevated text-text-primary'}
         data-testid="access-batch-drawer"
       >
         <div className="flex items-start justify-between gap-3 border-b border-border-base px-5 py-4">
@@ -1990,8 +2147,8 @@ function BatchGrantDrawer({
           </div>
           <button
             type="button"
-            aria-label="Close"
-            title="Close"
+            aria-label={mode === 'dialog' ? 'Close' : 'Back to Subject access'}
+            title={mode === 'dialog' ? 'Close' : 'Back to Subject access'}
             className="rounded p-1.5 text-text-secondary hover:bg-bg-subtle"
             onClick={onClose}
           >
@@ -2050,29 +2207,60 @@ function BatchGrantDrawer({
                           <th className="px-3 py-2 font-semibold">Resource</th>
                           <th className="px-3 py-2 font-semibold">Permission</th>
                           <th className="px-3 py-2 font-semibold">Scope</th>
-                          <th className="px-3 py-2 font-semibold">Target</th>
                           <th className="px-3 py-2 font-semibold">Risk</th>
                           <th className="px-3 py-2 font-semibold">Action</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {pickerRows.map((row) => {
-                          const rowResources = compatibleResources(row.compatibleKinds);
-                          const selectedResourceKey = pickerResources[row.id] || (rowResources[0] ? accessResourceKey(rowResources[0]) : '');
+                        {pickerGroups.map((group) => {
+                          const groupToken = accessTestIDToken(group.resource);
+                          const collapsed = collapsedPickerGroups[group.resource] ?? false;
                           return (
-                            <tr key={row.id} className="border-b border-border-base last:border-0" data-testid={`access-picker-row-${accessTestIDToken(row.id)}`}>
-                              <td className="px-3 py-2"><input type="checkbox" checked={selectedPickerIDs.includes(row.id)} onChange={() => setSelectedPickerIDs((prev) => toggleValue(prev, row.id))} data-testid={`access-picker-select-${accessTestIDToken(row.id)}`} /></td>
-                              <td className="px-3 py-2">{row.resource}</td>
-                              <td className="px-3 py-2"><div className="font-medium">{row.label}</div><div className="text-xs text-text-muted">{row.detail}</div></td>
-                              <td className="px-3 py-2">{row.scope}</td>
-                              <td className="px-3 py-2">
-                                <select className="w-full rounded border border-border-base bg-bg-elevated px-2 py-1 text-xs" value={selectedResourceKey} onChange={(e) => setPickerResources((prev) => ({ ...prev, [row.id]: e.target.value }))} data-testid={`access-picker-resource-${accessTestIDToken(row.id)}`}>
-                                  {rowResources.map((resource) => <option key={accessResourceKey(resource)} value={accessResourceKey(resource)}>{accessResourceLabel(resource)}</option>)}
-                                </select>
-                              </td>
-                              <td className="px-3 py-2"><AccessRiskBadge risk={row.risk} /></td>
-                              <td className="px-3 py-2"><button type="button" className="rounded border border-border-base px-2 py-1 text-xs font-semibold" disabled={rowResources.length === 0} onClick={() => addPickerRows([row])} data-testid={`access-picker-add-${accessTestIDToken(row.id)}`}>Add</button></td>
-                            </tr>
+                            <Fragment key={group.resource}>
+                              <tr className="border-b border-border-base bg-bg-subtle/70" data-testid={`access-picker-group-${groupToken}`}>
+                                <td colSpan={6} className="px-3 py-2">
+                                  <button
+                                    type="button"
+                                    className="flex w-full items-center justify-between gap-3 text-left"
+                                    onClick={() => setCollapsedPickerGroups((prev) => ({ ...prev, [group.resource]: !collapsed }))}
+                                    aria-expanded={!collapsed}
+                                    data-testid={`access-picker-group-toggle-${groupToken}`}
+                                  >
+                                    <span className="text-xs font-semibold uppercase text-text-secondary">{group.resource}</span>
+                                    <span className="text-xs text-text-muted">{collapsed ? 'Show' : 'Hide'} {group.rows.length}</span>
+                                  </button>
+                                </td>
+                              </tr>
+                              {!collapsed && group.rows.map((row) => {
+                                const rowResources = compatibleResources(row.compatibleKinds);
+                                const selectedResourceKey = pickerResources[row.id] || (rowResources[0] ? accessResourceKey(rowResources[0]) : '');
+                                return (
+                                  <tr key={row.id} className="border-b border-border-base last:border-0" data-testid={`access-picker-row-${accessTestIDToken(row.id)}`}>
+                                    <td className="px-3 py-2"><input type="checkbox" checked={selectedPickerIDs.includes(row.id)} onChange={() => setSelectedPickerIDs((prev) => toggleValue(prev, row.id))} data-testid={`access-picker-select-${accessTestIDToken(row.id)}`} /></td>
+                                    <td className="px-3 py-2">{row.resource}</td>
+                                    <td className="px-3 py-2"><div className="font-medium">{row.label}</div><div className="text-xs text-text-muted">{row.detail}</div></td>
+                                    <td className="px-3 py-2">
+                                      <select className="sr-only" aria-hidden="true" tabIndex={-1} value={selectedResourceKey} onChange={(e) => setPickerResources((prev) => ({ ...prev, [row.id]: e.target.value }))} data-testid={`access-picker-resource-${accessTestIDToken(row.id)}`}>
+                                        {rowResources.length === 0 && <option value="">No compatible scope targets</option>}
+                                        {rowResources.map((resource) => <option key={accessResourceKey(resource)} value={accessResourceKey(resource)}>{accessResourceLabel(resource)}</option>)}
+                                      </select>
+                                      <button
+                                        type="button"
+                                        className="flex w-full min-w-36 flex-col rounded border border-border-base bg-bg-elevated px-2 py-1 text-left text-xs hover:border-accent disabled:opacity-50"
+                                        disabled={rowResources.length === 0}
+                                        onClick={() => setScopePickerRowID(row.id)}
+                                        data-testid={`access-picker-scope-${accessTestIDToken(row.id)}`}
+                                      >
+                                        <span className="font-semibold text-text-primary">{resourceByKey.get(selectedResourceKey) ? accessResourceLabel(resourceByKey.get(selectedResourceKey)!) : 'Choose scope'}</span>
+                                        <span className="text-text-muted">{row.scope}</span>
+                                      </button>
+                                    </td>
+                                    <td className="px-3 py-2"><AccessRiskBadge risk={row.risk} /></td>
+                                    <td className="px-3 py-2"><button type="button" className="rounded border border-border-base px-2 py-1 text-xs font-semibold" disabled={rowResources.length === 0} onClick={() => addPickerRows([row])} data-testid={`access-picker-add-${accessTestIDToken(row.id)}`}>Add</button></td>
+                                  </tr>
+                                );
+                              })}
+                            </Fragment>
                           );
                         })}
                       </tbody>
@@ -2091,7 +2279,7 @@ function BatchGrantDrawer({
                           <th className="w-10 px-3 py-2"><input type="checkbox" checked={grantEntries.length > 0 && grantEntries.every((entry) => selectedGrantIDs.includes(entry.id))} onChange={() => setSelectedGrantIDs(selectedGrantIDs.length === grantEntries.length ? [] : grantEntries.map((entry) => entry.id))} aria-label="Select all grant entries" /></th>
                           <th className="px-3 py-2 font-semibold">Resource</th>
                           <th className="px-3 py-2 font-semibold">Permission</th>
-                          <th className="px-3 py-2 font-semibold">Scope target</th>
+                          <th className="px-3 py-2 font-semibold">Scope</th>
                           <th className="px-3 py-2 font-semibold">Risk</th>
                         </tr>
                       </thead>
@@ -2224,6 +2412,106 @@ function BatchGrantDrawer({
                 Done
               </button>
             )}
+          </div>
+        </div>
+      </div>
+      {scopePickerRow && (
+        <ScopePickerModal
+          row={scopePickerRow}
+          resources={scopePickerResources}
+          selectedKey={pickerResources[scopePickerRow.id] || (scopePickerResources[0] ? accessResourceKey(scopePickerResources[0]) : '')}
+          onSelect={(resource) => {
+            setPickerResources((prev) => ({ ...prev, [scopePickerRow.id]: accessResourceKey(resource) }));
+            setScopePickerRowID(null);
+          }}
+          onClose={() => setScopePickerRowID(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function ScopePickerModal({
+  row,
+  resources,
+  selectedKey,
+  onSelect,
+  onClose,
+}: {
+  row: PermissionPickerRow;
+  resources: AccessResourceScope[];
+  selectedKey: string;
+  onSelect: (resource: AccessResourceScope) => void;
+  onClose: () => void;
+}): React.ReactElement {
+  const containerRef = useModalA11y({ open: true, onClose });
+  const groups = useMemo(() => {
+    const byKind = new Map<string, AccessResourceScope[]>();
+    for (const resource of resources) {
+      const group = byKind.get(resource.kind) ?? [];
+      group.push(resource);
+      byKind.set(resource.kind, group);
+    }
+    return [...byKind.entries()]
+      .sort((a, b) => accessResourceKindLabel(a[0]).localeCompare(accessResourceKindLabel(b[0])))
+      .map(([kind, entries]) => ({
+        kind,
+        entries: entries.sort((a, b) => accessResourceLabel(a).localeCompare(accessResourceLabel(b))),
+      }));
+  }, [resources]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/30 px-4 py-12" data-testid="access-scope-picker-backdrop">
+      <div
+        ref={containerRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Choose scope"
+        className="flex max-h-[calc(100vh-6rem)] w-full max-w-2xl flex-col rounded border border-border-base bg-bg-elevated text-text-primary shadow-2xl"
+        data-testid="access-scope-picker"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-border-base px-4 py-3">
+          <div>
+            <h3 className="text-sm font-semibold">Choose scope</h3>
+            <p className="mt-1 text-xs text-text-muted">{row.label} · {row.scope}</p>
+          </div>
+          <button type="button" aria-label="Close scope picker" title="Close" className="rounded p-1.5 text-text-secondary hover:bg-bg-subtle" onClick={onClose}>
+            <IconClose />
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+          {groups.length === 0 && <p className="rounded border border-border-base bg-bg-subtle px-3 py-6 text-center text-sm text-text-muted">No compatible scopes.</p>}
+          <div className="space-y-3">
+            {groups.map((group) => (
+              <section key={group.kind} className="rounded border border-border-base" data-testid={`access-scope-picker-group-${accessTestIDToken(group.kind)}`}>
+                <div className="border-b border-border-base bg-bg-subtle px-3 py-2 text-xs font-semibold uppercase text-text-secondary">
+                  {accessResourceKindLabel(group.kind)}
+                </div>
+                <div className="divide-y divide-border-base">
+                  {group.entries.map((resource) => {
+                    const key = accessResourceKey(resource);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        className={[
+                          'flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm hover:bg-bg-subtle',
+                          key === selectedKey ? 'bg-brand/10 ring-1 ring-inset ring-brand/30' : '',
+                        ].join(' ')}
+                        onClick={() => onSelect(resource)}
+                        data-testid={`access-scope-picker-option-${accessTestIDToken(key)}`}
+                      >
+                        <span>
+                          <span className="block font-medium text-text-primary">{accessResourceLabel(resource)}</span>
+                          <span className="block font-mono text-xs text-text-muted">{resource.kind}:{resource.id}</span>
+                        </span>
+                        {key === selectedKey && <span className="text-xs font-semibold text-brand">Selected</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            ))}
           </div>
         </div>
       </div>

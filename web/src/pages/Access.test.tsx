@@ -5,6 +5,7 @@ import { http, HttpResponse } from 'msw';
 import { BrowserRouter } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { useAppStore } from '@/store/app';
+import { OrgContext } from '@/OrgContext';
 import Access from './Access';
 
 function renderPage(path = '/organizations/test/access/ram-roles', currentUserId = 'user:hayang') {
@@ -14,7 +15,9 @@ function renderPage(path = '/organizations/test/access/ram-roles', currentUserId
   return render(
     <QueryClientProvider client={qc}>
       <BrowserRouter>
-        <Access page={path.includes('/subject-access') ? 'subject-access' : 'ram-roles'} />
+        <OrgContext.Provider value={{ slug: 'test', orgId: 'org-test', orgName: 'Test Org', role: 'owner' }}>
+          <Access page={path.includes('/grant-access') ? 'grant-access' : path.includes('/subject-access') ? 'subject-access' : 'ram-roles'} />
+        </OrgContext.Provider>
       </BrowserRouter>
     </QueryClientProvider>,
   );
@@ -508,7 +511,7 @@ describe('Access page', () => {
     await within(drawer).findByTestId('access-preview-summary');
     const capturedPreviewBody = previewBody as PreviewRequestBody | null;
     expect(capturedPreviewBody?.permission_keys).toEqual(['project.read']);
-    expect(capturedPreviewBody?.resources).toEqual([{ kind: 'project', id: 'proj-a', org_id: 'org-test', label: 'Project Alpha' }]);
+    expect(capturedPreviewBody?.resources).toEqual([{ kind: 'project', id: 'proj-a', org_id: 'org-test', project_id: 'proj-a', label: 'Project Alpha' }]);
   });
 
   it('keeps the selected subject context and surfaces a 409 apply conflict as a toast', async () => {
@@ -561,7 +564,14 @@ describe('Access page', () => {
     await screen.findByTestId('access-subject-view');
     fireEvent.click(screen.getByTestId('access-open-batch'));
     const drawer = await screen.findByTestId('access-batch-drawer');
+    expect(within(drawer).getByTestId('access-picker-group-Organization')).toHaveTextContent('Organization');
+    expect(within(drawer).getByTestId('access-picker-group-Project')).toHaveTextContent('Project');
+    fireEvent.click(within(drawer).getByTestId('access-picker-group-toggle-Project'));
+    expect(within(drawer).queryByTestId('access-picker-row-permission-direct-project-write-project')).not.toBeInTheDocument();
+    fireEvent.click(within(drawer).getByTestId('access-picker-group-toggle-Project'));
+    expect(within(drawer).getByTestId('access-picker-row-permission-direct-project-write-project')).toBeInTheDocument();
     expect(within(drawer).getByTestId('access-picker-resource-permission-direct-org-read-org')).toHaveValue('org:org-test');
+    expect(within(drawer).getByTestId('access-picker-resource-permission-direct-org-read-org')).toHaveTextContent('Test Org');
     addGrantEntry(drawer, 'permission-direct-org-read-org', 'org:org-test');
 
     fireEvent.change(within(drawer).getByTestId('access-batch-reason'), { target: { value: 'org-only direct grant' } });
@@ -569,7 +579,7 @@ describe('Access page', () => {
     await within(drawer).findByTestId('access-preview-summary');
     const capturedPreviewBody = previewBody as PreviewRequestBody | null;
     expect(capturedPreviewBody?.permission_keys).toEqual(['org.read']);
-    expect(capturedPreviewBody?.resources).toEqual([{ kind: 'org', id: 'org-test', label: 'Test Org' }]);
+    expect(capturedPreviewBody?.resources).toEqual([{ kind: 'org', id: 'org-test', org_id: 'org-test', label: 'Test Org' }]);
   });
 
   it('renders partial failure result items without unknown phantom rows', async () => {
@@ -858,7 +868,7 @@ describe('Access page', () => {
     fireEvent.click(within(detail).getByTestId('access-role-view-references'));
     const references = within(detail).getByTestId('access-role-references');
     expect(references).toHaveTextContent('agent-center core / planner');
-    expect(within(references).getByRole('link', { name: 'Open Team Role' })).toHaveAttribute('href', '/teams/team-7c19b0/roles/planner');
+    expect(within(references).getByRole('link', { name: 'Open Team Role' })).toHaveAttribute('href', '/organizations/test/teams/team-7c19b0/roles/planner');
     expect(within(references).queryByRole('button', { name: /migrate|remove|save/i })).not.toBeInTheDocument();
     expect(within(references).queryByRole('combobox')).not.toBeInTheDocument();
   });

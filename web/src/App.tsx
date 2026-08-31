@@ -132,6 +132,7 @@ export function App(): React.ReactElement {
           <Route path="access" element={<Navigate to="ram-roles" replace />} />
           <Route path="access/ram-roles" element={<Access page="ram-roles" />} />
           <Route path="access/subject-access" element={<Access page="subject-access" />} />
+          <Route path="access/grant-access" element={<Access page="grant-access" />} />
           <Route path="secrets" element={<Secrets />} />
           {/* v2.7 #164: Fleet merged into Environment — keep /fleet working as a redirect. */}
           <Route path="fleet" element={<Navigate to="../environment" replace />} />
