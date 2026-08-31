@@ -11,6 +11,113 @@
       "title": "Task executions",
       "subtitle": "Each row is one execution attempt"
     },
+    "projects": {
+      "title": "Insight projects",
+      "subtitle": "Business delivery and runtime-health decision surface for each project.",
+      "loading": "Loading Insight projects",
+      "failed": "Project Insight request failed",
+      "empty": "No projects are available for Insight",
+      "emptyBody": "The backend returned an empty v2 project set.",
+      "project": "Project",
+      "health": "Health",
+      "executions": "Executions",
+      "openIssues": "Open issues",
+      "blockedTasks": "Blocked tasks",
+      "activePlans": "Active plans",
+      "reasonCodes": "Reason codes",
+      "back": "Back to Insight projects"
+    },
+    "projectDetail": {
+      "subtitle": "Project delivery funnel, Plan evolution, and runtime health.",
+      "loading": "Loading project Insight",
+      "failed": "Project Insight failed",
+      "runtimeHealth": "Runtime health"
+    },
+    "health": {
+      "healthy": "Healthy",
+      "elevated": "Elevated",
+      "degraded": "Degraded",
+      "unknown": "Unknown"
+    },
+    "v2": {
+      "asOf": "As of {{time}}",
+      "healthDecision": "Backend health decision",
+      "known": "known",
+      "unknown": "unknown",
+      "meta": "{{known}} · samples {{sample}} · coverage {{coverage}} · unknown {{unknown}}",
+      "noReasons": "No backend reason codes"
+    },
+    "delivery": {
+      "title": "Issue / Task / Plan / Done funnel",
+      "subtitle": "Diagnostic counts from the backend. Funnel breaks use the exact returned DrilldownFilter.",
+      "loading": "Loading delivery funnel",
+      "failed": "Delivery funnel failed",
+      "breakKind": "Break kind",
+      "count": "Count",
+      "drilldown": "DrilldownFilter",
+      "stage": {
+        "issues": "Issues",
+        "tasks": "Tasks",
+        "plans": "Plans",
+        "done": "Done"
+      },
+      "break": {
+        "issue_without_task": "Issue without task",
+        "task_without_plan": "Task without plan",
+        "task_multiple_containers": "Task in multiple containers",
+        "done_plan_non_terminal_task": "Done Plan has non-terminal Task",
+        "done_plan_open_issue": "Done Plan has open Issue",
+        "evolution_old_generation_residue": "Old-generation residue",
+        "delivery_sha_lineage_mismatch": "Delivery SHA lineage mismatch"
+      }
+    },
+    "evolution": {
+      "title": "Plan Evolution",
+      "subtitle": "Generation counts, evolution rate, rework, recovery, loop depth, and residue metrics are rendered from backend fields when present.",
+      "loading": "Loading Plan Evolution",
+      "failed": "Plan Evolution failed",
+      "plans": "Plans",
+      "evolvedPlans": "Evolved plans",
+      "evolutionRate": "Evolution rate",
+      "generationCount": "Generation count"
+    },
+    "lineage": {
+      "title": "Lineage {{planId}}",
+      "subtitle": "G0..Gn generation lineage with trigger, evidence, node changes, delivery SHA, and verdict.",
+      "panelTitle": "Plan lineage",
+      "panelBody": "Open G0..Gn lineage for {{planId}}.",
+      "open": "Open lineage",
+      "back": "Back to project Insight",
+      "loading": "Loading lineage",
+      "failed": "Plan lineage failed",
+      "noPlan": "No Plan selected for lineage",
+      "noPlanBody": "Open this page with ?plan_id=<plan-id> or use the lineage route directly.",
+      "empty": "No generations returned",
+      "emptyBody": "The backend marked lineage as empty or unknown for this Plan.",
+      "anomaly": "Lineage anomaly",
+      "triggeredBy": "Triggered by",
+      "reason": "Trigger reason",
+      "recoveryDuration": "Recovery duration",
+      "recoveryOutcome": "Recovery outcome",
+      "deliveryBranch": "Delivery branch",
+      "deliverySha": "Delivery SHA",
+      "verdict": "Verdict",
+      "evidence": "Evidence",
+      "nodeChanges": "Node changes",
+      "reasonValue": {
+        "blocked": "Blocked",
+        "review_reject": "Review rejected",
+        "requirement_change": "Requirement changed",
+        "execution_failure": "Execution failed",
+        "manual_adjustment": "Manual adjustment",
+        "unknown": "Unknown"
+      },
+      "verdictValue": {
+        "pass": "Pass",
+        "reject": "Reject",
+        "pending": "Pending"
+      }
+    },
     "detail": {
       "title": "TaskExecution detail",
       "timeline": "Execution timeline",

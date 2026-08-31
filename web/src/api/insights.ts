@@ -104,6 +104,118 @@ export interface InsightExecutionDetail {
   execution: InsightExecutionRow;
 }
 
+export type InsightV2HealthStatus = 'healthy' | 'elevated' | 'degraded' | 'unknown';
+export type InsightV2BreakKind =
+  | 'issue_without_task'
+  | 'task_without_plan'
+  | 'task_multiple_containers'
+  | 'done_plan_non_terminal_task'
+  | 'done_plan_open_issue'
+  | 'evolution_old_generation_residue'
+  | 'delivery_sha_lineage_mismatch';
+
+export const INSIGHT_V2_BREAK_KINDS: InsightV2BreakKind[] = [
+  'delivery_sha_lineage_mismatch',
+  'done_plan_non_terminal_task',
+  'done_plan_open_issue',
+  'evolution_old_generation_residue',
+  'issue_without_task',
+  'task_multiple_containers',
+  'task_without_plan',
+];
+
+export interface InsightV2Health {
+  status: InsightV2HealthStatus;
+  reason_codes: string[];
+  evidence: Record<string, unknown>[];
+}
+
+export interface InsightV2Meta {
+  metric_version: 'insight.metrics.v2';
+  sample_count: number;
+  coverage: number | null;
+  freshness: InsightFreshness;
+  unknown_count: number;
+  known: boolean;
+}
+
+export interface InsightV2Envelope {
+  metric_version: 'insight.metrics.v2';
+  time_window: InsightWindow;
+  as_of: string;
+  health: InsightV2Health;
+  meta: InsightV2Meta;
+}
+
+export interface InsightV2CountMetric {
+  value: number | null;
+  meta: InsightV2Meta;
+}
+
+export interface InsightV2ProjectSummary {
+  id: string;
+  name: string | null;
+  health: InsightV2Health;
+  execution_count: InsightV2CountMetric;
+  failure_rate: number | null;
+  open_issues: InsightV2CountMetric;
+  blocked_tasks: InsightV2CountMetric;
+  active_plans: InsightV2CountMetric;
+  reason_codes: string[];
+}
+
+export type InsightV2Projects = InsightV2ProjectSummary[];
+
+export interface InsightV2FunnelBreak {
+  kind: InsightV2BreakKind;
+  count: InsightV2CountMetric;
+  drilldown: Record<string, unknown>;
+}
+
+export interface InsightV2Funnel {
+  issues: InsightV2CountMetric;
+  tasks: InsightV2CountMetric;
+  plans: InsightV2CountMetric;
+  done: InsightV2CountMetric;
+  breaks: InsightV2FunnelBreak[];
+}
+
+export interface InsightV2ProjectDelivery extends InsightV2Envelope {
+  project_id: string;
+  funnel: InsightV2Funnel;
+}
+
+export interface InsightV2ProjectEvolution extends InsightV2Envelope {
+  project_id: string;
+  evolution: {
+    plans: number;
+    evolved_plans: number;
+    evolution_rate: number | null;
+    generation_count: number;
+    [key: string]: unknown;
+  };
+}
+
+export interface InsightV2Generation {
+  generation: number;
+  created_at: string;
+  triggered_by: string;
+  reason: string;
+  evidence: Record<string, unknown>[];
+  node_changes: Record<string, unknown>[];
+  recovery_duration_ms: number | null;
+  recovery_outcome: string;
+  delivery_branch: string;
+  delivery_sha: string;
+  acceptance_verdict: 'pass' | 'reject' | 'pending' | string;
+}
+
+export interface InsightV2PlanLineage extends InsightV2Envelope {
+  project_id: string;
+  plan_id: string;
+  generations: InsightV2Generation[];
+}
+
 export interface InsightExecutionFilters {
   agent_ref?: string;
   project_id?: string;
@@ -137,6 +249,10 @@ function numberOrNull(value: unknown): number | null {
 
 function booleanOrFalse(value: unknown): boolean {
   return typeof value === 'boolean' ? value : false;
+}
+
+function recordArrayOrEmpty(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter(isRecord) : [];
 }
 
 function normalizeWindow(value: unknown): InsightWindow {
@@ -208,6 +324,147 @@ function normalizeDiagnostics(value: unknown): InsightDiagnostics {
   return {
     invalid_facts: numberOrZero(source.invalid_facts),
     late_events: numberOrZero(source.late_events),
+  };
+}
+
+function normalizeV2Health(value: unknown): InsightV2Health {
+  const source = isRecord(value) ? value : {};
+  const status = source.status;
+  return {
+    status: status === 'healthy' || status === 'elevated' || status === 'degraded' || status === 'unknown'
+      ? status
+      : 'unknown',
+    reason_codes: Array.isArray(source.reason_codes) ? source.reason_codes.filter((v): v is string => typeof v === 'string') : [],
+    evidence: recordArrayOrEmpty(source.evidence),
+  };
+}
+
+function normalizeV2Meta(value: unknown): InsightV2Meta {
+  const source = isRecord(value) ? value : {};
+  return {
+    metric_version: 'insight.metrics.v2',
+    sample_count: numberOrZero(source.sample_count),
+    coverage: numberOrNull(source.coverage),
+    freshness: normalizeFreshness(source.freshness),
+    unknown_count: numberOrZero(source.unknown_count),
+    known: typeof source.known === 'boolean' ? source.known : false,
+  };
+}
+
+function normalizeV2Envelope(value: unknown): InsightV2Envelope {
+  const source = isRecord(value) ? value : {};
+  return {
+    metric_version: 'insight.metrics.v2',
+    time_window: normalizeWindow(source.time_window),
+    as_of: stringOrEmpty(source.as_of),
+    health: normalizeV2Health(source.health),
+    meta: normalizeV2Meta(source.meta),
+  };
+}
+
+function normalizeV2CountMetric(value: unknown): InsightV2CountMetric {
+  const source = isRecord(value) ? value : {};
+  return {
+    value: numberOrNull(source.value),
+    meta: normalizeV2Meta(source.meta),
+  };
+}
+
+function normalizeV2ProjectSummary(value: unknown): InsightV2ProjectSummary {
+  const source = isRecord(value) ? value : {};
+  const health = normalizeV2Health(source.health);
+  return {
+    id: stringOrEmpty(source.id) || 'unknown',
+    name: stringOrNull(source.name),
+    health,
+    execution_count: normalizeV2CountMetric(source.execution_count),
+    failure_rate: numberOrNull(source.failure_rate),
+    open_issues: normalizeV2CountMetric(source.open_issues),
+    blocked_tasks: normalizeV2CountMetric(source.blocked_tasks),
+    active_plans: normalizeV2CountMetric(source.active_plans),
+    reason_codes: Array.isArray(source.reason_codes) ? source.reason_codes.filter((v): v is string => typeof v === 'string') : health.reason_codes,
+  };
+}
+
+function normalizeV2Projects(value: unknown): InsightV2Projects {
+  return Array.isArray(value) ? value.map(normalizeV2ProjectSummary) : [];
+}
+
+function normalizeV2BreakKind(value: unknown): InsightV2BreakKind {
+  return INSIGHT_V2_BREAK_KINDS.includes(value as InsightV2BreakKind)
+    ? value as InsightV2BreakKind
+    : 'delivery_sha_lineage_mismatch';
+}
+
+function normalizeV2FunnelBreak(value: unknown): InsightV2FunnelBreak {
+  const source = isRecord(value) ? value : {};
+  return {
+    kind: normalizeV2BreakKind(source.kind),
+    count: normalizeV2CountMetric(source.count),
+    drilldown: isRecord(source.drilldown) ? source.drilldown : {},
+  };
+}
+
+function normalizeV2Funnel(value: unknown): InsightV2Funnel {
+  const source = isRecord(value) ? value : {};
+  return {
+    issues: normalizeV2CountMetric(source.issues),
+    tasks: normalizeV2CountMetric(source.tasks),
+    plans: normalizeV2CountMetric(source.plans),
+    done: normalizeV2CountMetric(source.done),
+    breaks: arrayOrEmpty(source.breaks as InsightV2FunnelBreak[] | null | undefined).map(normalizeV2FunnelBreak),
+  };
+}
+
+function normalizeV2Delivery(value: unknown): InsightV2ProjectDelivery {
+  const source = isRecord(value) ? value : {};
+  return {
+    ...normalizeV2Envelope(source),
+    project_id: stringOrEmpty(source.project_id),
+    funnel: normalizeV2Funnel(source.funnel),
+  };
+}
+
+function normalizeV2Evolution(value: unknown): InsightV2ProjectEvolution {
+  const source = isRecord(value) ? value : {};
+  const evolution = isRecord(source.evolution) ? source.evolution : {};
+  return {
+    ...normalizeV2Envelope(source),
+    project_id: stringOrEmpty(source.project_id),
+    evolution: {
+      ...evolution,
+      plans: numberOrZero(evolution.plans),
+      evolved_plans: numberOrZero(evolution.evolved_plans),
+      evolution_rate: numberOrNull(evolution.evolution_rate),
+      generation_count: numberOrZero(evolution.generation_count),
+    },
+  };
+}
+
+function normalizeV2Generation(value: unknown): InsightV2Generation {
+  const source = isRecord(value) ? value : {};
+  return {
+    generation: numberOrZero(source.generation),
+    created_at: stringOrEmpty(source.created_at),
+    triggered_by: stringOrEmpty(source.triggered_by),
+    reason: stringOrEmpty(source.reason) || 'unknown',
+    evidence: recordArrayOrEmpty(source.evidence),
+    node_changes: recordArrayOrEmpty(source.node_changes),
+    recovery_duration_ms: numberOrNull(source.recovery_duration_ms),
+    recovery_outcome: stringOrEmpty(source.recovery_outcome) || 'unknown',
+    delivery_branch: stringOrEmpty(source.delivery_branch),
+    delivery_sha: stringOrEmpty(source.delivery_sha),
+    acceptance_verdict: stringOrEmpty(source.acceptance_verdict) || 'pending',
+  };
+}
+
+function normalizeV2Lineage(value: unknown): InsightV2PlanLineage {
+  const source = isRecord(value) ? value : {};
+  return {
+    ...normalizeV2Envelope(source),
+    project_id: stringOrEmpty(source.project_id),
+    plan_id: stringOrEmpty(source.plan_id),
+    generations: arrayOrEmpty(source.generations as InsightV2Generation[] | null | undefined).map(normalizeV2Generation),
   };
 }
 
@@ -306,5 +563,44 @@ export function useInsightExecution(executionId: string | undefined) {
     queryKey: qk.insightExecution(executionId ?? ''),
     queryFn: async () => normalizeExecutionDetail(await api.get<unknown>(`/insights/executions/${encodeURIComponent(executionId ?? '')}?window=24h`)),
     enabled: Boolean(executionId),
+  });
+}
+
+export function useInsightV2Projects() {
+  return useQuery({
+    queryKey: qk.insightV2Projects(),
+    queryFn: async () => normalizeV2Projects(await api.get<unknown>('/insights/v2/projects?window=24h')),
+  });
+}
+
+export function useInsightV2Project(projectId: string | undefined) {
+  return useQuery({
+    queryKey: qk.insightV2Project(projectId ?? ''),
+    queryFn: async () => normalizeV2ProjectSummary(await api.get<unknown>(`/insights/v2/projects/${encodeURIComponent(projectId ?? '')}?window=24h`)),
+    enabled: Boolean(projectId),
+  });
+}
+
+export function useInsightV2ProjectDelivery(projectId: string | undefined) {
+  return useQuery({
+    queryKey: qk.insightV2ProjectDelivery(projectId ?? ''),
+    queryFn: async () => normalizeV2Delivery(await api.get<unknown>(`/insights/v2/projects/${encodeURIComponent(projectId ?? '')}/delivery?window=24h`)),
+    enabled: Boolean(projectId),
+  });
+}
+
+export function useInsightV2ProjectEvolution(projectId: string | undefined) {
+  return useQuery({
+    queryKey: qk.insightV2ProjectEvolution(projectId ?? ''),
+    queryFn: async () => normalizeV2Evolution(await api.get<unknown>(`/insights/v2/projects/${encodeURIComponent(projectId ?? '')}/evolution?window=24h`)),
+    enabled: Boolean(projectId),
+  });
+}
+
+export function useInsightV2PlanLineage(projectId: string | undefined, planId: string | undefined) {
+  return useQuery({
+    queryKey: qk.insightV2PlanLineage(projectId ?? '', planId ?? ''),
+    queryFn: async () => normalizeV2Lineage(await api.get<unknown>(`/insights/v2/projects/${encodeURIComponent(projectId ?? '')}/plans/${encodeURIComponent(planId ?? '')}/lineage?window=24h`)),
+    enabled: Boolean(projectId && planId),
   });
 }

@@ -11,6 +11,113 @@
       "title": "Task executions",
       "subtitle": "每行代表一次执行尝试"
     },
+    "projects": {
+      "title": "Insight 项目",
+      "subtitle": "每个项目的业务交付与运行健康决策面。",
+      "loading": "正在加载 Insight 项目",
+      "failed": "项目 Insight 请求失败",
+      "empty": "暂无可用于 Insight 的项目",
+      "emptyBody": "后端返回了空的 v2 项目集合。",
+      "project": "项目",
+      "health": "健康",
+      "executions": "执行",
+      "openIssues": "开放 Issue",
+      "blockedTasks": "阻塞 Task",
+      "activePlans": "活跃 Plan",
+      "reasonCodes": "原因代码",
+      "back": "返回 Insight 项目"
+    },
+    "projectDetail": {
+      "subtitle": "项目交付漏斗、Plan Evolution 与运行健康。",
+      "loading": "正在加载项目 Insight",
+      "failed": "项目 Insight 加载失败",
+      "runtimeHealth": "运行健康"
+    },
+    "health": {
+      "healthy": "健康",
+      "elevated": "升高",
+      "degraded": "降级",
+      "unknown": "未知"
+    },
+    "v2": {
+      "asOf": "截至 {{time}}",
+      "healthDecision": "后端健康决策",
+      "known": "已知",
+      "unknown": "未知",
+      "meta": "{{known}} · 样本 {{sample}} · 覆盖 {{coverage}} · 未知 {{unknown}}",
+      "noReasons": "无后端原因代码"
+    },
+    "delivery": {
+      "title": "Issue / Task / Plan / Done 漏斗",
+      "subtitle": "来自后端的诊断计数。漏斗断点使用后端返回的原始 DrilldownFilter。",
+      "loading": "正在加载交付漏斗",
+      "failed": "交付漏斗加载失败",
+      "breakKind": "断点类型",
+      "count": "计数",
+      "drilldown": "DrilldownFilter",
+      "stage": {
+        "issues": "Issues",
+        "tasks": "Tasks",
+        "plans": "Plans",
+        "done": "Done"
+      },
+      "break": {
+        "issue_without_task": "Issue 没有 Task",
+        "task_without_plan": "Task 没有 Plan",
+        "task_multiple_containers": "Task 位于多个容器",
+        "done_plan_non_terminal_task": "Done Plan 含未终止 Task",
+        "done_plan_open_issue": "Done Plan 含开放 Issue",
+        "evolution_old_generation_residue": "旧 generation 残留",
+        "delivery_sha_lineage_mismatch": "交付 SHA 与 lineage 不匹配"
+      }
+    },
+    "evolution": {
+      "title": "Plan Evolution",
+      "subtitle": "generation 数量、演进率、返工、恢复、循环深度与残留指标存在时按后端字段渲染。",
+      "loading": "正在加载 Plan Evolution",
+      "failed": "Plan Evolution 加载失败",
+      "plans": "Plans",
+      "evolvedPlans": "演进过的 Plans",
+      "evolutionRate": "演进率",
+      "generationCount": "generation 数量"
+    },
+    "lineage": {
+      "title": "Lineage {{planId}}",
+      "subtitle": "G0..Gn generation lineage，包含触发、证据、节点变化、交付 SHA 与 verdict。",
+      "panelTitle": "Plan lineage",
+      "panelBody": "打开 {{planId}} 的 G0..Gn lineage。",
+      "open": "打开 lineage",
+      "back": "返回项目 Insight",
+      "loading": "正在加载 lineage",
+      "failed": "Plan lineage 加载失败",
+      "noPlan": "未选择用于 lineage 的 Plan",
+      "noPlanBody": "用 ?plan_id=<plan-id> 打开本页，或直接使用 lineage 路由。",
+      "empty": "后端未返回 generations",
+      "emptyBody": "后端将该 Plan 的 lineage 标记为空或未知。",
+      "anomaly": "Lineage 异常",
+      "triggeredBy": "触发者",
+      "reason": "触发原因",
+      "recoveryDuration": "恢复耗时",
+      "recoveryOutcome": "恢复结果",
+      "deliveryBranch": "交付分支",
+      "deliverySha": "交付 SHA",
+      "verdict": "Verdict",
+      "evidence": "证据",
+      "nodeChanges": "节点变化",
+      "reasonValue": {
+        "blocked": "阻塞",
+        "review_reject": "Review 拒绝",
+        "requirement_change": "需求变化",
+        "execution_failure": "执行失败",
+        "manual_adjustment": "人工调整",
+        "unknown": "未知"
+      },
+      "verdictValue": {
+        "pass": "通过",
+        "reject": "拒绝",
+        "pending": "待定"
+      }
+    },
     "detail": {
       "title": "TaskExecution 详情",
       "timeline": "执行时间线",
