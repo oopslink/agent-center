@@ -1949,8 +1949,16 @@ function BatchGrantDrawer({
   const title = 'Batch authorization';
   const assignableRoles = useMemo(() => assignableRAMRoles(roles), [roles]);
   const directTemplates = useMemo(() => buildDirectGrantTemplates(permissions), [permissions]);
+  const grantableResourceKinds = useMemo<Set<string>>(() => new Set(resources.map((resource) => resource.kind)), [resources]);
+  const canGrantToKinds = (kinds: string[]): boolean => {
+    if (kinds.includes('mixed')) return resources.length > 0;
+    return kinds.some((kind) => grantableResourceKinds.has(kind));
+  };
   const pickerRows = useMemo<PermissionPickerRow[]>(() => [
-    ...assignableRoles.map((role) => ({
+    ...assignableRoles.flatMap((role) => {
+      const compatibleKinds = [...new Set([ramRoleScope(role), 'team'])];
+      if (!canGrantToKinds(compatibleKinds)) return [];
+      return [{
       id: `role:${role.id}`,
       kind: 'role' as const,
       label: role.name,
@@ -1961,9 +1969,12 @@ function BatchGrantDrawer({
       detail: roleTemplateDetail(role),
       risk: role.high_risk ? 'high' as AccessRisk : accessRoleRiskForUI(role, permissions),
       role,
-      compatibleKinds: [...new Set([ramRoleScope(role), 'team'])],
-    })),
-    ...directTemplates.map((template) => ({
+      compatibleKinds,
+      }];
+    }),
+    ...directTemplates.flatMap((template) => {
+      if (!canGrantToKinds([template.backendResourceKind])) return [];
+      return [{
       id: `permission:${template.id}`,
       kind: 'permission' as const,
       label: directTemplateLabel(template),
@@ -1975,8 +1986,9 @@ function BatchGrantDrawer({
       risk: template.risk,
       template,
       compatibleKinds: [template.backendResourceKind],
-    })),
-  ], [assignableRoles, directTemplates, permissions]);
+      }];
+    }),
+  ], [assignableRoles, directTemplates, grantableResourceKinds, permissions, resources.length]);
   const filteredPickerRows = useMemo(() => {
     const q = permissionQuery.trim().toLowerCase();
     if (!q) return pickerRows;

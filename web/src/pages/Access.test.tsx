@@ -244,6 +244,10 @@ describe('Access page', () => {
 
     const picker = within(drawer).getByTestId('access-permission-picker');
     const list = within(drawer).getByTestId('access-grant-list');
+    expect(within(picker).queryByTestId('access-picker-group-Admin-token')).not.toBeInTheDocument();
+    expect(within(picker).queryByText('Issue · This issue · Read')).not.toBeInTheDocument();
+    expect(within(picker).getByText('Project · This project · Write')).toBeInTheDocument();
+
     fireEvent.change(within(picker).getByTestId('access-picker-keyword'), { target: { value: 'project write' } });
     expect(within(picker).getByTestId('access-picker-group-Project')).toBeInTheDocument();
     expect(within(picker).queryByTestId('access-picker-group-Agent')).not.toBeInTheDocument();
