@@ -16,6 +16,7 @@ import {
   type InsightV2ProjectEvolution,
   type InsightV2ProjectSummary,
 } from '@/api/insights';
+import { presentInsightEnum } from '@/utils/insightPresentation';
 
 const EMPTY = '—';
 
@@ -289,7 +290,7 @@ function GenerationCard({ generation }: { generation: InsightV2Generation }): Re
         <Info label={t('insight.lineage.triggeredBy')} value={generation.triggered_by || EMPTY} mono />
         <Info label={t('insight.lineage.reason')} value={reasonLabel(generation.reason, t)} />
         <Info label={t('insight.lineage.recoveryDuration')} value={humanDuration(generation.recovery_duration_ms)} />
-        <Info label={t('insight.lineage.recoveryOutcome')} value={generation.recovery_outcome || EMPTY} />
+        <Info label={t('insight.lineage.recoveryOutcome')} value={presentInsightEnum('recoveryOutcome', generation.recovery_outcome, t)} />
         <Info label={t('insight.lineage.deliveryBranch')} value={generation.delivery_branch || EMPTY} mono />
         <Info label={t('insight.lineage.deliverySha')} value={generation.delivery_sha || EMPTY} mono />
         <Info label={t('insight.lineage.verdict')} value={verdictLabel(generation.acceptance_verdict, t)} />
@@ -361,13 +362,13 @@ function HealthBadge({ health }: { health: InsightV2Health }): React.ReactElemen
       : health.status === 'degraded'
         ? 'border-danger/30 bg-danger/10 text-danger'
         : 'border-text-muted/30 bg-bg-subtle text-text-secondary';
-  return <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`} data-testid="insight-health-badge">{t(`insight.health.${health.status}`)}</span>;
+  return <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${cls}`} data-testid="insight-health-badge">{presentInsightEnum('health', health.status, t)}</span>;
 }
 
 function FreshnessBadge({ freshness }: { freshness: InsightFreshness }): React.ReactElement {
   const { t } = useTranslation('insights');
   const cls = freshness.state === 'fresh' ? 'text-success' : freshness.state === 'stale' ? 'text-warning' : 'text-danger';
-  return <span className={`font-medium ${cls}`} title={`${freshness.age_ms}/${freshness.threshold_ms}`}>{t(`insight.freshness.${freshness.state}`)}</span>;
+  return <span className={`font-medium ${cls}`} title={`${freshness.age_ms}/${freshness.threshold_ms}`}>{presentInsightEnum('freshness', freshness.state, t)}</span>;
 }
 
 function MetricTile({ label, metric }: { label: string; metric: InsightV2CountMetric }): React.ReactElement {
@@ -462,18 +463,15 @@ function formatDateTime(value: string): string {
 }
 
 function reasonLabel(reason: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  const key = ['blocked', 'review_reject', 'requirement_change', 'execution_failure', 'manual_adjustment', 'unknown'].includes(reason) ? reason : 'unknown';
-  return t(`insight.lineage.reasonValue.${key}`);
+  return presentInsightEnum('lineageReason', reason, t);
 }
 
 function verdictLabel(verdict: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  const key = verdict === 'pass' || verdict === 'reject' || verdict === 'pending' ? verdict : 'pending';
-  return t(`insight.lineage.verdictValue.${key}`);
+  return presentInsightEnum('verdict', verdict, t);
 }
 
 function breakLabel(kind: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  const label = t(`insight.delivery.break.${kind}`, { defaultValue: '' });
-  return label || t('insight.delivery.break.unknown');
+  return presentInsightEnum('breakKind', kind, t);
 }
 
 function breakKindDescription(kind: string, t: (key: string, options?: Record<string, unknown>) => string): string {
@@ -482,13 +480,11 @@ function breakKindDescription(kind: string, t: (key: string, options?: Record<st
 }
 
 function reasonCodeLabel(code: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  const label = t(`insight.reasonCode.${code}`, { defaultValue: '' });
-  return label || t('insight.reasonCode.unknown');
+  return presentInsightEnum('reasonCode', code, t);
 }
 
 function anomalyLabel(kind: string, t: (key: string, options?: Record<string, unknown>) => string): string {
-  const label = t(`insight.evolution.anomaly.${kind}`, { defaultValue: '' });
-  return label || t('insight.evolution.anomaly.unknown');
+  return presentInsightEnum('anomaly', kind, t);
 }
 
 function drilldownEntries(value: Record<string, unknown>, t: (key: string, options?: Record<string, unknown>) => string): string[] {
@@ -504,6 +500,8 @@ function drilldownEntries(value: Record<string, unknown>, t: (key: string, optio
 function drilldownValue(key: string, value: string, t: (key: string, options?: Record<string, unknown>) => string): string {
   if (key === 'break_kind') return breakLabel(value, t);
   if (key === 'anomaly_kind') return anomalyLabel(value, t);
+  if (key === 'source' && value === 'backend') return t('insight.drilldownValue.source.backend');
+  if (/(^|_)(status|outcome|reason|quality|source|anomaly)(_|$)/.test(key)) return t('insight.enum.unknown');
   return humanizeToken(value);
 }
 

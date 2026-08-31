@@ -214,6 +214,34 @@ describe('Insight pages', () => {
     expect(await screen.findByTestId('insight-execution-not-found')).toHaveTextContent('This TaskExecution was not found');
   });
 
+  it('keeps future execution enums out of the DOM until diagnostics are explicitly opened', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/executions/:executionId', () => HttpResponse.json({
+      ...windowEnvelope,
+      execution: {
+        ...execution,
+        outcome: 'future_outcome',
+        failure_reason: 'raw_future_enum',
+        failure_message: null,
+        command_status: 'unknown_status',
+        status_reason: 'arbitrary_future_token',
+        quality: 'future_quality',
+      },
+    })));
+
+    renderAt('/organizations/acme/insights/executions/future');
+
+    const detail = await screen.findByTestId('insight-execution-detail');
+    for (const raw of ['future_outcome', 'raw_future_enum', 'unknown_status', 'arbitrary_future_token', 'future_quality']) {
+      expect(detail).not.toHaveTextContent(raw);
+    }
+    expect(detail).toHaveTextContent('Outcome unavailable');
+    expect(detail).toHaveTextContent('The execution was not successful.');
+    expect(detail).toHaveTextContent('Data needs review');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Technical details' }));
+    expect(detail).toHaveTextContent('future_outcome');
+  });
+
   it('shows unavailable envelope for execution detail', async () => {
     server.use(http.get('/api/orgs/:slug/insights/executions/:executionId', () =>
       HttpResponse.json({ error: 'insight_unavailable', message: 'duckdb unavailable', ...windowEnvelope, freshness: { state: 'unavailable', age_ms: 30000, threshold_ms: 30000 } }, { status: 503 }),

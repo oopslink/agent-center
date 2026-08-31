@@ -10,6 +10,7 @@ import {
   insightExecutionStatus,
   insightFailureMessage,
   insightQualityLabel,
+  presentInsightEnum,
 } from './insightPresentation';
 
 const t = i18n.getFixedT('en', 'insights');
@@ -137,5 +138,20 @@ describe('insight presentation semantics', () => {
   it('prefers human messages over reason fallback', () => {
     expect(insightFailureMessage({ ...baseExecution, failure_reason: 'nonzero_exit', failure_message: 'Runtime said no.' }, t)).toBe('Runtime said no.');
     expect(insightFailureMessage({ ...baseExecution, command_status: 'rejected', status_reason: 'repo_source_unavailable', status_message: 'No worker matched.' }, t)).toBe('No worker matched.');
+  });
+
+  it.each([
+    ['health', 'unknown_status', 'Unknown'],
+    ['freshness', 'raw_future_enum', 'Freshness unavailable'],
+    ['lineageReason', 'arbitrary_future_token', 'Unknown'],
+    ['recoveryOutcome', 'future_outcome', 'Unknown'],
+    ['verdict', 'future_outcome', 'Unknown value'],
+    ['reasonCode', 'raw_future_enum', 'Backend-defined reason'],
+    ['breakKind', 'raw_future_enum', 'Backend-defined break'],
+    ['anomaly', 'raw_future_enum', 'Backend-defined anomaly'],
+  ] as const)('hides unknown %s enum tokens', (kind, raw, want) => {
+    const rendered = presentInsightEnum(kind, raw, t);
+    expect(rendered).toBe(want);
+    expect(rendered).not.toContain(raw);
   });
 });

@@ -1,5 +1,7 @@
 {
   "insight": {
+    "enum": { "unknown": "未知值" },
+    "drilldownValue": { "source": { "backend": "后端" } },
     "breadcrumb": "面包屑",
     "overview": {
       "title": "Insight 概览",
@@ -172,6 +174,7 @@
       "reason": "触发原因",
       "recoveryDuration": "恢复耗时",
       "recoveryOutcome": "恢复结果",
+      "recoveryOutcomeValue": { "completed": "已完成", "failed": "失败", "pending": "待定", "unknown": "未知" },
       "deliveryBranch": "交付分支",
       "deliverySha": "交付 SHA",
       "verdict": "Verdict",

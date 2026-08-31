@@ -1,4 +1,4 @@
-import type React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
@@ -392,6 +392,7 @@ function TaskExecutionTable({ rows, base }: { rows: InsightExecutionRow[]; base:
 
 function ExecutionDetail({ execution }: { execution: InsightExecutionRow }): React.ReactElement {
   const { t } = useTranslation('insights');
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const status = insightExecutionStatus(execution, t);
   const reason = insightFailureMessage(execution, t);
   return (
@@ -430,10 +431,10 @@ function ExecutionDetail({ execution }: { execution: InsightExecutionRow }): Rea
       </dl>
 
       {execution.quality !== 'valid' && <InsightStatePanel testId="insight-execution-quality" tone="warn" title={insightQualityLabel(execution.quality, t) ?? t('insight.quality.check')} body={t('insight.quality.invalidBody')} />}
-      <details className="text-xs text-text-muted">
-        <summary className="cursor-pointer text-text-secondary">{t('insight.detail.technical')}</summary>
-        <pre className="mt-2 overflow-x-auto rounded bg-bg-subtle p-2">{JSON.stringify({ outcome: execution.outcome, failure_reason: execution.failure_reason, command_status: execution.command_status, status_reason: execution.status_reason, quality: execution.quality }, null, 2)}</pre>
-      </details>
+      <section className="text-xs text-text-muted">
+        <button type="button" className="text-text-secondary hover:underline" aria-expanded={showDiagnostics} onClick={() => setShowDiagnostics((shown) => !shown)}>{t('insight.detail.technical')}</button>
+        {showDiagnostics && <pre className="mt-2 overflow-x-auto rounded bg-bg-subtle p-2">{JSON.stringify({ outcome: execution.outcome, failure_reason: execution.failure_reason, command_status: execution.command_status, status_reason: execution.status_reason, quality: execution.quality }, null, 2)}</pre>}
+      </section>
     </article>
   );
 }

@@ -6,6 +6,7 @@ import {
   insightExecutionStatus,
   insightFreshnessTone,
   insightQualityLabel,
+  presentInsightEnum,
   type InsightTone,
 } from '@/utils/insightPresentation';
 
@@ -49,7 +50,7 @@ export function InsightFreshnessBadge({ freshness }: { freshness: InsightFreshne
       title={`${formatInsightDuration(freshness.age_ms, t)} / ${formatInsightDuration(freshness.threshold_ms, t)}`}
       data-testid="insight-freshness"
     >
-      {t(`insight.freshness.${freshness.state}`)}
+      {presentInsightEnum('freshness', freshness.state, t)}
     </span>
   );
 }

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
 import { useInsightAgent, useInsightAgents, type InsightV2AgentSummary, type InsightV2CountMetric } from '@/api/insights';
+import { presentInsightEnum } from '@/utils/insightPresentation';
 
 const EMPTY = '—';
 
@@ -110,7 +111,7 @@ function InsightAgentSummaryCard({ agent }: { agent: InsightV2AgentSummary }): R
     <article className="space-y-4 rounded border border-border-base bg-bg-elevated p-4" data-testid="insight-agent-detail">
       <div className="flex flex-wrap items-center gap-2">
         <HealthBadge status={agent.health.status} />
-        {agent.reason_codes.map((code) => <span key={code} className="rounded-full border border-border-base bg-bg-subtle px-2 py-0.5 font-mono text-xs text-text-secondary">{code}</span>)}
+        {agent.reason_codes.map((code, index) => <span key={`${index}-${code}`} className="rounded-full border border-border-base bg-bg-subtle px-2 py-0.5 text-xs text-text-secondary">{presentInsightEnum('reasonCode', code, t)}</span>)}
       </div>
       <dl className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
         <MetricInfo label={t('insight.agents.metric.executions')} metric={agent.execution_count} />
@@ -147,8 +148,7 @@ function HealthBadge({ status }: { status: string }): React.ReactElement {
       : status === 'degraded'
         ? 'border-danger/30 bg-danger/10 text-danger'
         : 'border-border-base bg-bg-subtle text-text-secondary';
-  const key = ['healthy', 'elevated', 'degraded', 'unknown'].includes(status) ? status : 'unknown';
-  return <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${tone}`}>{t(`insight.agents.health.${key}`)}</span>;
+  return <span className={`rounded-full border px-2 py-0.5 text-xs font-medium ${tone}`}>{presentInsightEnum('health', status, t)}</span>;
 }
 
 function StatePanel({ testId, title, body, tone = 'muted' }: { testId: string; title: string; body?: string; tone?: 'muted' | 'danger' }): React.ReactElement {

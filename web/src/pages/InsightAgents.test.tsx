@@ -78,13 +78,13 @@ describe('Insight agents pages', () => {
     expect(within(table).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');
   });
 
-  it('renders detail metrics, backend-owned health reasons, and execution drilldown URL', async () => {
+  it('renders detail metrics and semantic health reasons without exposing enum tokens', async () => {
     server.use(http.get('/api/orgs/:slug/insights/v2/agents/:agentRef', ({ params, request }) => {
       expect(params.agentRef).toBe('agent:builder');
       expect(new URL(request.url).searchParams.get('window')).toBe('24h');
       return HttpResponse.json(agent({
-        health: { status: 'unknown', reason_codes: ['coverage_low'], evidence: [] },
-        reason_codes: ['coverage_low'],
+        health: { status: 'unknown_status', reason_codes: ['coverage_low', 'raw_future_enum'], evidence: [] },
+        reason_codes: ['coverage_low', 'raw_future_enum'],
         execution_count: metric(null, { known: false, coverage: null, unknown_count: 4, sample_count: 0 }),
       }));
     }));
@@ -93,7 +93,11 @@ describe('Insight agents pages', () => {
 
     const detail = await screen.findByTestId('insight-agent-detail');
     expect(detail).toHaveTextContent('Unknown');
-    expect(detail).toHaveTextContent('coverage_low');
+    expect(detail).toHaveTextContent('Low observation coverage');
+    expect(detail).toHaveTextContent('Backend-defined reason');
+    expect(detail).not.toHaveTextContent('unknown_status');
+    expect(detail).not.toHaveTextContent('coverage_low');
+    expect(detail).not.toHaveTextContent('raw_future_enum');
     expect(detail).toHaveTextContent('Metric confidence');
     expect(screen.getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');
   });

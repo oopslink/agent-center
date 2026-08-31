@@ -155,7 +155,8 @@ describe('Insight v2 project pages', () => {
       const drilldown = within(row).getByTestId('insight-break-drilldown');
       expect(drilldown).toHaveTextContent('Project: Proj 1');
       expect(drilldown).toHaveTextContent('Break:');
-      expect(drilldown).toHaveTextContent('Status: Backend Exact');
+      expect(drilldown).toHaveTextContent('Status: Unknown value');
+      expect(drilldown).not.toHaveTextContent('backend-exact');
       expect(drilldown).not.toHaveTextContent('"project_id"');
       expect(drilldown).not.toHaveTextContent('"break_kind"');
     }
@@ -212,7 +213,8 @@ describe('Insight v2 project pages', () => {
     expect(rows[0]).toHaveAttribute('data-break-kind', 'backend_new_kind');
     expect(rows[0]).toHaveTextContent('Backend-defined break');
     expect(rows[0]).not.toHaveTextContent('backend_new_kind');
-    expect(within(rows[0]).getByTestId('insight-break-drilldown')).toHaveTextContent('Anomaly: Backend Only');
+    expect(within(rows[0]).getByTestId('insight-break-drilldown')).toHaveTextContent('Anomaly: Unknown value');
+    expect(within(rows[0]).getByTestId('insight-break-drilldown')).not.toHaveTextContent('backend-only');
     expect(within(rows[0]).getByTestId('insight-break-drilldown')).not.toHaveTextContent('"anomaly"');
     expect(within(rows[0]).getByTestId('insight-break-drilldown')).not.toHaveTextContent('break_kind');
     expect(within(rows[0]).getByText('—')).toBeInTheDocument();
@@ -277,7 +279,7 @@ describe('Insight v2 project pages', () => {
       ...windowEnvelope,
       project_id: 'proj-1',
       plan_id: 'plan-1',
-      health: { status: 'unknown', reason_codes: ['lineage.integrity_broken'], evidence: [{ reason: 'missing_sha' }] },
+      health: { status: 'unknown_status', reason_codes: ['lineage.integrity_broken', 'raw_future_enum'], evidence: [{ reason: 'missing_sha' }] },
       generations: [
         {
           generation: 0,
@@ -296,14 +298,14 @@ describe('Insight v2 project pages', () => {
           generation: 1,
           created_at: '2026-08-30T02:00:00Z',
           triggered_by: 'agent:planner',
-          reason: 'unknown',
+          reason: 'arbitrary_future_token',
           evidence: [{ trigger: 'missing' }],
           node_changes: [{ added: 'task-2' }],
           recovery_duration_ms: null,
-          recovery_outcome: 'unknown',
+          recovery_outcome: 'future_outcome',
           delivery_branch: '',
           delivery_sha: '',
-          acceptance_verdict: 'reject',
+          acceptance_verdict: 'future_outcome',
         },
       ],
     })));
@@ -318,7 +320,11 @@ describe('Insight v2 project pages', () => {
     expect(generations[1]).toHaveAttribute('data-generation', 'G1');
     expect(generations[1]).toHaveTextContent('Lineage anomaly');
     expect(generations[1]).toHaveTextContent('Unknown');
-    expect(generations[1]).toHaveTextContent('Reject');
+    expect(generations[1]).toHaveTextContent('Unknown value');
+    expect(document.body).not.toHaveTextContent('unknown_status');
+    expect(document.body).not.toHaveTextContent('raw_future_enum');
+    expect(document.body).not.toHaveTextContent('arbitrary_future_token');
+    expect(document.body).not.toHaveTextContent('future_outcome');
   });
 
   it('renders auth and Chinese states independently', async () => {

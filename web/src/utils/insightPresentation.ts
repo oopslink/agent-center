@@ -6,6 +6,43 @@ export const INSIGHT_EMPTY = '—';
 export type InsightCoverageKind = 'unknown' | 'insufficient' | 'partial' | 'representative';
 export type InsightTone = 'normal' | 'unknown' | 'warn' | 'danger' | 'success' | 'info' | 'neutral';
 
+type InsightTranslator = (key: string, options?: Record<string, unknown>) => string;
+
+const insightEnumKeys = {
+  health: {
+    healthy: 'insight.health.healthy', elevated: 'insight.health.elevated', degraded: 'insight.health.degraded', unknown: 'insight.health.unknown',
+  },
+  freshness: {
+    fresh: 'insight.freshness.fresh', stale: 'insight.freshness.stale', rebuilding: 'insight.freshness.rebuilding', unavailable: 'insight.freshness.unavailable', unknown: 'insight.freshness.unknown',
+  },
+  lineageReason: {
+    blocked: 'insight.lineage.reasonValue.blocked', review_reject: 'insight.lineage.reasonValue.review_reject', requirement_change: 'insight.lineage.reasonValue.requirement_change', execution_failure: 'insight.lineage.reasonValue.execution_failure', manual_adjustment: 'insight.lineage.reasonValue.manual_adjustment', unknown: 'insight.lineage.reasonValue.unknown',
+  },
+  recoveryOutcome: {
+    completed: 'insight.lineage.recoveryOutcomeValue.completed', failed: 'insight.lineage.recoveryOutcomeValue.failed', pending: 'insight.lineage.recoveryOutcomeValue.pending', unknown: 'insight.lineage.recoveryOutcomeValue.unknown',
+  },
+  verdict: {
+    pass: 'insight.lineage.verdictValue.pass', reject: 'insight.lineage.verdictValue.reject', pending: 'insight.lineage.verdictValue.pending',
+  },
+  reasonCode: {
+    coverage_low: 'insight.reasonCode.coverage_low', coverage_unknown: 'insight.reasonCode.coverage_unknown', freshness_stale: 'insight.reasonCode.freshness_stale', 'lineage.integrity_broken': 'insight.reasonCode.lineage.integrity_broken', metric_unknown: 'insight.reasonCode.metric_unknown', sample_empty: 'insight.reasonCode.sample_empty', unknown_source_state: 'insight.reasonCode.unknown_source_state', unknown: 'insight.reasonCode.unknown',
+  },
+  breakKind: {
+    issue_without_task: 'insight.delivery.break.issue_without_task', task_without_plan: 'insight.delivery.break.task_without_plan', task_multiple_containers: 'insight.delivery.break.task_multiple_containers', done_plan_non_terminal_task: 'insight.delivery.break.done_plan_non_terminal_task', done_plan_open_issue: 'insight.delivery.break.done_plan_open_issue', evolution_old_generation_residue: 'insight.delivery.break.evolution_old_generation_residue', delivery_sha_lineage_mismatch: 'insight.delivery.break.delivery_sha_lineage_mismatch', unknown: 'insight.delivery.break.unknown',
+  },
+  anomaly: {
+    rework: 'insight.evolution.anomaly.rework', recovery: 'insight.evolution.anomaly.recovery', loop_depth: 'insight.evolution.anomaly.loop_depth', residue: 'insight.evolution.anomaly.residue', unknown: 'insight.evolution.anomaly.unknown',
+  },
+} as const;
+
+type InsightEnumKind = keyof typeof insightEnumKeys;
+
+export function presentInsightEnum(kind: InsightEnumKind, value: string | null | undefined, t: InsightTranslator): string {
+  const values = insightEnumKeys[kind] as Record<string, string>;
+  const fallback = values.unknown ?? 'insight.enum.unknown';
+  return t((value && values[value]) || fallback);
+}
+
 export interface InsightCoveragePresentation {
   kind: InsightCoverageKind;
   value: string;
