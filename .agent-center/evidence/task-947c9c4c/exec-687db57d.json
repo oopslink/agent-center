@@ -1,0 +1,371 @@
+{
+  "task_id": "task-947c9c4c",
+  "execution_id": "exec-687db57d",
+  "reviewed_sha": "36de9846a82bca5e3f8de97e62688387d7ca8d47",
+  "base_sha": "36de9846a82bca5e3f8de97e62688387d7ca8d47",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files -g 'README.md' -g 'manifest.json' -g '.git' -g 'go.mod' -g 'package.json' -g 'Makefile'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'find task-input/v1 -maxdepth 3 -type f -print0 | xargs -0 shasum -a 256'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"git rev-parse HEAD \u0026\u0026 git rev-parse origin/main \u0026\u0026 git log -1 --format='%H%n%D%n%s' origin/main\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'rg -n \"worker|authoritative|health|version|stale|unavailable|unhealthy|timeout|disconnect|readback|consumer|identity|running\" -S .'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"git show -s --format='%H%n%ct%n%s%n%b' HEAD\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git fetch --prune origin +refs/heads/main:refs/remotes/origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'rg -n \"ReadBack|read back|worker.*identity|identity.*worker|Admin|health|version|fail closed|fail-closed|stale|unavailable|unhealthy|timeout|disconnect|consumer\" internal cmd tests -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'find task-input/v1 -maxdepth 3 -type f -print0 | xargs -0 file --mime-type'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"git rev-parse origin/main \u0026\u0026 git show -s --format='%H%n%D%n%s' origin/main\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'mkdir -p evidence-t1857-review/raw \u0026\u0026 git worktree add --detach fresh-review-t1857-36de9846 origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' internal/webconsole/api/handlers_agent_runtime.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"sed -n '1,360p' tests/e2e/deployed_runtime_version_smoke_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'rg -n \"workerInfoMatchingBuildFromAdmin|runtime-version|running=|expected=|worker_info|health\" tests/e2e/deployed_runtime_version_smoke_test.go internal/workerdaemon internal/webconsole/api/handlers_agent_runtime.go -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc 'rg -n \"deployed_runtime|race|vet|focused|full|worker.*authoritative|read back restarted\" Makefile scripts tests internal -S'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"sed -n '1,180p' internal/webconsole/api/handlers_agent_runtime_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '1,360p' internal/workerdaemon/runtime_deployer.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"sed -n '1,230p' internal/workerdaemon/runtime_deployer_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"sed -n '1,390p' internal/workerdaemon/agentcontrol/agentcontrol_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: find ../task-input/v1 -maxdepth 3 -type f with sha256 and mime\\\\n'; find ../task-input/v1 -maxdepth 3 -type f -print0 | xargs -0 shasum -a 256; find ../task-input/v1 -maxdepth 3 -type f -print0 | xargs -0 file --mime-type; printf '\\\\nREADME:\\\\n'; sed -n '1,240p' ../task-input/v1/README.md; printf '\\\\nMANIFEST:\\\\n'; sed -n '1,240p' ../task-input/v1/manifest.json; } \u003e ../evidence-t1857-review/raw/task-input-materialization.txt 2\u003e\u00261\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: git show --stat --oneline --decorate --find-renames --find-copies HEAD\\\\n'; git show --stat --oneline --decorate --find-renames --find-copies HEAD; } \u003e ../evidence-t1857-review/raw/reviewed-commit-show.txt 2\u003e\u00261\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: git rev-parse HEAD \u0026\u0026 git rev-parse origin/main \u0026\u0026 git status --short --branch\\\\n'; git rev-parse HEAD; git rev-parse origin/main; git status --short --branch; } \u003e ../evidence-t1857-review/raw/reviewed-sha.txt 2\u003e\u00261\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: go test ./internal/workerdaemon -run \\\"TestSourceRuntimeDeployer|TestReadCenterAdminHealth|TestReadWorkerAdminReadback\\\" -count=1 -v\\\\n'; go test ./internal/workerdaemon -run 'TestSourceRuntimeDeployer|TestReadCenterAdminHealth|TestReadWorkerAdminReadback' -count=1 -v; code=\"'$?; printf '\"'\\\\nEXIT_CODE=%s\\\\n' \\\"\"'$code\"; exit \"$code\"; } \u003e ../evidence-t1857-review/raw/focused-workerdaemon-readback.txt 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: go test ./internal/webconsole/api -run \\\"TestRuntimeAPI_\\\" -count=1 -v\\\\n'; go test ./internal/webconsole/api -run 'TestRuntimeAPI_' -count=1 -v; code=\"'$?; printf '\"'\\\\nEXIT_CODE=%s\\\\n' \\\"\"'$code\"; exit \"$code\"; } \u003e ../evidence-t1857-review/raw/focused-web-runtime-api.txt 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: go test ./tests/e2e -run \\\"TestDeployedBinaryRuntimeVersion\\\" -count=1 -v\\\\n'; go test ./tests/e2e -run 'TestDeployedBinaryRuntimeVersion' -count=1 -v; code=\"'$?; printf '\"'\\\\nEXIT_CODE=%s\\\\n' \\\"\"'$code\"; exit \"$code\"; } \u003e ../evidence-t1857-review/raw/focused-deployed-runtime-version.txt 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"sed -n '1,130p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"sed -n '130,230p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' internal/workerdaemon/worker_controller_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"sed -n '220,520p' internal/workerdaemon/worker_controller_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc 'tail -80 ../evidence-t1857-review/raw/full-make-test.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: make test\\\\n'; make test; code=\"'$?; printf '\"'\\\\nEXIT_CODE=%s\\\\n' \\\"\"'$code\"; exit \"$code\"; } \u003e ../evidence-t1857-review/raw/full-make-test.txt 2\u003e\u00261'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc 'tail -220 ../evidence-t1857-review/raw/full-make-test.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc 'tail -120 ../evidence-t1857-review/raw/full-go-test-all-retry.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc 'tail -200 ../evidence-t1857-review/raw/full-go-test-all-retry.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: go test ./... -timeout=20m\\\\n'; go test ./... -timeout=20m; code=\"'$?; printf '\"'\\\\nEXIT_CODE=%s\\\\n' \\\"\"'$code\"; exit \"$code\"; } \u003e ../evidence-t1857-review/raw/full-go-test-all-retry.txt 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: make vet\\\\n'; make vet; code=\"'$?; printf '\"'\\\\nEXIT_CODE=%s\\\\n' \\\"\"'$code\"; exit \"$code\"; } \u003e ../evidence-t1857-review/raw/vet-make-vet.txt 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'tail -120 ../evidence-t1857-review/raw/race-make-test-race.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: make test-race\\\\n'; make test-race; code=\"'$?; printf '\"'\\\\nEXIT_CODE=%s\\\\n' \\\"\"'$code\"; exit \"$code\"; } \u003e ../evidence-t1857-review/raw/race-make-test-race.txt 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_76",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: nl -ba internal/workerdaemon/runtime_deployer.go | sed -n \\\"1,290p\\\"\\\\n'; nl -ba internal/workerdaemon/runtime_deployer.go | sed -n '1,290p'; } \u003e ../evidence-t1857-review/raw/source-runtime-deployer-numbered.txt 2\u003e\u00261\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_77",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: nl -ba internal/workerdaemon/runtime_deployer_test.go | sed -n \\\"1,230p\\\"\\\\n'; nl -ba internal/workerdaemon/runtime_deployer_test.go | sed -n '1,230p'; } \u003e ../evidence-t1857-review/raw/source-runtime-deployer-test-numbered.txt 2\u003e\u00261\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: nl -ba tests/e2e/deployed_runtime_version_smoke_test.go | sed -n \\\"1,310p\\\"\\\\n'; nl -ba tests/e2e/deployed_runtime_version_smoke_test.go | sed -n '1,310p'; } \u003e ../evidence-t1857-review/raw/source-e2e-runtime-version-numbered.txt 2\u003e\u00261\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_79",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: nl -ba internal/webconsole/api/handlers_agent_runtime.go internal/webconsole/api/handlers_agent_runtime_test.go selected\\\\n'; nl -ba internal/webconsole/api/handlers_agent_runtime.go | sed -n '1,160p'; printf '\\\\n--- TEST ---\\\\n'; nl -ba internal/webconsole/api/handlers_agent_runtime_test.go | sed -n '1,120p'; } \u003e ../evidence-t1857-review/raw/source-web-runtime-api-numbered.txt 2\u003e\u00261\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_80",
+      "command": "/bin/zsh -lc 'tail -40 ../evidence-t1857-review/raw/focused-workerdaemon-readback.txt \u0026\u0026 tail -40 ../evidence-t1857-review/raw/focused-web-runtime-api.txt \u0026\u0026 tail -80 ../evidence-t1857-review/raw/focused-deployed-runtime-version.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc 'tail -20 ../evidence-t1857-review/raw/full-go-test-all-retry.txt \u0026\u0026 tail -20 ../evidence-t1857-review/raw/race-make-test-race.txt \u0026\u0026 tail -20 ../evidence-t1857-review/raw/vet-make-vet.txt \u0026\u0026 tail -20 ../evidence-t1857-review/raw/full-make-test.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_82",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 find ../evidence-t1857-review -type f -print0 | xargs -0 shasum -a 256'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_83",
+      "command": "/bin/zsh -lc 'find ../task-input/v1 -maxdepth 2 -type d -print'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_84",
+      "command": "/bin/zsh -lc \"sed -n '160,280p' internal/workerdaemon/runtime_deployer_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_88",
+      "command": "/bin/zsh -lc \"set -o pipefail; { printf 'COMMAND: go test ./internal/workerdaemon -run TestT1857RawWorkerReadbackFailClosedEvidence -count=1 -v\\\\n'; go test ./internal/workerdaemon -run TestT1857RawWorkerReadbackFailClosedEvidence -count=1 -v; code=\"'$?; printf '\"'\\\\nEXIT_CODE=%s\\\\n' \\\"\"'$code\"; exit \"$code\"; } \u003e ../evidence-t1857-review/raw/raw-worker-readback-failclosed-probe.txt 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_92",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_93",
+      "command": "/bin/zsh -lc 'tail -120 ../evidence-t1857-review/raw/raw-worker-readback-failclosed-probe.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_94",
+      "command": "/bin/zsh -lc \"for f in ../evidence-t1857-review/raw/focused-workerdaemon-readback.txt ../evidence-t1857-review/raw/focused-web-runtime-api.txt ../evidence-t1857-review/raw/focused-deployed-runtime-version.txt ../evidence-t1857-review/raw/full-go-test-all-retry.txt ../evidence-t1857-review/raw/race-make-test-race.txt ../evidence-t1857-review/raw/vet-make-vet.txt ../evidence-t1857-review/raw/raw-worker-readback-failclosed-probe.txt; do printf '%s: ' \\\"\"'$f\"; tail -1 \"$f\"; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_95",
+      "command": "/bin/zsh -lc \"find ../evidence-t1857-review -type f -print0 | sort -z | xargs -0 shasum -a 256 \u003e ../evidence-t1857-review/SHA256SUMS \u0026\u0026 find ../evidence-t1857-review -type f -print0 | sort -z | xargs -0 file --mime-type \u003e ../evidence-t1857-review/MIME.txt \u0026\u0026 sed -n '1,240p' ../evidence-t1857-review/SHA256SUMS \u0026\u0026 printf '\\\\n--- MIME ---\\\\n' \u0026\u0026 sed -n '1,240p' ../evidence-t1857-review/MIME.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_97",
+      "command": "/bin/zsh -lc \"set -o pipefail; { find ../task-input/v1 ../evidence-t1857-review/raw -type f -print0 | sort -z | xargs -0 shasum -a 256; } \u003e ../evidence-t1857-review/SHA256SUMS \u0026\u0026 { find ../task-input/v1 ../evidence-t1857-review/raw -type f -print0 | sort -z | xargs -0 file --mime-type; } \u003e ../evidence-t1857-review/MIME.txt \u0026\u0026 sed -n '1,260p' ../evidence-t1857-review/SHA256SUMS \u0026\u0026 printf '\\\\n--- MIME ---\\\\n' \u0026\u0026 sed -n '1,260p' ../evidence-t1857-review/MIME.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_100",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-parse origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_101",
+      "command": "/bin/zsh -lc 'set -o pipefail; { find ../task-input/v1 ../evidence-t1857-review -type f ! -name SHA256SUMS ! -name MIME.txt -print0 | sort -z | xargs -0 shasum -a 256; } \u003e ../evidence-t1857-review/SHA256SUMS \u0026\u0026 { find ../task-input/v1 ../evidence-t1857-review -type f ! -name SHA256SUMS ! -name MIME.txt -print0 | sort -z | xargs -0 file --mime-type; } \u003e ../evidence-t1857-review/MIME.txt \u0026\u0026 sed -n '\"'1,260p' ../evidence-t1857-review/SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_102",
+      "command": "/bin/zsh -lc 'shasum -a 256 ../evidence-t1857-review/SHA256SUMS ../evidence-t1857-review/MIME.txt ../evidence-t1857-review/VERDICT.md'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-687db57d/command_events.jsonl",
+  "command_event_digest": "sha256:2dd3888fa71b29cd62dc242acad04bb8956eebeff83c87e2b6c5f0c4f94d3710",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "VERDICT: PASS",
+  "artifact_digest": "sha256:9b73e6183b70c3d45d94bfa1c48ddf86862a02c2c48022f5fed832c47427c9ad",
+  "path": ".agent-center/evidence/task-947c9c4c/exec-687db57d.json",
+  "branch": "ac-exec/task-947c9c4c/exec-687db57d"
+}
