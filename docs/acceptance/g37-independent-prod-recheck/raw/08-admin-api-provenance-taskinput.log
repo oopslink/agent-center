@@ -1,0 +1,35 @@
++zsh:1> go test ./internal/admin/api -run 'Test(RuntimeDeployRestartHandler_VerifiesRemoteBeforeEnqueue|RuntimeDeployRestartHandler_RejectsMismatchedRemoteSHA|RuntimeDeployRestartHandler_IdempotencyKeyDoesNotDoubleMutate|RuntimeDeployRestartHandler_LongTimeoutReturnsBeforeTerminal|RuntimeDeployRestartHandler_IdempotencyConflictDifferentPayload|RuntimeDeployStatusHandler_ReadsTerminalAttemptByIdempotencyKey|RuntimeDeployStatusHandler_UnknownAttempt|RuntimeDeployRestartHandler_RejectsNonWorkerToken|RuntimeDeployRestartHandler_RejectsWrongWorkerAgent|TaskInputPlan569_RealAdminHandlersEndToEnd)$' '-count=1' -v
+=== RUN   TestRuntimeDeployRestartHandler_VerifiesRemoteBeforeEnqueue
+--- PASS: TestRuntimeDeployRestartHandler_VerifiesRemoteBeforeEnqueue (0.09s)
+=== RUN   TestRuntimeDeployRestartHandler_RejectsMismatchedRemoteSHA
+--- PASS: TestRuntimeDeployRestartHandler_RejectsMismatchedRemoteSHA (0.08s)
+=== RUN   TestRuntimeDeployRestartHandler_IdempotencyKeyDoesNotDoubleMutate
+--- PASS: TestRuntimeDeployRestartHandler_IdempotencyKeyDoesNotDoubleMutate (0.08s)
+=== RUN   TestRuntimeDeployRestartHandler_LongTimeoutReturnsBeforeTerminal
+--- PASS: TestRuntimeDeployRestartHandler_LongTimeoutReturnsBeforeTerminal (0.08s)
+=== RUN   TestRuntimeDeployRestartHandler_IdempotencyConflictDifferentPayload
+--- PASS: TestRuntimeDeployRestartHandler_IdempotencyConflictDifferentPayload (0.08s)
+=== RUN   TestRuntimeDeployStatusHandler_ReadsTerminalAttemptByIdempotencyKey
+--- PASS: TestRuntimeDeployStatusHandler_ReadsTerminalAttemptByIdempotencyKey (0.08s)
+=== RUN   TestRuntimeDeployStatusHandler_UnknownAttempt
+--- PASS: TestRuntimeDeployStatusHandler_UnknownAttempt (0.08s)
+=== RUN   TestRuntimeDeployRestartHandler_RejectsNonWorkerToken
+--- PASS: TestRuntimeDeployRestartHandler_RejectsNonWorkerToken (0.08s)
+=== RUN   TestRuntimeDeployRestartHandler_RejectsWrongWorkerAgent
+--- PASS: TestRuntimeDeployRestartHandler_RejectsWrongWorkerAgent (0.08s)
+=== RUN   TestTaskInputPlan569_RealAdminHandlersEndToEnd
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-a89b62f8 — SpawnExecutor entry
+    local_runtime.go:543: fork_executor agent=AG1 task=task-a89b62f8: starting BACKGROUND independent clone (control command returns now, task re-driven on completion)
+    local_runtime.go:543: agent=AG1 task=task-a89b62f8: independent clone ready — re-driving deferred task
+    local_runtime.go:543: DISPATCH-FORK-REQUEST route=fork_executor agent_namespace=AG1 task_id=task-a89b62f8 — SpawnExecutor entry
+    local_runtime.go:543: agent=AG1 team-rule-index phase=execute load failed: get_team_rule_index: status 501: {"error":"team_not_wired","message":"team service is not wired on this center"}
+    local_runtime.go:543: DISPATCH-FORK-ENTRY agent_namespace=AG1 task_id=task-a89b62f8 — launchExecutorNow committing an executor fork
+    local_runtime.go:543: agent=AG1 task=task-a89b62f8 forked executor=exec-025dd279 cli=claude-code model=m(default_fallback) problem=problem-e8eaeada
+    local_runtime.go:543: agent=AG1 task=task-a89b62f8 re-drive after independent clone ready: forked executor=exec-025dd279
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-025dd279: kind=crashed output_present=false wasStall=false thisProcess=true — deciding recover-vs-terminal
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-025dd279 task=task-a89b62f8 → should-continue CONFIRMED (status="running") — proceeding to recover
+    local_runtime.go:543: agent=AG1 point-recovery executor=exec-025dd279 task=task-a89b62f8 → RECOVER tier=resume (wasStall=false) — relaunching in place
+    local_runtime.go:543: agent=AG1 self-reconcile relaunched executor=exec-025dd279 pid=30852
+--- PASS: TestTaskInputPlan569_RealAdminHandlersEndToEnd (0.10s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/admin/api	1.539s

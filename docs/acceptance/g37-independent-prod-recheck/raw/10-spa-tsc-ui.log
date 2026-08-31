@@ -1,0 +1,20 @@
++zsh:1> make lint-spa-tsc
+cd web && npx tsc -b --force
+
+[41m                                                                               [0m
+[41m[37m                This is not the tsc command you are looking for                [0m
+[41m                                                                               [0m
+
+To get access to the TypeScript compiler, [34mtsc[0m, from the command line either:
+
+- Use [1mnpm install typescript[0m to first add TypeScript to your project [1mbefore[0m using npx
+- Use [1myarn[0m to avoid accidentally running code from un-installed packages
+make: *** [lint-spa-tsc] Error 1
++zsh:1> cd web
++zsh:1> pnpm test -- --run src/pages/Access.test.tsx src/pages/AiRuntime.test.tsx src/components/RuntimeSelectors.test.tsx
+
+> agent-center-web@0.1.0 test /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-79311595/web
+> vitest run -- --run src/pages/Access.test.tsx src/pages/AiRuntime.test.tsx src/components/RuntimeSelectors.test.tsx
+
+sh: vitest: command not found
+ ELIFECYCLE  Test failed. See above for more details.

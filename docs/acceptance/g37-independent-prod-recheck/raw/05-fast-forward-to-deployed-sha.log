@@ -1,0 +1,11 @@
++zsh:1> git merge --ff-only origin/main
+Updating ccf4acb3..d44fb334
+Updating files: 100% (2/2)Updating files: 100% (2/2), done.
+Fast-forward
+ web/src/pages/Access.test.tsx |  4 ++++
+ web/src/pages/Access.tsx      | 24 ++++++++++++++++++------
+ 2 files changed, 22 insertions(+), 6 deletions(-)
++zsh:1> git rev-parse HEAD
+d44fb334286bee544795d7af272b57874c6e97ad
++zsh:1> git status --short
+?? docs/acceptance/g37-independent-prod-recheck/

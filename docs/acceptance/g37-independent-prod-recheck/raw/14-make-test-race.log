@@ -1,0 +1,11 @@
++zsh:1> make test-race
+go test -race -count=10 ./internal/agentruntime/...
+ok  	github.com/oopslink/agent-center/internal/agentruntime	186.707s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/executor	233.048s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/modelrouter	5.262s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/orchestrator	24.060s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/reporepo	175.173s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/sessioninstance	5.048s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/skillscan	6.834s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/taskexec	6.798s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/tasklog	6.450s

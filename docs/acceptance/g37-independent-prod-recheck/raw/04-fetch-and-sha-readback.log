@@ -1,0 +1,15 @@
++zsh:1> git fetch --prune origin +refs/heads/main:refs/remotes/origin/main
+From github.com:oopslink/agent-center
+   ccf4acb3..d44fb334  main       -> origin/main
+   ccf4acb3..d44fb334  main       -> main
++zsh:1> git fetch --prune origin-push +refs/heads/main:refs/remotes/origin-push/main
+From github.com:oopslink/agent-center
+   36de9846..d44fb334  main       -> origin-push/main
++zsh:1> git rev-parse HEAD
+ccf4acb3262edbb86bfe3f467df67a2eaf64e0c3
++zsh:1> git rev-parse origin/main
+d44fb334286bee544795d7af272b57874c6e97ad
++zsh:1> git rev-parse origin-push/main
+d44fb334286bee544795d7af272b57874c6e97ad
++zsh:1> git status --short
+?? docs/acceptance/g37-independent-prod-recheck/

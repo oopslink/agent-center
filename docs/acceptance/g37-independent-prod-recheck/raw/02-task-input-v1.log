@@ -1,0 +1,25 @@
++zsh:1> jq -S . task-input/v1/manifest.json
+{
+  "attachment_fields": {
+    "mime_type": "string",
+    "path": "task-input/v1/attachments/<name>",
+    "sha256": "hex",
+    "size_bytes": "integer"
+  },
+  "attachments": [],
+  "materialization_note": "Supervisor-declared task-input/v1 files were absent in the workspace; this manifest records the local package and the absence of attachments.",
+  "materialized_at": "2026-08-31T12:18:00+08:00",
+  "schema": "task-input/v1",
+  "task": {
+    "fresh_base": "3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5",
+    "id": "T1850",
+    "required_chain_anchor": "7f4cfcc43e0360f31e756bb453e675db50cc26c6",
+    "source_commit": "65eab385a93199d98fe3b367d4d07bc627cda7f2",
+    "title": "Replay worker authoritative readback implementation onto fresh current-main"
+  }
+}
++zsh:1> find task-input/v1 -maxdepth 3 -type f -print -exec shasum -a 256 '{}' ';'
+task-input/v1/README.md
+64a8014e162df29f88f83962103555524f1ad563aa50f77deff03b00a0f8efe4  task-input/v1/README.md
+task-input/v1/manifest.json
+db83e31afb3d8a3fdb7d7137a2b901acd5214a3f8e1f52219069969a89592092  task-input/v1/manifest.json

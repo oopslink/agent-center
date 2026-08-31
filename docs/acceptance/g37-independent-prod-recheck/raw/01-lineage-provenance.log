@@ -1,0 +1,16 @@
++zsh:1> git merge-base HEAD 65eab385a93199d98fe3b367d4d07bc627cda7f2
+65eab385a93199d98fe3b367d4d07bc627cda7f2
++zsh:1> git merge-base --is-ancestor 65eab385a93199d98fe3b367d4d07bc627cda7f2 HEAD
++zsh:1> echo 'source_ancestor_exit=0'
+source_ancestor_exit=0
++zsh:1> git merge-base HEAD 7f4cfcc43e0360f31e756bb453e675db50cc26c6
+7f4cfcc43e0360f31e756bb453e675db50cc26c6
++zsh:1> git merge-base --is-ancestor 7f4cfcc43e0360f31e756bb453e675db50cc26c6 HEAD
++zsh:1> echo 'anchor_ancestor_exit=0'
+anchor_ancestor_exit=0
++zsh:1> git show -s '--format=HEAD %H %P %D %s' HEAD
+HEAD ccf4acb3262edbb86bfe3f467df67a2eaf64e0c3 4707db8237469661df6df5b9bd24f7562657b474 HEAD -> ac-exec/task-54540f86/exec-79311595, origin/main, origin/HEAD, main fix(access): tighten grant picker interactions
++zsh:1> git show -s '--format=SOURCE %H %P %D %s' 65eab385a93199d98fe3b367d4d07bc627cda7f2
+SOURCE 65eab385a93199d98fe3b367d4d07bc627cda7f2 3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5 origin/ac-exec/task-8feded1d/exec-6041338d, origin/ac-exec/task-3584f5da/exec-bd17a7ca, origin-push/ac-exec/task-8feded1d/exec-6041338d, origin-push/ac-exec/task-3584f5da/exec-bd17a7ca fix(worker): read back restarted worker identity from admin plane
++zsh:1> git show -s '--format=ANCHOR %H %P %D %s' 7f4cfcc43e0360f31e756bb453e675db50cc26c6
+ANCHOR 7f4cfcc43e0360f31e756bb453e675db50cc26c6 b9c002eba17fb3e6588f372fbfea9b72925b339d origin/ac-exec/task-184a7b75/exec-2fe5e0f6, origin-push/ac-exec/task-184a7b75/exec-2fe5e0f6 fix(runtime): enforce running deploy readback

@@ -1,0 +1,21 @@
++zsh:1> go test ./tests/e2e -run 'TestRuntimeVersionAssertions|TestDeployedBinaryRuntimeVersion' '-count=1' -v
+=== RUN   TestDeployedBinaryRuntimeVersionSmoke
+=== RUN   TestDeployedBinaryRuntimeVersionSmoke/control-stream-on
+    deployed_runtime_version_smoke_test.go:25: seeded org=organization-rvsmoke agent=agent-rvsmoke-on(running,worker=w-rvsmoke-on) empty-dm=conv-rvsmoke-on (no directed msg yet)
+    deployed_runtime_version_smoke_test.go:25: org-enrolled worker w-rvsmoke-on → org organization-rvsmoke (control-connect precondition)
+=== RUN   TestDeployedBinaryRuntimeVersionSmoke/control-stream-off
+    deployed_runtime_version_smoke_test.go:25: seeded org=organization-rvsmoke agent=agent-rvsmoke-off(running,worker=w-rvsmoke-off) empty-dm=conv-rvsmoke-off (no directed msg yet)
+    deployed_runtime_version_smoke_test.go:25: org-enrolled worker w-rvsmoke-off → org organization-rvsmoke (control-connect precondition)
+--- PASS: TestDeployedBinaryRuntimeVersionSmoke (16.40s)
+    --- PASS: TestDeployedBinaryRuntimeVersionSmoke/control-stream-on (10.05s)
+    --- PASS: TestDeployedBinaryRuntimeVersionSmoke/control-stream-off (6.34s)
+=== RUN   TestDeployedBinaryRuntimeVersion_AdoptedOldRuntimeSkewFails
+    deployed_runtime_version_smoke_test.go:225: seeded org=organization-rvskew agent=agent-rvskew(running,worker=w-rvskew) empty-dm=conv-rvskew (no directed msg yet)
+    deployed_runtime_version_smoke_test.go:255: org-enrolled worker w-rvskew → org organization-rvskew (control-connect precondition)
+--- PASS: TestDeployedBinaryRuntimeVersion_AdoptedOldRuntimeSkewFails (17.39s)
+=== RUN   TestRuntimeVersionAssertions_ConsistentPasses
+--- PASS: TestRuntimeVersionAssertions_ConsistentPasses (0.00s)
+=== RUN   TestRuntimeVersionAssertions_AdoptedOldRuntimeSkewFailsWithDiagnostics
+--- PASS: TestRuntimeVersionAssertions_AdoptedOldRuntimeSkewFailsWithDiagnostics (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/tests/e2e	34.425s

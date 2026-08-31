@@ -1,0 +1,47 @@
++zsh:1> make lint-spa-tsc
+cd web && npx tsc -b --force
++zsh:1> cd web
++zsh:1> pnpm exec vitest run src/pages/Access.test.tsx src/pages/AiRuntime.test.tsx src/components/RuntimeSelectors.test.tsx
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-79311595/web
+
+(node:31527) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:31526) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:31528) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/components/RuntimeSelectors.test.tsx (8 tests) 52ms
+ ✓ src/pages/AiRuntime.test.tsx (14 tests) 1474ms
+ ✓ src/pages/Access.test.tsx (27 tests) 12791ms
+   ✓ Access page > renders the independent RAM Roles page without subject controls or duplicate tabs 681ms
+   ✓ Access page > filters by search, risk, and scope, switches density, paginates, and explains every permission from the registry 584ms
+   ✓ Access page > renders explicit empty, list error, and detail error states with recovery actions 1303ms
+   ✓ Access page > renders Subject access as a distinct titled page with its own actions and filters 843ms
+   ✓ Access page > renders a page-specific data error for ram-roles 434ms
+   ✓ Access page > renders a page-specific data error for subject-access 350ms
+   ✓ Access page > renders the canonical empty subject state after filters return no decisions 352ms
+   ✓ Access page > shows Team RAM and direct binding source chains, then opens the grant flow with selected context 486ms
+   ✓ Access page > filters permission groups and gives visible feedback when adding grant rows 367ms
+   ✓ Access page > previews and applies a four-step batch grant without deriving final permissions in the UI 567ms
+   ✓ Access page > previews, confirms, and reports a direct revoke within the selected subject 530ms
+   ✓ Access page > shows a success toast after the Add direct binding flow applies 566ms
+   ✓ Access page > assigns RAM Roles to a subject through the access grant drawer 440ms
+   ✓ Access page > explains why the access preview action is disabled 487ms
+   ✓ Access page > models direct grants as resource, scope, and action templates 451ms
+   ✓ Access page > keeps the selected subject context and surfaces a 409 apply conflict as a toast 537ms
+   ✓ Access page > does not preselect resources and clears incompatible resources when permission changes 509ms
+   ✓ Access page > renders partial failure result items without unknown phantom rows 523ms
+   ✓ Access page > confirms revoke with the original preview token, stable idempotency key, and reason/message 502ms
+   ✓ Access page > browses RAM role versions and publishes a real v2 RAM role version with CAS payload 499ms
+   ✓ Access page > keeps Used by Team Roles read-only and sends changes to the Team Role editor 356ms
+   ✓ Access page > requires the full RAM role name before deleting an unreferenced custom role 390ms
+   ✓ Access page > keeps RAM role versions pinned and shows an error when publish hits a CAS conflict 383ms
+   ✓ Access page > gates the ram-roles route with a page-specific forbidden state 317ms
+   ✓ Access page > gates the subject-access route with a page-specific forbidden state 323ms
+
+ Test Files  3 passed (3)
+      Tests  49 passed (49)
+   Start at  14:48:32
+   Duration  14.07s (transform 389ms, setup 1.36s, collect 442ms, tests 14.32s, environment 937ms, prepare 146ms)
+

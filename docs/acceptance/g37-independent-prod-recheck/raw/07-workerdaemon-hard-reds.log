@@ -1,0 +1,41 @@
++zsh:1> go test ./internal/workerdaemon -run 'Test(SourceRuntimeDeployerReportsAuthoritativeReadback|SourceRuntimeDeployerRejectsInstalledArtifactMismatchReadback|ReadWorkerAdminReadbackUsesAuthenticatedWorkerProjection|ReadWorkerAdminReadbackFailClosedStates|ReadWorkerAdminReadbackDisconnectedFailsClosed|ReadWorkerAdminReadbackTimeoutFailsClosed|ControllerHandler_RuntimeDeployRequiresServerVerification|ControllerHandler_RuntimeDeployReportsSucceeded|ControllerHandler_RuntimeDeployInvalidSuccessReadbackFails)$' '-count=1' -v
+=== RUN   TestSourceRuntimeDeployerReportsAuthoritativeReadback
+--- PASS: TestSourceRuntimeDeployerReportsAuthoritativeReadback (0.00s)
+=== RUN   TestSourceRuntimeDeployerRejectsInstalledArtifactMismatchReadback
+--- PASS: TestSourceRuntimeDeployerRejectsInstalledArtifactMismatchReadback (0.00s)
+=== RUN   TestReadWorkerAdminReadbackUsesAuthenticatedWorkerProjection
+--- PASS: TestReadWorkerAdminReadbackUsesAuthenticatedWorkerProjection (0.00s)
+=== RUN   TestReadWorkerAdminReadbackFailClosedStates
+=== RUN   TestReadWorkerAdminReadbackFailClosedStates/stale_sha
+=== RUN   TestReadWorkerAdminReadbackFailClosedStates/unhealthy
+=== RUN   TestReadWorkerAdminReadbackFailClosedStates/unavailable
+--- PASS: TestReadWorkerAdminReadbackFailClosedStates (0.25s)
+    --- PASS: TestReadWorkerAdminReadbackFailClosedStates/stale_sha (0.08s)
+    --- PASS: TestReadWorkerAdminReadbackFailClosedStates/unhealthy (0.08s)
+    --- PASS: TestReadWorkerAdminReadbackFailClosedStates/unavailable (0.09s)
+=== RUN   TestReadWorkerAdminReadbackDisconnectedFailsClosed
+--- PASS: TestReadWorkerAdminReadbackDisconnectedFailsClosed (0.08s)
+=== RUN   TestReadWorkerAdminReadbackTimeoutFailsClosed
+--- PASS: TestReadWorkerAdminReadbackTimeoutFailsClosed (0.33s)
+=== RUN   TestControllerHandler_RuntimeDeployRequiresServerVerification
+--- PASS: TestControllerHandler_RuntimeDeployRequiresServerVerification (0.00s)
+=== RUN   TestControllerHandler_RuntimeDeployReportsSucceeded
+--- PASS: TestControllerHandler_RuntimeDeployReportsSucceeded (0.00s)
+=== RUN   TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails
+=== RUN   TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/missing_running_sha
+=== RUN   TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/short_running_sha
+=== RUN   TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/wrong_running_sha
+=== RUN   TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/missing_version
+=== RUN   TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/wrong_version
+=== RUN   TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/restart_not_terminal_success
+=== RUN   TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/health_not_healthy
+--- PASS: TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails (0.00s)
+    --- PASS: TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/missing_running_sha (0.00s)
+    --- PASS: TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/short_running_sha (0.00s)
+    --- PASS: TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/wrong_running_sha (0.00s)
+    --- PASS: TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/missing_version (0.00s)
+    --- PASS: TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/wrong_version (0.00s)
+    --- PASS: TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/restart_not_terminal_success (0.00s)
+    --- PASS: TestControllerHandler_RuntimeDeployInvalidSuccessReadbackFails/health_not_healthy (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/workerdaemon	1.993s

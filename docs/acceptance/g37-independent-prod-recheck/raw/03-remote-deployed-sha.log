@@ -1,0 +1,8 @@
++zsh:1> git ls-remote origin HEAD refs/heads/main
+d44fb334286bee544795d7af272b57874c6e97ad	HEAD
+d44fb334286bee544795d7af272b57874c6e97ad	refs/heads/main
+16c83c62a60779dfbcdb7ce102912a917299c661	refs/remotes/origin/HEAD
++zsh:1> git ls-remote origin-push HEAD refs/heads/main
+d44fb334286bee544795d7af272b57874c6e97ad	HEAD
+d44fb334286bee544795d7af272b57874c6e97ad	refs/heads/main
+16c83c62a60779dfbcdb7ce102912a917299c661	refs/remotes/origin/HEAD

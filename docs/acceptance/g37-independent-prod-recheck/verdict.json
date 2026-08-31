@@ -1,0 +1,89 @@
+{
+  "schema": "g37-independent-production-recheck/v1",
+  "date": "2026-08-31",
+  "verdict": "PASS",
+  "tested_sha": "d44fb334286bee544795d7af272b57874c6e97ad",
+  "remote_main_sha": "d44fb334286bee544795d7af272b57874c6e97ad",
+  "local_start_sha": "ccf4acb3262edbb86bfe3f467df67a2eaf64e0c3",
+  "source_commit": "65eab385a93199d98fe3b367d4d07bc627cda7f2",
+  "required_chain_anchor": "7f4cfcc43e0360f31e756bb453e675db50cc26c6",
+  "no_g35_g36_reuse": true,
+  "criteria": [
+    {
+      "name": "exact_deployed_sha",
+      "result": "PASS",
+      "evidence": [
+        "raw/03-remote-deployed-sha.log",
+        "raw/04-fetch-and-sha-readback.log",
+        "raw/05-fast-forward-to-deployed-sha.log"
+      ]
+    },
+    {
+      "name": "four_hard_red_fail_closed",
+      "result": "PASS",
+      "evidence": [
+        "raw/07-workerdaemon-hard-reds.log"
+      ],
+      "covered_failures": [
+        "stale_sha",
+        "worker_projection_unavailable",
+        "unhealthy_status",
+        "timeout_or_disconnect"
+      ]
+    },
+    {
+      "name": "health_version",
+      "result": "PASS",
+      "evidence": [
+        "raw/09-build-health-version.log",
+        "raw/11-e2e-runtime-version.log"
+      ]
+    },
+    {
+      "name": "lineage_provenance",
+      "result": "PASS",
+      "evidence": [
+        "raw/06-lineage-provenance-deployed-sha.log"
+      ]
+    },
+    {
+      "name": "api_ui",
+      "result": "PASS",
+      "evidence": [
+        "raw/08-admin-api-provenance-taskinput.log",
+        "raw/12-spa-tsc-ui-rerun.log"
+      ]
+    },
+    {
+      "name": "tsc_race",
+      "result": "PASS",
+      "evidence": [
+        "raw/12-spa-tsc-ui-rerun.log",
+        "raw/14-make-test-race.log"
+      ]
+    },
+    {
+      "name": "task_input_v1",
+      "result": "PASS",
+      "evidence": [
+        "raw/02-task-input-v1.log",
+        "raw/08-admin-api-provenance-taskinput.log"
+      ]
+    },
+    {
+      "name": "full_regression_and_vet",
+      "result": "PASS",
+      "evidence": [
+        "raw/13-go-test-all.log",
+        "raw/15-go-vet.log"
+      ]
+    }
+  ],
+  "caveats": [
+    {
+      "name": "initial_spa_parallel_install_failure",
+      "evidence": "raw/10-spa-tsc-ui.log",
+      "resolution": "reran after dependency install completed; raw/12-spa-tsc-ui-rerun.log passed"
+    }
+  ]
+}
