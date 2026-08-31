@@ -1,0 +1,64 @@
+{
+  "schema": "insight-production-reverification/v1",
+  "verdict": "BLOCK",
+  "timestamp_utc": "2026-08-31T05:05:22Z",
+  "reason": "Required Insight production reverification contract and attachments are absent from task-input/v1. The local package describes unrelated task T1850 and declares no attachments.",
+  "input_package": {
+    "readme_path": "task-input/v1/README.md",
+    "readme_sha256": "64a8014e162df29f88f83962103555524f1ad563aa50f77deff03b00a0f8efe4",
+    "readme_size_bytes": 921,
+    "readme_mime_type": "text/plain",
+    "manifest_path": "task-input/v1/manifest.json",
+    "manifest_sha256": "db83e31afb3d8a3fdb7d7137a2b901acd5214a3f8e1f52219069969a89592092",
+    "manifest_size_bytes": 755,
+    "manifest_mime_type": "application/json",
+    "attachments_declared": 0,
+    "attachments_present": 0
+  },
+  "observed_manifest_task": {
+    "id": "T1850",
+    "title": "Replay worker authoritative readback implementation onto fresh current-main",
+    "source_commit": "65eab385a93199d98fe3b367d4d07bc627cda7f2",
+    "required_chain_anchor": "7f4cfcc43e0360f31e756bb453e675db50cc26c6",
+    "fresh_base": "3b2b45f480c297f44b0e2deb877ebc6cdad7f5f5"
+  },
+  "git_observed": {
+    "head": "36de9846a82bca5e3f8de97e62688387d7ca8d47",
+    "branch": "ac-exec/task-a2ff95c2/exec-d98c423f",
+    "merge_base_head_origin_main": "36de9846a82bca5e3f8de97e62688387d7ca8d47"
+  },
+  "checks": [
+    {
+      "name": "read_task_input_readme",
+      "status": "PASS"
+    },
+    {
+      "name": "read_task_input_manifest",
+      "status": "PASS"
+    },
+    {
+      "name": "verify_all_attachments_path_size_sha256_mime",
+      "status": "BLOCK",
+      "details": "Manifest declares an empty attachment list and no task-input/v1/attachments files are present."
+    },
+    {
+      "name": "lock_insight_candidate_exact_sha",
+      "status": "BLOCK",
+      "details": "No Insight candidate exact SHA is provided by README or manifest."
+    },
+    {
+      "name": "production_four_hard_red_positive_negative",
+      "status": "BLOCK",
+      "details": "README does not define the Insight four hard reds or production endpoints/procedure."
+    },
+    {
+      "name": "provenance_running_identity_regression",
+      "status": "BLOCK",
+      "details": "Cannot verify running production identity or regressions without the correct contract and target."
+    }
+  ],
+  "evidence_files": [
+    "evidence/insight-production-reverification/task-input-audit.md",
+    "evidence/insight-production-reverification/verdict.json"
+  ]
+}
