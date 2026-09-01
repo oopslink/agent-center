@@ -82,16 +82,20 @@ func (s *Server) exportRuntimeCatalogHandler(w http.ResponseWriter, r *http.Requ
 		writeRuntimeError(w, err)
 		return
 	}
+	envelope := airuntime.PreviewRequest{
+		Strategy: airuntime.StrategyMerge,
+		Document: doc,
+	}
 	format := strings.ToLower(query.Get("format"))
 	if format == "" {
 		format = "yaml"
 	}
 	switch format {
 	case "json":
-		writeJSON(w, http.StatusOK, doc)
+		writeJSON(w, http.StatusOK, envelope)
 	case "yaml", "yml":
 		var value any
-		raw, _ := json.Marshal(doc)
+		raw, _ := json.Marshal(envelope)
 		if err := json.Unmarshal(raw, &value); err != nil {
 			writeRuntimeError(w, err)
 			return

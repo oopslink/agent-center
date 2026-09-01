@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
+import YAML from 'yaml';
 import { useOrgs } from '@/api/auth';
 import {
   aiRuntimeExportHref,
@@ -933,8 +934,8 @@ function ModelImportModal({
     apply.reset();
     let doc: AIRuntimeExportDocument;
     try {
-      const parsed = JSON.parse(json) as unknown;
-      doc = buildModelsOnlyImportDocument(catalog, parsed);
+      const parsed = parseRuntimeImportText(json);
+      doc = buildRuntimeImportDocument(catalog, parsed);
     } catch (err) {
       setDocument(null);
       preview.reset();
@@ -981,7 +982,15 @@ function ModelImportModal({
           preview.reset();
           apply.reset();
         }}
-        placeholder='[{"key":"gpt-5-mini","model_key":"gpt-5-mini","display_name":"GPT-5 mini","compatible_cli_keys":["codex"],"enabled":true}]'
+        placeholder={[
+          'strategy: merge',
+          'document:',
+          '  schema_version: 1',
+          '  kind: agent-center-ai-runtime',
+          '  runtime:',
+          '    clis: []',
+          '    models: []',
+        ].join('\n')}
         data-testid="ai-runtime-model-import-json"
       />
       <div className="rounded border border-border-base bg-bg-subtle px-3 py-2 text-xs text-text-secondary" data-testid="ai-runtime-model-import-scope">
@@ -1327,9 +1336,98 @@ function numberText(value: number | undefined): string {
   return value === undefined || value === null ? '' : String(value);
 }
 
+function parseRuntimeImportText(raw: string): unknown {
+  const text = raw.trim();
+  if (text === '') {
+    throw new Error('Import document is empty.');
+  }
+  try {
+    return JSON.parse(text) as unknown;
+  } catch (jsonErr) {
+    try {
+      return YAML.parse(text) as unknown;
+    } catch (yamlErr) {
+      throw new Error(`Import document must be valid JSON or YAML. JSON: ${(jsonErr as Error).message}; YAML: ${(yamlErr as Error).message}`);
+    }
+  }
+}
+
+function buildRuntimeImportDocument(catalog: AIRuntimeCatalog, raw: unknown): AIRuntimeExportDocument {
+  const envelope = isPlainRecord(raw) && isPlainRecord(raw.document) ? raw : undefined;
+  const candidate = envelope?.document ?? raw;
+  if (isRuntimeExportDocument(candidate)) {
+    return normalizeRuntimeExportDocument(candidate);
+  }
+  return buildModelsOnlyImportDocument(catalog, raw);
+}
+
+function isRuntimeExportDocument(raw: unknown): raw is Record<string, unknown> {
+  return isPlainRecord(raw) && raw.kind === 'agent-center-ai-runtime' && isPlainRecord(raw.runtime);
+}
+
+function normalizeRuntimeExportDocument(raw: Record<string, unknown>): AIRuntimeExportDocument {
+  const runtime = raw.runtime;
+  if (!isPlainRecord(runtime)) {
+    throw new Error('document.runtime is required.');
+  }
+  const clisRaw = runtime.clis;
+  const modelsRaw = runtime.models;
+  if (!Array.isArray(clisRaw)) {
+    throw new Error('document.runtime.clis must be an array.');
+  }
+  if (!Array.isArray(modelsRaw)) {
+    throw new Error('document.runtime.models must be an array.');
+  }
+  return {
+    schema_version: numberField(raw.schema_version) ?? 1,
+    kind: 'agent-center-ai-runtime',
+    exported_at: stringField(raw, 'exported_at') ?? new Date().toISOString(),
+    runtime: {
+      clis: clisRaw.map((item, index) => normalizeImportedCLI(item, index)),
+      models: modelsRaw.map((item, index) => {
+        if (!isPlainRecord(item)) {
+          throw new Error(`document.runtime.models[${index}] must be an object.`);
+        }
+        const key = stringField(item, 'key');
+        if (!key) {
+          throw new Error(`document.runtime.models[${index}].key is required.`);
+        }
+        return normalizeImportedModel(item, key, undefined, undefined, index, 'document.runtime.models');
+      }),
+    },
+  };
+}
+
+function normalizeImportedCLI(raw: unknown, index: number): AIRuntimeExportCLI {
+  if (!isPlainRecord(raw)) {
+    throw new Error(`document.runtime.clis[${index}] must be an object.`);
+  }
+  const key = stringField(raw, 'key');
+  const displayName = stringField(raw, 'display_name');
+  const executable = stringField(raw, 'executable');
+  if (!key) {
+    throw new Error(`document.runtime.clis[${index}].key is required.`);
+  }
+  if (!displayName) {
+    throw new Error(`document.runtime.clis[${index}].display_name is required.`);
+  }
+  if (!executable) {
+    throw new Error(`document.runtime.clis[${index}].executable is required.`);
+  }
+  return {
+    key,
+    display_name: displayName,
+    executable,
+    version_constraint: stringField(raw, 'version_constraint'),
+    required_features: stringArrayField(raw.required_features) ?? [],
+    parameter_schema: raw.parameter_schema ?? { type: 'object' },
+    enabled: boolField(raw.enabled) ?? true,
+  };
+}
+
 function buildModelsOnlyImportDocument(catalog: AIRuntimeCatalog, raw: unknown): AIRuntimeExportDocument {
   if (!Array.isArray(raw)) {
-    throw new Error('Import JSON must be an array of model definitions.');
+    throw new Error('Import document must be an AI Runtime export or an array of model definitions.');
   }
   const existingModels = new Map(catalog.models.map((model) => [model.key, exportModel(model)]));
   const mergedModels = new Map(existingModels);
@@ -1369,6 +1467,7 @@ function normalizeImportedModel(
   base: AIRuntimeExportModel | undefined,
   fallbackCLI: string | undefined,
   index: number,
+  pathPrefix = 'models',
 ): AIRuntimeExportModel {
   const compatibleRaw = raw.compatible_cli_keys;
   const compatible =
@@ -1376,7 +1475,7 @@ function normalizeImportedModel(
     base?.compatible_cli_keys ??
     (fallbackCLI ? [fallbackCLI] : []);
   if (compatible.length === 0) {
-    throw new Error(`models[${index}].compatible_cli_keys is required.`);
+    throw new Error(`${pathPrefix}[${index}].compatible_cli_keys is required.`);
   }
   return {
     key,

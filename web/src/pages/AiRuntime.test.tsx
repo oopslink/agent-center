@@ -464,4 +464,74 @@ describe('AiRuntime page', () => {
       expect(payload.body?.document?.runtime?.default_profile_key).toBeUndefined();
     });
   });
+
+  it('accepts an exported AI Runtime YAML document as import input', async () => {
+    let previewPayload: unknown = null;
+    server.use(
+      http.post('/api/orgs/:slug/ai-runtime/import/preview', async ({ params, request }) => {
+        const body = await request.json() as {
+          strategy?: string;
+          document?: { kind?: string; runtime?: { clis?: Array<{ key?: string }>; models?: Array<{ key?: string }> } };
+        };
+        previewPayload = { slug: params.slug, body };
+        return HttpResponse.json({
+          report: {
+            dry_run: true,
+            applied: false,
+            revision: 3,
+            items: [
+              { entity_type: 'cli', key: 'claude-code', action: 'unchanged' },
+              { entity_type: 'model', key: 'claude-sonnet-4', action: 'unchanged' },
+            ],
+            diagnostics: [],
+          },
+          validation_token: 'validation-token-2',
+          expires_at: '2026-08-08T00:00:00Z',
+          document_sha256: 'fedcba9876543210',
+        });
+      }),
+    );
+    renderPage('/organizations/test/ai-runtime?tab=models');
+    expect((await screen.findAllByTestId('ai-runtime-model-row')).length).toBeGreaterThan(0);
+    fireEvent.click(await screen.findByTestId('ai-runtime-import-models'));
+    fireEvent.change(screen.getByTestId('ai-runtime-model-import-json'), {
+      target: {
+        value: [
+          'strategy: merge',
+          'document:',
+          '  schema_version: 1',
+          '  kind: agent-center-ai-runtime',
+          '  exported_at: "2026-09-01T00:00:00Z"',
+          '  runtime:',
+          '    clis:',
+          '      - key: claude-code',
+          '        display_name: Claude Code',
+          '        executable: claude',
+          '        required_features: []',
+          '        parameter_schema:',
+          '          type: object',
+          '        enabled: true',
+          '    models:',
+          '      - key: claude-sonnet-4',
+          '        model_key: claude-sonnet-4',
+          '        display_name: Claude Sonnet 4',
+          '        compatible_cli_keys: [claude-code]',
+          '        default_parameters: {}',
+          '        enabled: true',
+        ].join('\n'),
+      },
+    });
+    fireEvent.click(screen.getByTestId('ai-runtime-model-import-preview-btn'));
+    await waitFor(() => {
+      const payload = previewPayload as {
+        slug?: string;
+        body?: { strategy?: string; document?: { kind?: string; runtime?: { clis?: Array<{ key?: string }>; models?: Array<{ key?: string }> } } };
+      };
+      expect(payload.slug).toBe('test');
+      expect(payload.body?.strategy).toBe('merge');
+      expect(payload.body?.document?.kind).toBe('agent-center-ai-runtime');
+      expect(payload.body?.document?.runtime?.clis).toEqual([expect.objectContaining({ key: 'claude-code' })]);
+      expect(payload.body?.document?.runtime?.models).toEqual([expect.objectContaining({ key: 'claude-sonnet-4' })]);
+    });
+  });
 });

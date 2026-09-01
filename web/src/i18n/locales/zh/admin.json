@@ -354,7 +354,7 @@
       "exportYaml": "导出 YAML",
       "newModel": "新建 Model",
       "newCLI": "新建 CLI",
-      "importModels": "导入 Models",
+      "importModels": "导入 YAML/JSON",
       "edit": "编辑",
       "disable": "停用",
       "enable": "启用",
@@ -451,9 +451,9 @@
       "saving": "保存中..."
     },
     "import": {
-      "title": "导入 Models",
-      "help": "粘贴模型定义 JSON 数组。界面会生成保留现有 CLIs 的完整 AI Runtime 文档，先预览模型差异，再用安全 upsert 语义应用。",
-      "scope": "仅影响 Models。现有 CLIs（{{clis}}）会在生成文档中原样保留。",
+      "title": "导入 AI Runtime",
+      "help": "粘贴导出的 AI Runtime YAML/JSON 文档。旧的模型定义 JSON 数组仍然支持，并会在预览前转换为完整 runtime 文档。",
+      "scope": "导出文档会直接导入 CLIs 和 Models。旧模型数组会在生成文档中保留现有 CLIs（{{clis}}）。",
       "preview": "预览",
       "previewing": "预览中...",
       "apply": "应用导入",

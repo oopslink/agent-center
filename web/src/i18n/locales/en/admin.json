@@ -354,7 +354,7 @@
       "exportYaml": "Export YAML",
       "newModel": "New model",
       "newCLI": "New CLI",
-      "importModels": "Import models",
+      "importModels": "Import YAML/JSON",
       "edit": "Edit",
       "disable": "Disable",
       "enable": "Enable",
@@ -451,9 +451,9 @@
       "saving": "Saving..."
     },
     "import": {
-      "title": "Import models",
-      "help": "Paste a JSON array of model definitions. The UI builds a full AI Runtime document that preserves existing CLIs, previews the model diff, then applies it with safe upsert semantics.",
-      "scope": "Models only. Existing CLIs ({{clis}}) are carried forward unchanged in the generated document.",
+      "title": "Import AI Runtime",
+      "help": "Paste an exported AI Runtime YAML/JSON document. A legacy JSON array of model definitions is still accepted and converted into a full runtime document before preview.",
+      "scope": "Exported documents import CLIs and Models directly. Legacy model arrays preserve existing CLIs ({{clis}}) in the generated document.",
       "preview": "Preview",
       "previewing": "Previewing...",
       "apply": "Apply import",

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -158,11 +159,15 @@ func TestAIRuntimeBulkHTTPAuthorizationAndOrgIsolation(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("member export status=%d", resp.StatusCode)
 	}
-	var doc airuntime.ExportDocument
-	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+	var exported airuntime.PreviewRequest
+	if err := json.NewDecoder(resp.Body).Decode(&exported); err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
+	if exported.Strategy != airuntime.StrategyMerge {
+		t.Fatalf("export strategy = %q", exported.Strategy)
+	}
+	doc := exported.Document
 	if doc.Kind != "agent-center-ai-runtime" || doc.SchemaVersion != 1 || doc.ExportedAt.IsZero() {
 		t.Fatalf("export contract = %+v", doc)
 	}
@@ -292,11 +297,12 @@ func TestAIRuntimeModelsOnlyImportPreservesCLIsHTTP(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("export status=%d", resp.StatusCode)
 	}
-	var doc airuntime.ExportDocument
-	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+	var exported airuntime.PreviewRequest
+	if err := json.NewDecoder(resp.Body).Decode(&exported); err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
+	doc := exported.Document
 	doc.Runtime.Models = append(doc.Runtime.Models, airuntime.ExportModel{
 		Key: "gpt-5-mini", ModelKey: "gpt-5-mini", DisplayName: "GPT-5 mini",
 		CompatibleCLIKeys: []string{"codex"}, DefaultParameters: map[string]any{}, Enabled: true,
@@ -415,30 +421,55 @@ func TestAIRuntimePreviewApplyAndExportFormatsHTTP(t *testing.T) {
 	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/yaml") {
 		t.Fatalf("default export status=%d content-type=%q", resp.StatusCode, resp.Header.Get("Content-Type"))
 	}
-	var yamlDoc map[string]any
-	if err := yaml.NewDecoder(resp.Body).Decode(&yamlDoc); err != nil {
+	exportedYAML, err := io.ReadAll(resp.Body)
+	if err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
-	if yamlDoc["schema_version"] != 1 {
+	var yamlDoc map[string]any
+	if err := yaml.Unmarshal(exportedYAML, &yamlDoc); err != nil {
+		t.Fatal(err)
+	}
+	if yamlDoc["strategy"] != "merge" {
+		t.Fatalf("yaml export strategy=%+v", yamlDoc)
+	}
+	yamlExportDocument, _ := yamlDoc["document"].(map[string]any)
+	if yamlExportDocument["schema_version"] != 1 {
 		t.Fatalf("yaml export=%+v", yamlDoc)
 	}
+	req, _ := http.NewRequest(http.MethodPost, orgScopedURL(server.URL+"/api/ai-runtime/import/preview", owner.OrgSlug), strings.NewReader(string(exportedYAML)))
+	req.Header.Set("Content-Type", "application/yaml")
+	req.AddCookie(owner.Cookie)
+	resp, err = http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		var body any
+		_ = json.NewDecoder(resp.Body).Decode(&body)
+		t.Fatalf("preview exported yaml status=%d body=%+v", resp.StatusCode, body)
+	}
+	resp.Body.Close()
 
 	resp = orgScopedGet(t, server.URL+"/api/ai-runtime/export?format=json&scope=cli&cli_keys=codex", owner)
 	if resp.StatusCode != http.StatusOK || !strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json") {
 		t.Fatalf("json export status=%d content-type=%q", resp.StatusCode, resp.Header.Get("Content-Type"))
 	}
-	var doc airuntime.ExportDocument
-	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+	var exported airuntime.PreviewRequest
+	if err := json.NewDecoder(resp.Body).Decode(&exported); err != nil {
 		t.Fatal(err)
 	}
 	resp.Body.Close()
+	if exported.Strategy != airuntime.StrategyMerge {
+		t.Fatalf("json export strategy=%q", exported.Strategy)
+	}
+	doc := exported.Document
 	if len(doc.Runtime.CLIs) != 1 || doc.Runtime.CLIs[0].Key != "codex" || len(doc.Runtime.Models) != 0 {
 		t.Fatalf("scoped export=%+v", doc.Runtime)
 	}
 
-	docJSON, _ := json.Marshal(doc)
 	var yamlDocument any
+	docJSON, _ := json.Marshal(doc)
 	_ = json.Unmarshal(docJSON, &yamlDocument)
 	previewPayload, err := yaml.Marshal(map[string]any{
 		"strategy": "merge",
@@ -448,7 +479,7 @@ func TestAIRuntimePreviewApplyAndExportFormatsHTTP(t *testing.T) {
 		t.Fatal(err)
 	}
 	previewURL := orgScopedURL(server.URL+"/api/ai-runtime/import/preview", owner.OrgSlug)
-	req, _ := http.NewRequest(http.MethodPost, previewURL, strings.NewReader(string(previewPayload)))
+	req, _ = http.NewRequest(http.MethodPost, previewURL, strings.NewReader(string(previewPayload)))
 	req.Header.Set("Content-Type", "application/yaml")
 	req.AddCookie(owner.Cookie)
 	resp, err = http.DefaultClient.Do(req)
