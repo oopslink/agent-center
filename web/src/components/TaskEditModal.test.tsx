@@ -45,6 +45,20 @@ function capturePatch(): { received: () => Record<string, unknown> | undefined }
 // Members for the assignee picker.
 function mockMembers() {
   server.use(
+    http.get('/api/projects/proj-a/members', () =>
+      HttpResponse.json({
+        members: [
+          {
+            id: 'pmem-1', project_id: 'proj-a', identity_id: 'user:hayang',
+            role: 'owner', added_by: 'user:owner', created_at: 'x',
+          },
+          {
+            id: 'pmem-2', project_id: 'proj-a', identity_id: 'agent:bot1',
+            role: 'member', added_by: 'user:owner', created_at: 'x',
+          },
+        ],
+      }),
+    ),
     http.get('/api/members', () =>
       HttpResponse.json([
         {
@@ -54,6 +68,10 @@ function mockMembers() {
         {
           id: 'mem-2', organization_id: 'org-test', identity_id: 'agent:bot1',
           kind: 'agent', role: 'member', status: 'joined', joined_at: 'x', display_name: 'Bot One',
+        },
+        {
+          id: 'mem-3', organization_id: 'org-test', identity_id: 'agent:outside',
+          kind: 'agent', role: 'member', status: 'joined', joined_at: 'x', display_name: 'Outside Bot',
         },
       ]),
     ),
@@ -167,7 +185,7 @@ describe('TaskEditModal', () => {
     ]);
   });
 
-  it('assignee select lists Unassigned + each member from useMembers', async () => {
+  it('assignee select lists Unassigned + project members only', async () => {
     mockMembers();
     wrap(<TaskEditModal projectId="proj-a" task={baseTask} onClose={() => undefined} />);
     await screen.findByText('Hayang (user)');
@@ -176,9 +194,10 @@ describe('TaskEditModal', () => {
     ).map((o) => ({ value: o.value, label: o.textContent }));
     expect(opts).toEqual([
       { value: '', label: 'Unassigned' },
-      { value: 'user:hayang', label: 'Hayang (user)' },
       { value: 'agent:bot1', label: 'Bot One (agent)' },
+      { value: 'user:hayang', label: 'Hayang (user)' },
     ]);
+    expect(screen.queryByText('Outside Bot (agent)')).toBeNull();
   });
 
   describe('tags chip input', () => {

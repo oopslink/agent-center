@@ -5,9 +5,10 @@
 import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAssignTask, useUpdateTask } from '@/api/tasks';
-import { useMembers, normalizeIdentityRef } from '@/api/members';
+import { useMembers, normalizeIdentityRef, refKind } from '@/api/members';
+import { useProjectMembers } from '@/api/projects';
 import type { MemberResult } from '@/api/members';
-import type { Task, TaskStatus } from '@/api/types';
+import type { ProjectMember, Task, TaskStatus } from '@/api/types';
 import { useModalA11y } from './useModalA11y';
 import { MAX_TAG_RUNES, MAX_TAGS, runeLength, validateTags } from './tagValidation';
 import { CapabilitiesEditor } from './CapabilitiesEditor';
@@ -42,6 +43,11 @@ function memberRef(m: MemberResult): string {
   return `${kind}:${normalizeIdentityRef(m.identity_id)}`;
 }
 
+function projectMemberRef(m: ProjectMember): string {
+  const kind = refKind(m.identity_id);
+  return `${kind}:${normalizeIdentityRef(m.identity_id)}`;
+}
+
 export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): React.ReactElement {
   const { t } = useTranslation('work');
   const [title, setTitle] = useState(task.title ?? '');
@@ -61,8 +67,32 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
   // so assigning a task to an agent via this modal left it in `open` forever.
   const assign = useAssignTask(projectId, task.id);
   const members = useMembers();
+  const projectMembers = useProjectMembers(projectId);
   // a11y: Escape closes + focus-trap (rendered = open).
   const containerRef = useModalA11y({ open: true, onClose });
+
+  const memberDirectory = useMemo(() => {
+    const out = new Map<string, MemberResult>();
+    for (const member of members.data ?? []) {
+      out.set(memberRef(member), member);
+    }
+    return out;
+  }, [members.data]);
+
+  const assigneeOptions = useMemo(() => (
+    (projectMembers.data ?? [])
+      .map((projectMember) => {
+        const ref = projectMemberRef(projectMember);
+        const directoryMember = memberDirectory.get(ref);
+        const kind = directoryMember?.kind ?? refKind(ref);
+        return {
+          ref,
+          label: directoryMember?.display_name ?? normalizeIdentityRef(ref),
+          kind,
+        };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label) || a.ref.localeCompare(b.ref))
+  ), [memberDirectory, projectMembers.data]);
 
   // commitTag: add the typed draft as a chip (Enter/comma). Trims, validates the
   // single tag (rune-16), dedups (no-op if already present), enforces the 10-cap.
@@ -280,9 +310,9 @@ export function TaskEditModal({ projectId, task, onClose, onSaved }: Props): Rea
             onChange={(e) => setAssignee(e.target.value)}
           >
             <option value="">{t('task.edit.unassigned')}</option>
-            {(members.data ?? []).map((m) => (
-              <option key={m.id} value={memberRef(m)}>
-                {m.display_name ?? m.identity_id} ({m.kind})
+            {assigneeOptions.map((m) => (
+              <option key={m.ref} value={m.ref}>
+                {m.label} ({m.kind})
               </option>
             ))}
           </select>

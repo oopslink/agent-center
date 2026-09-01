@@ -3,7 +3,7 @@ import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { OrgLink, orgPath, useOptionalOrgContext } from '@/OrgContext';
-import { useProject } from '@/api/projects';
+import { useProject, useProjectMembers } from '@/api/projects';
 import { ApiError } from '@/api/client';
 import {
   usePlan,
@@ -66,7 +66,7 @@ import { ContextPanel, useContextPanelMobileTrigger } from '@/shell/contextPanel
 import { ContextPanelMobileButton } from '@/components/ContextPanelMobileButton';
 import { SenderSidebarProvider, useSenderSidebar } from '@/components/SenderSidebarContext';
 import { SenderDetailSidebar } from '@/components/SenderDetailSidebar';
-import type { Participant } from '@/api/types';
+import type { Participant, ProjectMember } from '@/api/types';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
 import { TaskTitleLink, taskDetailPath } from '@/components/TaskTitleLink';
 import { RelatedIssuesBlock } from '@/components/RelatedIssuesBlock';
@@ -4945,6 +4945,11 @@ function memberRef(m: MemberResult): string {
   return identityRefOf({ kind, identity_id: m.identity_id });
 }
 
+function projectMemberRef(m: ProjectMember): string {
+  const kind = refKind(m.identity_id);
+  return identityRefOf({ kind, identity_id: m.identity_id });
+}
+
 // T41 (v2.9.1 #291): the Task-list tab is the COMPREHENSIVE management surface
 // for a big plan — every node is rendered (no cap, ever), a search box narrows
 // the visible rows by title / Task-id / assignee, and the table scrolls
@@ -4954,10 +4959,18 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
   const nodes = plan.nodes ?? [];
   const canRemove = plan.status === 'pending';
   const members = useMembers();
+  const projectMembers = useProjectMembers(projectId);
   const generationQuery = usePlanGenerations(projectId, plan.id);
   const generationRead = usableGenerationRead(generationQuery.data);
   const generationNodeOf = useMemo(() => generationNodeMap(generationRead), [generationRead]);
   const [query, setQuery] = useState('');
+  const memberDirectory = useMemo(() => {
+    const out = new Map<string, MemberResult>();
+    for (const member of members.data ?? []) {
+      out.set(memberRef(member), member);
+    }
+    return out;
+  }, [members.data]);
 
   // Case-insensitive filter on title OR Task-id (org_ref) OR assignee handle.
   // Empty box ⇒ ALL nodes (never capped). Matching keeps input order. org_ref
@@ -5031,7 +5044,8 @@ function PlanTaskList({ projectId, plan }: { projectId: string; plan: Plan }): R
                       node={n}
                       orgRef={n.org_ref}
                       canRemove={canRemove}
-                      members={members.data ?? []}
+                      members={projectMembers.data ?? []}
+                      memberDirectory={memberDirectory}
                       generationNode={generationNodeOf.get(n.task_id)}
                     />
                   ))}
@@ -5078,6 +5092,7 @@ function PlanTaskRow({
   orgRef,
   canRemove,
   members,
+  memberDirectory,
   generationNode,
 }: {
   projectId: string;
@@ -5085,7 +5100,8 @@ function PlanTaskRow({
   node: PlanNode;
   orgRef?: string;
   canRemove: boolean;
-  members: MemberResult[];
+  members: ProjectMember[];
+  memberDirectory: Map<string, MemberResult>;
   generationNode?: PlanGenerationRead['nodes'][number];
 }): React.ReactElement {
   const { t } = useTranslation('work');
@@ -5138,16 +5154,19 @@ function PlanTaskRow({
   const assigneeOptions: EntityOption[] = useMemo(() => {
     const opts: EntityOption[] = [{ value: '', label: t('plan.detail.taskList.unassigned') }];
     for (const m of members) {
-      const name = m.display_name ?? normalizeIdentityRef(m.identity_id);
+      const ref = projectMemberRef(m);
+      const directoryMember = memberDirectory.get(ref);
+      const kind = directoryMember?.kind ?? refKind(ref);
+      const name = directoryMember?.display_name ?? normalizeIdentityRef(ref);
       opts.push({
-        value: memberRef(m),
+        value: ref,
         label: name,
-        badge: m.kind,
-        leading: <Avatar name={name} kind={m.kind === 'agent' ? 'agent' : 'human'} size="sm" />,
+        badge: kind,
+        leading: <Avatar name={name} kind={kind === 'agent' ? 'agent' : 'human'} size="sm" />,
       });
     }
     return opts;
-  }, [members, t]);
+  }, [memberDirectory, members, t]);
   return (
     <tr data-testid="plan-task-row" data-task-id={node.task_id}>
       {/* v2.9.1 UX point 1: human Task id (T-number) column. */}

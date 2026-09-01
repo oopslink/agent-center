@@ -1869,11 +1869,20 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     mockPlan({ nodes: bigNodes() });
     let assignedBody: { assignee?: string } | null = null;
     server.use(
-      // members feed the dropdown options (mirror TaskEditModal: prefixed refs).
+      // Project members feed the dropdown options; org members only resolve names.
+      http.get('/api/projects/proj-a/members', () =>
+        HttpResponse.json({
+          members: [
+            { id: 'pm-1', project_id: 'proj-a', identity_id: 'agent:dev', role: 'member', added_by: 'user:owner', created_at: '2026-01-01T00:00:00Z' },
+            { id: 'pm-2', project_id: 'proj-a', identity_id: 'agent:dev2', role: 'member', added_by: 'user:owner', created_at: '2026-01-01T00:00:00Z' },
+          ],
+        }),
+      ),
       http.get('/api/members', () =>
         HttpResponse.json([
           { id: 'mem-1', organization_id: 'org-test', identity_id: 'agent:dev', kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z', display_name: 'Dev One' },
           { id: 'mem-2', organization_id: 'org-test', identity_id: 'agent:dev2', kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z', display_name: 'Dev Two' },
+          { id: 'mem-3', organization_id: 'org-test', identity_id: 'agent:outside', kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-01-01T00:00:00Z', display_name: 'Outside Agent' },
         ]),
       ),
       http.post('/api/projects/proj-a/tasks/b1/assign', async ({ request }) => {
@@ -1900,6 +1909,7 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
       .getAllByTestId('plan-row-assign-option')
       .find((o) => o.getAttribute('data-value') === 'agent:dev') as HTMLElement;
     expect(opt).toHaveTextContent('Dev One');
+    expect(screen.queryByText('Outside Agent')).toBeNull();
     await act(async () => fireEvent.click(opt));
     await waitFor(() => expect(assignedBody).toEqual({ assignee: 'agent:dev' }));
   });
@@ -1908,6 +1918,14 @@ describe('PlanDetail — v2.9 Stage B delete + archive', () => {
     mockPlan({ nodes: bigNodes() });
     let unassigned = false;
     server.use(
+      http.get('/api/projects/proj-a/members', () =>
+        HttpResponse.json({
+          members: [
+            { id: 'pm-1', project_id: 'proj-a', identity_id: 'agent:dev', role: 'member', added_by: 'user:owner', created_at: '2026-01-01T00:00:00Z' },
+            { id: 'pm-2', project_id: 'proj-a', identity_id: 'agent:dev2', role: 'member', added_by: 'user:owner', created_at: '2026-01-01T00:00:00Z' },
+          ],
+        }),
+      ),
       http.post('/api/projects/proj-a/tasks/b2/unassign', () => {
         unassigned = true;
         return HttpResponse.json({ id: 'b2', project_id: 'proj-a', title: 'task number 2', description: '', status: 'open', assignee: '', version: 2, created_at: '2026-06-01T01:00:00Z', updated_at: '2026-06-01T01:00:00Z' });
