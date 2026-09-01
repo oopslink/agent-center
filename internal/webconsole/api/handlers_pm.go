@@ -320,6 +320,23 @@ func (s *Server) pmRequireProjectInOrg(w http.ResponseWriter, r *http.Request, d
 	return p, pmCallerRef(callerID), true
 }
 
+func (s *Server) pmRequireProjectMemberInOrg(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*pm.Project, pm.IdentityRef, bool) {
+	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
+	if !ok {
+		return nil, "", false
+	}
+	isMember, err := s.callerIsProjectMember(r.Context(), d, string(caller), p.ID())
+	if err != nil {
+		mapPMError(w, err)
+		return nil, "", false
+	}
+	if !isMember {
+		writeError(w, http.StatusForbidden, "forbidden", pmservice.ErrNotMember.Error())
+		return nil, "", false
+	}
+	return p, caller, true
+}
+
 // --- Project (org-scoped) ---------------------------------------------------
 
 func (s *Server) pmListProjectsHandler(w http.ResponseWriter, r *http.Request) {
@@ -445,7 +462,7 @@ func (s *Server) pmCreateProjectHandler(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) pmGetProjectHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	p, _, ok := s.pmRequireProjectInOrg(w, r, d)
+	p, _, ok := s.pmRequireProjectMemberInOrg(w, r, d)
 	if !ok {
 		return
 	}
@@ -549,7 +566,7 @@ func (s *Server) pmArchiveProjectHandler(w http.ResponseWriter, r *http.Request)
 
 func (s *Server) pmListMembersHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	p, _, ok := s.pmRequireProjectInOrg(w, r, d)
+	p, _, ok := s.pmRequireProjectMemberInOrg(w, r, d)
 	if !ok {
 		return
 	}
@@ -628,7 +645,7 @@ func (s *Server) pmRemoveMemberHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) pmListIssuesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	p, _, ok := s.pmRequireProjectInOrg(w, r, d)
+	p, _, ok := s.pmRequireProjectMemberInOrg(w, r, d)
 	if !ok {
 		return
 	}
@@ -715,7 +732,7 @@ func (s *Server) pmTransitionIssueHandler(w http.ResponseWriter, r *http.Request
 // pmRequireIssueInProject resolves {project_id}+{issue_id}, verifying both org
 // membership and that the issue belongs to the path project.
 func (s *Server) pmRequireIssueInProject(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*pm.Issue, pm.IdentityRef, bool) {
-	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
+	p, caller, ok := s.pmRequireProjectMemberInOrg(w, r, d)
 	if !ok {
 		return nil, "", false
 	}
@@ -767,7 +784,7 @@ func (s *Server) pmUpdateIssueHandler(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	p, _, ok := s.pmRequireProjectInOrg(w, r, d)
+	p, _, ok := s.pmRequireProjectMemberInOrg(w, r, d)
 	if !ok {
 		return
 	}
@@ -982,7 +999,7 @@ func (s *Server) pmBatchUpdateTaskHandler(w http.ResponseWriter, r *http.Request
 // pmRequireTaskInProject resolves {project_id}+{task_id}, verifying both org
 // membership and that the task belongs to the path project.
 func (s *Server) pmRequireTaskInProject(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*pm.Task, pm.IdentityRef, bool) {
-	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
+	p, caller, ok := s.pmRequireProjectMemberInOrg(w, r, d)
 	if !ok {
 		return nil, "", false
 	}
@@ -1201,11 +1218,11 @@ func (s *Server) pmUnsubscribeTaskHandler(w http.ResponseWriter, r *http.Request
 
 func (s *Server) pmListCodeReposHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	p, _, ok := s.pmRequireProjectInOrg(w, r, d)
+	p, caller, ok := s.pmRequireProjectMemberInOrg(w, r, d)
 	if !ok {
 		return
 	}
-	cs, err := d.PM.ListCodeRepos(r.Context(), p.ID())
+	cs, err := d.PM.ListCodeReposForMember(r.Context(), p.ID(), caller)
 	if err != nil {
 		mapPMError(w, err)
 		return

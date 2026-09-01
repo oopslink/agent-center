@@ -159,8 +159,18 @@ func setupAPIWithAuth(t *testing.T) (HandlerDeps, *sql.DB) {
 // those endpoints enforce requireConversationInOrg.
 func seedOrgChannel(t *testing.T, deps HandlerDeps, orgID, name string) string {
 	t.Helper()
+	members := []conversation.IdentityRef{}
+	if deps.MemberRepo != nil {
+		orgMembers, err := deps.MemberRepo.ListByOrganization(context.Background(), orgID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range orgMembers {
+			members = append(members, conversation.IdentityRef("user:"+m.IdentityID()))
+		}
+	}
 	res, err := deps.ChannelMgmtSvc.CreateChannel(context.Background(), convservice.CreateChannelCommand{
-		Name: name, OrganizationID: orgID, CreatedBy: "user:hayang", Actor: "user:hayang",
+		Name: name, OrganizationID: orgID, CreatedBy: "user:hayang", Members: members, Actor: "user:hayang",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -350,9 +360,10 @@ func TestAPI_ConversationsRoundTrip(t *testing.T) {
 	sess := setupTestSession(t, db, deps)
 	ctx := context.Background()
 	// Seed a channel via service.
+	callerRef := conversation.IdentityRef("user:" + sess.IdentityID)
 	res, err := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
 		Name: "platform", OrganizationID: sess.OrgID,
-		CreatedBy: "user:hayang", Actor: "user:hayang",
+		CreatedBy: callerRef, Actor: observability.Actor(callerRef),
 	})
 	if err != nil {
 		t.Fatal(err)

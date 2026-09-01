@@ -14,6 +14,8 @@ import (
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/observability"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 	"github.com/oopslink/agent-center/internal/secretmgmt"
 	secretsvcCreate "github.com/oopslink/agent-center/internal/secretmgmt/service"
 	"github.com/oopslink/agent-center/internal/webconsole/sse"
@@ -27,9 +29,10 @@ func TestAPI_ListConversations_KindAndStatusFilter(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	ctx := context.Background()
+	caller := conversation.IdentityRef("user:" + sess.IdentityID)
 	_, _ = deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
 		Name: "filterable", OrganizationID: sess.OrgID,
-		CreatedBy: "user:hayang", Actor: "user:hayang",
+		CreatedBy: caller, Actor: observability.Actor(caller),
 	})
 	s := newTestServer(t, deps)
 	defer s.Close()
@@ -64,7 +67,7 @@ func TestAPI_OrgScope_Isolation_And_Membership(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, _ = deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: "mine", OrganizationID: sess.OrgID, CreatedBy: "user:hayang", Actor: "user:hayang",
+		Name: "mine", OrganizationID: sess.OrgID, CreatedBy: conversation.IdentityRef("user:" + sess.IdentityID), Actor: observability.Actor("user:" + sess.IdentityID),
 	})
 	_, _ = deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
 		Name: "theirs", OrganizationID: otherOrg.ID(), CreatedBy: "user:other", Actor: "user:other",
@@ -103,6 +106,84 @@ func TestAPI_OrgScope_Isolation_And_Membership(t *testing.T) {
 	_ = json.NewDecoder(resp.Body).Decode(&arr)
 	if len(arr) != 1 || arr[0]["name"] != "mine" {
 		t.Fatalf("expected only own-org channel, got %v", arr)
+	}
+}
+
+func TestAPI_ConversationVisibility_ChannelRequiresParticipant(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	owner := setupTestSession(t, db, deps)
+	viewer := seedMemberSession(t, db, owner, "viewer", identity.RoleMember)
+	ctx := context.Background()
+	ownerRef := conversation.IdentityRef("user:" + owner.IdentityID)
+	res, err := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
+		Name: "private-team-room", OrganizationID: owner.OrgID,
+		CreatedBy: ownerRef, Actor: observability.Actor(ownerRef),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedGet(t, s.URL+"/api/conversations?kind=channel", viewer)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list status: got %d", resp.StatusCode)
+	}
+	var arr []map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&arr)
+	if len(arr) != 0 {
+		t.Fatalf("viewer should not list non-participant channel: %v", arr)
+	}
+
+	cid := string(res.ConversationID)
+	for _, path := range []string{
+		"/api/conversations/" + cid,
+		"/api/conversations/" + cid + "/messages",
+		"/api/conversations/" + cid + "/threads",
+	} {
+		resp = orgScopedGet(t, s.URL+path, viewer)
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("%s: got %d want 403", path, resp.StatusCode)
+		}
+	}
+	resp = orgScopedPost(t, s.URL+"/api/conversations/"+cid+"/messages", `{"content":"leak"}`, viewer)
+	if resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("send: got %d want 403", resp.StatusCode)
+	}
+}
+
+func TestAPI_ProjectTaskReadRequiresProjectMember(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	owner := setupTestSession(t, db, deps)
+	viewer := seedMemberSession(t, db, owner, "viewer", identity.RoleMember)
+	ctx := context.Background()
+	ownerRef := pm.IdentityRef("user:" + owner.IdentityID)
+	projectID, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{
+		OrganizationID: owner.OrgID, Name: "member-only", CreatedBy: ownerRef,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskID, err := deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{
+		ProjectID: projectID, Title: "hidden task", CreatedBy: ownerRef,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	for _, path := range []string{
+		"/api/projects/" + string(projectID),
+		"/api/projects/" + string(projectID) + "/members",
+		"/api/projects/" + string(projectID) + "/tasks",
+		"/api/projects/" + string(projectID) + "/tasks/" + string(taskID),
+		"/api/projects/" + string(projectID) + "/code-repos",
+	} {
+		resp := orgScopedGet(t, s.URL+path, viewer)
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("%s: got %d want 403", path, resp.StatusCode)
+		}
 	}
 }
 

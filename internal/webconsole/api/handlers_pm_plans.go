@@ -13,8 +13,8 @@ import (
 )
 
 // v2.9 Plan Orchestration HTTP surface (#285, design §3/§9). Plans nest under
-// /api/projects/{project_id}/plans so membership gating is uniform
-// (pmRequireProjectInOrg → requireProjectMember on writes). The Plan DTO carries
+// /api/projects/{project_id}/plans so membership gating is uniform. Read endpoints
+// require project membership; writes rely on the PM service's member gate. The Plan DTO carries
 // the DERIVED node read model (§9.2): per-node node_status, the ready-set,
 // has_failed, and {done,total} progress — node status is never stored.
 
@@ -384,7 +384,7 @@ func mapPlanError(w http.ResponseWriter, err error) {
 
 func (s *Server) pmListPlansHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	p, _, ok := s.pmRequireProjectInOrg(w, r, d)
+	p, _, ok := s.pmRequireProjectMemberInOrg(w, r, d)
 	if !ok {
 		return
 	}
@@ -466,7 +466,7 @@ func (s *Server) pmCreatePlanHandler(w http.ResponseWriter, r *http.Request) {
 // membership and that the Plan belongs to the path project. Returns the Plan +
 // caller ref.
 func (s *Server) pmRequirePlanInProject(w http.ResponseWriter, r *http.Request, d HandlerDeps) (*pm.Plan, pm.IdentityRef, bool) {
-	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
+	p, caller, ok := s.pmRequireProjectMemberInOrg(w, r, d)
 	if !ok {
 		return nil, "", false
 	}

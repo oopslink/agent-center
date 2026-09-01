@@ -376,13 +376,10 @@ func TestAPI_Files_Download_AgentScopeOnly_403(t *testing.T) {
 	}
 }
 
-// TestAPI_Files_Download_ChannelNonParticipant_200 is the T244 fix: a CHANNEL is
-// readable by every org member (the channel list + message-read gate don't check
-// participation), so its attachments — including ones an AGENT posted — must be
-// downloadable by any org member even when they are not an explicit participant.
-// Before the fix this returned 403 ("no reachable reference grants download")
-// although the same member could read the message and see the attachment.
-func TestAPI_Files_Download_ChannelNonParticipant_200(t *testing.T) {
+// TestAPI_Files_Download_ChannelNonParticipant_403 keeps file download aligned
+// with channel read visibility: an org member who is not a channel participant
+// cannot use attachments to bypass the conversation gate.
+func TestAPI_Files_Download_ChannelNonParticipant_403(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
 	svc := attachFilesSvc(t, &deps, db)
@@ -391,8 +388,8 @@ func TestAPI_Files_Download_ChannelNonParticipant_200(t *testing.T) {
 	ctx := context.Background()
 
 	// A channel owned by SOMEONE ELSE — the caller (sess) is NOT a participant.
-	// An agent posts the attachment (CreatedBy agent), the caller is a plain org
-	// member who can see the channel.
+	// Channel attachments follow channel read visibility, so a plain org member
+	// cannot download files from a channel they cannot read.
 	other := "user:someone-else"
 	openRes, err := deps.MessageWriter.OpenConversation(ctx, convservice.OpenCommand{
 		Kind:           conversation.ConversationKindChannel,
@@ -418,13 +415,9 @@ func TestAPI_Files_Download_ChannelNonParticipant_200(t *testing.T) {
 	}
 
 	resp := orgScopedGet(t, s.URL+"/api/files/"+ulid, sess)
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != http.StatusForbidden {
 		b, _ := io.ReadAll(resp.Body)
-		t.Fatalf("channel non-participant download: status=%d body=%s, want 200", resp.StatusCode, b)
-	}
-	got, _ := io.ReadAll(resp.Body)
-	if !bytes.Equal(got, content) {
-		t.Fatalf("body mismatch: %q != %q", got, content)
+		t.Fatalf("channel non-participant download: status=%d body=%s, want 403", resp.StatusCode, b)
 	}
 }
 

@@ -61,11 +61,10 @@ func filesCallerRef(id *identity.Identity) string {
 //   - task / issue:  resolve ref → project (PM.GetTask/GetIssue → ProjectID);
 //     accessible iff the caller is a member of that project.
 //   - project:       accessible iff the caller is a member of ref.ScopeID.
-//   - conversation:  must be in the caller's org, then (T244) channel → any org
-//     member; plan/task/issue → a LIVE participant OR a member of the conversation's
-//     owning project (download mirrors read; never broader); dm → LIVE participant
-//     except runtime/system DMs with no human participant, which are readable
-//     operational records for org members.
+//   - conversation:  must be in the caller's org, then channel/dm → LIVE
+//     participant (except runtime/system DMs with no human participant);
+//     plan/task/issue → a LIVE participant OR a member of the conversation's owning
+//     project (download mirrors read; never broader).
 //   - agent / tmp:   NOT human-accessible — skipped (no human download grant;
 //     these are reachable to agents in POST-D3).
 func (s *Server) fileReachableForHuman(ctx context.Context, d HandlerDeps, caller *identity.Identity, orgID string, fileURI files.FileURI) (bool, error) {
@@ -155,15 +154,8 @@ func (s *Server) refReachableForHuman(ctx context.Context, d HandlerDeps, caller
 		if conv.OrganizationID() != orgID {
 			return false, nil
 		}
-		// T244: download authz must MIRROR read authz, or a viewer sees an
-		// attachment they can't fetch. A CHANNEL is readable by EVERY org member —
-		// the channel list + requireConversationInOrg (the message-read gate) don't
-		// check participation — so its attachments, INCLUDING ones an agent posted,
-		// are downloadable by any org member (download == read; never broader). A DM
-		// (and the other participant-private kinds) stays strictly participant-gated,
-		// with one operational exception below.
 		if conv.Kind() == conversation.ConversationKindChannel {
-			return true, nil
+			return conv.HasActiveParticipant(conversation.IdentityRef(callerRef)), nil
 		}
 		// A live participant always reaches (DM/plan/task/issue alike).
 		if conv.HasActiveParticipant(conversation.IdentityRef(callerRef)) {

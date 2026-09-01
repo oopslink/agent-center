@@ -17,8 +17,18 @@ import (
 func seedConvAndMessages(t *testing.T, deps HandlerDeps, orgID, name string, n int) (conversation.ConversationID, []conversation.MessageID) {
 	t.Helper()
 	ctx := context.Background()
+	members := []conversation.IdentityRef{}
+	if deps.MemberRepo != nil {
+		orgMembers, err := deps.MemberRepo.ListByOrganization(ctx, orgID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range orgMembers {
+			members = append(members, conversation.IdentityRef("user:"+m.IdentityID()))
+		}
+	}
 	res, err := deps.ChannelMgmtSvc.CreateChannel(ctx, convservice.CreateChannelCommand{
-		Name: name, OrganizationID: orgID, CreatedBy: "user:hayang", Actor: "user:hayang",
+		Name: name, OrganizationID: orgID, CreatedBy: "user:hayang", Members: members, Actor: "user:hayang",
 	})
 	if err != nil {
 		t.Fatal(err)

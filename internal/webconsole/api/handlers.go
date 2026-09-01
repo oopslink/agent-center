@@ -437,7 +437,7 @@ func WithDeps(deps HandlerDeps) func(http.Handler) http.Handler {
 func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	// v2.6 multi-org isolation: every list response is org-scoped + membership-checked.
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -486,11 +486,17 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 		convs = kept
 	}
 	self := conversation.IdentityRef(d.Actor)
+	callerRef := conversation.IdentityRef(filesCallerRef(caller))
 	// A plain observed DM is not part of the caller's inbox. Keep the two explicit
 	// observer classes the UI supports (system deliveries and agent-agent DMs), but
 	// do not leak unrelated human/agent 1:1 DMs into "Mine" where they collapse to
 	// a generic "Direct message" row.
-	convs = filterVisibleConversationList(convs, self)
+	var ferr error
+	convs, ferr = s.filterVisibleConversationList(r.Context(), d, convs, self, callerRef)
+	if ferr != nil {
+		writeError(w, http.StatusInternalServerError, "visibility_failed", ferr.Error())
+		return
+	}
 	// v2.8 #268: per-row unread/mention/followed badges for the sidebar.
 	// followed is batch-resolved (one repo round-trip); mention_count needs
 	// the requesting user's display name. Both are agent-aware (Q-T1).
@@ -813,14 +819,37 @@ func visibleDMInConversationList(c *conversation.Conversation, self conversation
 	return false
 }
 
-func filterVisibleConversationList(convs []*conversation.Conversation, self conversation.IdentityRef) []*conversation.Conversation {
+func (s *Server) conversationReadableByCaller(ctx context.Context, d HandlerDeps, c *conversation.Conversation, callerRef conversation.IdentityRef) (bool, error) {
+	switch c.Kind() {
+	case conversation.ConversationKindChannel:
+		return c.HasActiveParticipant(callerRef), nil
+	case conversation.ConversationKindDM:
+		return c.HasActiveParticipant(callerRef) || dmHasNoActiveHumanParticipant(c), nil
+	case conversation.ConversationKindPlan, conversation.ConversationKindTask, conversation.ConversationKindIssue:
+		if c.HasActiveParticipant(callerRef) {
+			return true, nil
+		}
+		return s.convOwnerProjectMember(ctx, d, string(callerRef), c.OwnerRef())
+	default:
+		return c.HasActiveParticipant(callerRef), nil
+	}
+}
+
+func (s *Server) filterVisibleConversationList(ctx context.Context, d HandlerDeps, convs []*conversation.Conversation, self, callerRef conversation.IdentityRef) ([]*conversation.Conversation, error) {
 	kept := make([]*conversation.Conversation, 0, len(convs))
 	for _, c := range convs {
-		if visibleDMInConversationList(c, self) {
+		if !visibleDMInConversationList(c, self) {
+			continue
+		}
+		ok, err := s.conversationReadableByCaller(ctx, d, c, callerRef)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
 			kept = append(kept, c)
 		}
 	}
-	return kept
+	return kept, nil
 }
 
 func enrichDMProjection(ctx context.Context, nr *nameResolver, c *conversation.Conversation, self conversation.IdentityRef, row map[string]any) {
@@ -1055,6 +1084,13 @@ func (s *Server) showConversationHandler(w http.ResponseWriter, r *http.Request)
 		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
 		return
 	}
+	if readable, rerr := s.conversationReadableByCaller(r.Context(), d, c, conversation.IdentityRef(d.Actor)); rerr != nil {
+		writeError(w, http.StatusInternalServerError, "visibility_failed", rerr.Error())
+		return
+	} else if !readable {
+		writeError(w, http.StatusForbidden, "forbidden", "conversation is not visible to this account")
+		return
+	}
 	// v2.8 #268: embed unread/mention/followed for the opened conversation
 	// (detail surface), mirroring the sidebar list. Agent-aware (Q-T1).
 	self := conversation.IdentityRef(d.Actor)
@@ -1106,6 +1142,18 @@ func (s *Server) listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := conversation.ConversationID(r.PathValue("id"))
 	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
+		return
+	}
+	c, err := d.ConvRepo.FindByID(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	if readable, rerr := s.conversationReadableByCaller(r.Context(), d, c, conversation.IdentityRef(d.Actor)); rerr != nil {
+		writeError(w, http.StatusInternalServerError, "visibility_failed", rerr.Error())
+		return
+	} else if !readable {
+		writeError(w, http.StatusForbidden, "forbidden", "conversation is not visible to this account")
 		return
 	}
 	// v2.9.1 Thread P1: the main flow shows top-level messages only; replies live in
@@ -1175,6 +1223,18 @@ func (s *Server) listThreadRepliesHandler(w http.ResponseWriter, r *http.Request
 	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
 		return
 	}
+	c, err := d.ConvRepo.FindByID(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	if readable, rerr := s.conversationReadableByCaller(r.Context(), d, c, conversation.IdentityRef(d.Actor)); rerr != nil {
+		writeError(w, http.StatusInternalServerError, "visibility_failed", rerr.Error())
+		return
+	} else if !readable {
+		writeError(w, http.StatusForbidden, "forbidden", "conversation is not visible to this account")
+		return
+	}
 	// Validate the root: must exist, belong to THIS conversation, and be a real
 	// thread head (not itself a reply). Any miss → 404 (non-disclosure).
 	root, err := d.MsgRepo.FindByID(r.Context(), rootID)
@@ -1209,6 +1269,18 @@ func (s *Server) listThreadsHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	id := conversation.ConversationID(r.PathValue("id"))
 	if _, ok := s.requireConversationInOrg(w, r, d, string(id)); !ok {
+		return
+	}
+	c, err := d.ConvRepo.FindByID(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "find_failed", err.Error())
+		return
+	}
+	if readable, rerr := s.conversationReadableByCaller(r.Context(), d, c, conversation.IdentityRef(d.Actor)); rerr != nil {
+		writeError(w, http.StatusInternalServerError, "visibility_failed", rerr.Error())
+		return
+	} else if !readable {
+		writeError(w, http.StatusForbidden, "forbidden", "conversation is not visible to this account")
 		return
 	}
 	digests, err := d.MsgRepo.ThreadReplyDigests(r.Context(), id)
@@ -1299,8 +1371,8 @@ func (s *Server) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 	// DMs are writable only by their active participants. Agent-agent and
 	// system-agent DMs are still org-visible as operational records, but that read
 	// gate must not turn an observing human into a DM speaker.
-	if conv.Kind() == conversation.ConversationKindDM && !isActiveParticipant(conv, conversation.IdentityRef(d.Actor)) {
-		writeError(w, http.StatusForbidden, "not_a_participant", "only an active DM participant can send messages")
+	if (conv.Kind() == conversation.ConversationKindDM || conv.Kind() == conversation.ConversationKindChannel) && !isActiveParticipant(conv, conversation.IdentityRef(d.Actor)) {
+		writeError(w, http.StatusForbidden, "not_a_participant", "only an active participant can send messages")
 		return
 	}
 	var req sendMessageReq

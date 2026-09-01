@@ -449,6 +449,40 @@ func TestPlanAPI_ListSummaries_OrgGate(t *testing.T) {
 	}
 }
 
+func TestPlanAPI_ReadRequiresProjectMember(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	owner := setupTestSession(t, db, deps)
+	viewer := seedMemberSession(t, db, owner, "viewer", identity.RoleMember)
+	fx := setupPlanAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+	ctx := context.Background()
+
+	ownerRef := pm.IdentityRef("user:" + owner.IdentityID)
+	projectID, err := fx.deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{
+		OrganizationID: owner.OrgID, Name: "member-only-plan", CreatedBy: ownerRef,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{
+		ProjectID: projectID, Name: "hidden plan", CreatedBy: ownerRef,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, path := range []string{
+		"/api/projects/" + string(projectID) + "/plans",
+		"/api/projects/" + string(projectID) + "/plans/" + string(planID),
+	} {
+		resp := orgScopedGet(t, s.URL+path, viewer)
+		if resp.StatusCode != http.StatusForbidden {
+			t.Fatalf("%s: got %d want 403", path, resp.StatusCode)
+		}
+	}
+}
+
 // TestPlanAPI_RemoveDependency_ViaQuery exercises the REAL FE chain: the edge is
 // passed in the DELETE query string (the FE api.del client is path/query-only, no
 // body). Regression guard for the body-vs-query seam where the handler read the
