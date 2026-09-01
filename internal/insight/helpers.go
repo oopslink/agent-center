@@ -383,6 +383,52 @@ func (s *Service) usageSummary(ctx context.Context, orgID, agentRef, projectID s
 	return out, nil
 }
 
+func (s *Service) planScale(ctx context.Context, orgID string, limit int) ([]PlanScaleSummary, error) {
+	if limit <= 0 {
+		limit = 12
+	}
+	rows, err := s.sqlite.QueryContext(ctx, `SELECT
+		pl.id,
+		pl.name,
+		pl.project_id,
+		p.name,
+		pl.status,
+		COUNT(DISTINCT t.id) AS task_count,
+		COUNT(DISTINCT d.from_task_id || '>' || d.to_task_id) AS edge_count,
+		COUNT(DISTINCT g.id) AS generation_count,
+		COUNT(DISTINCT CASE WHEN g.parent_generation_id<>'' THEN g.id END) AS evolution_count,
+		COUNT(DISTINCT CASE WHEN t.status IN ('open','assigned','running','blocked','pool') THEN t.id END) AS active_task_count,
+		COUNT(DISTINCT CASE WHEN t.status='blocked' THEN t.id END) AS blocked_task_count,
+		COUNT(DISTINCT CASE WHEN t.status='failed' THEN t.id END) AS failed_task_count,
+		COUNT(DISTINCT CASE WHEN t.status IN ('completed','verified') THEN t.id END) AS done_task_count
+		FROM pm_plans pl
+		JOIN pm_projects p ON p.id=pl.project_id
+		LEFT JOIN pm_tasks t ON t.plan_id=pl.id AND t.archived_at=''
+		LEFT JOIN pm_task_dependencies d ON d.plan_id=pl.id
+		LEFT JOIN pm_plan_generations g ON g.plan_id=pl.id
+		WHERE p.organization_id=? AND pl.archived_at=''
+		GROUP BY pl.id, pl.name, pl.project_id, p.name, pl.status
+		ORDER BY task_count DESC, evolution_count DESC, generation_count DESC, pl.updated_at DESC
+		LIMIT ?`, orgID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []PlanScaleSummary
+	for rows.Next() {
+		var row PlanScaleSummary
+		var projectName sql.NullString
+		if err := rows.Scan(&row.PlanID, &row.PlanName, &row.ProjectID, &projectName, &row.Status, &row.TaskCount, &row.EdgeCount, &row.GenerationCount, &row.EvolutionCount, &row.ActiveTaskCount, &row.BlockedTaskCount, &row.FailedTaskCount, &row.DoneTaskCount); err != nil {
+			return nil, err
+		}
+		if projectName.Valid {
+			row.ProjectName = &projectName.String
+		}
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
 func (s *Service) leaderboard(ctx context.Context, orgID, by string, asOf time.Time) ([]LeaderRow, error) {
 	if by != "agent_ref" && by != "project_id" {
 		return nil, fmt.Errorf("insight: unsupported leaderboard dimension %q", by)

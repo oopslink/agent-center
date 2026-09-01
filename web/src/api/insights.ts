@@ -71,6 +71,22 @@ export interface InsightUsageSummary {
   by_model: InsightUsageModelSummary[];
 }
 
+export interface InsightPlanScaleSummary {
+  plan_id: string;
+  plan_name: string;
+  project_id: string;
+  project_name: string | null;
+  status: string;
+  task_count: number;
+  edge_count: number;
+  generation_count: number;
+  evolution_count: number;
+  active_task_count: number;
+  blocked_task_count: number;
+  failed_task_count: number;
+  done_task_count: number;
+}
+
 export interface InsightLeaderboardAgent {
   agent_ref: string;
   display_name: string | null;
@@ -96,6 +112,7 @@ export interface InsightOverview {
   summary: InsightSummary;
   trend: InsightTrendPoint[];
   usage: InsightUsageSummary;
+  plan_scale: InsightPlanScaleSummary[];
   agents: InsightLeaderboardAgent[];
   projects: InsightLeaderboardProject[];
   diagnostics: InsightDiagnostics;
@@ -396,6 +413,26 @@ function normalizeUsage(value: unknown): InsightUsageSummary {
   };
 }
 
+function normalizePlanScale(value: unknown): InsightPlanScaleSummary {
+  const source = isRecord(value) ? value : {};
+  const planID = stringOrEmpty(source.plan_id) || 'unknown';
+  return {
+    plan_id: planID,
+    plan_name: stringOrEmpty(source.plan_name) || planID,
+    project_id: stringOrEmpty(source.project_id) || 'unknown',
+    project_name: stringOrNull(source.project_name),
+    status: stringOrEmpty(source.status) || 'unknown',
+    task_count: numberOrZero(source.task_count),
+    edge_count: numberOrZero(source.edge_count),
+    generation_count: numberOrZero(source.generation_count),
+    evolution_count: numberOrZero(source.evolution_count),
+    active_task_count: numberOrZero(source.active_task_count),
+    blocked_task_count: numberOrZero(source.blocked_task_count),
+    failed_task_count: numberOrZero(source.failed_task_count),
+    done_task_count: numberOrZero(source.done_task_count),
+  };
+}
+
 function normalizeAgent(value: unknown): InsightLeaderboardAgent {
   const source = isRecord(value) ? value : {};
   const agentRef = stringOrEmpty(source.agent_ref) || 'unknown';
@@ -628,6 +665,7 @@ function normalizeOverview(value: unknown): InsightOverview {
     summary: normalizeSummary(source.summary),
     trend: arrayOrEmpty(source.trend as InsightTrendPoint[] | null | undefined).map(normalizeTrendPoint),
     usage: normalizeUsage(source.usage),
+    plan_scale: arrayOrEmpty(source.plan_scale as InsightPlanScaleSummary[] | null | undefined).map(normalizePlanScale),
     agents: arrayOrEmpty(source.agents as InsightLeaderboardAgent[] | null | undefined).map(normalizeAgent),
     projects: arrayOrEmpty(source.projects as InsightLeaderboardProject[] | null | undefined).map(normalizeProject),
     diagnostics: normalizeDiagnostics(source.diagnostics),

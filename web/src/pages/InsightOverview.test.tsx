@@ -78,6 +78,21 @@ function overview(overrides: Record<string, unknown> = {}) {
       ],
       by_model: [{ model: 'gpt-5', events: 5, total_tokens: 25000, cost_micros: 123456 }],
     },
+    plan_scale: [{
+      plan_id: 'plan-1',
+      plan_name: 'Launch rollout',
+      project_id: 'proj-1',
+      project_name: 'Launch',
+      status: 'running',
+      task_count: 5,
+      edge_count: 4,
+      generation_count: 3,
+      evolution_count: 2,
+      active_task_count: 2,
+      blocked_task_count: 1,
+      failed_task_count: 0,
+      done_task_count: 3,
+    }],
     agents: [{ agent_ref: 'agent:builder', display_name: 'Builder', summary }],
     projects: [{ project_id: 'proj-1', name: 'Launch', summary }],
     diagnostics: { invalid_facts: 0, late_events: 0 },
@@ -126,6 +141,11 @@ describe('Insight pages', () => {
     expect(screen.getByTestId('insight-overview-trends')).toHaveTextContent('Cost trend');
     expect(screen.getByTestId('insight-overview-trends')).toHaveTextContent('Model cost');
     expect(screen.getByTestId('insight-overview-trends')).toHaveTextContent('gpt-5');
+    expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('Tasks per plan');
+    expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('Evolutions per plan');
+    expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('Launch rollout');
+    expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('5');
+    expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('2');
     expect(screen.queryByTestId('insight-drilldown')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'View all executions' })).not.toBeInTheDocument();
     expect(within(screen.getByTestId('insight-agent-table')).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');

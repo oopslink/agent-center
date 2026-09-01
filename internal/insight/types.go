@@ -85,6 +85,22 @@ type UsageSummary struct {
 	ByModel          []UsageModelSummary `json:"by_model"`
 }
 
+type PlanScaleSummary struct {
+	PlanID           string  `json:"plan_id"`
+	PlanName         string  `json:"plan_name"`
+	ProjectID        string  `json:"project_id"`
+	ProjectName      *string `json:"project_name,omitempty"`
+	Status           string  `json:"status"`
+	TaskCount        int64   `json:"task_count"`
+	EdgeCount        int64   `json:"edge_count"`
+	GenerationCount  int64   `json:"generation_count"`
+	EvolutionCount   int64   `json:"evolution_count"`
+	ActiveTaskCount  int64   `json:"active_task_count"`
+	BlockedTaskCount int64   `json:"blocked_task_count"`
+	FailedTaskCount  int64   `json:"failed_task_count"`
+	DoneTaskCount    int64   `json:"done_task_count"`
+}
+
 type LeaderRow struct {
 	AgentRef    string  `json:"agent_ref,omitempty"`
 	DisplayName *string `json:"display_name,omitempty"`
@@ -99,16 +115,17 @@ type Diagnostics struct {
 }
 
 type Overview struct {
-	Window      Window       `json:"window"`
-	AsOf        string       `json:"as_of"`
-	RefreshedAt string       `json:"refreshed_at"`
-	Freshness   Freshness    `json:"freshness"`
-	Summary     Summary      `json:"summary"`
-	Trend       []TrendPoint `json:"trend"`
-	Usage       UsageSummary `json:"usage"`
-	Agents      []LeaderRow  `json:"agents"`
-	Projects    []LeaderRow  `json:"projects"`
-	Diagnostics Diagnostics  `json:"diagnostics"`
+	Window      Window             `json:"window"`
+	AsOf        string             `json:"as_of"`
+	RefreshedAt string             `json:"refreshed_at"`
+	Freshness   Freshness          `json:"freshness"`
+	Summary     Summary            `json:"summary"`
+	Trend       []TrendPoint       `json:"trend"`
+	Usage       UsageSummary       `json:"usage"`
+	PlanScale   []PlanScaleSummary `json:"plan_scale"`
+	Agents      []LeaderRow        `json:"agents"`
+	Projects    []LeaderRow        `json:"projects"`
+	Diagnostics Diagnostics        `json:"diagnostics"`
 }
 
 type ExecutionRow struct {

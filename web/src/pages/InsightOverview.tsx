@@ -52,6 +52,7 @@ export default function InsightOverview(): React.ReactElement {
           <SummaryCards summary={overview.data.summary} />
           <CoverageNotice summary={overview.data.summary} />
           <OverviewTrendCharts data={overview.data} />
+          <OverviewPlanScaleCharts data={overview.data} base={base} />
           <OverviewCharts data={overview.data} base={base} />
           <section className="grid gap-4 xl:grid-cols-2">
             <DimensionTable
@@ -340,6 +341,74 @@ function OverviewCharts({ data, base }: { data: InsightOverviewDTO; base: string
       </ChartPanel>
       <ChartPanel title={t('insight.chart.latencyShape')} subtitle={t('insight.chart.latencySubtitle')}>
         <HorizontalBars data={latency} emptyLabel={t('insight.chart.empty')} />
+      </ChartPanel>
+    </section>
+  );
+}
+
+function OverviewPlanScaleCharts({ data, base }: { data: InsightOverviewDTO; base: string }): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const plansByTasks = data.plan_scale
+    .slice()
+    .sort((a, b) => b.task_count - a.task_count || b.evolution_count - a.evolution_count || a.plan_name.localeCompare(b.plan_name))
+    .slice(0, 8);
+  const plansByEvolution = data.plan_scale
+    .slice()
+    .sort((a, b) => b.evolution_count - a.evolution_count || b.generation_count - a.generation_count || b.task_count - a.task_count || a.plan_name.localeCompare(b.plan_name))
+    .slice(0, 8);
+  const tasksPerPlan = plansByTasks.map((plan) => ({
+    key: plan.plan_id,
+    label: plan.plan_name,
+    value: plan.task_count,
+    tone: plan.blocked_task_count > 0 ? 'warning' as const : plan.failed_task_count > 0 ? 'danger' as const : 'info' as const,
+    href: `${base}/projects/${encodeURIComponent(plan.project_id)}?plan_id=${encodeURIComponent(plan.plan_id)}`,
+    detail: t('insight.chart.planTaskDetail', {
+      project: plan.project_name ?? plan.project_id,
+      active: plan.active_task_count,
+      blocked: plan.blocked_task_count,
+      failed: plan.failed_task_count,
+      done: plan.done_task_count,
+    }),
+  }));
+  const evolutionsPerPlan = plansByEvolution.map((plan) => ({
+    key: plan.plan_id,
+    label: plan.plan_name,
+    value: plan.evolution_count,
+    tone: plan.evolution_count > 0 ? 'warning' as const : 'neutral' as const,
+    href: `${base}/projects/${encodeURIComponent(plan.project_id)}?plan_id=${encodeURIComponent(plan.plan_id)}`,
+    detail: t('insight.chart.planEvolutionDetail', {
+      generations: plan.generation_count,
+      tasks: plan.task_count,
+      edges: plan.edge_count,
+      status: plan.status,
+    }),
+  }));
+  const totals: ChartDatum[] = [
+    { key: 'tasks', label: t('insight.chart.planTotalTasks'), value: data.plan_scale.reduce((sum, plan) => sum + plan.task_count, 0), tone: 'info' },
+    { key: 'edges', label: t('insight.chart.planTotalEdges'), value: data.plan_scale.reduce((sum, plan) => sum + plan.edge_count, 0), tone: 'neutral' },
+    { key: 'generations', label: t('insight.chart.planTotalGenerations'), value: data.plan_scale.reduce((sum, plan) => sum + plan.generation_count, 0), tone: 'success' },
+    { key: 'evolutions', label: t('insight.chart.planTotalEvolutions'), value: data.plan_scale.reduce((sum, plan) => sum + plan.evolution_count, 0), tone: 'warning' },
+  ];
+  const statusMix: ChartDatum[] = [
+    { key: 'active', label: t('insight.chart.planActiveTasks'), value: data.plan_scale.reduce((sum, plan) => sum + plan.active_task_count, 0), tone: 'info' },
+    { key: 'done', label: t('insight.chart.planDoneTasks'), value: data.plan_scale.reduce((sum, plan) => sum + plan.done_task_count, 0), tone: 'success' },
+    { key: 'blocked', label: t('insight.chart.planBlockedTasks'), value: data.plan_scale.reduce((sum, plan) => sum + plan.blocked_task_count, 0), tone: 'warning' },
+    { key: 'failed', label: t('insight.chart.planFailedTasks'), value: data.plan_scale.reduce((sum, plan) => sum + plan.failed_task_count, 0), tone: 'danger' },
+  ];
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-4" data-testid="insight-plan-scale-charts">
+      <ChartPanel title={t('insight.chart.planTasks')} subtitle={t('insight.chart.planTasksSubtitle')}>
+        <HorizontalBars data={tasksPerPlan} emptyLabel={t('insight.chart.empty')} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.planEvolution')} subtitle={t('insight.chart.planEvolutionSubtitle')}>
+        <HorizontalBars data={evolutionsPerPlan} emptyLabel={t('insight.chart.empty')} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.planScaleTotals')} subtitle={t('insight.chart.planScaleTotalsSubtitle', { count: data.plan_scale.length })}>
+        <SegmentedBar data={totals} emptyLabel={t('insight.chart.empty')} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.planTaskStatusMix')} subtitle={t('insight.chart.planTaskStatusMixSubtitle')}>
+        <SegmentedBar data={statusMix} emptyLabel={t('insight.chart.empty')} />
       </ChartPanel>
     </section>
   );

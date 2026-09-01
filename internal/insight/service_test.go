@@ -425,6 +425,47 @@ func TestInsightLeaderboardUsesTerminalOutcomeSet(t *testing.T) {
 	}
 }
 
+func TestInsightOverviewPlanScale(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	now := asOf.Format(time.RFC3339Nano)
+	seedDims(t, db, "org-1")
+	execSQL(t, db, `INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, created_at, updated_at) VALUES ('plan-scale-a', 'project-1', 'Large plan', '', 'running', 'user:test', ?, ?)`, now, now)
+	execSQL(t, db, `INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, created_at, updated_at) VALUES ('plan-scale-b', 'project-1', 'Small plan', '', 'running', 'user:test', ?, ?)`, now, now)
+	execSQL(t, db, `INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, plan_id, created_by, created_at, updated_at) VALUES ('task-scale-a1', 'project-1', 'A1', '', 'running', 'agent:agent-1', 'plan-scale-a', 'user:test', ?, ?)`, now, now)
+	execSQL(t, db, `INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, plan_id, created_by, created_at, updated_at) VALUES ('task-scale-a2', 'project-1', 'A2', '', 'blocked', 'agent:agent-1', 'plan-scale-a', 'user:test', ?, ?)`, now, now)
+	execSQL(t, db, `INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, plan_id, created_by, created_at, updated_at) VALUES ('task-scale-a3', 'project-1', 'A3', '', 'completed', 'agent:agent-1', 'plan-scale-a', 'user:test', ?, ?)`, now, now)
+	execSQL(t, db, `INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, plan_id, created_by, created_at, updated_at) VALUES ('task-scale-b1', 'project-1', 'B1', '', 'running', 'agent:agent-1', 'plan-scale-b', 'user:test', ?, ?)`, now, now)
+	execSQL(t, db, `INSERT INTO pm_task_dependencies (plan_id, from_task_id, to_task_id, kind, "when", max_rounds) VALUES ('plan-scale-a', 'task-scale-a1', 'task-scale-a2', 'finish_to_start', 'succeeded', 1)`)
+	execSQL(t, db, `INSERT INTO pm_plan_generations (id, plan_id, parent_generation_id, reason, evidence, creator_ref, diff_json, snapshot_json, idempotency_key, request_fingerprint, created_at) VALUES ('gen-scale-a0', 'plan-scale-a', '', 'initial', '[]', 'user:test', '[]', '{}', 'g-scale-a0', 'fp-scale-a0', ?)`, now)
+	execSQL(t, db, `INSERT INTO pm_plan_generations (id, plan_id, parent_generation_id, reason, evidence, creator_ref, diff_json, snapshot_json, idempotency_key, request_fingerprint, created_at) VALUES ('gen-scale-a1', 'plan-scale-a', 'gen-scale-a0', 'execution_failure', '[]', 'agent:agent-1', '[]', '{}', 'g-scale-a1', 'fp-scale-a1', ?)`, now)
+	execSQL(t, db, `INSERT INTO pm_plan_generations (id, plan_id, parent_generation_id, reason, evidence, creator_ref, diff_json, snapshot_json, idempotency_key, request_fingerprint, created_at) VALUES ('gen-scale-a2', 'plan-scale-a', 'gen-scale-a1', 'requirements_change', '[]', 'user:test', '[]', '{}', 'g-scale-a2', 'fp-scale-a2', ?)`, now)
+	execSQL(t, db, `INSERT INTO pm_plan_generations (id, plan_id, parent_generation_id, reason, evidence, creator_ref, diff_json, snapshot_json, idempotency_key, request_fingerprint, created_at) VALUES ('gen-scale-b0', 'plan-scale-b', '', 'initial', '[]', 'user:test', '[]', '{}', 'g-scale-b0', 'fp-scale-b0', ?)`, now)
+
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	o, err := svc.Overview(ctx, "org-1", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(o.PlanScale) < 2 {
+		t.Fatalf("plan scale rows = %+v, want seeded plans", o.PlanScale)
+	}
+	got := o.PlanScale[0]
+	if got.PlanID != "plan-scale-a" || got.PlanName != "Large plan" || got.ProjectName == nil || *got.ProjectName != "Project One" {
+		t.Fatalf("top plan identity = %+v, want plan-scale-a with project name", got)
+	}
+	if got.TaskCount != 3 || got.EdgeCount != 1 || got.GenerationCount != 3 || got.EvolutionCount != 2 {
+		t.Fatalf("top plan graph counts = %+v, want tasks=3 edges=1 generations=3 evolutions=2", got)
+	}
+	if got.ActiveTaskCount != 2 || got.BlockedTaskCount != 1 || got.FailedTaskCount != 0 || got.DoneTaskCount != 1 {
+		t.Fatalf("top plan task states = %+v, want active=2 blocked=1 failed=0 done=1", got)
+	}
+}
+
 func TestInsightV2DeliveryEvolutionAndLineage(t *testing.T) {
 	ctx := context.Background()
 	db := migratedSQLite(t)
