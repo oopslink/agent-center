@@ -38,13 +38,14 @@ type PercentileSummary struct {
 }
 
 type Summary struct {
-	CompletedExecutions int64             `json:"completed_executions"`
-	FailedExecutions    int64             `json:"failed_executions"`
-	FailureRate         *float64          `json:"failure_rate"`
-	SlotUtilization     *float64          `json:"slot_utilization"`
-	SlotCoverageRatio   *float64          `json:"slot_coverage_ratio"`
-	QueueWaitMS         PercentileSummary `json:"queue_wait_ms"`
-	ExecutionDurationMS PercentileSummary `json:"execution_duration_ms"`
+	CompletedExecutions         int64             `json:"completed_executions"`
+	FailedExecutions            int64             `json:"failed_executions"`
+	RecoveryFinalizedExecutions int64             `json:"recovery_finalized_executions"`
+	FailureRate                 *float64          `json:"failure_rate"`
+	SlotUtilization             *float64          `json:"slot_utilization"`
+	SlotCoverageRatio           *float64          `json:"slot_coverage_ratio"`
+	QueueWaitMS                 PercentileSummary `json:"queue_wait_ms"`
+	ExecutionDurationMS         PercentileSummary `json:"execution_duration_ms"`
 }
 
 type LeaderRow struct {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
+import { ChartPanel, DonutChart, HorizontalBars, SegmentedBar, type ChartDatum } from '@/components/insight/InsightCharts';
 import { InsightExecutionStatusBadge, InsightFreshnessBadge, InsightQualityBadge, InsightStatePanel } from '@/components/insight/InsightPresentation';
 import {
   useInsightExecution,
@@ -50,6 +51,7 @@ export default function InsightOverview(): React.ReactElement {
           <FreshnessNotice data={overview.data} />
           <SummaryCards summary={overview.data.summary} />
           <CoverageNotice summary={overview.data.summary} />
+          <OverviewCharts data={overview.data} base={base} />
           <section className="grid gap-4 xl:grid-cols-2">
             <DimensionTable
               kind="agent"
@@ -133,7 +135,10 @@ export function InsightExecutionsPage(): React.ReactElement {
           {query.data.executions.length === 0 ? (
             <InsightStatePanel testId="insight-executions-empty" title={hasExecutionFilter(filters) ? t('insight.state.emptyFiltered') : t('insight.state.emptyList')} />
           ) : (
-            <TaskExecutionTable rows={query.data.executions} base={base} />
+            <>
+              <ExecutionListCharts rows={query.data.executions} />
+              <TaskExecutionTable rows={query.data.executions} base={base} />
+            </>
           )}
           <div className="flex items-center justify-between gap-3 text-sm">
             <button type="button" className="rounded border border-border-base px-3 py-1.5 text-text-primary disabled:opacity-50" disabled={!filters.cursor} onClick={() => setCursor(null)}>
@@ -279,6 +284,89 @@ function CoverageNotice({ summary }: { summary: InsightSummary }): React.ReactEl
   return <InsightStatePanel testId="insight-coverage-notice" tone={c.kind === 'partial' ? 'warn' : 'neutral'} title={t('insight.coverage.noticeTitle')} body={c.sub} />;
 }
 
+function OverviewCharts({ data, base }: { data: InsightOverviewDTO; base: string }): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const recovery = recoveryFinalized(data.summary);
+  const failed = Math.max(0, data.summary.failed_executions);
+  const completed = Math.max(0, data.summary.completed_executions);
+  const healthy = Math.max(0, completed - failed - recovery);
+  const outcomeData: ChartDatum[] = [
+    { key: 'healthy', label: t('insight.chart.outcomeHealthy'), value: healthy, tone: 'success' },
+    { key: 'failed', label: t('insight.chart.outcomeFailed'), value: failed, tone: 'danger' },
+    { key: 'recovery', label: t('insight.chart.outcomeRecovery'), value: recovery, tone: 'warning' },
+  ];
+  const agents = data.agents
+    .slice()
+    .sort((a, b) => b.summary.completed_executions - a.summary.completed_executions || (a.display_name ?? a.agent_ref).localeCompare(b.display_name ?? b.agent_ref))
+    .slice(0, 6)
+    .map((agent) => ({
+      key: agent.agent_ref,
+      label: agent.display_name ?? agent.agent_ref,
+      value: agent.summary.completed_executions,
+      tone: riskTone(agent.summary),
+      href: `${base}/executions?window=24h&agent_ref=${encodeURIComponent(agent.agent_ref)}`,
+      detail: t('insight.chart.failureDetail', { failed: agent.summary.failed_executions, recovery: recoveryFinalized(agent.summary) }),
+    }));
+  const projects = data.projects
+    .slice()
+    .sort((a, b) => riskScore(b.summary) - riskScore(a.summary) || (a.name ?? a.project_id).localeCompare(b.name ?? b.project_id))
+    .slice(0, 6)
+    .map((project) => ({
+      key: project.project_id,
+      label: project.name ?? project.project_id,
+      value: riskScore(project.summary),
+      tone: riskTone(project.summary),
+      href: `${base}/executions?window=24h&project_id=${encodeURIComponent(project.project_id)}`,
+      detail: t('insight.chart.riskDetail', { completed: project.summary.completed_executions }),
+    }));
+  const latency = [
+    { key: 'queue-p50', label: t('insight.chart.queueP50'), value: data.summary.queue_wait_ms.p50 ?? 0, tone: 'info' as const },
+    { key: 'queue-p95', label: t('insight.chart.queueP95'), value: data.summary.queue_wait_ms.p95 ?? 0, tone: 'warning' as const },
+    { key: 'duration-p50', label: t('insight.chart.durationP50'), value: data.summary.execution_duration_ms.p50 ?? 0, tone: 'success' as const },
+    { key: 'duration-p95', label: t('insight.chart.durationP95'), value: data.summary.execution_duration_ms.p95 ?? 0, tone: 'danger' as const },
+  ].map((item) => ({ ...item, detail: formatInsightDuration(item.value, t) }));
+
+  return (
+    <section className="grid gap-4 xl:grid-cols-4" data-testid="insight-overview-charts">
+      <ChartPanel title={t('insight.chart.outcomeMix')} subtitle={t('insight.chart.outcomeSubtitle')}>
+        <DonutChart data={outcomeData} totalLabel={t('insight.chart.executionsTotal')} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.agentVolume')} subtitle={t('insight.chart.agentVolumeSubtitle')}>
+        <HorizontalBars data={agents} emptyLabel={t('insight.chart.empty')} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.projectRisk')} subtitle={t('insight.chart.projectRiskSubtitle')}>
+        <HorizontalBars data={projects} emptyLabel={t('insight.chart.empty')} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.latencyShape')} subtitle={t('insight.chart.latencySubtitle')}>
+        <HorizontalBars data={latency} emptyLabel={t('insight.chart.empty')} />
+      </ChartPanel>
+    </section>
+  );
+}
+
+function ExecutionListCharts({ rows }: { rows: InsightExecutionRow[] }): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const key = executionBucket(row);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return (
+    <ChartPanel title={t('insight.chart.visibleExecutions')} subtitle={t('insight.chart.visibleExecutionsSubtitle')} testId="insight-execution-charts">
+      <SegmentedBar
+        emptyLabel={t('insight.chart.empty')}
+        data={[
+          { key: 'succeeded', label: t('insight.status.completed'), value: counts.get('succeeded') ?? 0, tone: 'success' },
+          { key: 'failed', label: t('insight.status.failed'), value: counts.get('failed') ?? 0, tone: 'danger' },
+          { key: 'quiet_finalized', label: t('insight.status.quietFinalized'), value: counts.get('quiet_finalized') ?? 0, tone: 'warning' },
+          { key: 'running', label: t('insight.status.running'), value: counts.get('running') ?? 0, tone: 'info' },
+          { key: 'unknown', label: t('insight.status.unknown'), value: counts.get('unknown') ?? 0, tone: 'neutral' },
+        ]}
+      />
+    </ChartPanel>
+  );
+}
+
 function DimensionTable({ title, kind, rows }: { title: string; kind: 'agent' | 'project'; rows: Array<{ id: string; name: string; summary: InsightSummary; to: string }> }): React.ReactElement {
   const { t } = useTranslation('insights');
   return (
@@ -320,6 +408,28 @@ function DimensionTable({ title, kind, rows }: { title: string; kind: 'agent' | 
       )}
     </section>
   );
+}
+
+function recoveryFinalized(summary: InsightSummary): number {
+  return Math.max(0, summary.recovery_finalized_executions ?? 0);
+}
+
+function riskScore(summary: InsightSummary): number {
+  return Math.max(0, summary.failed_executions) + recoveryFinalized(summary);
+}
+
+function riskTone(summary: InsightSummary): ChartDatum['tone'] {
+  const score = riskScore(summary);
+  if (score === 0) return 'success';
+  return summary.failed_executions > 0 ? 'danger' : 'warning';
+}
+
+function executionBucket(row: InsightExecutionRow): string {
+  if (row.outcome === 'succeeded') return 'succeeded';
+  if (row.outcome === 'failed' || row.outcome === 'crashed') return 'failed';
+  if (row.outcome === 'quiet_finalized') return 'quiet_finalized';
+  if (!row.finished_at) return 'running';
+  return 'unknown';
 }
 
 function MethodNote({ diagnostics }: { diagnostics: { invalid_facts: number; late_events: number } }): React.ReactElement {

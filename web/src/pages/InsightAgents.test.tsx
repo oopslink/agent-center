@@ -70,6 +70,8 @@ describe('Insight agents pages', () => {
 
     renderAt('/organizations/acme/insights/agents');
 
+    expect(await screen.findByTestId('insight-agents-charts')).toHaveTextContent('Health mix');
+    expect(screen.getByTestId('insight-agents-charts')).toHaveTextContent('Agent throughput');
     const table = await screen.findByTestId('insight-agents-table');
     expect(table).toHaveTextContent('Builder');
     expect(table).toHaveTextContent('0.1%');
@@ -99,6 +101,7 @@ describe('Insight agents pages', () => {
     expect(detail).not.toHaveTextContent('coverage_low');
     expect(detail).not.toHaveTextContent('raw_future_enum');
     expect(detail).toHaveTextContent('Metric confidence');
+    expect(screen.getByText('Agent work shape')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');
   });
 

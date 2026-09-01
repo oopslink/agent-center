@@ -81,6 +81,8 @@ describe('Insight v2 project pages', () => {
 
     renderAt('/organizations/acme/insights/projects');
 
+    expect(await screen.findByTestId('insight-projects-charts')).toHaveTextContent('Health mix');
+    expect(screen.getByTestId('insight-projects-charts')).toHaveTextContent('Project delivery risk');
     const row = await screen.findByTestId('insight-project-row');
     expect(row).toHaveAttribute('data-project-id', 'proj-1');
     expect(row).toHaveTextContent('Launch');
@@ -146,6 +148,7 @@ describe('Insight v2 project pages', () => {
     renderAt('/organizations/acme/insights/projects/proj-1?plan_id=plan-1');
 
     expect(await screen.findByTestId('insight-project-summary')).toHaveTextContent('Runtime health');
+    expect(screen.getByTestId('insight-delivery-funnel')).toHaveTextContent('Issue / Task / Plan / Done funnel');
     expect(screen.getByTestId('insight-health-panel')).toHaveTextContent('Lineage integrity issue');
     expect(screen.getByTestId('insight-health-panel')).not.toHaveTextContent('lineage.integrity_broken');
     const rows = await screen.findAllByTestId('insight-funnel-break');

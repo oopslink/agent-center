@@ -2,6 +2,7 @@ import type React from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
+import { ChartPanel, DonutChart, HorizontalBars, SegmentedBar, type ChartDatum } from '@/components/insight/InsightCharts';
 import {
   useInsightV2PlanLineage,
   useInsightV2Project,
@@ -35,27 +36,77 @@ export default function InsightProjectsPage(): React.ReactElement {
         <StatePanel testId="insight-projects-empty" title={t('insight.projects.empty')} body={t('insight.projects.emptyBody')} />
       )}
       {projects.data && projects.data.length > 0 && (
-        <div className="overflow-x-auto rounded border border-border-base bg-bg-elevated" data-testid="insight-projects-table">
-          <table className="w-full min-w-[58rem] text-left text-sm">
-            <thead className="text-xs uppercase tracking-wide text-text-muted">
-              <tr>
-                <th className="px-3 py-2 font-medium">{t('insight.projects.project')}</th>
-                <th className="px-3 py-2 font-medium">{t('insight.projects.health')}</th>
-                <th className="px-3 py-2 font-medium">{t('insight.projects.executions')}</th>
-                <th className="px-3 py-2 font-medium">{t('insight.projects.openIssues')}</th>
-                <th className="px-3 py-2 font-medium">{t('insight.projects.blockedTasks')}</th>
-                <th className="px-3 py-2 font-medium">{t('insight.projects.activePlans')}</th>
-                <th className="px-3 py-2 font-medium">{t('insight.projects.reasonCodes')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border-base">
-              {projects.data.map((project) => (
-                <ProjectRow key={project.id} project={project} to={`${base}/${encodeURIComponent(project.id)}`} />
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <InsightProjectsCharts projects={projects.data} base={base} />
+          <div className="overflow-x-auto rounded border border-border-base bg-bg-elevated" data-testid="insight-projects-table">
+            <table className="w-full min-w-[58rem] text-left text-sm">
+              <thead className="text-xs uppercase tracking-wide text-text-muted">
+                <tr>
+                  <th className="px-3 py-2 font-medium">{t('insight.projects.project')}</th>
+                  <th className="px-3 py-2 font-medium">{t('insight.projects.health')}</th>
+                  <th className="px-3 py-2 font-medium">{t('insight.projects.executions')}</th>
+                  <th className="px-3 py-2 font-medium">{t('insight.projects.openIssues')}</th>
+                  <th className="px-3 py-2 font-medium">{t('insight.projects.blockedTasks')}</th>
+                  <th className="px-3 py-2 font-medium">{t('insight.projects.activePlans')}</th>
+                  <th className="px-3 py-2 font-medium">{t('insight.projects.reasonCodes')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border-base">
+                {projects.data.map((project) => (
+                  <ProjectRow key={project.id} project={project} to={`${base}/${encodeURIComponent(project.id)}`} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
+    </section>
+  );
+}
+
+function InsightProjectsCharts({ projects, base }: { projects: InsightV2ProjectSummary[]; base: string }): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const healthData: ChartDatum[] = ['healthy', 'elevated', 'degraded', 'unknown'].map((status) => ({
+    key: status,
+    label: presentInsightEnum('health', status, t),
+    value: projects.filter((project) => project.health.status === status).length,
+    tone: healthTone(status),
+  }));
+  const deliveryRisk = projects
+    .slice()
+    .sort((a, b) => projectRisk(b) - projectRisk(a) || (a.name ?? a.id).localeCompare(b.name ?? b.id))
+    .slice(0, 6)
+    .map((project) => ({
+      key: project.id,
+      label: project.name ?? project.id,
+      value: projectRisk(project),
+      tone: project.health.status === 'healthy' ? 'warning' as const : healthTone(project.health.status),
+      href: `${base}/${encodeURIComponent(project.id)}`,
+      detail: t('insight.chart.projectRiskV2Detail', { issues: metricText(project.open_issues), blocked: metricText(project.blocked_tasks) }),
+    }));
+  const executionData = projects
+    .slice()
+    .sort((a, b) => metricNumber(b.execution_count) - metricNumber(a.execution_count) || (a.name ?? a.id).localeCompare(b.name ?? b.id))
+    .slice(0, 6)
+    .map((project) => ({
+      key: project.id,
+      label: project.name ?? project.id,
+      value: metricNumber(project.execution_count),
+      tone: healthTone(project.health.status),
+      href: `${base}/${encodeURIComponent(project.id)}`,
+      detail: t('insight.chart.projectExecutionDetail', { plans: metricText(project.active_plans) }),
+    }));
+  return (
+    <section className="grid gap-4 lg:grid-cols-3" data-testid="insight-projects-charts">
+      <ChartPanel title={t('insight.chart.healthMix')} subtitle={t('insight.chart.projectHealthSubtitle')}>
+        <DonutChart data={healthData} totalLabel={t('insight.chart.projectsTotal')} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.projectDeliveryRisk')} subtitle={t('insight.chart.projectDeliveryRiskSubtitle')}>
+        <HorizontalBars data={deliveryRisk} emptyLabel={t('insight.chart.empty')} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.projectExecutions')} subtitle={t('insight.chart.projectExecutionsSubtitle')}>
+        <HorizontalBars data={executionData} emptyLabel={t('insight.chart.empty')} />
+      </ChartPanel>
     </section>
   );
 }
@@ -185,6 +236,12 @@ function ProjectSummaryPanel({ project }: { project: InsightV2ProjectSummary }):
 
 function DeliveryFunnel({ metrics, breaks }: { metrics: Array<[string, InsightV2CountMetric]>; breaks: InsightV2FunnelBreak[] }): React.ReactElement {
   const { t } = useTranslation('insights');
+  const chartData = metrics.map(([key, metric]) => ({
+    key,
+    label: t(`insight.delivery.stage.${key}`),
+    value: metricNumber(metric),
+    tone: key === 'done' ? 'success' as const : key === 'issues' ? 'info' as const : key === 'tasks' ? 'warning' as const : 'neutral' as const,
+  }));
   return (
     <section className="space-y-3 rounded border border-border-base bg-bg-elevated p-4" data-testid="insight-delivery-funnel">
       <div>
@@ -196,6 +253,7 @@ function DeliveryFunnel({ metrics, breaks }: { metrics: Array<[string, InsightV2
           <MetricTile key={key} label={t(`insight.delivery.stage.${key}`)} metric={metric} />
         ))}
       </div>
+      <SegmentedBar data={chartData} emptyLabel={t('insight.chart.empty')} />
       <div className="overflow-x-auto">
         <table className="w-full min-w-[52rem] text-left text-sm">
           <thead className="text-xs uppercase tracking-wide text-text-muted">
@@ -438,6 +496,27 @@ function JsonBlock({ title, value }: { title: string; value: Record<string, unkn
 function formatRatio(value: number | null): string {
   if (value === null) return EMPTY;
   return `${Math.round(value * 1000) / 10}%`;
+}
+
+function metricNumber(metric: InsightV2CountMetric): number {
+  if (!metric.meta.known || metric.value === null) return 0;
+  return Math.max(0, metric.value);
+}
+
+function metricText(metric: InsightV2CountMetric): string {
+  if (!metric.meta.known || metric.value === null) return EMPTY;
+  return String(metric.value);
+}
+
+function projectRisk(project: InsightV2ProjectSummary): number {
+  return metricNumber(project.open_issues) + metricNumber(project.blocked_tasks);
+}
+
+function healthTone(status: string): ChartDatum['tone'] {
+  if (status === 'healthy') return 'success';
+  if (status === 'elevated') return 'warning';
+  if (status === 'degraded') return 'danger';
+  return 'neutral';
 }
 
 function humanDuration(value: number | null): string {

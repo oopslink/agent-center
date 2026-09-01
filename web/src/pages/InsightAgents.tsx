@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
 import { useInsightAgent, useInsightAgents, type InsightV2AgentSummary, type InsightV2CountMetric } from '@/api/insights';
+import { ChartPanel, DonutChart, HorizontalBars, SegmentedBar, type ChartDatum } from '@/components/insight/InsightCharts';
 import { presentInsightEnum } from '@/utils/insightPresentation';
 
 const EMPTY = '—';
@@ -21,8 +22,61 @@ export default function InsightAgentsPage(): React.ReactElement {
       {query.data && (
         query.data.length === 0
           ? <StatePanel testId="insight-agents-empty" title={t('insight.agents.empty')} />
-          : <InsightAgentsTable agents={query.data} base={base} />
+          : (
+            <>
+              <InsightAgentsCharts agents={query.data} base={base} />
+              <InsightAgentsTable agents={query.data} base={base} />
+            </>
+          )
       )}
+    </section>
+  );
+}
+
+function InsightAgentsCharts({ agents, base }: { agents: InsightV2AgentSummary[]; base: string }): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const healthData: ChartDatum[] = ['healthy', 'elevated', 'degraded', 'unknown'].map((status) => ({
+    key: status,
+    label: presentInsightEnum('health', status, t),
+    value: agents.filter((agent) => agent.health.status === status).length,
+    tone: healthTone(status),
+  }));
+  const executionData = agents
+    .slice()
+    .sort((a, b) => metricNumber(b.execution_count) - metricNumber(a.execution_count) || (a.name ?? a.id).localeCompare(b.name ?? b.id))
+    .slice(0, 6)
+    .map((agent) => ({
+      key: agent.id,
+      label: agent.name ?? agent.id,
+      value: metricNumber(agent.execution_count),
+      tone: healthTone(agent.health.status),
+      href: `${base}/executions?window=24h&agent_ref=${encodeURIComponent(agent.id)}`,
+      detail: t('insight.chart.agentWorkDetail', { blocked: metricValue(agent.blocked_tasks), plans: metricValue(agent.active_plans) }),
+    }));
+  const workData = agents
+    .slice()
+    .sort((a, b) => agentPressure(b) - agentPressure(a) || (a.name ?? a.id).localeCompare(b.name ?? b.id))
+    .slice(0, 6)
+    .map((agent) => ({
+      key: agent.id,
+      label: agent.name ?? agent.id,
+      value: agentPressure(agent),
+      tone: agent.health.status === 'healthy' ? 'info' as const : healthTone(agent.health.status),
+      href: `${base}/agents/${encodeURIComponent(agent.id)}`,
+      detail: t('insight.chart.agentPressureDetail', { issues: metricValue(agent.open_issues), blocked: metricValue(agent.blocked_tasks) }),
+    }));
+
+  return (
+    <section className="grid gap-4 lg:grid-cols-3" data-testid="insight-agents-charts">
+      <ChartPanel title={t('insight.chart.healthMix')} subtitle={t('insight.chart.healthMixSubtitle')}>
+        <DonutChart data={healthData} totalLabel={t('insight.chart.agentsTotal')} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.agentExecutions')} subtitle={t('insight.chart.agentExecutionsSubtitle')}>
+        <HorizontalBars data={executionData} emptyLabel={t('insight.chart.empty')} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.agentPressure')} subtitle={t('insight.chart.agentPressureSubtitle')}>
+        <HorizontalBars data={workData} emptyLabel={t('insight.chart.empty')} />
+      </ChartPanel>
     </section>
   );
 }
@@ -108,26 +162,39 @@ function InsightAgentsTable({ agents, base }: { agents: InsightV2AgentSummary[];
 function InsightAgentSummaryCard({ agent }: { agent: InsightV2AgentSummary }): React.ReactElement {
   const { t } = useTranslation('insights');
   return (
-    <article className="space-y-4 rounded border border-border-base bg-bg-elevated p-4" data-testid="insight-agent-detail">
-      <div className="flex flex-wrap items-center gap-2">
-        <HealthBadge status={agent.health.status} />
-        {agent.reason_codes.map((code, index) => <span key={`${index}-${code}`} className="rounded-full border border-border-base bg-bg-subtle px-2 py-0.5 text-xs text-text-secondary">{presentInsightEnum('reasonCode', code, t)}</span>)}
-      </div>
-      <dl className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
-        <MetricInfo label={t('insight.agents.metric.executions')} metric={agent.execution_count} />
-        <MetricInfo label={t('insight.agents.metric.openIssues')} metric={agent.open_issues} />
-        <MetricInfo label={t('insight.agents.metric.blockedTasks')} metric={agent.blocked_tasks} />
-        <MetricInfo label={t('insight.agents.metric.activePlans')} metric={agent.active_plans} />
-      </dl>
-      <section>
-        <h2 className="text-sm font-semibold text-text-primary">{t('insight.agents.confidence')}</h2>
-        <dl className="mt-2 grid gap-3 text-sm md:grid-cols-3">
-          <Info label={t('insight.agents.col.coverage')} value={formatCoverage(agent.execution_count.meta.coverage)} />
-          <Info label={t('insight.agents.col.unknown')} value={String(agent.execution_count.meta.unknown_count)} />
-          <Info label={t('insight.agents.sampleCount')} value={String(agent.execution_count.meta.sample_count)} />
+    <>
+      <article className="space-y-4 rounded border border-border-base bg-bg-elevated p-4" data-testid="insight-agent-detail">
+        <div className="flex flex-wrap items-center gap-2">
+          <HealthBadge status={agent.health.status} />
+          {agent.reason_codes.map((code, index) => <span key={`${index}-${code}`} className="rounded-full border border-border-base bg-bg-subtle px-2 py-0.5 text-xs text-text-secondary">{presentInsightEnum('reasonCode', code, t)}</span>)}
+        </div>
+        <dl className="grid gap-3 text-sm md:grid-cols-2 xl:grid-cols-4">
+          <MetricInfo label={t('insight.agents.metric.executions')} metric={agent.execution_count} />
+          <MetricInfo label={t('insight.agents.metric.openIssues')} metric={agent.open_issues} />
+          <MetricInfo label={t('insight.agents.metric.blockedTasks')} metric={agent.blocked_tasks} />
+          <MetricInfo label={t('insight.agents.metric.activePlans')} metric={agent.active_plans} />
         </dl>
-      </section>
-    </article>
+        <section>
+          <h2 className="text-sm font-semibold text-text-primary">{t('insight.agents.confidence')}</h2>
+          <dl className="mt-2 grid gap-3 text-sm md:grid-cols-3">
+            <Info label={t('insight.agents.col.coverage')} value={formatCoverage(agent.execution_count.meta.coverage)} />
+            <Info label={t('insight.agents.col.unknown')} value={String(agent.execution_count.meta.unknown_count)} />
+            <Info label={t('insight.agents.sampleCount')} value={String(agent.execution_count.meta.sample_count)} />
+          </dl>
+        </section>
+      </article>
+      <ChartPanel title={t('insight.chart.agentDetailShape')} subtitle={t('insight.chart.agentDetailShapeSubtitle')}>
+        <SegmentedBar
+          emptyLabel={t('insight.chart.empty')}
+          data={[
+            { key: 'executions', label: t('insight.agents.metric.executions'), value: metricNumber(agent.execution_count), tone: 'info' },
+            { key: 'openIssues', label: t('insight.agents.metric.openIssues'), value: metricNumber(agent.open_issues), tone: 'warning' },
+            { key: 'blockedTasks', label: t('insight.agents.metric.blockedTasks'), value: metricNumber(agent.blocked_tasks), tone: 'danger' },
+            { key: 'activePlans', label: t('insight.agents.metric.activePlans'), value: metricNumber(agent.active_plans), tone: 'success' },
+          ]}
+        />
+      </ChartPanel>
+    </>
   );
 }
 
@@ -169,6 +236,22 @@ function InsightError({ testIdPrefix, error, fallbackTitle }: { testIdPrefix: st
 function metricValue(metric: InsightV2CountMetric): string {
   if (!metric.meta.known || metric.value === null) return EMPTY;
   return String(metric.value);
+}
+
+function metricNumber(metric: InsightV2CountMetric): number {
+  if (!metric.meta.known || metric.value === null) return 0;
+  return Math.max(0, metric.value);
+}
+
+function agentPressure(agent: InsightV2AgentSummary): number {
+  return metricNumber(agent.open_issues) + metricNumber(agent.blocked_tasks) + metricNumber(agent.active_plans);
+}
+
+function healthTone(status: string): ChartDatum['tone'] {
+  if (status === 'healthy') return 'success';
+  if (status === 'elevated') return 'warning';
+  if (status === 'degraded') return 'danger';
+  return 'neutral';
 }
 
 function formatCoverage(value: number | null): string {

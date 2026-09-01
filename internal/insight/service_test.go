@@ -646,13 +646,13 @@ func TestInsightFailureRateExcludesQuietFinalized(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if overview.Summary.CompletedExecutions != 4 || overview.Summary.FailedExecutions != 2 {
-		t.Fatalf("summary = %+v, want 4 completed and 2 failed", overview.Summary)
+	if overview.Summary.CompletedExecutions != 4 || overview.Summary.FailedExecutions != 2 || overview.Summary.RecoveryFinalizedExecutions != 1 {
+		t.Fatalf("summary = %+v, want 4 completed, 2 failed, and 1 recovery-finalized", overview.Summary)
 	}
 	if overview.Summary.FailureRate == nil || *overview.Summary.FailureRate != 0.5 {
 		t.Fatalf("failure rate = %v, want 0.5", overview.Summary.FailureRate)
 	}
-	if len(overview.Agents) != 1 || overview.Agents[0].Summary.CompletedExecutions != 4 || overview.Agents[0].Summary.FailedExecutions != 2 {
+	if len(overview.Agents) != 1 || overview.Agents[0].Summary.CompletedExecutions != 4 || overview.Agents[0].Summary.FailedExecutions != 2 || overview.Agents[0].Summary.RecoveryFinalizedExecutions != 1 {
 		t.Fatalf("leaderboard agents = %+v, want quiet finalized excluded from failed count", overview.Agents)
 	}
 }

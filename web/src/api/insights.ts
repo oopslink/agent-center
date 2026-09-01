@@ -26,6 +26,7 @@ export interface InsightPercentiles {
 export interface InsightSummary {
   completed_executions: number;
   failed_executions: number;
+  recovery_finalized_executions?: number;
   failure_rate: number | null;
   slot_utilization: number | null;
   slot_coverage_ratio: number | null;

@@ -22,6 +22,7 @@ const windowEnvelope = {
 const summary = {
   completed_executions: 10,
   failed_executions: 2,
+  recovery_finalized_executions: 1,
   failure_rate: 0.2,
   slot_utilization: 0.75,
   slot_coverage_ratio: 0.9,
@@ -99,6 +100,9 @@ describe('Insight pages', () => {
     expect(await screen.findByTestId('insight-window')).toHaveTextContent('Past 24 hours (rolling)');
     expect(screen.getByTestId('insight-summary')).toHaveTextContent('Completed executions');
     expect(screen.getByTestId('insight-summary')).toHaveTextContent('75%');
+    expect(screen.getByTestId('insight-overview-charts')).toHaveTextContent('Execution outcome mix');
+    expect(screen.getByTestId('insight-overview-charts')).toHaveTextContent('Recovery finalized');
+    expect(screen.getByTestId('insight-overview-charts')).toHaveTextContent('Latency shape');
     expect(screen.queryByTestId('insight-drilldown')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'View all executions' })).not.toBeInTheDocument();
     expect(within(screen.getByTestId('insight-agent-table')).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');
@@ -193,6 +197,8 @@ describe('Insight pages', () => {
     renderAt('/organizations/acme/insights/executions?window=24h');
 
     const table = await screen.findByTestId('insight-execution-table');
+    expect(screen.getByTestId('insight-execution-charts')).toHaveTextContent('Visible execution statuses');
+    expect(screen.getByTestId('insight-execution-charts')).toHaveTextContent('Ended during recovery');
     expect(table).toHaveTextContent('Completed');
     expect(table).toHaveTextContent('Interrupted');
     expect(table).toHaveTextContent('Ended during recovery');
