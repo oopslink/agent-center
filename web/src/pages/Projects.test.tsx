@@ -198,6 +198,49 @@ describe('Projects page', () => {
     expect(screen.getAllByTestId('project-row')).toHaveLength(2);
   });
 
+  it('hard-deletes an archived project from the archived group after confirmation', async () => {
+    let deleted = false;
+    let deleteCalls = 0;
+    server.use(
+      http.get('/api/projects', ({ request }) => {
+        const status = new URL(request.url).searchParams.get('status');
+        if (status === 'archived') {
+          return HttpResponse.json({
+            projects: deleted
+              ? []
+              : [
+                  { id: 'proj-z', name: 'Project Zeta', status: 'archived', created_at: '2026-04-01T01:00:00Z' },
+                ],
+          });
+        }
+        return HttpResponse.json({
+          projects: [
+            { id: 'proj-a', name: 'Project Alpha', status: 'active', created_at: '2026-05-20T01:00:00Z' },
+          ],
+        });
+      }),
+      http.delete('/api/projects/proj-z', () => {
+        deleteCalls += 1;
+        deleted = true;
+        return HttpResponse.json({ ok: true, status: 'deleted' });
+      }),
+    );
+    wrap(<Projects />);
+    await waitFor(() => expect(screen.getByTestId('projects-list')).toBeInTheDocument());
+    expect(screen.queryByTestId('project-shortcut-delete')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('archived-projects-toggle'));
+    await waitFor(() => expect(screen.getByText('Project Zeta')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('project-shortcut-delete'));
+    const modal = await screen.findByTestId('confirm-modal');
+    expect(modal).toHaveTextContent('related chats, issues, plans, and tasks');
+    fireEvent.click(within(modal).getByTestId('confirm-modal-confirm'));
+
+    await waitFor(() => expect(deleteCalls).toBe(1));
+    await waitFor(() => expect(screen.queryByText('Project Zeta')).not.toBeInTheDocument());
+    expect(screen.getByTestId('archived-projects-empty')).toBeInTheDocument();
+  });
+
   // Empty archived set → a quiet note, not a crash.
   it('expanding shows the empty note when no archived projects', async () => {
     server.use(

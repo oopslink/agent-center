@@ -316,6 +316,9 @@ var (
 	// class. The Archive operation itself is NOT guarded (it is the transition into
 	// this terminal state).
 	ErrProjectArchived = errors.New("projectmanager: project is archived")
+	// ErrProjectNotArchived guards hard deletion: only already-archived Projects may
+	// be permanently removed with their child work and conversations.
+	ErrProjectNotArchived = errors.New("projectmanager: project must be archived before deletion")
 	// Compatibility error for legacy archival paths that encounter an inconsistent
 	// active member. Canonical archive already requires a terminal Plan.
 	ErrPlanHasRunningTasks = errors.New("projectmanager: plan has running tasks — finish or discard it before archiving")

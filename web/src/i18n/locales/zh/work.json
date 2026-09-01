@@ -555,7 +555,8 @@
       "tasks": "任务",
       "issues": "议题",
       "plans": "计划",
-      "codebase": "代码库"
+      "codebase": "代码库",
+      "delete": "永久删除"
     },
     "actions": {
       "menuLabel": "项目操作"
@@ -592,6 +593,13 @@
       "cancel": "取消",
       "archive": "归档",
       "archiving": "归档中…"
+    },
+    "hardDelete": {
+      "title": "删除已归档项目？",
+      "note": "这会永久删除 {{name}} 及其相关的聊天、议题、计划和任务。此操作无法撤销。",
+      "cancel": "取消",
+      "confirm": "永久删除",
+      "deleting": "删除中…"
     },
     "detail": {
       "backToProjects": "← 返回项目列表",

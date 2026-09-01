@@ -110,9 +110,10 @@ func TestPM_NestedTaskFlow_EndToEnd(t *testing.T) {
 
 // TestPM_FlatProjectLifecycle covers the flat /api/projects surface that the
 // retired Workforce project routes were repointed to in B3-c: create → list →
-// get → update (rename/describe) → archive (DELETE = lifecycle, not hard
-// delete). This keeps the previously-removed ListProjects/ShowProject coverage
-// from going naked now that those routes serve the pm Service.
+// get → update (rename/describe) → archive (DELETE active project) → hard-delete
+// (DELETE archived project). This keeps the previously-removed
+// ListProjects/ShowProject coverage from going naked now that those routes serve
+// the pm Service.
 func TestPM_FlatProjectLifecycle(t *testing.T) {
 	deps, db := setupAPIWithAuth(t)
 	sess := setupTestSession(t, db, deps)
@@ -172,6 +173,21 @@ func TestPM_FlatProjectLifecycle(t *testing.T) {
 	json.NewDecoder(resp.Body).Decode(&created)
 	if created["status"] != "archived" {
 		t.Fatalf("project not archived: %+v", created)
+	}
+
+	// Delete again once archived: this is now the hard-delete path.
+	resp = orgScopedDelete(t, s.URL+"/api/projects/"+pid, sess)
+	if resp.StatusCode != 200 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("hard delete status=%d body=%s", resp.StatusCode, b)
+	}
+	var deleted map[string]any
+	json.NewDecoder(resp.Body).Decode(&deleted)
+	if deleted["status"] != "deleted" {
+		t.Fatalf("delete body = %+v, want status=deleted", deleted)
+	}
+	if resp = orgScopedGet(t, s.URL+"/api/projects/"+pid, sess); resp.StatusCode != 404 {
+		t.Fatalf("get after hard delete status=%d, want 404", resp.StatusCode)
 	}
 }
 

@@ -86,9 +86,10 @@ export function useUpdateProject(id: string) {
   });
 }
 
-// useDeleteProject — v2.7 ARCHIVES the project (soft); there is no
-// force/cascade and no 409 mapping/count conflict body. Returns
-// { ok:true, status:"archived" }.
+export type ProjectDeleteResult = { ok: boolean; status: 'archived' | 'deleted' };
+
+// useDeleteProject — DELETE archives active projects and permanently deletes
+// already-archived projects with their project-scoped work data.
 export function useDeleteProject(id: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -103,9 +104,13 @@ export function useDeleteProject(id: string) {
         };
         throw new Error(body?.message ?? `HTTP ${resp.status}`);
       }
+      if (resp.status === 204) return { ok: true, status: 'deleted' } as ProjectDeleteResult;
+      return (await resp.json()) as ProjectDeleteResult;
     },
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.projects() });
+      void qc.invalidateQueries({ queryKey: qk.projectsArchived() });
+      void qc.invalidateQueries({ queryKey: qk.project(id) });
     },
   });
 }

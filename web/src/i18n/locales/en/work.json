@@ -555,7 +555,8 @@
       "tasks": "Tasks",
       "issues": "Issues",
       "plans": "Plans",
-      "codebase": "Codebase"
+      "codebase": "Codebase",
+      "delete": "Delete permanently"
     },
     "actions": {
       "menuLabel": "Project actions"
@@ -592,6 +593,13 @@
       "cancel": "Cancel",
       "archive": "Archive",
       "archiving": "Archiving…"
+    },
+    "hardDelete": {
+      "title": "Delete archived project?",
+      "note": "This permanently deletes {{name}} and its related chats, issues, plans, and tasks. This cannot be undone.",
+      "cancel": "Cancel",
+      "confirm": "Delete permanently",
+      "deleting": "Deleting…"
     },
     "detail": {
       "backToProjects": "← Back to projects",

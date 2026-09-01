@@ -56,6 +56,8 @@ func mapPMError(w http.ResponseWriter, err error) {
 		// v2.9 #297: archived project is read-only (irreversible) — every child
 		// mutation rejects with 409, cross-surface (mirrors ErrPlanArchived).
 		writeError(w, http.StatusConflict, "project_archived", err.Error())
+	case errors.Is(err, pm.ErrProjectNotArchived):
+		writeError(w, http.StatusConflict, "project_not_archived", err.Error())
 	case errors.Is(err, pm.ErrTaskDescriptionFrozen):
 		// I109 ①: a description edit on a RUNNING task. Its executor's prompt froze at
 		// spawn and is never re-fed, so the write cannot re-scope the run — refused with
@@ -516,8 +518,9 @@ func (s *Server) pmUpdateProjectHandler(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, projectMapWithAutoAssign(r.Context(), d, got))
 }
 
-// pmArchiveProjectHandler handles DELETE /api/projects/{project_id} as a
-// lifecycle archive (active→archived), NOT a hard delete.
+// pmArchiveProjectHandler handles DELETE /api/projects/{project_id}. Active
+// projects are archived; already-archived projects are hard-deleted with their
+// project-scoped work and conversations.
 func (s *Server) pmArchiveProjectHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	p, caller, ok := s.pmRequireProjectInOrg(w, r, d)
@@ -525,6 +528,14 @@ func (s *Server) pmArchiveProjectHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if !requireWebSubjectAuthorization(w, r, d, authz.SubjectRef(caller), "project.write", authz.ResourceScope{Kind: "project", ID: string(p.ID()), OrgID: p.OrganizationID()}) {
+		return
+	}
+	if p.Status() == pm.ProjectArchived {
+		if err := d.PM.DeleteArchivedProject(r.Context(), p.ID(), caller); err != nil {
+			mapPMError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "deleted"})
 		return
 	}
 	if err := d.PM.ArchiveProject(r.Context(), p.ID(), caller); err != nil {

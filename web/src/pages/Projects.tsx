@@ -5,6 +5,7 @@ import { OrgLink } from '@/OrgContext';
 import {
   useProjects,
   useArchivedProjects,
+  useDeleteProject,
   type Project,
 } from '@/api/projects';
 import { EmptyState } from '@/components/EmptyState';
@@ -12,6 +13,7 @@ import { EntityRef } from '@/components/EntityRef';
 import { Skeleton } from '@/components/Skeleton';
 import { ProjectCreateModal } from '@/components/ProjectCreateModal';
 import { ProjectEditModal } from '@/components/ProjectEditModal';
+import { ConfirmModal } from '@/components/ConfirmModal';
 
 // Projects page (/projects). Lists every project; the v2.5.3 (#58)
 // "+ Add Project" button + modal lets operators create projects from
@@ -147,7 +149,7 @@ function ArchivedProjectsGroup(): React.ReactElement {
               data-testid="archived-projects-list"
             >
               {archived.data.map((p) => (
-                <ProjectRow key={p.id} project={p} />
+                <ProjectRow key={p.id} project={p} allowHardDelete />
               ))}
             </ul>
           )}
@@ -164,9 +166,12 @@ function ArchivedProjectsGroup(): React.ReactElement {
 // straight into a project's sub-views without first opening the detail page.
 // The card body stays a single link to the project detail; the actions are a
 // SIBLING block (not nested in the link — that would be invalid anchor markup).
-function ProjectRow({ project: p }: { project: Project }): React.ReactElement {
+function ProjectRow({ project: p, allowHardDelete = false }: { project: Project; allowHardDelete?: boolean }): React.ReactElement {
   const { t } = useTranslation('work');
   const [editing, setEditing] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const deleteProject = useDeleteProject(p.id);
+  const hardDeleteEnabled = allowHardDelete && p.status === 'archived';
   return (
     <li data-testid="project-row" data-project-id={p.id}>
       <div className="flex items-start justify-between gap-3 px-4 py-3 motion-safe:transition-colors hover:bg-bg-subtle">
@@ -199,9 +204,39 @@ function ProjectRow({ project: p }: { project: Project }): React.ReactElement {
             </span>
           </div>
         </OrgLink>
-        <ProjectCardActions project={p} onEdit={() => setEditing(true)} />
+        <ProjectCardActions
+          project={p}
+          onEdit={() => setEditing(true)}
+          onHardDelete={hardDeleteEnabled ? () => setDeleteOpen(true) : undefined}
+        />
       </div>
       {editing && <ProjectEditModal project={p} onClose={() => setEditing(false)} />}
+      <ConfirmModal
+        open={deleteOpen}
+        title={t('project.hardDelete.title')}
+        message={
+          <div className="space-y-2">
+            <p>{t('project.hardDelete.note', { name: p.name })}</p>
+            {deleteProject.isError && (
+              <p className="text-danger" data-testid="project-hard-delete-error">
+                {(deleteProject.error as Error).message}
+              </p>
+            )}
+          </div>
+        }
+        confirmLabel={deleteProject.isPending ? t('project.hardDelete.deleting') : t('project.hardDelete.confirm')}
+        cancelLabel={t('project.hardDelete.cancel')}
+        danger
+        busy={deleteProject.isPending}
+        onCancel={() => {
+          if (!deleteProject.isPending) setDeleteOpen(false);
+        }}
+        onConfirm={() => {
+          deleteProject.mutate(undefined, {
+            onSuccess: () => setDeleteOpen(false),
+          });
+        }}
+      />
     </li>
   );
 }
@@ -214,6 +249,7 @@ interface ProjectShortcut {
   icon: React.ReactElement;
   to?: string;
   onSelect?: () => void;
+  danger?: boolean;
 }
 
 // projectShortcuts — the T139 quick actions for a project card. Tasks / Issues /
@@ -223,10 +259,11 @@ interface ProjectShortcut {
 function projectShortcuts(
   p: Project,
   onEdit: () => void,
+  onHardDelete: (() => void) | undefined,
   t: (key: string) => string,
 ): ProjectShortcut[] {
   const base = `/projects/${encodeURIComponent(p.id)}`;
-  return [
+  const shortcuts: ProjectShortcut[] = [
     { key: 'edit', label: t('project.shortcut.edit'), icon: <EditIcon />, onSelect: onEdit },
     { key: 'board', label: t('project.shortcut.board'), icon: <BoardIcon />, to: `${base}/plans` },
     { key: 'tasks', label: t('project.shortcut.tasks'), icon: <TasksIcon />, to: `${base}?tab=tasks` },
@@ -234,6 +271,10 @@ function projectShortcuts(
     { key: 'plans', label: t('project.shortcut.plans'), icon: <PlansIcon />, to: `${base}?tab=plans` },
     { key: 'codebase', label: t('project.shortcut.codebase'), icon: <CodebaseIcon />, to: `${base}?tab=repos` },
   ];
+  if (onHardDelete) {
+    shortcuts.push({ key: 'delete', label: t('project.shortcut.delete'), icon: <DeleteIcon />, onSelect: onHardDelete, danger: true });
+  }
+  return shortcuts;
 }
 
 // ProjectCardActions — the quick-action cluster on the right of a project card.
@@ -245,12 +286,14 @@ function projectShortcuts(
 function ProjectCardActions({
   project: p,
   onEdit,
+  onHardDelete,
 }: {
   project: Project;
   onEdit: () => void;
+  onHardDelete?: () => void;
 }): React.ReactElement {
   const { t } = useTranslation('work');
-  const shortcuts = projectShortcuts(p, onEdit, t);
+  const shortcuts = projectShortcuts(p, onEdit, onHardDelete, t);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -291,7 +334,10 @@ function ProjectCardActions({
             <button
               key={s.key}
               type="button"
-              className="inline-flex h-7 w-7 items-center justify-center rounded text-text-muted hover:bg-bg-subtle hover:text-text-primary"
+              className={[
+                'inline-flex h-7 w-7 items-center justify-center rounded hover:bg-bg-subtle',
+                s.danger ? 'text-danger hover:text-danger' : 'text-text-muted hover:text-text-primary',
+              ].join(' ')}
               title={s.label}
               aria-label={s.label}
               data-testid={`project-shortcut-${s.key}`}
@@ -340,7 +386,10 @@ function ProjectCardActions({
                   key={s.key}
                   type="button"
                   role="menuitem"
-                  className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-text-primary hover:bg-bg-subtle min-h-[44px] md:min-h-0"
+                  className={[
+                    'flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-bg-subtle min-h-[44px] md:min-h-0',
+                    s.danger ? 'text-danger' : 'text-text-primary',
+                  ].join(' ')}
                   data-testid={`project-shortcut-menu-${s.key}`}
                   onClick={() => {
                     setMenuOpen(false);
@@ -477,6 +526,17 @@ function KebabIcon(): React.ReactElement {
       <circle cx="12" cy="5" r="1" />
       <circle cx="12" cy="12" r="1" />
       <circle cx="12" cy="19" r="1" />
+    </svg>
+  );
+}
+
+function DeleteIcon(): React.ReactElement {
+  return (
+    <svg {...iconProps}>
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="M19 6l-1 14H6L5 6" />
+      <path d="M10 11v5M14 11v5" />
     </svg>
   );
 }
