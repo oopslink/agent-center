@@ -203,6 +203,35 @@ function SubHeader({
   );
 }
 
+function TeamSubHeader({
+  label,
+  collapsed,
+  onToggle,
+}: {
+  label: string;
+  collapsed: boolean;
+  onToggle: () => void;
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={!collapsed}
+      data-testid="conv-nav-subheader-team"
+      className="flex w-full min-w-0 items-center gap-1 rounded px-1 py-1 text-left text-[0.6875rem] font-medium text-text-muted hover:bg-bg-subtle hover:text-text-secondary"
+    >
+      <svg
+        viewBox="0 0 12 12"
+        aria-hidden="true"
+        className={`h-2.5 w-2.5 shrink-0 transition-transform ${collapsed ? '' : 'rotate-90'}`}
+      >
+        <path d="M4 2l4 4-4 4" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+      <span className="min-w-0 truncate">{label}</span>
+    </button>
+  );
+}
+
 // Trash glyph as an SVG (NOT an emoji/pictograph — the a11y no-emoji-icons gate
 // forbids unicode pictographs as icons); mirrors the shell default's TrashIcon.
 function TrashIcon(): React.ReactElement {
@@ -412,17 +441,16 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
             )}
             {!(hasOtherDmGroups && isGroupCollapsed('mine')) && (
               shouldGroupMyDMsByTeam ? (
-                <div className="space-y-0.5" data-testid="conv-nav-dms-mine">
+                <div className="ml-3 space-y-0.5 border-l border-border-subtle pl-2" data-testid="conv-nav-dms-mine">
                   {myDmTeamGroups.map((group) => (
-                    <div key={group.key} data-testid="conv-nav-dm-team-group">
-                      <SubHeader
+                    <div key={group.key} className="space-y-0.5" data-testid="conv-nav-dm-team-group">
+                      <TeamSubHeader
                         label={group.label}
                         collapsed={isGroupCollapsed(`mine.team.${group.key}`)}
                         onToggle={() => toggleGroup(`mine.team.${group.key}`)}
-                        testId="conv-nav-subheader-team"
                       />
                       {!isGroupCollapsed(`mine.team.${group.key}`) && (
-                        <ul className="space-y-0.5" data-testid={`conv-nav-dms-team-${group.key}`}>
+                        <ul className="space-y-0.5 pl-2" data-testid={`conv-nav-dms-team-${group.key}`}>
                           {group.dms.map((d) => renderDmRow(d, myDMOrder))}
                         </ul>
                       )}
