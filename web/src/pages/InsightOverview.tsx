@@ -40,7 +40,7 @@ export default function InsightOverview(): React.ReactElement {
 
   return (
     <section className="space-y-4" data-testid="page-InsightOverview">
-      <InsightHeader title={t('insight.overview.title')} action={<LinkButton to={`${base}/executions?window=24h`}>{t('insight.actions.viewAll')}</LinkButton>} />
+      <InsightHeader title={t('insight.overview.title')} />
 
       {overview.isLoading && <InsightStatePanel testId="insight-loading" title={t('insight.state.loadingOverview')} />}
 
@@ -208,10 +208,6 @@ function InsightHeader({ title, subtitle, action }: { title: string; subtitle?: 
       {action}
     </header>
   );
-}
-
-function LinkButton({ to, children }: { to: string; children: React.ReactNode }): React.ReactElement {
-  return <Link to={to} className="rounded border border-border-base bg-bg-elevated px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle">{children}</Link>;
 }
 
 function WindowBar({ data }: { data: Pick<InsightOverviewDTO, 'window' | 'refreshed_at' | 'freshness'> }): React.ReactElement {

@@ -100,7 +100,7 @@ describe('Insight pages', () => {
     expect(screen.getByTestId('insight-summary')).toHaveTextContent('Completed executions');
     expect(screen.getByTestId('insight-summary')).toHaveTextContent('75%');
     expect(screen.queryByTestId('insight-drilldown')).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View all executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h');
+    expect(screen.queryByRole('link', { name: 'View all executions' })).not.toBeInTheDocument();
     expect(within(screen.getByTestId('insight-agent-table')).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');
     expect(within(screen.getByTestId('insight-project-table')).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&project_id=proj-1');
   });
@@ -306,6 +306,6 @@ describe('Insight pages', () => {
     server.use(http.get('/api/orgs/:slug/insights/overview', () => HttpResponse.json(overview())));
     renderAt('/organizations/acme/insights/overview');
     expect(await screen.findByTestId('insight-window')).toHaveTextContent('过去 24 小时');
-    expect(screen.getByRole('link', { name: '查看全部执行记录' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '查看全部执行记录' })).not.toBeInTheDocument();
   });
 });

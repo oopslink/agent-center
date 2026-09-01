@@ -208,6 +208,8 @@ func TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap(t *testin
 		{SlotIndex: 0, State: concurrency.StateIdle},
 		{SlotIndex: 1, State: concurrency.StateDraining},
 	}}, asOf)
+	insertActivity(t, db, "start-slot-leader", "agent-1", "task-1", "exec-slot-leader", map[string]any{"event": "executor.start", "executor_id": "exec-slot-leader"}, asOf.Add(-45*time.Minute))
+	insertActivity(t, db, "stop-slot-leader", "agent-1", "task-1", "exec-slot-leader", map[string]any{"event": "executor.stop", "executor_id": "exec-slot-leader", "outcome": "succeeded"}, asOf.Add(-44*time.Minute))
 	svc := openInsight(t, db)
 	if err := svc.Refresh(ctx); err != nil {
 		t.Fatalf("refresh: %v", err)
@@ -218,6 +220,12 @@ func TestInsightSlotObservation_DuplicateHeartbeatAdmissionAndStaleGap(t *testin
 	}
 	if o.Summary.SlotUtilization == nil || *o.Summary.SlotUtilization <= 0 {
 		t.Fatalf("slot utilization = %v, want positive", o.Summary.SlotUtilization)
+	}
+	if len(o.Agents) != 1 {
+		t.Fatalf("leaderboard agents = %d, want 1", len(o.Agents))
+	}
+	if o.Agents[0].Summary.SlotUtilization != nil || o.Agents[0].Summary.SlotCoverageRatio != nil {
+		t.Fatalf("leaderboard slot summary = (%v,%v), want omitted; overview slot coverage belongs to the global summary only", o.Agents[0].Summary.SlotUtilization, o.Agents[0].Summary.SlotCoverageRatio)
 	}
 	var openIntervals int
 	if err := svc.duck.QueryRowContext(ctx, `SELECT COUNT(*) FROM slot_interval_fact WHERE worker_id='worker-1' AND agent_ref='agent:agent-1' AND slot_index=0`).Scan(&openIntervals); err != nil {

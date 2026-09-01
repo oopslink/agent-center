@@ -215,11 +215,26 @@ func (s *Service) summary(ctx context.Context, orgID, agentRef, projectID string
 }
 
 func (s *Service) leaderboard(ctx context.Context, orgID, by string, asOf time.Time) ([]LeaderRow, error) {
+	if by != "agent_ref" && by != "project_id" {
+		return nil, fmt.Errorf("insight: unsupported leaderboard dimension %q", by)
+	}
 	start := asOf.Add(-24 * time.Hour)
-	rows, err := s.duck.QueryContext(ctx, `SELECT `+by+`, COUNT(*) AS c FROM execution_fact
+	rows, err := s.duck.QueryContext(ctx, `SELECT `+by+`, COUNT(*) AS c,
+		COUNT(*) FILTER (WHERE finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ) AND outcome IN ('succeeded','failed','crashed','quiet_finalized')),
+		COUNT(*) FILTER (WHERE finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ) AND outcome IN ('failed','crashed','quiet_finalized')),
+		COUNT(*) FILTER (WHERE started_at >= CAST(? AS TIMESTAMPTZ) AND started_at < CAST(? AS TIMESTAMPTZ) AND queued_at IS NOT NULL AND started_at >= queued_at),
+		ROUND(quantile_cont(CASE WHEN started_at >= CAST(? AS TIMESTAMPTZ) AND started_at < CAST(? AS TIMESTAMPTZ) AND queued_at IS NOT NULL AND started_at >= queued_at THEN date_diff('millisecond', CAST(queued_at AS TIMESTAMP), CAST(started_at AS TIMESTAMP)) END, 0.50)),
+		ROUND(quantile_cont(CASE WHEN started_at >= CAST(? AS TIMESTAMPTZ) AND started_at < CAST(? AS TIMESTAMPTZ) AND queued_at IS NOT NULL AND started_at >= queued_at THEN date_diff('millisecond', CAST(queued_at AS TIMESTAMP), CAST(started_at AS TIMESTAMP)) END, 0.95)),
+		COUNT(*) FILTER (WHERE finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ) AND started_at IS NOT NULL AND finished_at >= started_at),
+		ROUND(quantile_cont(CASE WHEN finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ) AND started_at IS NOT NULL AND finished_at >= started_at THEN date_diff('millisecond', CAST(started_at AS TIMESTAMP), CAST(finished_at AS TIMESTAMP)) END, 0.50)),
+		ROUND(quantile_cont(CASE WHEN finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ) AND started_at IS NOT NULL AND finished_at >= started_at THEN date_diff('millisecond', CAST(started_at AS TIMESTAMP), CAST(finished_at AS TIMESTAMP)) END, 0.95))
+		FROM execution_fact
 		WHERE organization_id=? AND `+by+` IS NOT NULL AND finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ)
 		AND outcome IN ('succeeded','failed','crashed','quiet_finalized')
-		GROUP BY `+by+` ORDER BY c DESC, `+by+` ASC LIMIT 20`, orgID, fmtTS(start), fmtTS(asOf))
+		GROUP BY `+by+` ORDER BY c DESC, `+by+` ASC LIMIT 20`,
+		fmtTS(start), fmtTS(asOf), fmtTS(start), fmtTS(asOf), fmtTS(start), fmtTS(asOf), fmtTS(start), fmtTS(asOf),
+		fmtTS(start), fmtTS(asOf), fmtTS(start), fmtTS(asOf), fmtTS(start), fmtTS(asOf), fmtTS(start), fmtTS(asOf),
+		orgID, fmtTS(start), fmtTS(asOf))
 	if err != nil {
 		return nil, err
 	}
@@ -227,14 +242,21 @@ func (s *Service) leaderboard(ctx context.Context, orgID, by string, asOf time.T
 	var out []LeaderRow
 	for rows.Next() {
 		var id string
-		var c int64
-		if err := rows.Scan(&id, &c); err != nil {
+		var rankCount int64
+		var sum Summary
+		var q50, q95, d50, d95 sql.NullFloat64
+		if err := rows.Scan(&id, &rankCount, &sum.CompletedExecutions, &sum.FailedExecutions, &sum.QueueWaitMS.Samples, &q50, &q95, &sum.ExecutionDurationMS.Samples, &d50, &d95); err != nil {
 			return nil, err
 		}
-		sum, err := s.summary(ctx, orgID, map[bool]string{true: id, false: ""}[by == "agent_ref"], map[bool]string{true: id, false: ""}[by == "project_id"], asOf)
-		if err != nil {
-			return nil, err
+		_ = rankCount
+		if sum.CompletedExecutions > 0 {
+			v := float64(sum.FailedExecutions) / float64(sum.CompletedExecutions)
+			sum.FailureRate = &v
 		}
+		sum.QueueWaitMS.P50 = roundPtr(q50)
+		sum.QueueWaitMS.P95 = roundPtr(q95)
+		sum.ExecutionDurationMS.P50 = roundPtr(d50)
+		sum.ExecutionDurationMS.P95 = roundPtr(d95)
 		r := LeaderRow{Summary: sum}
 		if by == "agent_ref" {
 			r.AgentRef = id
