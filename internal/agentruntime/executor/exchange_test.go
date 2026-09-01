@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
 )
@@ -266,6 +267,15 @@ func TestScan(t *testing.T) {
 	mustWriteInput(t, fx, in2)
 	must(t, fx.WriteStatus(Status{ExecutorID: "exec-running", State: StateRunning, Model: in2.Model}))
 
+	// e3: retained terminal executor. ReapFinalized owns delayed teardown; Scan must
+	// not surface it again for boot recovery.
+	in3 := validInput()
+	in3.ExecutorID = "exec-finalized"
+	mustWriteInput(t, fx, in3)
+	must(t, fx.WriteStatus(Status{ExecutorID: "exec-finalized", State: StateDone, Model: in3.Model}))
+	must(t, fx.WriteOutput(Output{ExecutorID: "exec-finalized", Success: true, Result: "retained"}))
+	must(t, fx.MarkFinalized("exec-finalized", time.Now(), nil))
+
 	// Noise that must be ignored: a non-dir, a dotfile dir, and a junk-named dir.
 	if err := os.WriteFile(filepath.Join(root, "executors", "loose.txt"), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
@@ -284,6 +294,9 @@ func TestScan(t *testing.T) {
 	}
 	if len(byID) != 2 {
 		t.Fatalf("Scan returned %d snapshots, want 2: %+v", len(snaps), snaps)
+	}
+	if _, ok := byID["exec-finalized"]; ok {
+		t.Fatalf("Scan included retained finalized executor: %+v", snaps)
 	}
 	done := byID["exec-done"]
 	if done.Input == nil || done.Status == nil || !done.HasOutput || done.Output == nil {

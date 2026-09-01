@@ -170,7 +170,7 @@ export function insightExecutionStatus(row: InsightExecutionRow, t: TFunction<'i
   if (row.outcome === 'succeeded') return { label: t('insight.status.completed'), tone: 'success', failureRateTerminal: false };
   if (row.outcome === 'failed') return { label: t('insight.status.failed'), tone: 'danger', failureRateTerminal: true };
   if (row.outcome === 'crashed') return { label: t('insight.status.interrupted'), tone: 'danger', failureRateTerminal: true };
-  if (row.outcome === 'quiet_finalized') return { label: t('insight.status.quietFinalized'), tone: 'danger', failureRateTerminal: true };
+  if (row.outcome === 'quiet_finalized') return { label: t('insight.status.quietFinalized'), tone: 'warn', failureRateTerminal: false };
   if (row.finished_at) return { label: t('insight.status.outcomeUnknown'), tone: 'warn', failureRateTerminal: false };
   if (row.started_at) return { label: t('insight.status.running'), tone: 'info', failureRateTerminal: false };
   if (row.command_status === 'rejected' || row.command_status === 'failed' || row.command_status === 'expired') {

@@ -625,6 +625,38 @@ func TestInsightPostCommitCrashRestartDoesNotDuplicate(t *testing.T) {
 	}
 }
 
+func TestInsightFailureRateExcludesQuietFinalized(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+	insertActivity(t, db, "start-ok", "agent-1", "task-1", "exec-ok", map[string]any{"event": "executor.start", "executor_id": "exec-ok"}, asOf.Add(-time.Hour))
+	insertActivity(t, db, "stop-ok", "agent-1", "task-1", "exec-ok", map[string]any{"event": "executor.stop", "executor_id": "exec-ok", "outcome": "succeeded"}, asOf.Add(-time.Hour+time.Second))
+	insertActivity(t, db, "start-failed", "agent-1", "task-1", "exec-failed", map[string]any{"event": "executor.start", "executor_id": "exec-failed"}, asOf.Add(-50*time.Minute))
+	insertActivity(t, db, "stop-failed", "agent-1", "task-1", "exec-failed", map[string]any{"event": "executor.stop", "executor_id": "exec-failed", "outcome": "failed"}, asOf.Add(-50*time.Minute+time.Second))
+	insertActivity(t, db, "start-crashed", "agent-1", "task-1", "exec-crashed", map[string]any{"event": "executor.start", "executor_id": "exec-crashed"}, asOf.Add(-40*time.Minute))
+	insertActivity(t, db, "stop-crashed", "agent-1", "task-1", "exec-crashed", map[string]any{"event": "executor.stop", "executor_id": "exec-crashed", "outcome": "crashed"}, asOf.Add(-40*time.Minute+time.Second))
+	insertActivity(t, db, "quiet", "agent-1", "task-1", "exec-quiet", map[string]any{"event": "executor.recovery_quiet_finalized", "executor_id": "exec-quiet", "reason": "no_backfill_guard"}, asOf.Add(-30*time.Minute))
+
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatalf("refresh: %v", err)
+	}
+	overview, err := svc.Overview(ctx, "org-1", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if overview.Summary.CompletedExecutions != 4 || overview.Summary.FailedExecutions != 2 {
+		t.Fatalf("summary = %+v, want 4 completed and 2 failed", overview.Summary)
+	}
+	if overview.Summary.FailureRate == nil || *overview.Summary.FailureRate != 0.5 {
+		t.Fatalf("failure rate = %v, want 0.5", overview.Summary.FailureRate)
+	}
+	if len(overview.Agents) != 1 || overview.Agents[0].Summary.CompletedExecutions != 4 || overview.Agents[0].Summary.FailedExecutions != 2 {
+		t.Fatalf("leaderboard agents = %+v, want quiet finalized excluded from failed count", overview.Agents)
+	}
+}
+
 func migratedSQLite(t *testing.T) *sql.DB {
 	t.Helper()
 	db, err := persistence.Open(t.TempDir() + "/center.db")

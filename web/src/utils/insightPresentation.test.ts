@@ -98,7 +98,7 @@ describe('insight presentation semantics', () => {
     { row: { outcome: 'succeeded', finished_at: '2026-08-27T00:01:00Z' }, label: 'Completed', tone: 'success' },
     { row: { outcome: 'failed', finished_at: '2026-08-27T00:01:00Z' }, label: 'Failed', tone: 'danger' },
     { row: { outcome: 'crashed', finished_at: '2026-08-27T00:01:00Z' }, label: 'Interrupted', tone: 'danger' },
-    { row: { outcome: 'quiet_finalized', finished_at: '2026-08-27T00:01:00Z' }, label: 'Ended during recovery', tone: 'danger' },
+    { row: { outcome: 'quiet_finalized', finished_at: '2026-08-27T00:01:00Z' }, label: 'Ended during recovery', tone: 'warn' },
     { row: { outcome: 'new_state', finished_at: '2026-08-27T00:01:00Z' }, label: 'Outcome unavailable', tone: 'warn' },
     { row: { started_at: '2026-08-27T00:00:01Z' }, label: 'Running', tone: 'info' },
     { row: { command_status: 'rejected' }, label: 'Did not start', tone: 'danger' },

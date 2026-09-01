@@ -184,7 +184,7 @@ func (s *Service) summary(ctx context.Context, orgID, agentRef, projectID string
 	var sum Summary
 	row := s.duck.QueryRowContext(ctx, `SELECT
 		COUNT(*) FILTER (WHERE finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ) AND outcome IN ('succeeded','failed','crashed','quiet_finalized')),
-		COUNT(*) FILTER (WHERE finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ) AND outcome IN ('failed','crashed','quiet_finalized')),
+		COUNT(*) FILTER (WHERE finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ) AND outcome IN ('failed','crashed')),
 		COUNT(*) FILTER (WHERE started_at >= CAST(? AS TIMESTAMPTZ) AND started_at < CAST(? AS TIMESTAMPTZ) AND queued_at IS NOT NULL AND started_at >= queued_at),
 		ROUND(quantile_cont(CASE WHEN started_at >= CAST(? AS TIMESTAMPTZ) AND started_at < CAST(? AS TIMESTAMPTZ) AND queued_at IS NOT NULL AND started_at >= queued_at THEN date_diff('millisecond', CAST(queued_at AS TIMESTAMP), CAST(started_at AS TIMESTAMP)) END, 0.50)),
 		ROUND(quantile_cont(CASE WHEN started_at >= CAST(? AS TIMESTAMPTZ) AND started_at < CAST(? AS TIMESTAMPTZ) AND queued_at IS NOT NULL AND started_at >= queued_at THEN date_diff('millisecond', CAST(queued_at AS TIMESTAMP), CAST(started_at AS TIMESTAMP)) END, 0.95)),
@@ -221,7 +221,7 @@ func (s *Service) leaderboard(ctx context.Context, orgID, by string, asOf time.T
 	start := asOf.Add(-24 * time.Hour)
 	rows, err := s.duck.QueryContext(ctx, `SELECT `+by+`, COUNT(*) AS c,
 		COUNT(*) FILTER (WHERE finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ) AND outcome IN ('succeeded','failed','crashed','quiet_finalized')),
-		COUNT(*) FILTER (WHERE finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ) AND outcome IN ('failed','crashed','quiet_finalized')),
+		COUNT(*) FILTER (WHERE finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ) AND outcome IN ('failed','crashed')),
 		COUNT(*) FILTER (WHERE started_at >= CAST(? AS TIMESTAMPTZ) AND started_at < CAST(? AS TIMESTAMPTZ) AND queued_at IS NOT NULL AND started_at >= queued_at),
 		ROUND(quantile_cont(CASE WHEN started_at >= CAST(? AS TIMESTAMPTZ) AND started_at < CAST(? AS TIMESTAMPTZ) AND queued_at IS NOT NULL AND started_at >= queued_at THEN date_diff('millisecond', CAST(queued_at AS TIMESTAMP), CAST(started_at AS TIMESTAMP)) END, 0.50)),
 		ROUND(quantile_cont(CASE WHEN started_at >= CAST(? AS TIMESTAMPTZ) AND started_at < CAST(? AS TIMESTAMPTZ) AND queued_at IS NOT NULL AND started_at >= queued_at THEN date_diff('millisecond', CAST(queued_at AS TIMESTAMP), CAST(started_at AS TIMESTAMP)) END, 0.95)),

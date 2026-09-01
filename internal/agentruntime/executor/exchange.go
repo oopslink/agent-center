@@ -273,11 +273,14 @@ type Snapshot struct {
 	HasOutput  bool
 }
 
-// Scan rebuilds the orchestrator's in-flight state by reading every executor dir
-// under executors/ (design §12). It is best-effort per dir: a dir whose input is
-// unreadable is still reported (with nil Input) so the orchestrator can decide to
-// clean it up rather than have it vanish — unknown/partial dirs surface, never
-// silently dropped (conventions §17). A missing executors/ dir yields nil, nil.
+// Scan rebuilds the orchestrator's in-flight state by reading every non-finalized
+// executor dir under executors/ (design §12). Retained terminal dirs marked by
+// `finalized` are skipped here; ReapFinalized owns their delayed teardown, and
+// boot recovery must not re-process them on every runtime restart. It is best-effort
+// per dir: a dir whose input is unreadable is still reported (with nil Input) so
+// the orchestrator can decide to clean it up rather than have it vanish —
+// unknown/partial dirs surface, never silently dropped (conventions §17). A missing
+// executors/ dir yields nil, nil.
 func (fx *FileExchange) Scan() ([]Snapshot, error) {
 	root := fx.layout.ExecutorsDir()
 	ents, err := os.ReadDir(root)
@@ -296,6 +299,9 @@ func (fx *FileExchange) Scan() ([]Snapshot, error) {
 		if validateExecutorID(id) != nil || strings.HasPrefix(id, ".") {
 			continue // not a protocol executor dir
 		}
+		if fx.hasFinalizedMarker(id) {
+			continue
+		}
 		snap := Snapshot{ExecutorID: id}
 		if in, err := fx.readInputBestEffort(id); err == nil {
 			snap.Input = &in
@@ -310,6 +316,15 @@ func (fx *FileExchange) Scan() ([]Snapshot, error) {
 		snaps = append(snaps, snap)
 	}
 	return snaps, nil
+}
+
+func (fx *FileExchange) hasFinalizedMarker(executorID string) bool {
+	path, err := fx.layout.FinalizedPath(executorID)
+	if err != nil {
+		return false
+	}
+	var m finalizedMarker
+	return readJSON(path, &m) == nil
 }
 
 func (fx *FileExchange) readInputBestEffort(executorID string) (Input, error) {

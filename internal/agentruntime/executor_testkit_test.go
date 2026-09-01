@@ -296,14 +296,10 @@ func seedOrphan(t *testing.T, fx *executor.FileExchange, tr *executor.Tracker, i
 
 func dirGone(t *testing.T, fx *executor.FileExchange, id string) bool {
 	t.Helper()
-	snaps, err := fx.Scan()
+	dir, err := fx.Layout().Dir(id)
 	if err != nil {
-		t.Fatalf("Scan: %v", err)
+		t.Fatalf("Dir: %v", err)
 	}
-	for _, s := range snaps {
-		if s.ExecutorID == id {
-			return false
-		}
-	}
-	return true
+	_, err = os.Stat(dir)
+	return os.IsNotExist(err)
 }
