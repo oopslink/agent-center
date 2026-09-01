@@ -54,6 +54,26 @@ func openAgentAgentDM(t *testing.T, deps HandlerDeps, orgID, a, b string) conver
 	return res.ConversationID
 }
 
+func openObservedHumanAgentDM(t *testing.T, deps HandlerDeps, orgID, humanRef, agentRef string) conversation.ConversationID {
+	t.Helper()
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	res, err := deps.MessageWriter.OpenConversation(context.Background(), convservice.OpenCommand{
+		Kind:           conversation.ConversationKindDM,
+		Name:           "Observed DM",
+		OrganizationID: orgID,
+		Participants: []conversation.ParticipantElement{
+			{IdentityID: conversation.IdentityRef(humanRef), Role: "owner", JoinedAt: now, JoinedBy: conversation.IdentityRef(humanRef)},
+			{IdentityID: conversation.IdentityRef(agentRef), Role: "member", JoinedAt: now, JoinedBy: conversation.IdentityRef(humanRef)},
+		},
+		CreatedBy: conversation.IdentityRef(humanRef),
+		Actor:     observability.Actor(humanRef),
+	})
+	if err != nil {
+		t.Fatalf("open observed human-agent DM: %v", err)
+	}
+	return res.ConversationID
+}
+
 // TestAPI_Attention_SystemDMNotSurfaced is the bug regression (oopslink 2026-07-02):
 // a reminder delivered to agent:tester3 (a system↔agent DM) must NOT leak into an
 // UNRELATED human's "Needs your attention" panel. The org-wide conversation scan
@@ -128,6 +148,48 @@ func TestDM_SystemDMClassification(t *testing.T) {
 	}
 	if !found {
 		t.Fatalf("system DM row %s not found in %+v", sysDM, rows)
+	}
+}
+
+func TestAPI_ListConversations_HidesUnrelatedObservedDMs(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+
+	sysDM := openSystemDM(t, deps, sess.OrgID, "agent:tester3")
+	a2aDM := openAgentAgentDM(t, deps, sess.OrgID, "agent:a", "agent:b")
+	observedDM := openObservedHumanAgentDM(t, deps, sess.OrgID, "user:other", "agent:AG9")
+
+	srv := newTestServer(t, deps)
+	defer srv.Close()
+
+	createResp := orgScopedPost(t, srv.URL+"/api/conversations", `{"kind":"dm","members":["agent:mine"]}`, sess)
+	if createResp.StatusCode != 201 {
+		t.Fatalf("create participant DM status=%d", createResp.StatusCode)
+	}
+	var created map[string]any
+	_ = json.NewDecoder(createResp.Body).Decode(&created)
+	myDM := created["conversation_id"].(string)
+
+	listResp := orgScopedGet(t, srv.URL+"/api/conversations?kind=dm", sess)
+	var rows []map[string]any
+	if err := json.NewDecoder(listResp.Body).Decode(&rows); err != nil {
+		t.Fatal(err)
+	}
+	ids := map[string]bool{}
+	for _, row := range rows {
+		ids[row["id"].(string)] = true
+	}
+	if !ids[myDM] {
+		t.Fatalf("participant DM %s missing from rows=%+v", myDM, rows)
+	}
+	if !ids[string(sysDM)] {
+		t.Fatalf("system DM %s should remain visible in rows=%+v", sysDM, rows)
+	}
+	if !ids[string(a2aDM)] {
+		t.Fatalf("agent-agent DM %s should remain visible in rows=%+v", a2aDM, rows)
+	}
+	if ids[string(observedDM)] {
+		t.Fatalf("unrelated observed DM %s leaked into list rows=%+v", observedDM, rows)
 	}
 }
 

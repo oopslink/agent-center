@@ -168,6 +168,26 @@ describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
     expect(screen.getByText('Mine')).toBeInTheDocument();
   });
 
+  it('does not place observed DMs in the Mine group', async () => {
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        const kind = new URL(request.url).searchParams.get('kind');
+        if (kind === 'dm') {
+          return HttpResponse.json([
+            { id: 'D1', kind: 'dm', status: 'active', dm_type: 'my_dm', peer_identity_id: 'user:o', peer_display_name: 'oopslink', unread_count: 0, mention_count: 0 },
+            { id: 'DOBS', kind: 'dm', status: 'active', dm_type: 'observed_dm', unread_count: 0, mention_count: 0 },
+          ]);
+        }
+        return HttpResponse.json([]);
+      }),
+    );
+    renderNav();
+
+    expect(await screen.findByText('@oopslink')).toBeInTheDocument();
+    expect(screen.getAllByTestId('conv-nav-dm')).toHaveLength(1);
+    expect(screen.queryByText('Direct message')).not.toBeInTheDocument();
+  });
+
   it('groups Mine DMs by the peer team when directory membership is available', async () => {
     server.use(
       http.get('/api/conversations', ({ request }) => {

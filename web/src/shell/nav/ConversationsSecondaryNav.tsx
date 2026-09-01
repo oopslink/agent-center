@@ -276,7 +276,7 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
   // — dm_type=system_dm, target exposed as the peer so the row reads "@target").
   const agentAgentDMs = dmList.filter((d) => d.dm_type === 'agent_agent_dm');
   const systemDMs = dmList.filter((d) => d.dm_type === 'system_dm');
-  const myDMs = dmList.filter((d) => d.dm_type !== 'agent_agent_dm' && d.dm_type !== 'system_dm');
+  const myDMs = dmList.filter((d) => d.dm_type === 'my_dm' || (!d.dm_type && !!d.peer_identity_id));
 
   // Drag-reorder (per-user, persisted) for each col② list — @oopslink.
   const channelOrder = useListOrder(`${orgBase}/conv/channels`, activeChannels.map((c) => c.id));

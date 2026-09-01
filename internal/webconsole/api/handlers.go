@@ -486,6 +486,11 @@ func (s *Server) listConversationsHandler(w http.ResponseWriter, r *http.Request
 		convs = kept
 	}
 	self := conversation.IdentityRef(d.Actor)
+	// A plain observed DM is not part of the caller's inbox. Keep the two explicit
+	// observer classes the UI supports (system deliveries and agent-agent DMs), but
+	// do not leak unrelated human/agent 1:1 DMs into "Mine" where they collapse to
+	// a generic "Direct message" row.
+	convs = filterVisibleConversationList(convs, self)
 	// v2.8 #268: per-row unread/mention/followed badges for the sidebar.
 	// followed is batch-resolved (one repo round-trip); mention_count needs
 	// the requesting user's display name. Both are agent-aware (Q-T1).
@@ -784,6 +789,38 @@ func activeDMParticipants(c *conversation.Conversation) []conversation.IdentityR
 		}
 	}
 	return refs
+}
+
+func visibleDMInConversationList(c *conversation.Conversation, self conversation.IdentityRef) bool {
+	if c.Kind() != conversation.ConversationKindDM {
+		return true
+	}
+	if c.HasActiveParticipant(self) {
+		return true
+	}
+	refs := activeDMParticipants(c)
+	if _, ok := singleNonSystemParticipant(refs); ok {
+		return true
+	}
+	if len(refs) == 2 {
+		for _, ref := range refs {
+			if !strings.HasPrefix(string(ref), "agent:") {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+func filterVisibleConversationList(convs []*conversation.Conversation, self conversation.IdentityRef) []*conversation.Conversation {
+	kept := make([]*conversation.Conversation, 0, len(convs))
+	for _, c := range convs {
+		if visibleDMInConversationList(c, self) {
+			kept = append(kept, c)
+		}
+	}
+	return kept
 }
 
 func enrichDMProjection(ctx context.Context, nr *nameResolver, c *conversation.Conversation, self conversation.IdentityRef, row map[string]any) {
