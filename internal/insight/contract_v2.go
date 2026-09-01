@@ -19,7 +19,7 @@ var V2DeliveryBreakKinds = []string{
 }
 
 func (s *Service) V2Overview(ctx context.Context, orgID string, asOf time.Time) (V2OverviewResponse, error) {
-	env := s.v2Envelope(ctx, asOf, 0, nil, 0, true)
+	env := s.v2Envelope(ctx, asOf, 0, fullCoverage(), 0, true)
 	execCount, unknown, err := s.v2ExecutionCount(ctx, orgID, "", "", asOf)
 	if err != nil {
 		return V2OverviewResponse{}, err
@@ -35,7 +35,7 @@ func (s *Service) V2Overview(ctx context.Context, orgID string, asOf time.Time) 
 	env.Meta.SampleCount = execCount
 	env.Meta.UnknownCount = unknown
 	env.Health = v2Health(env.Meta)
-	return V2OverviewResponse{V2WindowedEnvelope: env, Executions: s.v2Count(execCount, execCount, nil, unknown, true, asOf), Agents: agents, Projects: projects}, nil
+	return V2OverviewResponse{V2WindowedEnvelope: env, Executions: s.v2Count(execCount, execCount, fullCoverage(), unknown, true, asOf), Agents: agents, Projects: projects}, nil
 }
 
 func (s *Service) V2Agents(ctx context.Context, orgID string, asOf time.Time) ([]V2EntitySummary, error) {
@@ -66,7 +66,23 @@ func (s *Service) V2Agents(ctx context.Context, orgID string, asOf time.Time) ([
 		if err != nil {
 			return nil, err
 		}
-		entity := V2EntitySummary{ID: ref, Name: nullableString(r.name), ExecutionCount: s.v2Count(execCount, execCount, nil, unknown, true, asOf)}
+		openIssues, _ := s.sqliteCount(ctx, `SELECT COUNT(DISTINCT i.id) FROM pm_issues i
+			JOIN pm_tasks t ON t.derived_from_issue=i.id
+			JOIN pm_projects p ON p.id=t.project_id
+			WHERE p.organization_id=? AND t.assignee=? AND i.status IN ('open','in_progress')`, orgID, ref)
+		blockedTasks, _ := s.sqliteCount(ctx, `SELECT COUNT(*) FROM pm_tasks t JOIN pm_projects p ON p.id=t.project_id WHERE p.organization_id=? AND t.assignee=? AND t.status='blocked'`, orgID, ref)
+		activePlans, _ := s.sqliteCount(ctx, `SELECT COUNT(DISTINCT pl.id) FROM pm_plans pl
+			JOIN pm_tasks t ON t.plan_id=pl.id
+			JOIN pm_projects p ON p.id=pl.project_id
+			WHERE p.organization_id=? AND t.assignee=? AND pl.status IN ('pending','running','paused')`, orgID, ref)
+		entity := V2EntitySummary{
+			ID:             ref,
+			Name:           nullableString(r.name),
+			ExecutionCount: s.v2Count(execCount, execCount, fullCoverage(), unknown, true, asOf),
+			OpenIssues:     s.v2Count(openIssues, openIssues, fullCoverage(), 0, true, asOf),
+			BlockedTasks:   s.v2Count(blockedTasks, blockedTasks, fullCoverage(), 0, true, asOf),
+			ActivePlans:    s.v2Count(activePlans, activePlans, fullCoverage(), 0, true, asOf),
+		}
 		entity.Health = v2Health(entity.ExecutionCount.Meta)
 		entity.ReasonCodes = entity.Health.ReasonCodes
 		out = append(out, entity)
@@ -106,7 +122,7 @@ func (s *Service) V2Projects(ctx context.Context, orgID string, asOf time.Time) 
 		activePlans, _ := s.sqliteCount(ctx, `SELECT COUNT(*) FROM pm_plans pl JOIN pm_projects p ON p.id=pl.project_id WHERE p.organization_id=? AND p.id=? AND pl.status IN ('pending','running','paused')`, orgID, r.id)
 		entity := V2EntitySummary{
 			ID: r.id, Name: nullableString(r.name),
-			ExecutionCount: s.v2Count(execCount, execCount, nil, unknown, true, asOf),
+			ExecutionCount: s.v2Count(execCount, execCount, fullCoverage(), unknown, true, asOf),
 			OpenIssues:     s.v2Count(openIssues, openIssues, fullCoverage(), 0, true, asOf),
 			BlockedTasks:   s.v2Count(blockedTasks, blockedTasks, fullCoverage(), 0, true, asOf),
 			ActivePlans:    s.v2Count(activePlans, activePlans, fullCoverage(), 0, true, asOf),
@@ -293,7 +309,6 @@ func (s *Service) v2DeliveryBreaks(ctx context.Context, projectID string, asOf t
 			return nil, 0, err
 		}
 		counts[kind] = n
-		unknown += n
 	}
 	kinds := append([]string(nil), V2DeliveryBreakKinds...)
 	sort.Strings(kinds)

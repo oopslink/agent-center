@@ -431,12 +431,25 @@ func TestInsightV2DeliveryEvolutionAndLineage(t *testing.T) {
 	if err := svc.Refresh(ctx); err != nil {
 		t.Fatal(err)
 	}
+	agents, err := svc.V2Agents(ctx, "org-1", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(agents) != 1 || agents[0].Health.Status != "healthy" || agents[0].ExecutionCount.Meta.Coverage == nil || *agents[0].ExecutionCount.Meta.Coverage != 1 {
+		t.Fatalf("agent v2 health/coverage = %+v, want known full-coverage summary", agents)
+	}
+	if agents[0].OpenIssues.Value == nil || *agents[0].OpenIssues.Value != 1 {
+		t.Fatalf("agent open issues = %+v, want assigned linked issue", agents[0].OpenIssues)
+	}
 	delivery, err := svc.V2ProjectDelivery(ctx, "org-1", "project-1", asOf)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if delivery.MetricVersion != MetricVersionV2 || len(delivery.Funnel.Breaks) != 7 {
 		t.Fatalf("delivery envelope/breaks = %+v", delivery)
+	}
+	if delivery.Health.Status != "healthy" || delivery.Meta.UnknownCount != 0 {
+		t.Fatalf("delivery health/meta = %+v/%+v, want known diagnostics rather than unknown source state", delivery.Health, delivery.Meta)
 	}
 	kinds := map[string]int64{}
 	for _, b := range delivery.Funnel.Breaks {
