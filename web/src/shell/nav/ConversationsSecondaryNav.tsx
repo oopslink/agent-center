@@ -13,6 +13,7 @@ import { dmDisplayName, dmParticipantLabels } from '@/components/dmDisplay';
 import { SystemDmBadge } from '@/components/SystemDmBadge';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 import type { Conversation } from '@/api/types';
+import { useDirectoryAgents, useDirectoryHumans, type DirectoryAgent, type DirectoryHuman } from '@/api/teams';
 import { UnreadConversationsSection } from './UnreadConversationsSection';
 import { useListOrder, rowDragClass, type ListOrder } from './useListOrder';
 
@@ -81,6 +82,79 @@ function EmptyRow({ text }: { text: string }): React.ReactElement {
   return <li className="px-2 py-0.5 text-xs italic text-text-muted">{text}</li>;
 }
 
+interface DmTeamGroup {
+  key: string;
+  label: string;
+  dms: Conversation[];
+}
+
+interface TeamBucket {
+  key: string;
+  label: string;
+}
+
+const NO_TEAM_KEY = '__no_team__';
+
+function normalizeIdentityRef(ref: string | undefined, fallbackKind?: 'agent' | 'user'): string {
+  const value = (ref ?? '').trim();
+  if (!value) return '';
+  if (value.includes(':')) return value;
+  return fallbackKind ? `${fallbackKind}:${value}` : value;
+}
+
+function indexDirectoryTeams(agents: readonly DirectoryAgent[], humans: readonly DirectoryHuman[]): Map<string, TeamBucket> {
+  const out = new Map<string, TeamBucket>();
+  const add = (ref: string, teams: readonly string[] | undefined, teamIds: readonly string[] | undefined): void => {
+    const key = teamIds?.[0] || teams?.[0] || NO_TEAM_KEY;
+    const label = teams?.[0] || key;
+    if (key && key !== NO_TEAM_KEY) {
+      out.set(ref, { key, label });
+    }
+  };
+  for (const agent of agents) {
+    add(normalizeIdentityRef(agent.ref, 'agent'), agent.teams, agent.team_ids);
+    if (agent.name) out.set(`name:${agent.name}`, out.get(normalizeIdentityRef(agent.ref, 'agent')) ?? { key: NO_TEAM_KEY, label: '' });
+  }
+  for (const human of humans) {
+    add(normalizeIdentityRef(human.ref, 'user'), human.teams, human.team_ids);
+    if (human.name) out.set(`name:${human.name}`, out.get(normalizeIdentityRef(human.ref, 'user')) ?? { key: NO_TEAM_KEY, label: '' });
+  }
+  return out;
+}
+
+function dmTeamBucket(d: Conversation, directoryTeams: Map<string, TeamBucket>, noTeamLabel: string): TeamBucket {
+  const rawPeer = d.peer_identity_id;
+  const candidates = [
+    normalizeIdentityRef(rawPeer),
+    normalizeIdentityRef(rawPeer, 'agent'),
+    normalizeIdentityRef(rawPeer, 'user'),
+    d.peer_display_name ? `name:${d.peer_display_name}` : '',
+  ].filter(Boolean);
+  for (const candidate of candidates) {
+    const hit = directoryTeams.get(candidate);
+    if (hit?.key && hit.key !== NO_TEAM_KEY) return hit;
+  }
+  return { key: NO_TEAM_KEY, label: noTeamLabel };
+}
+
+function groupMyDMsByTeam(
+  dms: readonly Conversation[],
+  directoryTeams: Map<string, TeamBucket>,
+  noTeamLabel: string,
+): DmTeamGroup[] {
+  const byKey = new Map<string, DmTeamGroup>();
+  for (const dm of dms) {
+    const bucket = dmTeamBucket(dm, directoryTeams, noTeamLabel);
+    const current = byKey.get(bucket.key);
+    if (current) {
+      current.dms.push(dm);
+    } else {
+      byKey.set(bucket.key, { key: bucket.key, label: bucket.label, dms: [dm] });
+    }
+  }
+  return Array.from(byKey.values());
+}
+
 // T321: the DM subgroup collapse state is persisted in localStorage (keyed by
 // group) so a collapsed "My DMs" / "A2A" stays collapsed across navigation —
 // mirroring the shell's group-expand persistence.
@@ -145,6 +219,8 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
   const navigate = useNavigate();
   const channels = useConversations({ kind: 'channel' });
   const dms = useConversations({ kind: 'dm' });
+  const directoryAgents = useDirectoryAgents();
+  const directoryHumans = useDirectoryHumans();
   const deleteConversation = useDeleteConversation();
   const [pendingDeleteDM, setPendingDeleteDM] = useState<{ id: string; to: string; label: string } | null>(
     null,
@@ -182,6 +258,10 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
   const orderedMyDMs = orderList(myDMOrder, myDMs, (d) => d.id);
   const orderedA2ADMs = orderList(a2aOrder, agentAgentDMs, (d) => d.id);
   const orderedSystemDMs = orderList(systemDMOrder, systemDMs, (d) => d.id);
+  const directoryTeams = indexDirectoryTeams(directoryAgents.data ?? [], directoryHumans.data ?? []);
+  const myDmTeamGroups = groupMyDMsByTeam(orderedMyDMs, directoryTeams, t('shell.conv.noTeam'));
+  const shouldGroupMyDMsByTeam =
+    myDmTeamGroups.length > 1 || (myDmTeamGroups.length === 1 && myDmTeamGroups[0].key !== NO_TEAM_KEY);
   // The "Mine" subheader shows only when at least one OTHER DM group is present
   // (else a viewer with only personal DMs sees a clean flat list).
   const hasOtherDmGroups = agentAgentDMs.length > 0 || systemDMs.length > 0;
@@ -331,9 +411,29 @@ export function ConversationsSecondaryNav({ orgBase }: ModuleSecondaryNavProps):
               />
             )}
             {!(hasOtherDmGroups && isGroupCollapsed('mine')) && (
-              <ul className="space-y-0.5" data-testid="conv-nav-dms-mine">
-                {orderedMyDMs.map((d) => renderDmRow(d, myDMOrder))}
-              </ul>
+              shouldGroupMyDMsByTeam ? (
+                <div className="space-y-0.5" data-testid="conv-nav-dms-mine">
+                  {myDmTeamGroups.map((group) => (
+                    <div key={group.key} data-testid="conv-nav-dm-team-group">
+                      <SubHeader
+                        label={group.label}
+                        collapsed={isGroupCollapsed(`mine.team.${group.key}`)}
+                        onToggle={() => toggleGroup(`mine.team.${group.key}`)}
+                        testId="conv-nav-subheader-team"
+                      />
+                      {!isGroupCollapsed(`mine.team.${group.key}`) && (
+                        <ul className="space-y-0.5" data-testid={`conv-nav-dms-team-${group.key}`}>
+                          {group.dms.map((d) => renderDmRow(d, myDMOrder))}
+                        </ul>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <ul className="space-y-0.5" data-testid="conv-nav-dms-mine">
+                  {orderedMyDMs.map((d) => renderDmRow(d, myDMOrder))}
+                </ul>
+              )
             )}
           </>
         )}

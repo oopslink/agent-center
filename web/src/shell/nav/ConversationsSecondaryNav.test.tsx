@@ -42,6 +42,8 @@ beforeEach(() => {
       }
       return HttpResponse.json([]);
     }),
+    http.get('/api/directory/agents', () => HttpResponse.json([])),
+    http.get('/api/directory/humans', () => HttpResponse.json([])),
   );
 });
 afterEach(() => {
@@ -164,6 +166,41 @@ describe('ConversationsSecondaryNav (T64 col② / 例1)', () => {
     expect(within(screen.getByTestId('conv-nav-dms-mine')).queryByText('@tester3')).not.toBeInTheDocument();
     // "Mine" subheader shows because another group (System DMs) exists.
     expect(screen.getByText('Mine')).toBeInTheDocument();
+  });
+
+  it('groups Mine DMs by the peer team when directory membership is available', async () => {
+    server.use(
+      http.get('/api/conversations', ({ request }) => {
+        const kind = new URL(request.url).searchParams.get('kind');
+        if (kind === 'dm') {
+          return HttpResponse.json([
+            { id: 'D-DEV', kind: 'dm', status: 'active', dm_type: 'my_dm', peer_identity_id: 'agent-dev1', peer_display_name: 'agent-center-dev1', unread_count: 0, mention_count: 0 },
+            { id: 'D-TEST', kind: 'dm', status: 'active', dm_type: 'my_dm', peer_identity_id: 'agent-tester3', peer_display_name: 'agent-center-tester3', unread_count: 0, mention_count: 0 },
+            { id: 'D-FREE', kind: 'dm', status: 'active', dm_type: 'my_dm', peer_identity_id: 'agent-free', peer_display_name: 'agent-center-dev5', unread_count: 0, mention_count: 0 },
+            {
+              id: 'DAA', kind: 'dm', status: 'active', dm_type: 'agent_agent_dm',
+              dm_participants: [{ identity_id: 'agent:pd', display_name: 'pd' }, { identity_id: 'agent:dev1', display_name: 'dev1' }],
+              unread_count: 0, mention_count: 0,
+            },
+          ]);
+        }
+        return HttpResponse.json([]);
+      }),
+      http.get('/api/directory/agents', () => HttpResponse.json([
+        { ref: 'agent:agent-dev1', name: 'agent-center-dev1', status: 'idle', role: 'coder', teams: ['agent-center core'], team_ids: ['team-core'], model: 'gpt-5', load: 0, backlog: 0, last: 'now' },
+        { ref: 'agent:agent-tester3', name: 'agent-center-tester3', status: 'idle', role: 'tester', teams: ['growth-experiments'], team_ids: ['team-growth'], model: 'gpt-5', load: 0, backlog: 0, last: 'now' },
+        { ref: 'agent:agent-free', name: 'agent-center-dev5', status: 'idle', role: 'coder', teams: [], team_ids: [], model: 'gpt-5', load: 0, backlog: 0, last: 'now' },
+      ])),
+    );
+    renderNav();
+
+    expect(await screen.findByText('agent-center core')).toBeInTheDocument();
+    expect(screen.getByText('growth-experiments')).toBeInTheDocument();
+    expect(screen.getByText('No team')).toBeInTheDocument();
+    expect(within(screen.getByTestId('conv-nav-dms-team-team-core')).getByText('@agent-center-dev1')).toBeInTheDocument();
+    expect(within(screen.getByTestId('conv-nav-dms-team-team-growth')).getByText('@agent-center-tester3')).toBeInTheDocument();
+    expect(within(screen.getByTestId('conv-nav-dms-team-__no_team__')).getByText('@agent-center-dev5')).toBeInTheDocument();
+    expect(within(screen.getByTestId('conv-nav-dms-agent')).getByText('@pd')).toBeInTheDocument();
   });
 
   it('collapses and expands the My DMs / A2A subgroups via their headers (T321)', async () => {
