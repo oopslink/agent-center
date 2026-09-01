@@ -473,10 +473,27 @@ func TestPlanAPI_ReadRequiresProjectMember(t *testing.T) {
 	}
 
 	for _, path := range []string{
+		"/api/plans",
 		"/api/projects/" + string(projectID) + "/plans",
 		"/api/projects/" + string(projectID) + "/plans/" + string(planID),
 	} {
 		resp := orgScopedGet(t, s.URL+path, viewer)
+		if path == "/api/plans" {
+			if resp.StatusCode != http.StatusOK {
+				t.Fatalf("%s: got %d want 200", path, resp.StatusCode)
+			}
+			var body struct {
+				Items []map[string]any `json:"items"`
+				Total int              `json:"total"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Total != 0 || len(body.Items) != 0 {
+				t.Fatalf("%s: viewer should not list non-member plans: total=%d items=%v", path, body.Total, body.Items)
+			}
+			continue
+		}
 		if resp.StatusCode != http.StatusForbidden {
 			t.Fatalf("%s: got %d want 403", path, resp.StatusCode)
 		}

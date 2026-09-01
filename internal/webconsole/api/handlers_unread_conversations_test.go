@@ -10,6 +10,7 @@ import (
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/observability"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
 
@@ -28,6 +29,19 @@ func seedPMTaskConv(t *testing.T, deps HandlerDeps, orgID, title string, n int) 
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if deps.MemberRepo != nil {
+		orgMembers, merr := deps.MemberRepo.ListByOrganization(ctx, orgID)
+		if merr != nil {
+			t.Fatal(merr)
+		}
+		for _, m := range orgMembers {
+			if _, aerr := deps.PM.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{
+				ProjectID: projID, IdentityID: pm.IdentityRef("user:" + m.IdentityID()), Actor: "user:hayang",
+			}); aerr != nil {
+				t.Fatal(aerr)
+			}
+		}
 	}
 	taskID, err := deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{
 		ProjectID: projID, Title: title, CreatedBy: "user:hayang",

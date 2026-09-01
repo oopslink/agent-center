@@ -337,6 +337,24 @@ func (s *Server) pmRequireProjectMemberInOrg(w http.ResponseWriter, r *http.Requ
 	return p, caller, true
 }
 
+func (s *Server) pmProjectsReadableByCaller(ctx context.Context, d HandlerDeps, orgID string, caller pm.IdentityRef) ([]*pm.Project, error) {
+	projects, err := d.PM.ListProjects(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]*pm.Project, 0, len(projects))
+	for _, p := range projects {
+		ok, err := s.callerIsProjectMember(ctx, d, string(caller), p.ID())
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
 // --- Project (org-scoped) ---------------------------------------------------
 
 func (s *Server) pmListProjectsHandler(w http.ResponseWriter, r *http.Request) {
@@ -345,11 +363,11 @@ func (s *Server) pmListProjectsHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
 		return
 	}
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	callerID, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	ps, err := d.PM.ListProjects(r.Context(), orgID)
+	ps, err := s.pmProjectsReadableByCaller(r.Context(), d, orgID, pmCallerRef(callerID))
 	if err != nil {
 		mapPMError(w, err)
 		return

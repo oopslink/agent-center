@@ -162,11 +162,11 @@ func (s *Server) pmListOrgIssuesHandler(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
 		return
 	}
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	projects, err := d.PM.ListProjects(r.Context(), orgID)
+	projects, err := s.pmProjectsReadableByCaller(r.Context(), d, orgID, pmCallerRef(caller))
 	if err != nil {
 		mapPMError(w, err)
 		return
@@ -202,11 +202,11 @@ func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
 		return
 	}
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	projects, err := d.PM.ListProjects(r.Context(), orgID)
+	projects, err := s.pmProjectsReadableByCaller(r.Context(), d, orgID, pmCallerRef(caller))
 	if err != nil {
 		mapPMError(w, err)
 		return
@@ -250,11 +250,11 @@ func (s *Server) pmListOrgPlansHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
 		return
 	}
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
-	projects, err := d.PM.ListProjects(r.Context(), orgID)
+	projects, err := s.pmProjectsReadableByCaller(r.Context(), d, orgID, pmCallerRef(caller))
 	if err != nil {
 		mapPMError(w, err)
 		return

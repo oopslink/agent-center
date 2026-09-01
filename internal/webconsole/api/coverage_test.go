@@ -173,6 +173,37 @@ func TestAPI_ProjectTaskReadRequiresProjectMember(t *testing.T) {
 	s := newTestServer(t, deps)
 	defer s.Close()
 
+	resp := orgScopedGet(t, s.URL+"/api/projects", viewer)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("project list: got %d", resp.StatusCode)
+	}
+	var projectsBody struct {
+		Projects []map[string]any `json:"projects"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&projectsBody); err != nil {
+		t.Fatal(err)
+	}
+	if len(projectsBody.Projects) != 0 {
+		t.Fatalf("viewer should not list non-member project: %v", projectsBody.Projects)
+	}
+
+	for _, path := range []string{"/api/tasks", "/api/issues"} {
+		resp := orgScopedGet(t, s.URL+path, viewer)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s: got %d", path, resp.StatusCode)
+		}
+		var body struct {
+			Items []map[string]any `json:"items"`
+			Total int              `json:"total"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body.Total != 0 || len(body.Items) != 0 {
+			t.Fatalf("%s: viewer should not list non-member project rows: total=%d items=%v", path, body.Total, body.Items)
+		}
+	}
+
 	for _, path := range []string{
 		"/api/projects/" + string(projectID),
 		"/api/projects/" + string(projectID) + "/members",

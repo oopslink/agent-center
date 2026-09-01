@@ -58,7 +58,7 @@ type attnRow struct {
 // the whole panel (the panel must never be the thing that breaks).
 func (s *Server) listAttentionHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
-	_, _, orgID, ok := requireOrgMember(w, r, d)
+	caller, _, orgID, ok := requireOrgMember(w, r, d)
 	if !ok {
 		return
 	}
@@ -69,7 +69,7 @@ func (s *Server) listAttentionHandler(w http.ResponseWriter, r *http.Request) {
 	// @mention that points at the SAME task conversation (the task item is richer).
 	stuckTaskIDs := map[string]bool{}
 
-	rows = s.collectStuckTaskItems(r, d, orgID, rows, stuckTaskIDs)
+	rows = s.collectStuckTaskItems(r, d, orgID, pmCallerRef(caller), rows, stuckTaskIDs)
 	rows = s.collectDirectedMentionItems(r, d, orgID, self, rows, stuckTaskIDs)
 
 	sort.SliceStable(rows, func(i, j int) bool {
@@ -94,12 +94,12 @@ func (s *Server) listAttentionHandler(w http.ResponseWriter, r *http.Request) {
 // records the task ids for dedup. Fail-soft: a PM read error yields no task
 // items.
 func (s *Server) collectStuckTaskItems(
-	r *http.Request, d HandlerDeps, orgID string, rows []attnRow, stuckTaskIDs map[string]bool,
+	r *http.Request, d HandlerDeps, orgID string, caller pm.IdentityRef, rows []attnRow, stuckTaskIDs map[string]bool,
 ) []attnRow {
 	if d.PM == nil {
 		return rows
 	}
-	projects, err := d.PM.ListProjects(r.Context(), orgID)
+	projects, err := s.pmProjectsReadableByCaller(r.Context(), d, orgID, caller)
 	if err != nil {
 		return rows
 	}

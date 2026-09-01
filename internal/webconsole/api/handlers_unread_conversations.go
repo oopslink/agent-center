@@ -84,6 +84,12 @@ func (s *Server) listUnreadConversationsHandler(w http.ResponseWriter, r *http.R
 		last := page[len(page)-1].ID()
 		cursor = &last
 	}
+	var ferr error
+	all, ferr = s.filterVisibleConversationList(r.Context(), d, all, self, self)
+	if ferr != nil {
+		writeError(w, http.StatusInternalServerError, "visibility_failed", ferr.Error())
+		return
+	}
 
 	// Batch-resolve followed (one repo round-trip) — same as the list path.
 	followedMap := map[conversation.ConversationID]bool{}
@@ -184,6 +190,12 @@ func (s *Server) markAllUnreadConversationsSeenHandler(w http.ResponseWriter, r 
 		}
 		last := page[len(page)-1].ID()
 		cursor = &last
+	}
+	var ferr error
+	all, ferr = s.filterVisibleConversationList(r.Context(), d, all, self, self)
+	if ferr != nil {
+		writeError(w, http.StatusInternalServerError, "visibility_failed", ferr.Error())
+		return
 	}
 
 	followedMap := map[conversation.ConversationID]bool{}
