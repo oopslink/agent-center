@@ -101,6 +101,36 @@ type PlanScaleSummary struct {
 	DoneTaskCount    int64   `json:"done_task_count"`
 }
 
+type ProjectLifecycleTrendPoint struct {
+	BucketStart   string `json:"bucket_start"`
+	IssueCreated  int64  `json:"issue_created"`
+	IssueDone     int64  `json:"issue_done"`
+	IssueCanceled int64  `json:"issue_canceled"`
+	PlanCreated   int64  `json:"plan_created"`
+	PlanDone      int64  `json:"plan_done"`
+	PlanFailed    int64  `json:"plan_failed"`
+	PlanCanceled  int64  `json:"plan_canceled"`
+	TaskCreated   int64  `json:"task_created"`
+	TaskDone      int64  `json:"task_done"`
+	TaskFailed    int64  `json:"task_failed"`
+	TaskCanceled  int64  `json:"task_canceled"`
+}
+
+type DurationHistogramBucket struct {
+	Label string `json:"label"`
+	MinMS int64  `json:"min_ms"`
+	MaxMS *int64 `json:"max_ms"`
+	Count int64  `json:"count"`
+}
+
+type ProjectLifecycleSummary struct {
+	ProjectID             string                       `json:"project_id"`
+	ProjectName           *string                      `json:"project_name,omitempty"`
+	Trend                 []ProjectLifecycleTrendPoint `json:"trend"`
+	TaskDurationHistogram []DurationHistogramBucket    `json:"task_duration_histogram"`
+	PlanDurationHistogram []DurationHistogramBucket    `json:"plan_duration_histogram"`
+}
+
 type LeaderRow struct {
 	AgentRef    string  `json:"agent_ref,omitempty"`
 	DisplayName *string `json:"display_name,omitempty"`
@@ -115,17 +145,18 @@ type Diagnostics struct {
 }
 
 type Overview struct {
-	Window      Window             `json:"window"`
-	AsOf        string             `json:"as_of"`
-	RefreshedAt string             `json:"refreshed_at"`
-	Freshness   Freshness          `json:"freshness"`
-	Summary     Summary            `json:"summary"`
-	Trend       []TrendPoint       `json:"trend"`
-	Usage       UsageSummary       `json:"usage"`
-	PlanScale   []PlanScaleSummary `json:"plan_scale"`
-	Agents      []LeaderRow        `json:"agents"`
-	Projects    []LeaderRow        `json:"projects"`
-	Diagnostics Diagnostics        `json:"diagnostics"`
+	Window           Window                    `json:"window"`
+	AsOf             string                    `json:"as_of"`
+	RefreshedAt      string                    `json:"refreshed_at"`
+	Freshness        Freshness                 `json:"freshness"`
+	Summary          Summary                   `json:"summary"`
+	Trend            []TrendPoint              `json:"trend"`
+	Usage            UsageSummary              `json:"usage"`
+	PlanScale        []PlanScaleSummary        `json:"plan_scale"`
+	ProjectLifecycle []ProjectLifecycleSummary `json:"project_lifecycle"`
+	Agents           []LeaderRow               `json:"agents"`
+	Projects         []LeaderRow               `json:"projects"`
+	Diagnostics      Diagnostics               `json:"diagnostics"`
 }
 
 type ExecutionRow struct {

@@ -93,6 +93,47 @@ function overview(overrides: Record<string, unknown> = {}) {
       failed_task_count: 0,
       done_task_count: 3,
     }],
+    project_lifecycle: [{
+      project_id: 'proj-1',
+      project_name: 'Launch',
+      trend: [
+        {
+          bucket_start: '2026-08-26T23:00:00Z',
+          issue_created: 1,
+          issue_done: 1,
+          issue_canceled: 0,
+          plan_created: 1,
+          plan_done: 1,
+          plan_failed: 0,
+          plan_canceled: 0,
+          task_created: 2,
+          task_done: 1,
+          task_failed: 1,
+          task_canceled: 0,
+        },
+        {
+          bucket_start: '2026-08-27T00:00:00Z',
+          issue_created: 0,
+          issue_done: 0,
+          issue_canceled: 1,
+          plan_created: 0,
+          plan_done: 0,
+          plan_failed: 1,
+          plan_canceled: 0,
+          task_created: 1,
+          task_done: 0,
+          task_failed: 0,
+          task_canceled: 1,
+        },
+      ],
+      task_duration_histogram: [
+        { label: '<1h', min_ms: 0, max_ms: 3600000, count: 1 },
+        { label: '1-6h', min_ms: 3600000, max_ms: 21600000, count: 2 },
+      ],
+      plan_duration_histogram: [
+        { label: '1-6h', min_ms: 3600000, max_ms: 21600000, count: 1 },
+      ],
+    }],
     agents: [{ agent_ref: 'agent:builder', display_name: 'Builder', summary }],
     projects: [{ project_id: 'proj-1', name: 'Launch', summary }],
     diagnostics: { invalid_facts: 0, late_events: 0 },
@@ -146,6 +187,13 @@ describe('Insight pages', () => {
     expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('Launch rollout');
     expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('5');
     expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('2');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Project lifecycle timelines');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Launch');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Issues');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Plans');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Tasks');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Task duration');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Plan duration');
     expect(screen.queryByTestId('insight-drilldown')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'View all executions' })).not.toBeInTheDocument();
     expect(within(screen.getByTestId('insight-agent-table')).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');

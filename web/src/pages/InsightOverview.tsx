@@ -12,6 +12,7 @@ import {
   type InsightExecutionRow,
   type InsightOverview as InsightOverviewDTO,
   type InsightPercentiles,
+  type InsightProjectLifecycleSummary,
   type InsightSummary,
 } from '@/api/insights';
 import {
@@ -53,6 +54,7 @@ export default function InsightOverview(): React.ReactElement {
           <CoverageNotice summary={overview.data.summary} />
           <OverviewTrendCharts data={overview.data} />
           <OverviewPlanScaleCharts data={overview.data} base={base} />
+          <OverviewProjectLifecycleCharts data={overview.data} base={base} />
           <OverviewCharts data={overview.data} base={base} />
           <section className="grid gap-4 xl:grid-cols-2">
             <DimensionTable
@@ -412,6 +414,104 @@ function OverviewPlanScaleCharts({ data, base }: { data: InsightOverviewDTO; bas
       </ChartPanel>
     </section>
   );
+}
+
+function OverviewProjectLifecycleCharts({ data, base }: { data: InsightOverviewDTO; base: string }): React.ReactElement | null {
+  const { t } = useTranslation('insights');
+  const projects = data.project_lifecycle
+    .slice()
+    .sort((a, b) => projectLifecycleActivity(b) - projectLifecycleActivity(a) || (a.project_name ?? a.project_id).localeCompare(b.project_name ?? b.project_id))
+    .slice(0, 6);
+  if (projects.length === 0) return null;
+  return (
+    <section className="space-y-3" data-testid="insight-project-lifecycle-charts">
+      <div>
+        <h2 className="text-sm font-semibold text-text-primary">{t('insight.chart.projectLifecycle')}</h2>
+        <p className="text-xs text-text-muted">{t('insight.chart.projectLifecycleSubtitle')}</p>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        {projects.map((project) => (
+          <ChartPanel
+            key={project.project_id}
+            title={project.project_name ?? project.project_id}
+            subtitle={t('insight.chart.projectLifecycleProjectSubtitle', { total: projectLifecycleActivity(project) })}
+          >
+            <div className="grid gap-4 lg:grid-cols-3">
+              <LifecycleLineChart project={project} kind="issue" />
+              <LifecycleLineChart project={project} kind="plan" />
+              <LifecycleLineChart project={project} kind="task" />
+            </div>
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+              <div>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t('insight.chart.lifecycleOutcomes')}</h3>
+                <SegmentedBar data={projectLifecycleOutcomes(project, t)} emptyLabel={t('insight.chart.empty')} />
+              </div>
+              <div>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t('insight.chart.taskDurationHistogram')}</h3>
+                <HorizontalBars data={histogramData(project.task_duration_histogram)} emptyLabel={t('insight.chart.empty')} />
+              </div>
+              <div>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t('insight.chart.planDurationHistogram')}</h3>
+                <HorizontalBars data={histogramData(project.plan_duration_histogram)} emptyLabel={t('insight.chart.empty')} />
+              </div>
+            </div>
+            <div className="mt-3 text-xs text-text-muted">
+              <Link to={`${base}/projects/${encodeURIComponent(project.project_id)}`} className="text-brand hover:underline">{t('insight.actions.openProjectInsight')}</Link>
+            </div>
+          </ChartPanel>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function LifecycleLineChart({ project, kind }: { project: InsightProjectLifecycleSummary; kind: 'issue' | 'plan' | 'task' }): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const data = project.trend.map((point) => {
+    const value = kind === 'issue'
+      ? point.issue_created + point.issue_done + point.issue_canceled
+      : kind === 'plan'
+        ? point.plan_created + point.plan_done + point.plan_failed + point.plan_canceled
+        : point.task_created + point.task_done + point.task_failed + point.task_canceled;
+    return { key: `${kind}-${point.bucket_start}`, label: formatInsightWindowTime(point.bucket_start), value };
+  });
+  return (
+    <div className="min-w-0">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t(`insight.chart.${kind}Lifecycle`)}</h3>
+      <LineChart data={data} emptyLabel={t('insight.chart.empty')} valueLabel={t('insight.chart.lifecycleEvents')} />
+    </div>
+  );
+}
+
+function projectLifecycleOutcomes(project: InsightProjectLifecycleSummary, t: ReturnType<typeof useTranslation<'insights'>>['t']): ChartDatum[] {
+  const totals = project.trend.reduce((acc, point) => {
+    acc.done += point.issue_done + point.plan_done + point.task_done;
+    acc.failed += point.plan_failed + point.task_failed;
+    acc.canceled += point.issue_canceled + point.plan_canceled + point.task_canceled;
+    return acc;
+  }, { done: 0, failed: 0, canceled: 0 });
+  return [
+    { key: 'done', label: t('insight.chart.lifecycleDone'), value: totals.done, tone: 'success' },
+    { key: 'failed', label: t('insight.chart.lifecycleFailed'), value: totals.failed, tone: 'danger' },
+    { key: 'canceled', label: t('insight.chart.lifecycleCanceled'), value: totals.canceled, tone: 'warning' },
+  ];
+}
+
+function histogramData(buckets: InsightProjectLifecycleSummary['task_duration_histogram']): ChartDatum[] {
+  return buckets.map((bucket) => ({
+    key: bucket.label || `${bucket.min_ms}-${bucket.max_ms ?? 'inf'}`,
+    label: bucket.label || `${bucket.min_ms}-${bucket.max_ms ?? 'inf'}`,
+    value: bucket.count,
+    tone: 'info' as const,
+  }));
+}
+
+function projectLifecycleActivity(project: InsightProjectLifecycleSummary): number {
+  return project.trend.reduce((sum, point) => (
+    sum + point.issue_created + point.issue_done + point.issue_canceled
+    + point.plan_created + point.plan_done + point.plan_failed + point.plan_canceled
+    + point.task_created + point.task_done + point.task_failed + point.task_canceled
+  ), 0);
 }
 
 function OverviewTrendCharts({ data }: { data: InsightOverviewDTO }): React.ReactElement {

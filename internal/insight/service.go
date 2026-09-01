@@ -179,11 +179,15 @@ func (s *Service) Overview(ctx context.Context, orgID string, asOf time.Time) (O
 	if err != nil {
 		return Overview{}, err
 	}
+	projectLifecycle, err := s.projectLifecycle(ctx, orgID, asOf)
+	if err != nil {
+		return Overview{}, err
+	}
 	diag, err := s.diagnostics(ctx, orgID, asOf)
 	if err != nil {
 		return Overview{}, err
 	}
-	return Overview{Window: win, AsOf: fmtTS(asOf), RefreshedAt: ref, Freshness: fresh, Summary: sum, Trend: trend, Usage: usage, PlanScale: planScale, Agents: agents, Projects: projects, Diagnostics: diag}, nil
+	return Overview{Window: win, AsOf: fmtTS(asOf), RefreshedAt: ref, Freshness: fresh, Summary: sum, Trend: trend, Usage: usage, PlanScale: planScale, ProjectLifecycle: projectLifecycle, Agents: agents, Projects: projects, Diagnostics: diag}, nil
 }
 
 func (s *Service) Executions(ctx context.Context, orgID string, f ExecutionFilter) (ExecutionsResponse, error) {

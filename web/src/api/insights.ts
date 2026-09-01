@@ -87,6 +87,36 @@ export interface InsightPlanScaleSummary {
   done_task_count: number;
 }
 
+export interface InsightProjectLifecycleTrendPoint {
+  bucket_start: string;
+  issue_created: number;
+  issue_done: number;
+  issue_canceled: number;
+  plan_created: number;
+  plan_done: number;
+  plan_failed: number;
+  plan_canceled: number;
+  task_created: number;
+  task_done: number;
+  task_failed: number;
+  task_canceled: number;
+}
+
+export interface InsightDurationHistogramBucket {
+  label: string;
+  min_ms: number;
+  max_ms: number | null;
+  count: number;
+}
+
+export interface InsightProjectLifecycleSummary {
+  project_id: string;
+  project_name: string | null;
+  trend: InsightProjectLifecycleTrendPoint[];
+  task_duration_histogram: InsightDurationHistogramBucket[];
+  plan_duration_histogram: InsightDurationHistogramBucket[];
+}
+
 export interface InsightLeaderboardAgent {
   agent_ref: string;
   display_name: string | null;
@@ -113,6 +143,7 @@ export interface InsightOverview {
   trend: InsightTrendPoint[];
   usage: InsightUsageSummary;
   plan_scale: InsightPlanScaleSummary[];
+  project_lifecycle: InsightProjectLifecycleSummary[];
   agents: InsightLeaderboardAgent[];
   projects: InsightLeaderboardProject[];
   diagnostics: InsightDiagnostics;
@@ -433,6 +464,46 @@ function normalizePlanScale(value: unknown): InsightPlanScaleSummary {
   };
 }
 
+function normalizeProjectLifecycleTrendPoint(value: unknown): InsightProjectLifecycleTrendPoint {
+  const source = isRecord(value) ? value : {};
+  return {
+    bucket_start: stringOrEmpty(source.bucket_start),
+    issue_created: numberOrZero(source.issue_created),
+    issue_done: numberOrZero(source.issue_done),
+    issue_canceled: numberOrZero(source.issue_canceled),
+    plan_created: numberOrZero(source.plan_created),
+    plan_done: numberOrZero(source.plan_done),
+    plan_failed: numberOrZero(source.plan_failed),
+    plan_canceled: numberOrZero(source.plan_canceled),
+    task_created: numberOrZero(source.task_created),
+    task_done: numberOrZero(source.task_done),
+    task_failed: numberOrZero(source.task_failed),
+    task_canceled: numberOrZero(source.task_canceled),
+  };
+}
+
+function normalizeDurationHistogramBucket(value: unknown): InsightDurationHistogramBucket {
+  const source = isRecord(value) ? value : {};
+  return {
+    label: stringOrEmpty(source.label),
+    min_ms: numberOrZero(source.min_ms),
+    max_ms: numberOrNull(source.max_ms),
+    count: numberOrZero(source.count),
+  };
+}
+
+function normalizeProjectLifecycle(value: unknown): InsightProjectLifecycleSummary {
+  const source = isRecord(value) ? value : {};
+  const projectId = stringOrEmpty(source.project_id) || 'unknown';
+  return {
+    project_id: projectId,
+    project_name: stringOrNull(source.project_name),
+    trend: arrayOrEmpty(source.trend as InsightProjectLifecycleTrendPoint[] | null | undefined).map(normalizeProjectLifecycleTrendPoint),
+    task_duration_histogram: arrayOrEmpty(source.task_duration_histogram as InsightDurationHistogramBucket[] | null | undefined).map(normalizeDurationHistogramBucket),
+    plan_duration_histogram: arrayOrEmpty(source.plan_duration_histogram as InsightDurationHistogramBucket[] | null | undefined).map(normalizeDurationHistogramBucket),
+  };
+}
+
 function normalizeAgent(value: unknown): InsightLeaderboardAgent {
   const source = isRecord(value) ? value : {};
   const agentRef = stringOrEmpty(source.agent_ref) || 'unknown';
@@ -666,6 +737,7 @@ function normalizeOverview(value: unknown): InsightOverview {
     trend: arrayOrEmpty(source.trend as InsightTrendPoint[] | null | undefined).map(normalizeTrendPoint),
     usage: normalizeUsage(source.usage),
     plan_scale: arrayOrEmpty(source.plan_scale as InsightPlanScaleSummary[] | null | undefined).map(normalizePlanScale),
+    project_lifecycle: arrayOrEmpty(source.project_lifecycle as InsightProjectLifecycleSummary[] | null | undefined).map(normalizeProjectLifecycle),
     agents: arrayOrEmpty(source.agents as InsightLeaderboardAgent[] | null | undefined).map(normalizeAgent),
     projects: arrayOrEmpty(source.projects as InsightLeaderboardProject[] | null | undefined).map(normalizeProject),
     diagnostics: normalizeDiagnostics(source.diagnostics),

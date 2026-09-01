@@ -466,6 +466,66 @@ func TestInsightOverviewPlanScale(t *testing.T) {
 	}
 }
 
+func TestInsightOverviewProjectLifecycle(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	asOf := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
+	seedDims(t, db, "org-1")
+	created := asOf.Add(-3 * time.Hour).Format(time.RFC3339Nano)
+	terminal := asOf.Add(-30 * time.Minute).Format(time.RFC3339Nano)
+	longCreated := asOf.Add(-30 * time.Hour).Format(time.RFC3339Nano)
+
+	execSQL(t, db, `INSERT INTO pm_issues (id, project_id, title, description, status, created_by, created_at, updated_at, status_changed_at) VALUES ('issue-life-open', 'project-1', 'Open issue', '', 'open', 'user:test', ?, ?, '')`, created, created)
+	execSQL(t, db, `INSERT INTO pm_issues (id, project_id, title, description, status, created_by, created_at, updated_at, status_changed_at) VALUES ('issue-life-done', 'project-1', 'Done issue', '', 'resolved', 'user:test', ?, ?, ?)`, created, terminal, terminal)
+	execSQL(t, db, `INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, created_at, updated_at) VALUES ('plan-life-done', 'project-1', 'Done plan', '', 'done', 'user:test', ?, ?)`, longCreated, terminal)
+	execSQL(t, db, `INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, created_at, updated_at) VALUES ('plan-life-failed', 'project-1', 'Failed plan', '', 'failed', 'user:test', ?, ?)`, created, terminal)
+	execSQL(t, db, `INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, plan_id, created_by, created_at, updated_at, completed_at) VALUES ('task-life-done', 'project-1', 'Done task', '', 'completed', 'agent:agent-1', 'plan-life-done', 'user:test', ?, ?, ?)`, created, terminal, terminal)
+	execSQL(t, db, `INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, plan_id, created_by, created_at, updated_at, status_changed_at) VALUES ('task-life-failed', 'project-1', 'Failed task', '', 'failed', 'agent:agent-1', 'plan-life-failed', 'user:test', ?, ?, ?)`, created, terminal, terminal)
+
+	svc := openInsight(t, db)
+	if err := svc.Refresh(ctx); err != nil {
+		t.Fatal(err)
+	}
+	o, err := svc.Overview(ctx, "org-1", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(o.ProjectLifecycle) != 1 {
+		t.Fatalf("project lifecycle rows = %+v, want exactly seeded project", o.ProjectLifecycle)
+	}
+	row := o.ProjectLifecycle[0]
+	if row.ProjectID != "project-1" || row.ProjectName == nil || *row.ProjectName != "Project One" {
+		t.Fatalf("project lifecycle identity = %+v", row)
+	}
+	var issueCreated, issueDone, planDone, planFailed, taskDone, taskFailed int64
+	for _, point := range row.Trend {
+		issueCreated += point.IssueCreated
+		issueDone += point.IssueDone
+		planDone += point.PlanDone
+		planFailed += point.PlanFailed
+		taskDone += point.TaskDone
+		taskFailed += point.TaskFailed
+	}
+	if issueCreated != 2 || issueDone != 1 || planDone != 1 || planFailed != 1 || taskDone != 1 || taskFailed != 1 {
+		t.Fatalf("lifecycle trend counts issue=%d/%d plan=%d/%d task=%d/%d, want seeded values", issueCreated, issueDone, planDone, planFailed, taskDone, taskFailed)
+	}
+	if bucketCount(row.TaskDurationHistogram, "1-6h") != 2 {
+		t.Fatalf("task duration histogram = %+v, want two 1-6h terminal tasks", row.TaskDurationHistogram)
+	}
+	if bucketCount(row.PlanDurationHistogram, "1-3d") != 1 || bucketCount(row.PlanDurationHistogram, "1-6h") != 1 {
+		t.Fatalf("plan duration histogram = %+v, want one 1-3d and one 1-6h terminal plan", row.PlanDurationHistogram)
+	}
+}
+
+func bucketCount(buckets []DurationHistogramBucket, label string) int64 {
+	for _, bucket := range buckets {
+		if bucket.Label == label {
+			return bucket.Count
+		}
+	}
+	return 0
+}
+
 func TestInsightV2DeliveryEvolutionAndLineage(t *testing.T) {
 	ctx := context.Background()
 	db := migratedSQLite(t)

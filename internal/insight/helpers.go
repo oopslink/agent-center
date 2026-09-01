@@ -429,6 +429,235 @@ func (s *Service) planScale(ctx context.Context, orgID string, limit int) ([]Pla
 	return out, rows.Err()
 }
 
+func (s *Service) projectLifecycle(ctx context.Context, orgID string, asOf time.Time) ([]ProjectLifecycleSummary, error) {
+	start := asOf.Add(-24 * time.Hour)
+	startBucket := start.Truncate(time.Hour)
+	endBucket := asOf.Truncate(time.Hour)
+	projectRows, err := s.sqlite.QueryContext(ctx, `SELECT id, name FROM pm_projects WHERE organization_id=? ORDER BY name ASC, id ASC`, orgID)
+	if err != nil {
+		return nil, err
+	}
+	defer projectRows.Close()
+	byProject := map[string]*ProjectLifecycleSummary{}
+	var order []string
+	for projectRows.Next() {
+		var id string
+		var name sql.NullString
+		if err := projectRows.Scan(&id, &name); err != nil {
+			return nil, err
+		}
+		row := &ProjectLifecycleSummary{ProjectID: id}
+		if name.Valid {
+			row.ProjectName = &name.String
+		}
+		row.Trend = makeLifecycleBuckets(startBucket, endBucket)
+		row.TaskDurationHistogram = makeDurationBuckets()
+		row.PlanDurationHistogram = makeDurationBuckets()
+		byProject[id] = row
+		order = append(order, id)
+	}
+	if err := projectRows.Err(); err != nil {
+		return nil, err
+	}
+	if err := s.projectLifecycleTrend(ctx, orgID, start, asOf, byProject); err != nil {
+		return nil, err
+	}
+	if err := s.projectLifecycleDurations(ctx, orgID, start, asOf, byProject); err != nil {
+		return nil, err
+	}
+	out := make([]ProjectLifecycleSummary, 0, len(order))
+	for _, id := range order {
+		row := byProject[id]
+		if row == nil || lifecycleEmpty(*row) {
+			continue
+		}
+		out = append(out, *row)
+	}
+	return out, nil
+}
+
+func (s *Service) projectLifecycleTrend(ctx context.Context, orgID string, start, asOf time.Time, byProject map[string]*ProjectLifecycleSummary) error {
+	rows, err := s.sqlite.QueryContext(ctx, `SELECT entity, project_id, status, ts FROM (
+		SELECT 'issue_created' AS entity, i.project_id, i.status, i.created_at AS ts
+		FROM pm_issues i JOIN pm_projects p ON p.id=i.project_id
+		WHERE p.organization_id=? AND i.created_at >= ? AND i.created_at < ?
+		UNION ALL
+		SELECT 'issue_terminal' AS entity, i.project_id, i.status, COALESCE(NULLIF(i.status_changed_at,''), i.updated_at) AS ts
+		FROM pm_issues i JOIN pm_projects p ON p.id=i.project_id
+		WHERE p.organization_id=? AND i.status IN ('resolved','closed','withdrawn') AND COALESCE(NULLIF(i.status_changed_at,''), i.updated_at) >= ? AND COALESCE(NULLIF(i.status_changed_at,''), i.updated_at) < ?
+		UNION ALL
+		SELECT 'plan_created' AS entity, pl.project_id, pl.status, pl.created_at AS ts
+		FROM pm_plans pl JOIN pm_projects p ON p.id=pl.project_id
+		WHERE p.organization_id=? AND pl.archived_at='' AND pl.created_at >= ? AND pl.created_at < ?
+		UNION ALL
+		SELECT 'plan_terminal' AS entity, pl.project_id, pl.status, pl.updated_at AS ts
+		FROM pm_plans pl JOIN pm_projects p ON p.id=pl.project_id
+		WHERE p.organization_id=? AND pl.status IN ('done','completed','failed','discarded','stopped','canceled','cancelled') AND pl.updated_at >= ? AND pl.updated_at < ?
+		UNION ALL
+		SELECT 'task_created' AS entity, t.project_id, t.status, t.created_at AS ts
+		FROM pm_tasks t JOIN pm_projects p ON p.id=t.project_id
+		WHERE p.organization_id=? AND t.archived_at='' AND t.created_at >= ? AND t.created_at < ?
+		UNION ALL
+		SELECT 'task_terminal' AS entity, t.project_id, t.status, COALESCE(t.completed_at, NULLIF(t.status_changed_at,''), t.updated_at) AS ts
+		FROM pm_tasks t JOIN pm_projects p ON p.id=t.project_id
+		WHERE p.organization_id=? AND t.archived_at='' AND t.status IN ('completed','verified','failed','discarded','canceled','cancelled') AND COALESCE(t.completed_at, NULLIF(t.status_changed_at,''), t.updated_at) >= ? AND COALESCE(t.completed_at, NULLIF(t.status_changed_at,''), t.updated_at) < ?
+	) ORDER BY ts ASC`,
+		orgID, fmtTS(start), fmtTS(asOf),
+		orgID, fmtTS(start), fmtTS(asOf),
+		orgID, fmtTS(start), fmtTS(asOf),
+		orgID, fmtTS(start), fmtTS(asOf),
+		orgID, fmtTS(start), fmtTS(asOf),
+		orgID, fmtTS(start), fmtTS(asOf))
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var entity, projectID, status, raw string
+		if err := rows.Scan(&entity, &projectID, &status, &raw); err != nil {
+			return err
+		}
+		summary := byProject[projectID]
+		if summary == nil {
+			continue
+		}
+		at, ok := parseTS(raw)
+		if !ok {
+			continue
+		}
+		idx := int(at.Truncate(time.Hour).Sub(start.Truncate(time.Hour)) / time.Hour)
+		if idx < 0 || idx >= len(summary.Trend) {
+			continue
+		}
+		point := &summary.Trend[idx]
+		switch entity {
+		case "issue_created":
+			point.IssueCreated++
+		case "issue_terminal":
+			if status == "withdrawn" {
+				point.IssueCanceled++
+			} else {
+				point.IssueDone++
+			}
+		case "plan_created":
+			point.PlanCreated++
+		case "plan_terminal":
+			switch status {
+			case "failed":
+				point.PlanFailed++
+			case "discarded", "stopped", "canceled", "cancelled":
+				point.PlanCanceled++
+			default:
+				point.PlanDone++
+			}
+		case "task_created":
+			point.TaskCreated++
+		case "task_terminal":
+			switch status {
+			case "failed":
+				point.TaskFailed++
+			case "discarded", "canceled", "cancelled":
+				point.TaskCanceled++
+			default:
+				point.TaskDone++
+			}
+		}
+	}
+	return rows.Err()
+}
+
+func (s *Service) projectLifecycleDurations(ctx context.Context, orgID string, start, asOf time.Time, byProject map[string]*ProjectLifecycleSummary) error {
+	rows, err := s.sqlite.QueryContext(ctx, `SELECT entity, project_id,
+		(CAST(strftime('%s', terminal_at) AS INTEGER) - CAST(strftime('%s', created_at) AS INTEGER)) * 1000 AS duration_ms
+		FROM (
+			SELECT 'task' AS entity, t.project_id, t.created_at, COALESCE(t.completed_at, NULLIF(t.status_changed_at,''), t.updated_at) AS terminal_at
+			FROM pm_tasks t JOIN pm_projects p ON p.id=t.project_id
+			WHERE p.organization_id=? AND t.archived_at='' AND t.status IN ('completed','verified','failed','discarded','canceled','cancelled')
+				AND COALESCE(t.completed_at, NULLIF(t.status_changed_at,''), t.updated_at) >= ? AND COALESCE(t.completed_at, NULLIF(t.status_changed_at,''), t.updated_at) < ?
+			UNION ALL
+			SELECT 'plan' AS entity, pl.project_id, pl.created_at, pl.updated_at AS terminal_at
+			FROM pm_plans pl JOIN pm_projects p ON p.id=pl.project_id
+			WHERE p.organization_id=? AND pl.archived_at='' AND pl.status IN ('done','completed','failed','discarded','stopped','canceled','cancelled')
+				AND pl.updated_at >= ? AND pl.updated_at < ?
+		)
+		WHERE duration_ms >= 0`,
+		orgID, fmtTS(start), fmtTS(asOf),
+		orgID, fmtTS(start), fmtTS(asOf))
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var entity, projectID string
+		var durationMS int64
+		if err := rows.Scan(&entity, &projectID, &durationMS); err != nil {
+			return err
+		}
+		summary := byProject[projectID]
+		if summary == nil {
+			continue
+		}
+		if entity == "plan" {
+			addDurationBucket(summary.PlanDurationHistogram, durationMS)
+		} else {
+			addDurationBucket(summary.TaskDurationHistogram, durationMS)
+		}
+	}
+	return rows.Err()
+}
+
+func makeLifecycleBuckets(startBucket, endBucket time.Time) []ProjectLifecycleTrendPoint {
+	var out []ProjectLifecycleTrendPoint
+	for ts := startBucket; !ts.After(endBucket); ts = ts.Add(time.Hour) {
+		out = append(out, ProjectLifecycleTrendPoint{BucketStart: fmtTS(ts)})
+	}
+	return out
+}
+
+func makeDurationBuckets() []DurationHistogramBucket {
+	hour := int64(time.Hour / time.Millisecond)
+	day := int64(24 * time.Hour / time.Millisecond)
+	return []DurationHistogramBucket{
+		{Label: "<1h", MinMS: 0, MaxMS: &hour},
+		{Label: "1-6h", MinMS: hour, MaxMS: int64Ptr(6 * hour)},
+		{Label: "6-24h", MinMS: 6 * hour, MaxMS: &day},
+		{Label: "1-3d", MinMS: day, MaxMS: int64Ptr(3 * day)},
+		{Label: ">3d", MinMS: 3 * day},
+	}
+}
+
+func addDurationBucket(buckets []DurationHistogramBucket, durationMS int64) {
+	for i := range buckets {
+		if durationMS >= buckets[i].MinMS && (buckets[i].MaxMS == nil || durationMS < *buckets[i].MaxMS) {
+			buckets[i].Count++
+			return
+		}
+	}
+}
+
+func lifecycleEmpty(row ProjectLifecycleSummary) bool {
+	for _, point := range row.Trend {
+		if point.IssueCreated+point.IssueDone+point.IssueCanceled+point.PlanCreated+point.PlanDone+point.PlanFailed+point.PlanCanceled+point.TaskCreated+point.TaskDone+point.TaskFailed+point.TaskCanceled > 0 {
+			return false
+		}
+	}
+	for _, bucket := range row.TaskDurationHistogram {
+		if bucket.Count > 0 {
+			return false
+		}
+	}
+	for _, bucket := range row.PlanDurationHistogram {
+		if bucket.Count > 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func int64Ptr(v int64) *int64 {
+	return &v
+}
+
 func (s *Service) leaderboard(ctx context.Context, orgID, by string, asOf time.Time) ([]LeaderRow, error) {
 	if by != "agent_ref" && by != "project_id" {
 		return nil, fmt.Errorf("insight: unsupported leaderboard dimension %q", by)
