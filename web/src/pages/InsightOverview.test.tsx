@@ -60,6 +60,24 @@ function overview(overrides: Record<string, unknown> = {}) {
   return {
     ...windowEnvelope,
     summary,
+    trend: [
+      { bucket_start: '2026-08-26T23:00:00Z', completed_executions: 3, failed_executions: 1, recovery_finalized_executions: 1, avg_duration_ms: 5000 },
+      { bucket_start: '2026-08-27T00:00:00Z', completed_executions: 7, failed_executions: 1, recovery_finalized_executions: 0, avg_duration_ms: 9000 },
+    ],
+    usage: {
+      input_tokens: 12000,
+      output_tokens: 4000,
+      cache_read_tokens: 8000,
+      cache_write_tokens: 1000,
+      total_tokens: 25000,
+      cost_micros: 123456,
+      events: 5,
+      trend: [
+        { bucket_start: '2026-08-26T23:00:00Z', input_tokens: 6000, output_tokens: 2000, cache_read_tokens: 3000, cache_write_tokens: 500, total_tokens: 11500, cost_micros: 60000 },
+        { bucket_start: '2026-08-27T00:00:00Z', input_tokens: 6000, output_tokens: 2000, cache_read_tokens: 5000, cache_write_tokens: 500, total_tokens: 13500, cost_micros: 63456 },
+      ],
+      by_model: [{ model: 'gpt-5', events: 5, total_tokens: 25000, cost_micros: 123456 }],
+    },
     agents: [{ agent_ref: 'agent:builder', display_name: 'Builder', summary }],
     projects: [{ project_id: 'proj-1', name: 'Launch', summary }],
     diagnostics: { invalid_facts: 0, late_events: 0 },
@@ -103,6 +121,11 @@ describe('Insight pages', () => {
     expect(screen.getByTestId('insight-overview-charts')).toHaveTextContent('Execution outcome mix');
     expect(screen.getByTestId('insight-overview-charts')).toHaveTextContent('Recovery finalized');
     expect(screen.getByTestId('insight-overview-charts')).toHaveTextContent('Latency shape');
+    expect(screen.getByTestId('insight-overview-trends')).toHaveTextContent('Execution history');
+    expect(screen.getByTestId('insight-overview-trends')).toHaveTextContent('Token trend');
+    expect(screen.getByTestId('insight-overview-trends')).toHaveTextContent('Cost trend');
+    expect(screen.getByTestId('insight-overview-trends')).toHaveTextContent('Model cost');
+    expect(screen.getByTestId('insight-overview-trends')).toHaveTextContent('gpt-5');
     expect(screen.queryByTestId('insight-drilldown')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'View all executions' })).not.toBeInTheDocument();
     expect(within(screen.getByTestId('insight-agent-table')).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');

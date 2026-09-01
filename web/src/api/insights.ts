@@ -34,6 +34,43 @@ export interface InsightSummary {
   execution_duration_ms: InsightPercentiles;
 }
 
+export interface InsightTrendPoint {
+  bucket_start: string;
+  completed_executions: number;
+  failed_executions: number;
+  recovery_finalized_executions: number;
+  avg_duration_ms: number | null;
+}
+
+export interface InsightUsageTrendPoint {
+  bucket_start: string;
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  total_tokens: number;
+  cost_micros: number;
+}
+
+export interface InsightUsageModelSummary {
+  model: string;
+  events: number;
+  total_tokens: number;
+  cost_micros: number;
+}
+
+export interface InsightUsageSummary {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_tokens: number;
+  cache_write_tokens: number;
+  total_tokens: number;
+  cost_micros: number;
+  events: number;
+  trend: InsightUsageTrendPoint[];
+  by_model: InsightUsageModelSummary[];
+}
+
 export interface InsightLeaderboardAgent {
   agent_ref: string;
   display_name: string | null;
@@ -57,6 +94,8 @@ export interface InsightOverview {
   refreshed_at: string;
   freshness: InsightFreshness;
   summary: InsightSummary;
+  trend: InsightTrendPoint[];
+  usage: InsightUsageSummary;
   agents: InsightLeaderboardAgent[];
   projects: InsightLeaderboardProject[];
   diagnostics: InsightDiagnostics;
@@ -299,11 +338,61 @@ function normalizeSummary(value: unknown): InsightSummary {
   return {
     completed_executions: numberOrZero(source.completed_executions),
     failed_executions: numberOrZero(source.failed_executions),
+    recovery_finalized_executions: numberOrZero(source.recovery_finalized_executions),
     failure_rate: numberOrNull(source.failure_rate),
     slot_utilization: numberOrNull(source.slot_utilization),
     slot_coverage_ratio: numberOrNull(source.slot_coverage_ratio),
     queue_wait_ms: normalizePercentiles(source.queue_wait_ms),
     execution_duration_ms: normalizePercentiles(source.execution_duration_ms),
+  };
+}
+
+function normalizeTrendPoint(value: unknown): InsightTrendPoint {
+  const source = isRecord(value) ? value : {};
+  return {
+    bucket_start: stringOrEmpty(source.bucket_start),
+    completed_executions: numberOrZero(source.completed_executions),
+    failed_executions: numberOrZero(source.failed_executions),
+    recovery_finalized_executions: numberOrZero(source.recovery_finalized_executions),
+    avg_duration_ms: numberOrNull(source.avg_duration_ms),
+  };
+}
+
+function normalizeUsageTrendPoint(value: unknown): InsightUsageTrendPoint {
+  const source = isRecord(value) ? value : {};
+  return {
+    bucket_start: stringOrEmpty(source.bucket_start),
+    input_tokens: numberOrZero(source.input_tokens),
+    output_tokens: numberOrZero(source.output_tokens),
+    cache_read_tokens: numberOrZero(source.cache_read_tokens),
+    cache_write_tokens: numberOrZero(source.cache_write_tokens),
+    total_tokens: numberOrZero(source.total_tokens),
+    cost_micros: numberOrZero(source.cost_micros),
+  };
+}
+
+function normalizeUsageModel(value: unknown): InsightUsageModelSummary {
+  const source = isRecord(value) ? value : {};
+  return {
+    model: stringOrEmpty(source.model) || 'unknown',
+    events: numberOrZero(source.events),
+    total_tokens: numberOrZero(source.total_tokens),
+    cost_micros: numberOrZero(source.cost_micros),
+  };
+}
+
+function normalizeUsage(value: unknown): InsightUsageSummary {
+  const source = isRecord(value) ? value : {};
+  return {
+    input_tokens: numberOrZero(source.input_tokens),
+    output_tokens: numberOrZero(source.output_tokens),
+    cache_read_tokens: numberOrZero(source.cache_read_tokens),
+    cache_write_tokens: numberOrZero(source.cache_write_tokens),
+    total_tokens: numberOrZero(source.total_tokens),
+    cost_micros: numberOrZero(source.cost_micros),
+    events: numberOrZero(source.events),
+    trend: arrayOrEmpty(source.trend as InsightUsageTrendPoint[] | null | undefined).map(normalizeUsageTrendPoint),
+    by_model: arrayOrEmpty(source.by_model as InsightUsageModelSummary[] | null | undefined).map(normalizeUsageModel),
   };
 }
 
@@ -537,6 +626,8 @@ function normalizeOverview(value: unknown): InsightOverview {
     refreshed_at: stringOrEmpty(source.refreshed_at),
     freshness: normalizeFreshness(source.freshness),
     summary: normalizeSummary(source.summary),
+    trend: arrayOrEmpty(source.trend as InsightTrendPoint[] | null | undefined).map(normalizeTrendPoint),
+    usage: normalizeUsage(source.usage),
     agents: arrayOrEmpty(source.agents as InsightLeaderboardAgent[] | null | undefined).map(normalizeAgent),
     projects: arrayOrEmpty(source.projects as InsightLeaderboardProject[] | null | undefined).map(normalizeProject),
     diagnostics: normalizeDiagnostics(source.diagnostics),

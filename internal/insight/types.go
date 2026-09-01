@@ -48,6 +48,43 @@ type Summary struct {
 	ExecutionDurationMS         PercentileSummary `json:"execution_duration_ms"`
 }
 
+type TrendPoint struct {
+	BucketStart                 string `json:"bucket_start"`
+	CompletedExecutions         int64  `json:"completed_executions"`
+	FailedExecutions            int64  `json:"failed_executions"`
+	RecoveryFinalizedExecutions int64  `json:"recovery_finalized_executions"`
+	AvgDurationMS               *int64 `json:"avg_duration_ms"`
+}
+
+type UsageTrendPoint struct {
+	BucketStart      string `json:"bucket_start"`
+	InputTokens      int64  `json:"input_tokens"`
+	OutputTokens     int64  `json:"output_tokens"`
+	CacheReadTokens  int64  `json:"cache_read_tokens"`
+	CacheWriteTokens int64  `json:"cache_write_tokens"`
+	TotalTokens      int64  `json:"total_tokens"`
+	CostMicros       int64  `json:"cost_micros"`
+}
+
+type UsageModelSummary struct {
+	Model       string `json:"model"`
+	Events      int64  `json:"events"`
+	TotalTokens int64  `json:"total_tokens"`
+	CostMicros  int64  `json:"cost_micros"`
+}
+
+type UsageSummary struct {
+	InputTokens      int64               `json:"input_tokens"`
+	OutputTokens     int64               `json:"output_tokens"`
+	CacheReadTokens  int64               `json:"cache_read_tokens"`
+	CacheWriteTokens int64               `json:"cache_write_tokens"`
+	TotalTokens      int64               `json:"total_tokens"`
+	CostMicros       int64               `json:"cost_micros"`
+	Events           int64               `json:"events"`
+	Trend            []UsageTrendPoint   `json:"trend"`
+	ByModel          []UsageModelSummary `json:"by_model"`
+}
+
 type LeaderRow struct {
 	AgentRef    string  `json:"agent_ref,omitempty"`
 	DisplayName *string `json:"display_name,omitempty"`
@@ -62,14 +99,16 @@ type Diagnostics struct {
 }
 
 type Overview struct {
-	Window      Window      `json:"window"`
-	AsOf        string      `json:"as_of"`
-	RefreshedAt string      `json:"refreshed_at"`
-	Freshness   Freshness   `json:"freshness"`
-	Summary     Summary     `json:"summary"`
-	Agents      []LeaderRow `json:"agents"`
-	Projects    []LeaderRow `json:"projects"`
-	Diagnostics Diagnostics `json:"diagnostics"`
+	Window      Window       `json:"window"`
+	AsOf        string       `json:"as_of"`
+	RefreshedAt string       `json:"refreshed_at"`
+	Freshness   Freshness    `json:"freshness"`
+	Summary     Summary      `json:"summary"`
+	Trend       []TrendPoint `json:"trend"`
+	Usage       UsageSummary `json:"usage"`
+	Agents      []LeaderRow  `json:"agents"`
+	Projects    []LeaderRow  `json:"projects"`
+	Diagnostics Diagnostics  `json:"diagnostics"`
 }
 
 type ExecutionRow struct {

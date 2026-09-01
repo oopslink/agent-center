@@ -114,6 +114,38 @@ export function SegmentedBar({ data, emptyLabel }: { data: ChartDatum[]; emptyLa
   );
 }
 
+export function LineChart({ data, emptyLabel, valueLabel, formatValue = String }: { data: ChartDatum[]; emptyLabel: string; valueLabel: string; formatValue?: (value: number) => string }): React.ReactElement {
+  const max = Math.max(0, ...data.map((item) => Math.max(0, item.value)));
+  if (data.length === 0 || max === 0) return <p className="text-sm text-text-muted">{emptyLabel}</p>;
+  const width = 320;
+  const height = 104;
+  const padX = 8;
+  const padY = 10;
+  const step = data.length > 1 ? (width - padX * 2) / (data.length - 1) : 0;
+  const points = data.map((item, index) => {
+    const x = padX + index * step;
+    const y = height - padY - (Math.max(0, item.value) / max) * (height - padY * 2);
+    return { item, x, y };
+  });
+  const d = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  return (
+    <div>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={valueLabel} className="h-32 w-full overflow-visible">
+        <path d={`M ${padX} ${height - padY} H ${width - padX}`} fill="none" stroke="currentColor" strokeWidth="1" className="text-border-base" />
+        <path d={d} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand" />
+        {points.map(({ item, x, y }) => (
+          <circle key={item.key} cx={x} cy={y} r="3" className="fill-brand" />
+        ))}
+      </svg>
+      <div className="mt-2 flex items-center justify-between gap-3 text-xs text-text-muted">
+        <span className="truncate">{data[0]?.label ?? EMPTY}</span>
+        <span className="shrink-0 tabular-nums">{valueLabel}: {formatValue(max)}</span>
+        <span className="truncate text-right">{data[data.length - 1]?.label ?? EMPTY}</span>
+      </div>
+    </div>
+  );
+}
+
 function ChartLegendRow({ item, total }: { item: ChartDatum; total: number }): React.ReactElement {
   const pct = total > 0 ? Math.round((Math.max(0, item.value) / total) * 1000) / 10 : 0;
   return (

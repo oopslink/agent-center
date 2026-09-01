@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -213,6 +214,173 @@ func (s *Service) summary(ctx context.Context, orgID, agentRef, projectID string
 	sum.SlotUtilization = util
 	sum.SlotCoverageRatio = cov
 	return sum, nil
+}
+
+func (s *Service) trend(ctx context.Context, orgID, agentRef, projectID string, asOf time.Time) ([]TrendPoint, error) {
+	start := asOf.Add(-24 * time.Hour)
+	startBucket := start.Truncate(time.Hour)
+	endBucket := asOf.Truncate(time.Hour)
+	buckets := make(map[time.Time]*TrendPoint)
+	durationSum := make(map[time.Time]int64)
+	durationSamples := make(map[time.Time]int64)
+	for ts := startBucket; !ts.After(endBucket); ts = ts.Add(time.Hour) {
+		buckets[ts] = &TrendPoint{BucketStart: fmtTS(ts)}
+	}
+	where := `organization_id=?`
+	args := []any{orgID}
+	if agentRef != "" {
+		where += ` AND agent_ref=?`
+		args = append(args, agentRef)
+	}
+	if projectID != "" {
+		where += ` AND project_id=?`
+		args = append(args, projectID)
+	}
+	args = append(args, fmtTS(start), fmtTS(asOf))
+	rows, err := s.duck.QueryContext(ctx, `SELECT CAST(finished_at AS VARCHAR), COALESCE(outcome,''), date_diff('millisecond', CAST(started_at AS TIMESTAMP), CAST(finished_at AS TIMESTAMP))
+		FROM execution_fact
+		WHERE `+where+` AND finished_at >= CAST(? AS TIMESTAMPTZ) AND finished_at < CAST(? AS TIMESTAMPTZ)
+		AND outcome IN ('succeeded','failed','crashed','quiet_finalized')`, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var raw, outcome string
+		var duration sql.NullInt64
+		if err := rows.Scan(&raw, &outcome, &duration); err != nil {
+			return nil, err
+		}
+		finished, ok := parseTS(raw)
+		if !ok {
+			continue
+		}
+		bucket := finished.Truncate(time.Hour)
+		point := buckets[bucket]
+		if point == nil {
+			point = &TrendPoint{BucketStart: fmtTS(bucket)}
+			buckets[bucket] = point
+		}
+		point.CompletedExecutions++
+		switch outcome {
+		case "failed", "crashed":
+			point.FailedExecutions++
+		case "quiet_finalized":
+			point.RecoveryFinalizedExecutions++
+		}
+		if duration.Valid && duration.Int64 >= 0 {
+			durationSum[bucket] += duration.Int64
+			durationSamples[bucket]++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	out := make([]TrendPoint, 0, len(buckets))
+	for ts := startBucket; !ts.After(endBucket); ts = ts.Add(time.Hour) {
+		point := buckets[ts]
+		if point == nil {
+			point = &TrendPoint{BucketStart: fmtTS(ts)}
+		}
+		if samples := durationSamples[ts]; samples > 0 {
+			avg := durationSum[ts] / samples
+			point.AvgDurationMS = &avg
+		}
+		out = append(out, *point)
+	}
+	return out, nil
+}
+
+func (s *Service) usageSummary(ctx context.Context, orgID, agentRef, projectID string, asOf time.Time) (UsageSummary, error) {
+	start := asOf.Add(-24 * time.Hour)
+	startBucket := start.Truncate(time.Hour)
+	endBucket := asOf.Truncate(time.Hour)
+	buckets := make(map[time.Time]*UsageTrendPoint)
+	for ts := startBucket; !ts.After(endBucket); ts = ts.Add(time.Hour) {
+		buckets[ts] = &UsageTrendPoint{BucketStart: fmtTS(ts)}
+	}
+	where := `p.organization_id=?`
+	args := []any{orgID}
+	if agentRef != "" {
+		where += ` AND u.agent_ref=?`
+		args = append(args, agentRef)
+	}
+	if projectID != "" {
+		where += ` AND u.project_id=?`
+		args = append(args, projectID)
+	}
+	args = append(args, fmtTS(start), fmtTS(asOf))
+	rows, err := s.sqlite.QueryContext(ctx, `SELECT u.model, u.input_tokens, u.output_tokens, u.cache_read_tokens, u.cache_write_tokens, u.cost_micros, u.ts
+		FROM usage_events u JOIN pm_projects p ON p.id=u.project_id
+		WHERE `+where+` AND u.ts >= ? AND u.ts < ?`, args...)
+	if err != nil {
+		return UsageSummary{}, err
+	}
+	defer rows.Close()
+	var out UsageSummary
+	models := map[string]*UsageModelSummary{}
+	for rows.Next() {
+		var model, raw string
+		var input, output, cacheRead, cacheWrite, cost int64
+		if err := rows.Scan(&model, &input, &output, &cacheRead, &cacheWrite, &cost, &raw); err != nil {
+			return UsageSummary{}, err
+		}
+		total := input + output + cacheRead + cacheWrite
+		out.Events++
+		out.InputTokens += input
+		out.OutputTokens += output
+		out.CacheReadTokens += cacheRead
+		out.CacheWriteTokens += cacheWrite
+		out.TotalTokens += total
+		out.CostMicros += cost
+		modelRow := models[model]
+		if modelRow == nil {
+			modelRow = &UsageModelSummary{Model: model}
+			models[model] = modelRow
+		}
+		modelRow.Events++
+		modelRow.TotalTokens += total
+		modelRow.CostMicros += cost
+		at, ok := parseTS(raw)
+		if !ok {
+			continue
+		}
+		bucket := at.Truncate(time.Hour)
+		point := buckets[bucket]
+		if point == nil {
+			point = &UsageTrendPoint{BucketStart: fmtTS(bucket)}
+			buckets[bucket] = point
+		}
+		point.InputTokens += input
+		point.OutputTokens += output
+		point.CacheReadTokens += cacheRead
+		point.CacheWriteTokens += cacheWrite
+		point.TotalTokens += total
+		point.CostMicros += cost
+	}
+	if err := rows.Err(); err != nil {
+		return UsageSummary{}, err
+	}
+	for _, model := range models {
+		out.ByModel = append(out.ByModel, *model)
+	}
+	sort.Slice(out.ByModel, func(i, j int) bool {
+		if out.ByModel[i].CostMicros != out.ByModel[j].CostMicros {
+			return out.ByModel[i].CostMicros > out.ByModel[j].CostMicros
+		}
+		if out.ByModel[i].TotalTokens != out.ByModel[j].TotalTokens {
+			return out.ByModel[i].TotalTokens > out.ByModel[j].TotalTokens
+		}
+		return out.ByModel[i].Model < out.ByModel[j].Model
+	})
+	for ts := startBucket; !ts.After(endBucket); ts = ts.Add(time.Hour) {
+		point := buckets[ts]
+		if point == nil {
+			point = &UsageTrendPoint{BucketStart: fmtTS(ts)}
+		}
+		out.Trend = append(out.Trend, *point)
+	}
+	return out, nil
 }
 
 func (s *Service) leaderboard(ctx context.Context, orgID, by string, asOf time.Time) ([]LeaderRow, error) {

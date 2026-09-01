@@ -45,6 +45,8 @@ func TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild(t *test
 	insertQueue(t, db, "cmd-late", "worker-1", "agent-1", "task-1", "exec-late", "started", asOf.Add(-2*time.Hour), asOf.Add(-2*time.Hour+time.Second))
 	insertActivity(t, db, "stop-late", "agent-1", "task-1", "exec-late", map[string]any{"event": "executor.stop", "executor_id": "exec-late", "outcome": "crashed", "reason": "process_gone", "recovered": true}, asOf.Add(-2*time.Hour+10*time.Second))
 	insertQueue(t, db, "cmd-pending", "worker-1", "agent-1", "task-1", "", "pending", asOf.Add(-30*time.Minute), asOf.Add(-30*time.Minute))
+	insertUsage(t, db, "usage-1", "agent:agent-1", "project-1", "task-1", "gpt-5", 100, 40, 10, 5, 1234, asOf.Add(-90*time.Minute))
+	insertUsage(t, db, "usage-2", "agent:agent-1", "project-1", "task-1", "gpt-5-mini", 20, 10, 0, 0, 100, asOf.Add(-30*time.Minute))
 
 	svc := openInsight(t, db)
 	if err := svc.Refresh(ctx); err != nil {
@@ -76,6 +78,18 @@ func TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild(t *test
 			got = *second.Summary.QueueWaitMS.P95
 		}
 		t.Fatalf("queue p95 = %d, want 98", got)
+	}
+	if len(second.Trend) < 24 {
+		t.Fatalf("trend buckets = %d, want hourly rolling buckets", len(second.Trend))
+	}
+	if second.Usage.TotalTokens != 185 || second.Usage.CostMicros != 1334 || second.Usage.Events != 2 {
+		t.Fatalf("usage summary = %+v, want total_tokens=185 cost=1334 events=2", second.Usage)
+	}
+	if len(second.Usage.Trend) < 24 {
+		t.Fatalf("usage trend buckets = %d, want hourly rolling buckets", len(second.Usage.Trend))
+	}
+	if len(second.Usage.ByModel) != 2 || second.Usage.ByModel[0].Model != "gpt-5" {
+		t.Fatalf("usage by model = %+v, want cost-sorted model summaries", second.Usage.ByModel)
 	}
 
 	insertActivity(t, db, "start-late", "agent-1", "task-1", "exec-late", map[string]any{"event": "executor.start", "executor_id": "exec-late"}, asOf.Add(-2*time.Hour+1*time.Second))
@@ -724,6 +738,12 @@ func insertActivity(t *testing.T, db *sql.DB, id, agentID, taskID, execID string
 	b, _ := json.Marshal(payload)
 	execSQL(t, db, `INSERT INTO agent_activity_events (id, agent_id, task_ref, interaction_ref, event_type, payload, occurred_at)
 		VALUES (?, ?, ?, ?, 'lifecycle', ?, ?)`, id, agentID, taskID, "executor:"+execID, string(b), occurred.Format(time.RFC3339Nano))
+}
+
+func insertUsage(t *testing.T, db *sql.DB, id, agentRef, projectID, taskID, model string, input, output, cacheRead, cacheWrite, cost int64, ts time.Time) {
+	t.Helper()
+	execSQL(t, db, `INSERT INTO usage_events (id, agent_ref, project_id, task_id, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, cost_micros, ts, source)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'report')`, id, agentRef, projectID, taskID, model, input, output, cacheRead, cacheWrite, cost, ts.Format(time.RFC3339Nano))
 }
 
 func execSQL(t *testing.T, db *sql.DB, q string, args ...any) {

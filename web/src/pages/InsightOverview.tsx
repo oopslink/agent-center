@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
-import { ChartPanel, DonutChart, HorizontalBars, SegmentedBar, type ChartDatum } from '@/components/insight/InsightCharts';
+import { ChartPanel, DonutChart, HorizontalBars, LineChart, SegmentedBar, type ChartDatum } from '@/components/insight/InsightCharts';
 import { InsightExecutionStatusBadge, InsightFreshnessBadge, InsightQualityBadge, InsightStatePanel } from '@/components/insight/InsightPresentation';
 import {
   useInsightExecution,
@@ -51,6 +51,7 @@ export default function InsightOverview(): React.ReactElement {
           <FreshnessNotice data={overview.data} />
           <SummaryCards summary={overview.data.summary} />
           <CoverageNotice summary={overview.data.summary} />
+          <OverviewTrendCharts data={overview.data} />
           <OverviewCharts data={overview.data} base={base} />
           <section className="grid gap-4 xl:grid-cols-2">
             <DimensionTable
@@ -344,6 +345,60 @@ function OverviewCharts({ data, base }: { data: InsightOverviewDTO; base: string
   );
 }
 
+function OverviewTrendCharts({ data }: { data: InsightOverviewDTO }): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const executionTrend = data.trend.map((point) => ({
+    key: point.bucket_start,
+    label: formatInsightWindowTime(point.bucket_start),
+    value: point.completed_executions,
+    detail: t('insight.chart.trendExecutionDetail', { failed: point.failed_executions, recovery: point.recovery_finalized_executions }),
+  }));
+  const tokenTrend = data.usage.trend.map((point) => ({
+    key: point.bucket_start,
+    label: formatInsightWindowTime(point.bucket_start),
+    value: point.total_tokens,
+  }));
+  const costTrend = data.usage.trend.map((point) => ({
+    key: point.bucket_start,
+    label: formatInsightWindowTime(point.bucket_start),
+    value: point.cost_micros,
+  }));
+  const tokenMix: ChartDatum[] = [
+    { key: 'input', label: t('insight.chart.inputTokens'), value: data.usage.input_tokens, tone: 'info' },
+    { key: 'output', label: t('insight.chart.outputTokens'), value: data.usage.output_tokens, tone: 'success' },
+    { key: 'cache-read', label: t('insight.chart.cacheReadTokens'), value: data.usage.cache_read_tokens, tone: 'warning' },
+    { key: 'cache-write', label: t('insight.chart.cacheWriteTokens'), value: data.usage.cache_write_tokens, tone: 'neutral' },
+  ];
+  const modelCost = data.usage.by_model.slice(0, 6).map((model) => ({
+    key: model.model,
+    label: model.model,
+    value: Math.round(model.cost_micros / 1000) / 1000,
+    tone: 'info' as const,
+    detail: t('insight.chart.modelTokenDetail', { tokens: formatCompactNumber(model.total_tokens), events: model.events }),
+  }));
+  return (
+    <section className="grid gap-4 xl:grid-cols-4" data-testid="insight-overview-trends">
+      <ChartPanel title={t('insight.chart.executionTrend')} subtitle={t('insight.chart.executionTrendSubtitle')}>
+        <LineChart data={executionTrend} emptyLabel={t('insight.chart.empty')} valueLabel={t('insight.chart.executionsTotal')} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.tokenTrend')} subtitle={t('insight.chart.tokenTrendSubtitle')}>
+        <LineChart data={tokenTrend} emptyLabel={t('insight.chart.empty')} valueLabel={t('insight.chart.tokensTotal')} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.costTrend')} subtitle={t('insight.chart.costTrendSubtitle', { total: formatCostMicros(data.usage.cost_micros) })}>
+        <LineChart data={costTrend} emptyLabel={t('insight.chart.empty')} valueLabel={t('insight.chart.costUsd')} formatValue={formatCostMicros} />
+      </ChartPanel>
+      <ChartPanel title={t('insight.chart.tokenMix')} subtitle={t('insight.chart.tokenMixSubtitle', { total: formatCompactNumber(data.usage.total_tokens) })}>
+        <SegmentedBar data={tokenMix} emptyLabel={t('insight.chart.empty')} />
+      </ChartPanel>
+      <div className="xl:col-span-4">
+        <ChartPanel title={t('insight.chart.modelCost')} subtitle={t('insight.chart.modelCostSubtitle', { events: data.usage.events })}>
+          <HorizontalBars data={modelCost} emptyLabel={t('insight.chart.empty')} />
+        </ChartPanel>
+      </div>
+    </section>
+  );
+}
+
 function ExecutionListCharts({ rows }: { rows: InsightExecutionRow[] }): React.ReactElement {
   const { t } = useTranslation('insights');
   const counts = new Map<string, number>();
@@ -412,6 +467,14 @@ function DimensionTable({ title, kind, rows }: { title: string; kind: 'agent' | 
 
 function recoveryFinalized(summary: InsightSummary): number {
   return Math.max(0, summary.recovery_finalized_executions ?? 0);
+}
+
+function formatCompactNumber(value: number): string {
+  return new Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 1 }).format(value);
+}
+
+function formatCostMicros(value: number): string {
+  return new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 4 }).format(value / 1_000_000);
 }
 
 function riskScore(summary: InsightSummary): number {
