@@ -8,6 +8,7 @@ import { EmbeddedConversationSidebar, EmbeddedSidebarToggle } from './Conversati
 import { SenderSidebarProvider } from './SenderSidebarContext';
 import { FollowToggle } from './FollowToggle';
 import { useIsMobile } from './WorkItemMobileMeta';
+import { useProjectMentionCandidates } from './useProjectMentionCandidates';
 
 interface Props {
   // The expected pm owner_ref for the embedding page (pm://tasks|issues/{id}).
@@ -18,6 +19,7 @@ interface Props {
   // replaces the generic "Conversation" badge so the banner names the bound
   // task/issue by its concrete id (per @oopslink). Falls back to "Conversation".
   ownerCode?: string;
+  projectId?: string;
 }
 
 // WorkItemConversation (#137) — embeds the task/issue conversation inside
@@ -41,11 +43,12 @@ function readEmbeddedCollapsed(): boolean {
   }
 }
 
-export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props): React.ReactElement {
+export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode, projectId }: Props): React.ReactElement {
   const { t } = useTranslation('chat');
   const conv = useConversationByOwnerRef(ownerRef);
   const surface = ownerRef.includes('/issues/') ? 'issue-thread' : 'task-thread';
   const isMobile = useIsMobile();
+  const mentionCandidates = useProjectMentionCandidates(projectId);
 
   const [maximized, setMaximized] = useState(false);
   // Embedded sidebar collapse — lifted here so the banner row can show the
@@ -145,11 +148,12 @@ export function WorkItemConversation({ ownerRef, bannerLabel, ownerCode }: Props
           surface={surface}
           conversationId={conv.data.id}
           participants={conv.data.participants ?? []}
+          mentionCandidates={mentionCandidates}
         />
       ) : (
         <div className="flex min-h-0 flex-1 overflow-hidden md:rounded-b md:border md:border-t-0 md:border-border-base">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <ConversationView surface={surface} conversationId={conv.data.id} />
+            <ConversationView surface={surface} conversationId={conv.data.id} mentionCandidates={mentionCandidates} />
           </div>
           <EmbeddedConversationSidebar
             conversationId={conv.data.id}

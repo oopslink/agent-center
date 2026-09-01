@@ -2,6 +2,7 @@ import type React from 'react';
 import { createContext, useContext, useState } from 'react';
 import type { Message } from '@/api/types';
 import { ThreadSidebar } from './ThreadSidebar';
+import type { MentionOption } from './MentionPicker';
 
 // v2.9.1 Threads (P1): a tiny context that lifts the ONE ThreadSidebar's
 // open-state to a surface boundary (mounted by ConversationView), so every
@@ -19,15 +20,17 @@ const ThreadSidebarContext = createContext<OpenThread | null>(null);
 
 export function ThreadSidebarProvider({
   children,
+  mentionCandidates,
 }: {
   children: React.ReactNode;
+  mentionCandidates?: MentionOption[];
 }): React.ReactElement {
   // Holds the clicked root message; null = closed.
   const [root, setRoot] = useState<Message | null>(null);
   return (
     <ThreadSidebarContext.Provider value={setRoot}>
       {children}
-      <ThreadSidebar open={root !== null} rootMessage={root} onClose={() => setRoot(null)} />
+      <ThreadSidebar open={root !== null} rootMessage={root} onClose={() => setRoot(null)} mentionCandidates={mentionCandidates} />
     </ThreadSidebarContext.Provider>
   );
 }

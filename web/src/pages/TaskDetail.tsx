@@ -224,7 +224,7 @@ export default function TaskDetail(): React.ReactElement {
                   input). min-h-0 completes the flex height chain so the message
                   list scrolls internally and the composer stays pinned. */}
               <div className="flex min-h-0 flex-1 flex-col">
-                <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} ownerCode={tk.org_ref} />
+                <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} ownerCode={tk.org_ref} projectId={tk.project_id} />
               </div>
             </>
           ) : (
@@ -239,7 +239,7 @@ export default function TaskDetail(): React.ReactElement {
               <div className="mt-4 border-t border-border-base pt-3">
                 <TaskAttachments projectId={tk.project_id} taskId={tk.id} />
               </div>
-              <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} ownerCode={tk.org_ref} />
+              <WorkItemConversation ownerRef={`pm://tasks/${tk.id}`} bannerLabel={tk.title || tk.id} ownerCode={tk.org_ref} projectId={tk.project_id} />
             </>
           )}
         </div>

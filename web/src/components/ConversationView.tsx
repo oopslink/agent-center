@@ -8,6 +8,7 @@ import { MessageList } from '@/components/MessageList';
 import { MessageComposer } from '@/components/MessageComposer';
 import { ThreadSidebarProvider } from '@/components/ThreadSidebarContext';
 import { QuoteProvider } from '@/components/QuoteContext';
+import type { MentionOption } from '@/components/MentionPicker';
 
 // v2.8 #264 P1: the surface-agnostic conversation shell. channel / DM /
 // task-thread / issue-thread all render through ONE <ConversationView> — the
@@ -30,6 +31,7 @@ interface Props {
   sidePanel?: React.ReactNode;
   /** False for observed read-only DMs such as system-agent or agent-agent records. */
   canSend?: boolean;
+  mentionCandidates?: MentionOption[];
 }
 
 export function ConversationView({
@@ -38,6 +40,7 @@ export function ConversationView({
   header,
   sidePanel,
   canSend = true,
+  mentionCandidates,
 }: Props): React.ReactElement {
   const { t } = useTranslation('chat');
   // T189 phase 2: the timeline = the live latest window + an on-demand older-history
@@ -84,7 +87,7 @@ export function ConversationView({
             isLoadingOlder={messages.isLoadingOlder}
           />
         )}
-        {canSend && <MessageComposer conversationId={conversationId} />}
+        {canSend && <MessageComposer conversationId={conversationId} mentionCandidates={mentionCandidates} />}
       </div>
     </QuoteProvider>
   );
@@ -93,7 +96,7 @@ export function ConversationView({
     // v2.9.1 Threads P2: one ThreadSidebarProvider at the surface root so the
     // message list (body) AND the side panel's thread list both open the SAME
     // single ThreadSidebar (shared instance, no double-render).
-    <ThreadSidebarProvider>
+    <ThreadSidebarProvider mentionCandidates={mentionCandidates}>
       <div
         className="flex flex-1 flex-col overflow-hidden"
         data-testid="conversation-view"

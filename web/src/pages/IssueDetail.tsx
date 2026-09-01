@@ -173,7 +173,7 @@ export default function IssueDetail(): React.ReactElement {
                   viewport — otherwise a long mobile thread pushes the pinned
                   composer below the fold / behind the bottom tab bar. */}
               <div className="flex min-h-0 flex-1 flex-col">
-                <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} ownerCode={iss.org_ref} />
+                <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} ownerCode={iss.org_ref} projectId={iss.project_id} />
               </div>
             </>
           ) : (
@@ -188,7 +188,7 @@ export default function IssueDetail(): React.ReactElement {
               <div className="mt-4 border-t border-border-base pt-3">
                 <IssueAttachments projectId={iss.project_id} issueId={iss.id} />
               </div>
-              <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} ownerCode={iss.org_ref} />
+              <WorkItemConversation ownerRef={`pm://issues/${iss.id}`} bannerLabel={iss.title || iss.id} ownerCode={iss.org_ref} projectId={iss.project_id} />
             </>
           )}
         </div>

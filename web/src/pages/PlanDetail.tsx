@@ -73,6 +73,7 @@ import { RelatedIssuesBlock } from '@/components/RelatedIssuesBlock';
 import { ActivityRefText } from '@/components/ActivityRefText';
 import { IconClose } from '@/components/icons';
 import { useModalA11y } from '@/components/useModalA11y';
+import { useProjectMentionCandidates } from '@/components/useProjectMentionCandidates';
 import { dependencyEdgeError, validDropTargets } from './planDagEdit';
 
 // PlanDetail (/projects/:id/plans/:planId) — v2.9 Plan-Orchestration EXECUTION
@@ -286,6 +287,7 @@ export default function PlanDetail(): React.ReactElement {
             className={tab === 'chat' ? 'flex min-h-0 flex-1 flex-col' : undefined}
           >
             <PlanConversationSide
+              projectId={id}
               conversationId={p.conversation_id}
               maximized={chatMaximized}
               onToggleMaximize={() => setChatMaximized((m) => !m)}
@@ -5346,10 +5348,12 @@ function PlanTaskRow({
 // #266). Render the Plan's conversation by its conversation_id. Empty
 // conversation_id → friendly "initializing" state (don't crash).
 function PlanConversationSide({
+  projectId,
   conversationId,
   maximized,
   onToggleMaximize,
 }: {
+  projectId: string;
   conversationId: string;
   // T347: maximize state is lifted to PlanDetail so the toggle can live on the tab
   // row (@oopslink). When maximized the chat is a full-viewport overlay (composer
@@ -5360,6 +5364,7 @@ function PlanConversationSide({
   const { t } = useTranslation('work');
   const conv = useConversation(conversationId || undefined);
   const isMobile = useIsMobile(); // T324: embed the conv sidebar on desktop only
+  const mentionCandidates = useProjectMentionCandidates(projectId);
   // Embedded sidebar collapse — lifted so the restore button can sit in the
   // maximize header bar instead of a standalone w-9 strip.
   const [embeddedCollapsed, setEmbeddedCollapsed] = useState(() => {
@@ -5433,7 +5438,7 @@ function PlanConversationSide({
             {/* T327: min-w-0 lets the messages column shrink so the embedded
                 sidebar (+ its collapse toggle) stays on-screen, not pushed off-right. */}
             <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-              <ConversationView surface="task-thread" conversationId={conversationId} />
+              <ConversationView surface="task-thread" conversationId={conversationId} mentionCandidates={mentionCandidates} />
               {conv.isError && (
                 <p className="p-2 text-[0.6875rem] text-text-muted">
                   {t('plan.detail.chat.refreshError')}

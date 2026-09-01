@@ -8,6 +8,7 @@ import { ParticipantsPanel } from './ParticipantsPanel';
 import { ConversationThreadList } from './ConversationThreadList';
 import { ThreadSidebarProvider } from './ThreadSidebarContext';
 import { SharedFilesPanel, useSharedFiles } from './SharedFilesPanel';
+import type { MentionOption } from './MentionPicker';
 
 // ============================================================================
 // Mobile (<768px) conversation surface — mobile-redesign-conversations.md §3.5.
@@ -40,6 +41,7 @@ export interface ConversationSurfaceMobileProps {
   /** Show the People segment (false for DMs — fixed 1:1). Default true. */
   showParticipants?: boolean;
   canSend?: boolean;
+  mentionCandidates?: MentionOption[];
 }
 
 export function ConversationSurfaceMobile({
@@ -48,6 +50,7 @@ export function ConversationSurfaceMobile({
   participants = [],
   showParticipants = true,
   canSend = true,
+  mentionCandidates,
 }: ConversationSurfaceMobileProps): React.ReactElement {
   const { t } = useTranslation('chat');
   const threads = useConversationThreads(conversationId);
@@ -125,7 +128,7 @@ export function ConversationSurfaceMobile({
         data-testid="conversation-mpanel-chat"
         className={tab === 'chat' ? 'flex min-h-0 flex-1 flex-col' : undefined}
       >
-        <ConversationView surface={surface} conversationId={conversationId} canSend={canSend} />
+        <ConversationView surface={surface} conversationId={conversationId} canSend={canSend} mentionCandidates={mentionCandidates} />
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto" hidden={tab === 'chat'}>

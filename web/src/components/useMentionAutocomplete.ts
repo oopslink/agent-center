@@ -15,9 +15,11 @@ const MAX_OPTIONS = 50; // large-list cap (Tester2 §4.3 perf gate)
 export function useMentionAutocomplete({
   setValue,
   textareaRef,
+  mentionCandidates,
 }: {
   setValue: (v: string) => void;
   textareaRef: React.RefObject<HTMLTextAreaElement | null>;
+  mentionCandidates?: MentionOption[];
 }) {
   const listboxId = useId();
   const [active, setActive] = useState<ActiveTrigger | null>(null);
@@ -39,23 +41,25 @@ export function useMentionAutocomplete({
       // wake/badge layers gate @all on a human sender). Appended AFTER members so
       // it never hijacks the default (first) selection for an ambiguous prefix
       // like "@a" (which should still default to a member named Alice).
-      const all: MentionOption[] = 'all'.startsWith(q)
+      const all: MentionOption[] = mentionCandidates == null && 'all'.startsWith(q)
         ? [{ id: '@all', name: 'all', secondary: i18n.t('mention.everyone', { ns: 'chat' }) }]
         : [];
-      const memberOpts: MentionOption[] = (members.data ?? [])
-        .filter((m) => (m.display_name ?? '').toLowerCase().includes(q))
-        .map((m) => ({
-          id: m.identity_id,
-          name: m.display_name ?? m.identity_id,
-          secondary: m.identity_id,
-        }));
+      const memberOpts: MentionOption[] = mentionCandidates != null
+        ? mentionCandidates.filter((m) => m.name.toLowerCase().includes(q))
+        : (members.data ?? [])
+          .filter((m) => (m.display_name ?? '').toLowerCase().includes(q))
+          .map((m) => ({
+            id: m.identity_id,
+            name: m.display_name ?? m.identity_id,
+            secondary: m.identity_id,
+          }));
       return memberOpts.concat(all).slice(0, MAX_OPTIONS);
     }
     return (conversations.data ?? [])
       .filter((c) => c.kind === 'channel' && c.name.toLowerCase().includes(q))
       .slice(0, MAX_OPTIONS)
       .map((c) => ({ id: c.id, name: c.name, secondary: c.id }));
-  }, [active, members.data, conversations.data]);
+  }, [active, members.data, conversations.data, mentionCandidates]);
 
   // Keep activeId valid (default to the first option) when the list re-filters.
   useEffect(() => {

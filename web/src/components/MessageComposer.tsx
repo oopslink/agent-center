@@ -6,7 +6,7 @@ import type { MessageAttachment } from '@/api/types';
 import { isResolvedName, normalizeIdentityRef, useDisplayNameResolver } from '@/api/members';
 import { useQuote } from './QuoteContext';
 import { useMentionAutocomplete } from './useMentionAutocomplete';
-import { MentionPicker } from './MentionPicker';
+import { MentionPicker, type MentionOption } from './MentionPicker';
 import {
   formatBytes,
   isPreviewableImage,
@@ -19,6 +19,7 @@ interface Props {
   // message's thread (the POST carries parent_message_id). Used by ThreadSidebar;
   // absent on the main conversation composer (normal top-level send).
   parentMessageId?: string;
+  mentionCandidates?: MentionOption[];
 }
 
 // v2.10.2 [T148]: the textarea auto-grows with its content up to this many rows;
@@ -47,7 +48,7 @@ interface StagedAttachment {
 // per-file upload progress + retry; client-side size validation with inline
 // rejection notices. Owns its own draft + attachment state (component-local —
 // not server, not Zustand).
-export function MessageComposer({ conversationId, parentMessageId }: Props): React.ReactElement {
+export function MessageComposer({ conversationId, parentMessageId, mentionCandidates }: Props): React.ReactElement {
   const { t } = useTranslation('chat');
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<StagedAttachment[]>([]);
@@ -65,7 +66,7 @@ export function MessageComposer({ conversationId, parentMessageId }: Props): Rea
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const send = useSendMessage();
   // v2.8 #275: #/@ mention picker wired to the textarea.
-  const mention = useMentionAutocomplete({ setValue: setDraft, textareaRef });
+  const mention = useMentionAutocomplete({ setValue: setDraft, textareaRef, mentionCandidates });
   // 引用 (quote): the shared quote target + setter (owned by QuoteContext). Null
   // when rendered standalone (no provider) — the quoting bar is then omitted and
   // the composer sends normally.

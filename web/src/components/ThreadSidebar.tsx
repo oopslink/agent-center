@@ -10,6 +10,7 @@ import { MessageComposer } from './MessageComposer';
 import { QuoteProvider } from './QuoteContext';
 import { ResizeHandle } from './ResizeHandle';
 import { useResizablePanel } from './useResizablePanel';
+import type { MentionOption } from './MentionPicker';
 
 // Desktop width bounds (task-97c7600a): default = the prior sm:w-[28rem] (448px),
 // floor 320px (the prior w-80 base), ceiling = 3/4 of the viewport (75vw). The cap
@@ -40,9 +41,10 @@ interface Props {
   /** the root (top-level) message whose thread is shown; null when closed. */
   rootMessage: Message | null;
   onClose: () => void;
+  mentionCandidates?: MentionOption[];
 }
 
-export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.ReactElement | null {
+export function ThreadSidebar({ open, rootMessage, onClose, mentionCandidates }: Props): React.ReactElement | null {
   const { t } = useTranslation('chat');
   const containerRef = useModalA11y({ open, onClose });
   // Desktop: a draggable left-edge handle resizes the panel (persisted, capped 75vw).
@@ -155,7 +157,7 @@ export function ThreadSidebar({ open, rootMessage, onClose }: Props): React.Reac
           {/* Footer: the thread composer — every send carries parent_message_id (and,
               when a message is queued, quoted_message_id from the shared QuoteContext). */}
           {conversationId && (
-            <MessageComposer conversationId={conversationId} parentMessageId={rootMessage.id} />
+            <MessageComposer conversationId={conversationId} parentMessageId={rootMessage.id} mentionCandidates={mentionCandidates} />
           )}
         </QuoteProvider>
       </div>

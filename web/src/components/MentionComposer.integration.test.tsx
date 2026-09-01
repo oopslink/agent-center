@@ -78,6 +78,25 @@ describe('MessageComposer + #275 mention picker', () => {
     await waitFor(() => expect(ta().value).toBe('@all '));
   });
 
+  it('when scoped candidates are supplied, @ lists only those candidates and omits @all', async () => {
+    wrap(
+      <MessageComposer
+        conversationId="C1"
+        mentionCandidates={[
+          { id: 'agent:spark-dev', name: 'spark-dev', secondary: 'agent:spark-dev' },
+          { id: 'agent:node-dev', name: 'node-dev', secondary: 'agent:node-dev' },
+        ]}
+      />,
+    );
+    await userEvent.type(ta(), '@');
+    await waitFor(() => expect(screen.getByTestId('mention-picker')).toBeInTheDocument());
+    expect(screen.getByText('spark-dev')).toBeInTheDocument();
+    expect(screen.getByText('node-dev')).toBeInTheDocument();
+    expect(screen.queryByText('Alice')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bob')).not.toBeInTheDocument();
+    expect(screen.queryByText('all')).not.toBeInTheDocument();
+  });
+
   it('Enter while the picker is open selects, does NOT send the message', async () => {
     wrap(<MessageComposer conversationId="C1" />);
     await userEvent.type(ta(), '@a');
