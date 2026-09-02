@@ -186,7 +186,7 @@ func (r *TaskRepo) Save(ctx context.Context, t *pm.Task) error {
 		string(t.CreatedBy()), ts(t.CreatedAt()), ts(t.UpdatedAt()), t.Version(), nullInt(t.OrgNumber()),
 		marshalTags(t.Tags()), ts(t.StatusChangedAt()), tsZeroNull(t.CompletedAt()), string(t.PlanID()),
 		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()),
-		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()),
+		string(t.BlockedReasonType()), t.BlockedComment(), nullTimePtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()),
 		marshalCaps(t.RequiredCapabilities()), t.NodeID(), t.RecoveryResetCount(), string(t.StageID()), deliveryJSON, t.FruitlessReopens(), string(t.DispatchMode()), string(t.FollowsTaskID()), string(t.OriginVerdictID()), string(t.DeliveryContract()))
 	if isUnique(err) {
 		return pm.ErrTaskExists
@@ -208,7 +208,7 @@ func (r *TaskRepo) Update(ctx context.Context, t *pm.Task) error {
 		nullString(string(t.CompletedBy())), nullString(t.BlockedReason()), t.FailedReason(),
 		ts(t.UpdatedAt()), t.Version(), marshalTags(t.Tags()), ts(t.StatusChangedAt()), tsZeroNull(t.CompletedAt()), string(t.PlanID()),
 		tsPtr(t.ArchivedAt()), string(t.ArchivedBy()),
-		string(t.BlockedReasonType()), t.BlockedComment(), tsPtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()),
+		string(t.BlockedReasonType()), t.BlockedComment(), nullTimePtr(t.ExecutionLeaseExpiresAt()), nullString(t.Model()),
 		marshalCaps(t.RequiredCapabilities()), t.NodeID(), t.RecoveryResetCount(), string(t.StageID()), deliveryJSON, t.FruitlessReopens(), string(t.DispatchMode()), string(t.FollowsTaskID()), string(t.OriginVerdictID()), string(t.DeliveryContract()), string(t.ID()))
 	if err != nil {
 		// v2.18.0 W4c: the single-active partial UNIQUE index (migration 0072) was

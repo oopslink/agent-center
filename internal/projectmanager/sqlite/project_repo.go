@@ -23,6 +23,13 @@ func nullString(s string) any {
 	return s
 }
 
+func nullTimePtr(t *time.Time) any {
+	if t == nil || t.IsZero() {
+		return nil
+	}
+	return ts(*t)
+}
+
 // nullInt maps 0 → SQL NULL (v2.7.1 #245: org_number is "the number, or absent"
 // for rows predating allocation); any non-zero value stores as-is.
 func nullInt(n int) any {

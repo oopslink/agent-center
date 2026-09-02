@@ -175,6 +175,13 @@ func TestTaskRepo_BlockLeaseRoundTrip(t *testing.T) {
 	if err := tr.Update(ctx, got); err != nil {
 		t.Fatal(err)
 	}
+	var stored sql.NullString
+	if err := d.QueryRowContext(ctx, `SELECT execution_lease_expires_at FROM pm_tasks WHERE id='T1'`).Scan(&stored); err != nil {
+		t.Fatal(err)
+	}
+	if stored.Valid {
+		t.Fatalf("cleared execution lease stored as %q, want SQL NULL", stored.String)
+	}
 	re, _ := tr.FindByID(ctx, "T1")
 	if re.Status() != pm.TaskFailed || re.FailedReason() != "confirm target branch" {
 		t.Fatalf("failed state lost: status=%q failed_reason=%q", re.Status(), re.FailedReason())

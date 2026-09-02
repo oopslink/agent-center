@@ -187,8 +187,8 @@ func MigrateV1ToV2Command() *Command {
 // wake buckets and suppressed-intent retry; 0151 adds human-decision progress
 // subscriptions; 0152 adds immutable ProjectManager delivery subjects and
 // acceptance ledger; 0153 adds terminal task failed lifecycle storage; 0154 clears
-// stale execution leases from terminal tasks.
-const targetSchemaVersion = 154
+// stale execution leases from terminal tasks; 0155 normalizes empty task leases.
+const targetSchemaVersion = 155
 
 func runMigrateV1ToV2(
 	ctx context.Context,

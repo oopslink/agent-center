@@ -1,0 +1,1 @@
+-- Irreversible cleanup: empty-string task leases are normalized to SQL NULL.
