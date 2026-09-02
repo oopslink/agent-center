@@ -1,0 +1,3 @@
+-- Data cleanup migration. Down is intentionally a no-op: discarded superseded
+-- tasks cannot be safely distinguished from operator-discarded tasks after the
+-- fact without losing terminal lifecycle history.
