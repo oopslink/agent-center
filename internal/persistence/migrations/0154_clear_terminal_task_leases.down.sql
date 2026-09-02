@@ -1,0 +1,1 @@
+-- Irreversible cleanup: terminal tasks have no live executor lease to restore.

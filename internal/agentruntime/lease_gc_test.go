@@ -181,6 +181,11 @@ func TestDrainLeaseRenewals_RevokedExecutorFused(t *testing.T) {
 	if len(fused) != 1 || fused[0] != "task-exec" {
 		t.Fatalf("fused = %v, want exactly [task-exec] (executor fused, supervisor task NOT fused)", fused)
 	}
+	rt.withState(func(s *SessionState) {
+		if s.CurrentTaskID != "" {
+			t.Fatalf("revoked supervisor task must clear CurrentTaskID, got %q", s.CurrentTaskID)
+		}
+	})
 }
 
 // TestDrainLeaseRenewals_NoSessionNoSuperTask: with no live session, the supervisor task

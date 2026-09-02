@@ -748,6 +748,7 @@ func (t *Task) forceDiscard(at time.Time) {
 	t.status = TaskDiscarded
 	t.statusChangedAt = at.UTC()
 	t.blockedReason = "" // a discarded task is not stuck (mirrors Discard)
+	t.executionLeaseExpiresAt = nil
 	t.touch(at)
 }
 
@@ -1316,6 +1317,7 @@ func (t *Task) Complete(by IdentityRef, at time.Time) error {
 	t.completedBy = by
 	t.blockedReason = ""
 	t.failedReason = ""
+	t.executionLeaseExpiresAt = nil
 	t.recoveryResetCount = 0
 	t.fruitlessReopens = 0
 	t.touch(at)
@@ -1364,6 +1366,9 @@ func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
 	if target != TaskFailed {
 		t.failedReason = ""
 	}
+	if target.IsTerminal() {
+		t.executionLeaseExpiresAt = nil
+	}
 	t.touch(at)
 	return nil
 }
@@ -1388,6 +1393,9 @@ func (t *Task) simpleTransition(to TaskStatus, at time.Time) error {
 	}
 	t.status = to
 	t.statusChangedAt = at.UTC()
+	if to.IsTerminal() {
+		t.executionLeaseExpiresAt = nil
+	}
 	t.touch(at)
 	return nil
 }

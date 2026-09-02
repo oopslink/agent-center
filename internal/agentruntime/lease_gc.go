@@ -115,6 +115,14 @@ func (r *LocalRuntime) drainLeaseRenewals(ctx context.Context, now time.Time) {
 			// the executor so it stops before the next dangerous action (issue-88e32d98).
 			// A supervisor-only task (no executor) is NOT killed — blocking the session
 			// would误杀 the agent; the block is handled by the normal supervisor path.
+			// In both cases the center has told us this task no longer has a renewable
+			// lease, so clear CurrentTaskID when it still points at this task to stop
+			// repeated terminal/blocked/reassigned renew attempts.
+			r.mu.Lock()
+			if r.state != nil && r.state.CurrentTaskID == taskID {
+				r.state.CurrentTaskID = ""
+			}
+			r.mu.Unlock()
 			if _, isExec := execTasks[taskID]; isExec {
 				if killed, kErr := r.fuseExecutorForTask(ctx, taskID); kErr != nil {
 					r.log("agent=%s lease-revoked task=%s: fuse-kill: %v", r.cfg.AgentID, taskID, kErr)

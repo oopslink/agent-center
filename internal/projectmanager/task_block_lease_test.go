@@ -141,6 +141,54 @@ func TestRenewLease_SetsDeadline(t *testing.T) {
 	}
 }
 
+func TestTerminalTransitions_ClearLease(t *testing.T) {
+	cases := []struct {
+		name string
+		act  func(*Task, time.Time) error
+	}{
+		{
+			name: "complete",
+			act:  func(tk *Task, at time.Time) error { return tk.Complete("agent:c", at) },
+		},
+		{
+			name: "fail",
+			act:  func(tk *Task, at time.Time) error { return tk.Fail("cannot continue", "agent:c", at) },
+		},
+		{
+			name: "discard",
+			act:  func(tk *Task, at time.Time) error { return tk.Discard(at) },
+		},
+		{
+			name: "set-status-completed",
+			act:  func(tk *Task, at time.Time) error { return tk.SetStatus(TaskCompleted, at) },
+		},
+		{
+			name: "set-status-discarded",
+			act:  func(tk *Task, at time.Time) error { return tk.SetStatus(TaskDiscarded, at) },
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tk := running(t, "agent:c")
+			if err := tk.RenewLease(time.Hour, t0); err != nil {
+				t.Fatalf("RenewLease: %v", err)
+			}
+			if tk.ExecutionLeaseExpiresAt() == nil {
+				t.Fatal("test setup did not create a lease")
+			}
+			if err := tc.act(tk, t0.Add(time.Minute)); err != nil {
+				t.Fatalf("terminal transition: %v", err)
+			}
+			if !tk.Status().IsTerminal() {
+				t.Fatalf("status=%s, want terminal", tk.Status())
+			}
+			if tk.ExecutionLeaseExpiresAt() != nil {
+				t.Fatalf("terminal task kept lease: %v", tk.ExecutionLeaseExpiresAt())
+			}
+		})
+	}
+}
+
 func TestRenewLease_RejectsNonRunning(t *testing.T) {
 	tk := newTask(t) // open
 	if err := tk.RenewLease(time.Minute, t0); err != ErrIllegalTransition {
