@@ -258,6 +258,18 @@ describe('dispatchToQueryClient', () => {
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.orgTasksAll() });
   });
 
+  it('pm.task.state_changed refreshes plan detail progress and project lists', () => {
+    dispatchToQueryClient(qc, {
+      event_type: 'pm.task.state_changed',
+      data: { project_id: 'proj-a', task_id: 'TS-1', status: 'completed' },
+    });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.orgTasksAll() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.planAll() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.plansByProjectAll() });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.tasksByProject('proj-a') });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.plansByProject('proj-a') });
+  });
+
   it('pm.plan.created invalidates the org plans aggregation (ref-resolver source)', () => {
     dispatchToQueryClient(qc, ev('pm.plan.created'));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: qk.orgPlansAll() });

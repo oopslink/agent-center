@@ -8,6 +8,7 @@ import { server } from '../test/mswServer';
 import { qk } from './queryKeys';
 import {
   useAssignTask,
+  useCompleteTask,
   useCreateTask,
   useFailTask,
   useStartTask,
@@ -152,6 +153,40 @@ describe('tasks hooks', () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.status).toBe('running');
+  });
+
+  it('task actions invalidate the owning plan detail when task belongs to a plan', async () => {
+    server.use(
+      http.post('/api/projects/proj-a/tasks/TS-1/complete', () =>
+        HttpResponse.json({
+          id: 'TS-1',
+          project_id: 'proj-a',
+          plan_id: 'PL-1',
+          title: 'x',
+          description: '',
+          status: 'completed',
+          version: 2,
+          created_at: 'x',
+          updated_at: 'x',
+        }),
+      ),
+    );
+    const qc = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries');
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: qc }, children);
+    const { result } = renderHook(() => useCompleteTask('proj-a', 'TS-1'), { wrapper });
+    act(() => {
+      result.current.mutate();
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const invalidatedKeys = invalidateSpy.mock.calls.map((c) => JSON.stringify(c[0]?.queryKey));
+    expect(invalidatedKeys).toContain(JSON.stringify(qk.task('TS-1')));
+    expect(invalidatedKeys).toContain(JSON.stringify(qk.tasksByProject('proj-a')));
+    expect(invalidatedKeys).toContain(JSON.stringify(qk.plansByProject('proj-a')));
+    expect(invalidatedKeys).toContain(JSON.stringify(qk.plan('PL-1')));
   });
 
   it('useFailTask requires a reason payload', async () => {

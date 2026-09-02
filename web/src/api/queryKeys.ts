@@ -178,6 +178,7 @@ export const qk = {
   // staleness gap; plan list was never wired to task SSE before).
   plansByProjectAll: () => o('plansByProject'),
   plan: (id: string) => o('plan', id),
+  planAll: () => o('plan'),
   // v2.9 #291 Work Board: the Backlog column = the project's UNPLANNED tasks
   // (plan_id null), GET /projects/{pid}/tasks?unplanned=1. Distinct key from the
   // full task list so the board's Backlog refetches when a task is added to a

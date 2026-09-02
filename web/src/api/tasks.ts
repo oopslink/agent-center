@@ -102,9 +102,13 @@ export function useUpdateTask(projectId: string, taskId: string) {
   return useMutation({
     mutationFn: (input: UpdateTaskInput) =>
       api.patch<Task>(`/projects/${projectId}/tasks/${taskId}`, input),
-    onSuccess: () => {
+    onSuccess: (task) => {
       void qc.invalidateQueries({ queryKey: qk.task(taskId) });
       void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
+      void qc.invalidateQueries({ queryKey: qk.plansByProject(projectId) });
+      if (task.plan_id) {
+        void qc.invalidateQueries({ queryKey: qk.plan(task.plan_id) });
+      }
     },
   });
 }
@@ -119,9 +123,13 @@ function useTaskAction<TVars>(
   const qc = useQueryClient();
   return useMutation({
     mutationFn: fn,
-    onSuccess: () => {
+    onSuccess: (task) => {
       void qc.invalidateQueries({ queryKey: qk.task(taskId) });
       void qc.invalidateQueries({ queryKey: qk.tasksByProject(projectId) });
+      void qc.invalidateQueries({ queryKey: qk.plansByProject(projectId) });
+      if (task.plan_id) {
+        void qc.invalidateQueries({ queryKey: qk.plan(task.plan_id) });
+      }
     },
   });
 }

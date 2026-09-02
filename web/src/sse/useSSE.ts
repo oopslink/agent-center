@@ -194,6 +194,11 @@ export function startSSE(args: StartArgs): Controller {
 export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev: SSEEvent): void {
   const invalidate = (key: readonly unknown[]) =>
     void qc.invalidateQueries({ queryKey: key as readonly unknown[] });
+  const data =
+    ev.data && typeof ev.data === 'object'
+      ? (ev.data as Record<string, unknown>)
+      : {};
+  const projectId = typeof data.project_id === 'string' ? data.project_id : '';
 
   switch (ev.event_type) {
     // Conversation lifecycle.
@@ -390,6 +395,12 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     case 'pm.task.input_replied':
     case 'pm.task.assigned':
       invalidate(qk.orgTasksAll());
+      invalidate(qk.planAll());
+      invalidate(qk.plansByProjectAll());
+      if (projectId) {
+        invalidate(qk.tasksByProject(projectId));
+        invalidate(qk.plansByProject(projectId));
+      }
       // v2.26.0 I61: the stuck-task band of the attention panel is derived from
       // the same block/unblock lifecycle — refresh it alongside the task lists.
       invalidate(qk.attention());
