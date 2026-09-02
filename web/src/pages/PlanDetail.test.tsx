@@ -641,6 +641,19 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(within(table).getAllByTestId('node-state-chip').length).toBe(7);
   });
 
+  it('marks a running superseded node as draining instead of plain running', async () => {
+    mockPlan({
+      nodes: [
+        { task_id: 'old-running', title: 'old path', assignee_ref: 'agent:dev', task_status: 'running', node_status: 'running', depends_on: [], effective: false, superseded_reason: 'generation_supersede' },
+      ],
+      progress: { done: 0, total: 0 },
+    });
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-tasks'));
+    const table = await screen.findByTestId('plan-task-list-table');
+    expect(within(table).getByTestId('superseded-draining-chip')).toHaveTextContent(/superseded \/ draining/i);
+  });
+
   // ── T570: plan detail page polish ─────────────────────────────────────────
   it('T570: a DONE node shows its completion time; non-done nodes do not', async () => {
     mockPlan({

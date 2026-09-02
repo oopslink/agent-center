@@ -454,6 +454,7 @@ func (s *Service) applySupersededNodes(
 		if t == nil {
 			continue
 		}
+		prevStatus := t.Status()
 		// Superseded nodes remain immutable Plan history. Clearing plan_id projects
 		// terminal skipped/cancelled-by-reject history back into Backlog, losing the
 		// generation that made it unreachable. It no longer participates in the active
@@ -461,8 +462,19 @@ func (s *Service) applySupersededNodes(
 		if err := t.SetStage("", now); err != nil {
 			return err
 		}
+		if t.Status() == pm.TaskOpen {
+			if err := t.Discard(now); err != nil {
+				return err
+			}
+		}
 		if err := s.tasks.Update(ctx, t); err != nil {
 			return err
+		}
+		if t.Status() != prevStatus {
+			if err := s.emitTaskStateChanged(ctx, t, prevStatus, "generation_supersede"); err != nil {
+				return err
+			}
+			s.auditTaskStatusChange(ctx, t, prevStatus, p.CreatorRef())
 		}
 		if err := s.plans.ClearDispatch(ctx, p.ID(), id); err != nil {
 			return err

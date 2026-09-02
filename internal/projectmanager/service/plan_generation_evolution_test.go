@@ -470,6 +470,56 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 	})
 }
 
+func TestEvolvePlanGeneration_SupersededOpenNodeIsDiscardedAndNotRunnable(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "supersede-open", CreatedBy: "user:a"})
+	h.drain(t)
+	_, b := h.startRunningPlanAB(t, pid, planID)
+	base := h.planVersion(t, planID)
+	_, parent := activePlanGeneration(t, h, planID)
+
+	if _, err := h.svc.EvolvePlanGeneration(h.ctx, EvolvePlanGenerationCommand{
+		PlanID: planID, ParentGenerationID: parent.ID, BaseVersion: base, IdempotencyKey: "evo-supersede-open",
+		Reason: "replace obsolete pending work", Evidence: "new generation owns the path", Creator: "user:a",
+		Diff: pm.PlanGenerationDiff{
+			NodeDecisions: []pm.PlanGenerationNodeDecision{{TaskID: b, Action: pm.EvolutionSupersede}},
+			Tasks:         []pm.PlanGenerationTaskDraft{{Ref: "c", Title: "replacement", AssigneeRef: "user:c1", Detached: true}},
+		},
+	}); err != nil {
+		t.Fatalf("supersede open node: %v", err)
+	}
+	reloaded, err := h.tasks.FindByID(h.ctx, b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if reloaded.Status() != pm.TaskDiscarded {
+		t.Fatalf("superseded open task status=%s, want discarded", reloaded.Status())
+	}
+	if reloaded.PlanID() != planID {
+		t.Fatalf("superseded task plan_id=%s, want retained plan %s", reloaded.PlanID(), planID)
+	}
+	if err := h.svc.EnsureTaskRunnable(h.ctx, b); !errors.Is(err, pm.ErrTaskNotRunnable) {
+		t.Fatalf("EnsureTaskRunnable(superseded)=%v, want ErrTaskNotRunnable", err)
+	}
+	if err := h.svc.StartTask(h.ctx, b, "user:a"); !errors.Is(err, pm.ErrTaskNotRunnable) {
+		t.Fatalf("StartTask(superseded)=%v, want ErrTaskNotRunnable", err)
+	}
+	detail, err := h.svc.GetPlanDetail(h.ctx, planID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, node := range detail.View.Nodes {
+		if node.TaskID == b {
+			if node.Effective || node.SupersededReason != "generation_supersede" {
+				t.Fatalf("superseded node effective/reason=%v/%q", node.Effective, node.SupersededReason)
+			}
+			return
+		}
+	}
+	t.Fatalf("superseded node %s not present in plan detail", b)
+}
+
 func TestEvolvePlanGeneration_OwnerSupersedesBlockedDispatchedNodeAtomically(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})

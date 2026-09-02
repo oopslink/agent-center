@@ -374,7 +374,8 @@
         "running": "running",
         "paused": "paused",
         "done": "done",
-        "failed": "failed"
+        "failed": "failed",
+        "supersededDraining": "superseded / draining"
       },
       "taskList": {
         "empty": "No tasks in this plan yet.",

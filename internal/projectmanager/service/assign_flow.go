@@ -166,6 +166,9 @@ func (s *Service) StartTask(ctx context.Context, taskID pm.TaskID, actor pm.Iden
 		}
 		prevStatus := t.Status()
 		if prevStatus != pm.TaskRunning {
+			if err := s.ensurePlannedTaskEffectiveForStart(txCtx, t); err != nil {
+				return err
+			}
 			if err := s.guardTaskProgressHolds(txCtx, taskID, true, false, false); err != nil {
 				return err
 			}
@@ -948,6 +951,11 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		if err := mutate(t, now); err != nil {
 			return err
 		}
+		if prevStatus != pm.TaskRunning && t.Status() == pm.TaskRunning {
+			if err := s.ensurePlannedTaskEffectiveForStart(txCtx, t); err != nil {
+				return err
+			}
+		}
 		// v2.18.0 W4c ③: an owner SetStatus→running (the free status-override menu) is
 		// also a task→running transition the dropped single-active index used to guard.
 		// The cap self-skips for any non-running / blocked / terminal mutate (Block,
@@ -986,6 +994,24 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 		// its issue's derived tasks terminal, nudge the issue owner to review + close.
 		return s.maybeNotifyIssueDerivedTasksDone(txCtx, t, prevStatus)
 	})
+}
+
+func (s *Service) ensurePlannedTaskEffectiveForStart(ctx context.Context, t *pm.Task) error {
+	if t == nil || t.PlanID() == "" || s.plans == nil {
+		return nil
+	}
+	p, err := s.plans.FindByID(ctx, t.PlanID())
+	if err != nil {
+		return err
+	}
+	node, found, err := s.planNodeView(ctx, p, t.ID())
+	if err != nil {
+		return err
+	}
+	if !found || !node.Effective {
+		return pm.ErrTaskNotRunnable
+	}
+	return nil
 }
 
 // SetTaskStatus sets the Task to any VALID status with NO adjacency enforcement

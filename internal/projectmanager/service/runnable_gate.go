@@ -96,14 +96,14 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 	if t.Status().IsParked() {
 		return pm.ErrTaskNotRunnable
 	}
-	if t.Status() == pm.TaskRunning {
-		return nil
-	}
-	if err := s.guardTaskProgressHolds(ctx, taskID, true, false, false); err != nil {
-		return err
-	}
 	planID := t.PlanID()
 	if planID == "" {
+		if t.Status() == pm.TaskRunning {
+			return nil
+		}
+		if err := s.guardTaskProgressHolds(ctx, taskID, true, false, false); err != nil {
+			return err
+		}
 		if s.pools != nil {
 			if _, ok, err := s.pools.FindTask(ctx, taskID); err != nil {
 				return err
@@ -117,6 +117,19 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 	if err != nil {
 		return err
 	}
+	node, found, err := s.planNodeView(ctx, p, taskID)
+	if err != nil {
+		return err
+	}
+	if !found || !node.Effective {
+		return pm.ErrTaskNotRunnable
+	}
+	if t.Status() == pm.TaskRunning {
+		return nil
+	}
+	if err := s.guardTaskProgressHolds(ctx, taskID, true, false, false); err != nil {
+		return err
+	}
 	// issue-d2f14e0e (P0): a merge-to-main task is HARD-GATED on a passed acceptance
 	// verdict, checked here — the single server-side chokepoint every executor passes
 	// through at start_work — so the merge cannot run regardless of executor behavior.
@@ -128,10 +141,7 @@ func (s *Service) EnsureTaskRunnable(ctx context.Context, taskID pm.TaskID) erro
 	} else if blocked {
 		return pm.ErrTaskNotRunnable
 	}
-	ns, err := s.planNodeStatus(ctx, p, taskID)
-	if err != nil {
-		return err
-	}
+	ns := node.NodeStatus
 	if p.IsBuiltin() {
 		// Built-in Assignment Pool: a DISPATCHED member is runnable (= it is in the pool).
 		// The pool's own "claimable" path (ClaimPoolTask) is the entry into running for an

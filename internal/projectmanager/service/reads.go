@@ -535,13 +535,19 @@ func (s *Service) TaskClaimableByID(ctx context.Context, taskID pm.TaskID) (bool
 	if err != nil {
 		return false, err
 	}
-	var ns pm.NodeStatus
+	var node pm.PlanNodeView
+	var found bool
 	for _, n := range detail.View.Nodes {
 		if n.TaskID == taskID {
-			ns = n.NodeStatus
+			node = n
+			found = true
 			break
 		}
 	}
+	if !found || !node.Effective {
+		return false, nil
+	}
+	ns := node.NodeStatus
 	// T83 §3.2/§5: a built-in pool task is OPEN-claim (no assignee requirement),
 	// so get_task.claimable matches what ClaimPoolTask will actually accept. A
 	// structured-plan node stays assignee-gated.

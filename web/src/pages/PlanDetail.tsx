@@ -1937,6 +1937,20 @@ function NodeStateChip({ status }: { status: PlanNodeStatus }): React.ReactEleme
   );
 }
 
+function SupersededDrainingChip({ node }: { node: PlanNode }): React.ReactElement | null {
+  const { t } = useTranslation('work');
+  if (node.effective !== false || node.node_status !== 'running') return null;
+  return (
+    <span
+      className="inline-flex shrink-0 items-center rounded bg-status-amber-bg px-1.5 py-0.5 text-[0.625rem] font-bold uppercase tracking-wide text-status-amber-fg"
+      data-testid="superseded-draining-chip"
+      title={node.superseded_reason || undefined}
+    >
+      {t('plan.detail.nodeStatus.supersededDraining')}
+    </span>
+  );
+}
+
 // TaskIdTag — a small monospace pill showing the human Task id (org_ref "T123"),
 // taken DIRECTLY from the PlanNode's own org_ref (api/plans PlanNode.org_ref —
 // list_plans/detail already return it; T126 removed the old FE task-list re-
@@ -2478,6 +2492,7 @@ function PlanStepper({
                   <NodeGenerationBadge node={generationMeta} />
                   <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
                   <NodeStateChip status={p.node.node_status} />
+                  <SupersededDrainingChip node={p.node} />
                 </span>
               </div>
               {/* Big tappable title (≥44px touch target), opens the task. */}
@@ -4829,6 +4844,7 @@ function LegacyPlanDag({
                       <NodeGenerationBadge node={generationMeta} />
                       <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
                       <NodeStateChip status={p.node.node_status} />
+                      <SupersededDrainingChip node={p.node} />
                       {/* Pending connect control (point 3): a real keyboard-focusable
                           button. Activating enters connect mode with this node as
                           the source. Hidden once running/done (display-only). */}
@@ -5234,6 +5250,7 @@ function PlanTaskRow({
       <td className="py-1.5">
         <span className="inline-flex items-center gap-1.5">
           <NodeStateChip status={node.node_status} />
+          <SupersededDrainingChip node={node} />
           {/* T570: a DONE node shows WHEN it completed (statusChangedAt). Rendered
               next to the chip, muted, with the full timestamp on hover. */}
           {node.node_status === 'done' && node.completed_at && (

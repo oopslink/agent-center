@@ -241,16 +241,28 @@ func (s *Service) ReleasePoolTask(ctx context.Context, taskID pm.TaskID, actor p
 // the runnable gate, and the T329 dispatch gate). A task not found in the view
 // yields the zero NodeStatus (→ not claimable / not runnable / not dispatchable).
 func (s *Service) planNodeStatus(ctx context.Context, p *pm.Plan, taskID pm.TaskID) (pm.NodeStatus, error) {
-	detail, err := s.planDetail(ctx, p)
+	node, _, err := s.planNodeView(ctx, p, taskID)
 	if err != nil {
 		return "", err
 	}
+	return node.NodeStatus, nil
+}
+
+// planNodeView returns the current derived plan node projection. Callers that
+// decide whether work can be claimed or started must consult Effective here too:
+// generation supersede is a read-model overlay, so the raw task row can still
+// look open/runnable after its current generation replaced it.
+func (s *Service) planNodeView(ctx context.Context, p *pm.Plan, taskID pm.TaskID) (pm.PlanNodeView, bool, error) {
+	detail, err := s.planDetail(ctx, p)
+	if err != nil {
+		return pm.PlanNodeView{}, false, err
+	}
 	for _, n := range detail.View.Nodes {
 		if n.TaskID == taskID {
-			return n.NodeStatus, nil
+			return n, true, nil
 		}
 	}
-	return "", nil
+	return pm.PlanNodeView{}, false, nil
 }
 
 // countHeldPoolTasks counts the actor's currently-held (running) built-in-pool

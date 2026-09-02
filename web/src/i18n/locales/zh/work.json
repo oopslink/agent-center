@@ -374,7 +374,8 @@
         "running": "运行中",
         "paused": "已暂停",
         "done": "已完成",
-        "failed": "失败"
+        "failed": "失败",
+        "supersededDraining": "已替代 / 收尾中"
       },
       "taskList": {
         "empty": "此计划尚无任务。",
