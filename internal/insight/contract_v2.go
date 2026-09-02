@@ -192,6 +192,15 @@ func (s *Service) V2ProjectDelivery(ctx context.Context, orgID, projectID string
 	}, nil
 }
 
+func (s *Service) V2ProjectLifecycle(ctx context.Context, orgID, projectID string, asOf time.Time) (ProjectLifecycleSummary, error) {
+	if asOf.IsZero() {
+		asOf = time.Now().UTC()
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.projectLifecycleOne(ctx, orgID, projectID, asOf)
+}
+
 func (s *Service) V2ProjectEvolution(ctx context.Context, orgID, projectID string, asOf time.Time) (V2EvolutionResponse, error) {
 	if ok, err := s.projectInOrg(ctx, orgID, projectID); err != nil || !ok {
 		if err != nil {

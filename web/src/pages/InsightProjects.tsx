@@ -2,13 +2,15 @@ import type React from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
-import { ChartPanel, DonutChart, HorizontalBars, SegmentedBar, type ChartDatum } from '@/components/insight/InsightCharts';
+import { ChartPanel, DonutChart, HorizontalBars, LineChart, SegmentedBar, type ChartDatum } from '@/components/insight/InsightCharts';
 import {
   useInsightV2PlanLineage,
   useInsightV2Project,
   useInsightV2ProjectDelivery,
   useInsightV2ProjectEvolution,
+  useInsightV2ProjectLifecycle,
   useInsightV2Projects,
+  type InsightProjectLifecycleSummary,
   type InsightFreshness,
   type InsightV2CountMetric,
   type InsightV2FunnelBreak,
@@ -119,6 +121,7 @@ export function InsightProjectDetailPage(): React.ReactElement {
   const base = `/organizations/${encodeURIComponent(slug)}/insights/projects`;
   const project = useInsightV2Project(projectId);
   const delivery = useInsightV2ProjectDelivery(projectId);
+  const lifecycle = useInsightV2ProjectLifecycle(projectId);
   const evolution = useInsightV2ProjectEvolution(projectId);
 
   return (
@@ -147,6 +150,10 @@ export function InsightProjectDetailPage(): React.ReactElement {
           ]} />
         </>
       )}
+
+      {lifecycle.isLoading && <StatePanel testId="insight-lifecycle-loading" title={t('insight.lifecycle.loading')} />}
+      {lifecycle.isError && <InsightV2Error testIdPrefix="insight-lifecycle" error={lifecycle.error} fallbackTitle={t('insight.lifecycle.failed')} />}
+      {lifecycle.data && <ProjectLifecyclePanel lifecycle={lifecycle.data} />}
 
       {evolution.isLoading && <StatePanel testId="insight-evolution-loading" title={t('insight.evolution.loading')} />}
       {evolution.isError && <InsightV2Error testIdPrefix="insight-evolution" error={evolution.error} fallbackTitle={t('insight.evolution.failed')} />}
@@ -317,6 +324,88 @@ function EvolutionPanel({ data }: { data: InsightV2ProjectEvolution['evolution']
       </dl>
     </section>
   );
+}
+
+function ProjectLifecyclePanel({ lifecycle }: { lifecycle: InsightProjectLifecycleSummary }): React.ReactElement {
+  const { t } = useTranslation('insights');
+  return (
+    <section className="space-y-3" data-testid="insight-project-lifecycle-charts">
+      <div>
+        <h2 className="text-sm font-semibold text-text-primary">{t('insight.chart.projectLifecycle')}</h2>
+        <p className="text-xs text-text-muted">{t('insight.chart.projectLifecycleProjectSubtitle', { total: projectLifecycleActivity(lifecycle) })}</p>
+      </div>
+      <ChartPanel title={lifecycle.project_name ?? lifecycle.project_id} subtitle={t('insight.chart.projectLifecycleSubtitle')}>
+        <div className="grid gap-4 lg:grid-cols-3">
+          <LifecycleLineChart project={lifecycle} kind="issue" />
+          <LifecycleLineChart project={lifecycle} kind="plan" />
+          <LifecycleLineChart project={lifecycle} kind="task" />
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-3">
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t('insight.chart.lifecycleOutcomes')}</h3>
+            <SegmentedBar data={projectLifecycleOutcomes(lifecycle, t)} emptyLabel={t('insight.chart.empty')} />
+          </div>
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t('insight.chart.taskDurationHistogram')}</h3>
+            <HorizontalBars data={histogramData(lifecycle.task_duration_histogram)} emptyLabel={t('insight.chart.empty')} />
+          </div>
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">{t('insight.chart.planDurationHistogram')}</h3>
+            <HorizontalBars data={histogramData(lifecycle.plan_duration_histogram)} emptyLabel={t('insight.chart.empty')} />
+          </div>
+        </div>
+      </ChartPanel>
+    </section>
+  );
+}
+
+function LifecycleLineChart({ project, kind }: { project: InsightProjectLifecycleSummary; kind: 'issue' | 'plan' | 'task' }): React.ReactElement {
+  const { t } = useTranslation('insights');
+  const data = project.trend.map((point) => {
+    const value = kind === 'issue'
+      ? point.issue_created + point.issue_done + point.issue_canceled
+      : kind === 'plan'
+        ? point.plan_created + point.plan_done + point.plan_failed + point.plan_canceled
+        : point.task_created + point.task_done + point.task_failed + point.task_canceled;
+    return { key: `${kind}-${point.bucket_start}`, label: formatDateTime(point.bucket_start), value };
+  });
+  return (
+    <div className="min-w-0">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t(`insight.chart.${kind}Lifecycle`)}</h3>
+      <LineChart data={data} emptyLabel={t('insight.chart.empty')} valueLabel={t('insight.chart.lifecycleEvents')} />
+    </div>
+  );
+}
+
+function projectLifecycleOutcomes(project: InsightProjectLifecycleSummary, t: ReturnType<typeof useTranslation<'insights'>>['t']): ChartDatum[] {
+  const totals = project.trend.reduce((acc, point) => {
+    acc.done += point.issue_done + point.plan_done + point.task_done;
+    acc.failed += point.plan_failed + point.task_failed;
+    acc.canceled += point.issue_canceled + point.plan_canceled + point.task_canceled;
+    return acc;
+  }, { done: 0, failed: 0, canceled: 0 });
+  return [
+    { key: 'done', label: t('insight.chart.lifecycleDone'), value: totals.done, tone: 'success' },
+    { key: 'failed', label: t('insight.chart.lifecycleFailed'), value: totals.failed, tone: 'danger' },
+    { key: 'canceled', label: t('insight.chart.lifecycleCanceled'), value: totals.canceled, tone: 'warning' },
+  ];
+}
+
+function histogramData(buckets: InsightProjectLifecycleSummary['task_duration_histogram']): ChartDatum[] {
+  return buckets.map((bucket) => ({
+    key: bucket.label || `${bucket.min_ms}-${bucket.max_ms ?? 'inf'}`,
+    label: bucket.label || `${bucket.min_ms}-${bucket.max_ms ?? 'inf'}`,
+    value: bucket.count,
+    tone: 'info' as const,
+  }));
+}
+
+function projectLifecycleActivity(project: InsightProjectLifecycleSummary): number {
+  return project.trend.reduce((sum, point) => (
+    sum + point.issue_created + point.issue_done + point.issue_canceled
+    + point.plan_created + point.plan_done + point.plan_failed + point.plan_canceled
+    + point.task_created + point.task_done + point.task_failed + point.task_canceled
+  ), 0);
 }
 
 function LineageLink({ slug, projectId, planId }: { slug: string; projectId: string; planId: string }): React.ReactElement {

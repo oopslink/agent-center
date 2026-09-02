@@ -822,6 +822,14 @@ export function useInsightV2ProjectDelivery(projectId: string | undefined) {
   });
 }
 
+export function useInsightV2ProjectLifecycle(projectId: string | undefined) {
+  return useQuery({
+    queryKey: qk.insightV2ProjectLifecycle(projectId ?? ''),
+    queryFn: async () => normalizeProjectLifecycle(await api.get<unknown>(`/insights/v2/projects/${encodeURIComponent(projectId ?? '')}/lifecycle?window=24h`)),
+    enabled: Boolean(projectId),
+  });
+}
+
 export function useInsightV2ProjectEvolution(projectId: string | undefined) {
   return useQuery({
     queryKey: qk.insightV2ProjectEvolution(projectId ?? ''),

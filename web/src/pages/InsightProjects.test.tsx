@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -41,6 +41,48 @@ const project = {
   reason_codes: ['coverage_low', 'unknown_source_state'],
 };
 
+const projectLifecycle = {
+  project_id: 'proj-1',
+  project_name: 'Launch',
+  trend: [
+    {
+      bucket_start: '2026-08-30T23:00:00Z',
+      issue_created: 1,
+      issue_done: 1,
+      issue_canceled: 0,
+      plan_created: 1,
+      plan_done: 1,
+      plan_failed: 0,
+      plan_canceled: 0,
+      task_created: 2,
+      task_done: 1,
+      task_failed: 1,
+      task_canceled: 0,
+    },
+    {
+      bucket_start: '2026-08-31T00:00:00Z',
+      issue_created: 0,
+      issue_done: 0,
+      issue_canceled: 1,
+      plan_created: 0,
+      plan_done: 0,
+      plan_failed: 1,
+      plan_canceled: 0,
+      task_created: 1,
+      task_done: 0,
+      task_failed: 0,
+      task_canceled: 1,
+    },
+  ],
+  task_duration_histogram: [
+    { label: '<1h', min_ms: 0, max_ms: 3600000, count: 1 },
+    { label: '1-6h', min_ms: 3600000, max_ms: 21600000, count: 2 },
+  ],
+  plan_duration_histogram: [
+    { label: '1-6h', min_ms: 3600000, max_ms: 21600000, count: 1 },
+  ],
+};
+
 const breakKinds = [
   'delivery_sha_lineage_mismatch',
   'done_plan_non_terminal_task',
@@ -66,6 +108,13 @@ function renderAt(path: string) {
     </QueryClientProvider>,
   );
 }
+
+beforeEach(() => {
+  server.use(http.get('/api/orgs/:slug/insights/v2/projects/:projectId/lifecycle', ({ request }) => {
+    expect(new URL(request.url).searchParams.get('window')).toBe('24h');
+    return HttpResponse.json(projectLifecycle);
+  }));
+});
 
 afterEach(async () => {
   cleanup();
@@ -149,6 +198,13 @@ describe('Insight v2 project pages', () => {
 
     expect(await screen.findByTestId('insight-project-summary')).toHaveTextContent('Runtime health');
     expect(screen.getByTestId('insight-delivery-funnel')).toHaveTextContent('Issue / Task / Plan / Done funnel');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Project lifecycle timelines');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Launch');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Issues');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Plans');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Tasks');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Task duration');
+    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Plan duration');
     expect(screen.getByTestId('insight-health-panel')).toHaveTextContent('Lineage integrity issue');
     expect(screen.getByTestId('insight-health-panel')).not.toHaveTextContent('lineage.integrity_broken');
     const rows = await screen.findAllByTestId('insight-funnel-break');

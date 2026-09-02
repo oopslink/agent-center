@@ -73,6 +73,10 @@
       "failed": "项目 Insight 加载失败",
       "runtimeHealth": "运行健康"
     },
+    "lifecycle": {
+      "loading": "正在加载项目生命周期",
+      "failed": "项目生命周期加载失败"
+    },
     "health": {
       "healthy": "健康",
       "elevated": "升高",

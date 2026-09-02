@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -446,13 +447,7 @@ func (s *Service) projectLifecycle(ctx context.Context, orgID string, asOf time.
 		if err := projectRows.Scan(&id, &name); err != nil {
 			return nil, err
 		}
-		row := &ProjectLifecycleSummary{ProjectID: id}
-		if name.Valid {
-			row.ProjectName = &name.String
-		}
-		row.Trend = makeLifecycleBuckets(startBucket, endBucket)
-		row.TaskDurationHistogram = makeDurationBuckets()
-		row.PlanDurationHistogram = makeDurationBuckets()
+		row := makeProjectLifecycleSummary(id, name, startBucket, endBucket)
 		byProject[id] = row
 		order = append(order, id)
 	}
@@ -474,6 +469,40 @@ func (s *Service) projectLifecycle(ctx context.Context, orgID string, asOf time.
 		out = append(out, *row)
 	}
 	return out, nil
+}
+
+func (s *Service) projectLifecycleOne(ctx context.Context, orgID, projectID string, asOf time.Time) (ProjectLifecycleSummary, error) {
+	start := asOf.Add(-24 * time.Hour)
+	startBucket := start.Truncate(time.Hour)
+	endBucket := asOf.Truncate(time.Hour)
+	var id string
+	var name sql.NullString
+	if err := s.sqlite.QueryRowContext(ctx, `SELECT id, name FROM pm_projects WHERE organization_id=? AND id=?`, orgID, projectID).Scan(&id, &name); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ProjectLifecycleSummary{}, ErrExecutionNotFound
+		}
+		return ProjectLifecycleSummary{}, err
+	}
+	row := makeProjectLifecycleSummary(id, name, startBucket, endBucket)
+	byProject := map[string]*ProjectLifecycleSummary{id: row}
+	if err := s.projectLifecycleTrend(ctx, orgID, start, asOf, byProject); err != nil {
+		return ProjectLifecycleSummary{}, err
+	}
+	if err := s.projectLifecycleDurations(ctx, orgID, start, asOf, byProject); err != nil {
+		return ProjectLifecycleSummary{}, err
+	}
+	return *row, nil
+}
+
+func makeProjectLifecycleSummary(projectID string, projectName sql.NullString, startBucket, endBucket time.Time) *ProjectLifecycleSummary {
+	row := &ProjectLifecycleSummary{ProjectID: projectID}
+	if projectName.Valid {
+		row.ProjectName = &projectName.String
+	}
+	row.Trend = makeLifecycleBuckets(startBucket, endBucket)
+	row.TaskDurationHistogram = makeDurationBuckets()
+	row.PlanDurationHistogram = makeDurationBuckets()
+	return row
 }
 
 func (s *Service) projectLifecycleTrend(ctx context.Context, orgID string, start, asOf time.Time, byProject map[string]*ProjectLifecycleSummary) error {

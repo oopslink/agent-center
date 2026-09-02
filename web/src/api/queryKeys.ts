@@ -114,6 +114,7 @@ export const qk = {
   insightV2Projects: () => o('insight', 'v2', 'projects', '24h'),
   insightV2Project: (projectId: string) => o('insight', 'v2', 'projects', projectId, '24h'),
   insightV2ProjectDelivery: (projectId: string) => o('insight', 'v2', 'projects', projectId, 'delivery', '24h'),
+  insightV2ProjectLifecycle: (projectId: string) => o('insight', 'v2', 'projects', projectId, 'lifecycle', '24h'),
   insightV2ProjectEvolution: (projectId: string) => o('insight', 'v2', 'projects', projectId, 'evolution', '24h'),
   insightV2PlanLineage: (projectId: string, planId: string) => o('insight', 'v2', 'projects', projectId, 'plans', planId, 'lineage', '24h'),
   insightExecutions: (filters?: unknown) => o('insight', 'executions', filters ?? null),

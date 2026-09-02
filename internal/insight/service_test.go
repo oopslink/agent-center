@@ -490,10 +490,13 @@ func TestInsightOverviewProjectLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(o.ProjectLifecycle) != 1 {
-		t.Fatalf("project lifecycle rows = %+v, want exactly seeded project", o.ProjectLifecycle)
+	if len(o.ProjectLifecycle) != 0 {
+		t.Fatalf("overview project lifecycle rows = %+v, want moved out of overview", o.ProjectLifecycle)
 	}
-	row := o.ProjectLifecycle[0]
+	row, err := svc.V2ProjectLifecycle(ctx, "org-1", "project-1", asOf)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if row.ProjectID != "project-1" || row.ProjectName == nil || *row.ProjectName != "Project One" {
 		t.Fatalf("project lifecycle identity = %+v", row)
 	}
@@ -514,6 +517,9 @@ func TestInsightOverviewProjectLifecycle(t *testing.T) {
 	}
 	if bucketCount(row.PlanDurationHistogram, "1-3d") != 1 || bucketCount(row.PlanDurationHistogram, "1-6h") != 1 {
 		t.Fatalf("plan duration histogram = %+v, want one 1-3d and one 1-6h terminal plan", row.PlanDurationHistogram)
+	}
+	if _, err := svc.V2ProjectLifecycle(ctx, "org-1", "missing-project", asOf); !errors.Is(err, ErrExecutionNotFound) {
+		t.Fatalf("missing project lifecycle error = %v, want ErrExecutionNotFound", err)
 	}
 }
 

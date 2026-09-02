@@ -187,13 +187,7 @@ describe('Insight pages', () => {
     expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('Launch rollout');
     expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('5');
     expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('2');
-    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Project lifecycle timelines');
-    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Launch');
-    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Issues');
-    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Plans');
-    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Tasks');
-    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Task duration');
-    expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Plan duration');
+    expect(screen.queryByTestId('insight-project-lifecycle-charts')).not.toBeInTheDocument();
     expect(screen.queryByTestId('insight-drilldown')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'View all executions' })).not.toBeInTheDocument();
     expect(within(screen.getByTestId('insight-agent-table')).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');

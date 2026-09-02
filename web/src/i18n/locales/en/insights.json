@@ -73,6 +73,10 @@
       "failed": "Project Insight failed",
       "runtimeHealth": "Runtime health"
     },
+    "lifecycle": {
+      "loading": "Loading project lifecycle",
+      "failed": "Project lifecycle failed"
+    },
     "health": {
       "healthy": "Healthy",
       "elevated": "Elevated",

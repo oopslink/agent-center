@@ -174,6 +174,18 @@ func (s *Server) insightsV2ProjectDeliveryHandler(w http.ResponseWriter, r *http
 	writeInsightResult(w, res, err)
 }
 
+func (s *Server) insightsV2ProjectLifecycleHandler(w http.ResponseWriter, r *http.Request) {
+	d, orgID, ok := s.requireInsightRead(w, r)
+	if !ok {
+		return
+	}
+	if !requireInsightWindow(w, r) {
+		return
+	}
+	res, err := d.Insight.V2ProjectLifecycle(r.Context(), orgID, strings.TrimSpace(r.PathValue("project_id")), time.Now().UTC())
+	writeInsightResult(w, res, err)
+}
+
 func (s *Server) insightsV2ProjectEvolutionHandler(w http.ResponseWriter, r *http.Request) {
 	d, orgID, ok := s.requireInsightRead(w, r)
 	if !ok {
