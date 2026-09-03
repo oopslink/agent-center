@@ -14,7 +14,21 @@
       "overview": "Overview",
       "agents": "Agents",
       "projects": "Projects",
-      "executions": "Task executions"
+      "executions": "Task executions",
+      "collaboration": "Collaboration effects"
+    },
+    "collaboration": {
+      "title": "Collaboration graph", "subtitle": "Organization-level Agent, Task, and Plan relationships with deterministic effect evidence.",
+      "loading": "Loading collaboration effects", "failed": "Collaboration effects failed", "forbidden": "You do not have permission to view collaboration evidence",
+      "empty": "No collaboration effects", "emptyBody": "No deterministic effects match these filters.", "truncated": "Showing the first {{count}} edges. Narrow the filters to inspect the rest.",
+      "summary": "Effect summary", "affectedTasks": "Affected tasks", "graph": "Organization collaboration graph", "edgeList": "Keyboard-accessible graph edges", "timeline": "Effect timeline", "magnitude": "strength {{value}}",
+      "search": "Search graph", "locate": "Locate", "clear": "Clear filters", "loadMore": "Load next slice", "planContainer": "Plan container",
+      "zoomControls": "Graph zoom controls", "zoomIn": "Zoom in", "zoomOut": "Zoom out", "resetView": "Reset view",
+      "lod": "LOD active: showing {{shown}} of {{total}} nodes", "lodFull": "Showing {{total}} graph nodes", "interactions": "Drag nodes, drag the canvas to pan, Shift-drag to box select, use +/- and Escape from the keyboard.", "truncationHint": "The graph is truncated; load another slice or narrow filters.",
+      "filters": { "label": "Collaboration filters", "project": "Project ID", "plan": "Plan ID", "task": "Task ID", "agent": "Agent ref", "since": "Since", "until": "Until", "relation": "Relationship", "polarity": "Polarity", "all": "All" },
+      "legend": { "agent": "Agent circle", "task": "Task rectangle", "plan": "Plan container / hex node", "stage": "Stage square", "relationship": "Agent-Agent contact edge", "effect": "Agent to Task/Plan force edge", "mixed": "mixed positive / negative", "colorblind": "Polarity is encoded by text, dash pattern, and thickness in addition to color." },
+      "evidence": { "title": "Effect evidence", "close": "Close evidence", "loading": "Loading evidence", "failed": "Evidence failed to load" },
+      "values": { "assign": "Assign", "reassign": "Reassign", "complete": "Complete", "block": "Block", "unblock": "Unblock", "dependency_release": "Dependency release", "review_accept": "Review accepted", "review_reject": "Review rejected", "agent_plan": "Agent to Plan", "plan_task": "Plan to Task", "plan_stage": "Plan to Stage", "stage_task": "Stage to Task", "positive": "Positive", "negative": "Negative", "neutral": "Neutral", "mixed": "Mixed" }
     },
     "executions": {
       "title": "Task executions",

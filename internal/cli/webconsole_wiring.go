@@ -28,6 +28,7 @@ import (
 	filessql "github.com/oopslink/agent-center/internal/files/sqlite"
 	"github.com/oopslink/agent-center/internal/insight"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/observability/collaborationeffect"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -86,49 +87,50 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		return nil
 	}
 	deps := api.HandlerDeps{
-		DB:                  a.DB,
-		Actor:               a.operatorActor(),
-		Authorizer:          a.Authorization,
-		EventSink:           a.Sink,
-		ConvRepo:            a.ConvRepo,
-		MsgRepo:             a.MsgRepo,
-		MessageWriter:       a.MessageWriter,
-		ChannelMgmtSvc:      a.ChannelMgmtSvc,
-		ParticipantMgmtSvc:  a.ParticipantMgmtSvc,
-		CarryOverSvc:        a.CarryOverSvc,
-		UserSecretRepo:      a.UserSecretRepo,
-		UserSecretSvc:       a.UserSecretSvc,
-		PM:                  a.PMService,
-		CodeRepoSvc:         a.CodeRepoService,
-		Reminder:            buildReminderService(a),
-		AgentSvc:            a.AgentService,
-		LiveState:           a.LiveState, // v2.19.0 concurrency snapshot reader
-		Insight:             a.InsightSvc,
-		EnvControl:          a.EnvControlSvc,
-		RuntimeFsDispatcher: a.RuntimeFsDispatcher,
-		FilesSvc:            buildFilesService(a),
-		ReadStateRepo:       a.ReadStateRepo,
-		ReadStateSvc:        a.ReadStateSvc,
-		FollowStateSvc:      a.FollowStateSvc,
-		AdminTokenSvc:       a.AdminTokenSvc,
-		SignupSvc:           a.IdentitySignupSvc,
-		SigninSvc:           a.IdentitySigninSvc,
-		SignoutSvc:          a.IdentitySignoutSvc,
-		AuthSvc:             a.IdentityAuthSvc,
-		PasscodeChangeSvc:   a.IdentityPasscodeChangeSvc,
-		IdentityRepo:        a.IdentityRepo,
-		OrgRepo:             a.IdentityOrgRepo,
-		OrgCreateSvc:        a.IdentityOrgCreateSvc,
-		OrgLifecycleSvc:     a.IdentityOrgLifecycleSvc,
-		MemberRepo:          a.IdentityMemberRepo,
-		MemberAddSvc:        a.IdentityMemberAddSvc,
-		MemberCreateUserSvc: a.IdentityMemberCreateUserSvc,
-		MemberRoleChangeSvc: a.IdentityMemberRoleChangeSvc,
-		MemberDisableSvc:    a.IdentityMemberDisableSvc,
-		MemberRemoveSvc:     a.IdentityMemberRemoveSvc,
-		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
-		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
-		InvitationRepo:      a.IdentityInvitationRepo,
+		DB:                   a.DB,
+		Actor:                a.operatorActor(),
+		Authorizer:           a.Authorization,
+		EventSink:            a.Sink,
+		ConvRepo:             a.ConvRepo,
+		MsgRepo:              a.MsgRepo,
+		MessageWriter:        a.MessageWriter,
+		ChannelMgmtSvc:       a.ChannelMgmtSvc,
+		ParticipantMgmtSvc:   a.ParticipantMgmtSvc,
+		CarryOverSvc:         a.CarryOverSvc,
+		UserSecretRepo:       a.UserSecretRepo,
+		UserSecretSvc:        a.UserSecretSvc,
+		PM:                   a.PMService,
+		CodeRepoSvc:          a.CodeRepoService,
+		Reminder:             buildReminderService(a),
+		AgentSvc:             a.AgentService,
+		LiveState:            a.LiveState, // v2.19.0 concurrency snapshot reader
+		Insight:              a.InsightSvc,
+		CollaborationInsight: buildCollaborationInsight(a),
+		EnvControl:           a.EnvControlSvc,
+		RuntimeFsDispatcher:  a.RuntimeFsDispatcher,
+		FilesSvc:             buildFilesService(a),
+		ReadStateRepo:        a.ReadStateRepo,
+		ReadStateSvc:         a.ReadStateSvc,
+		FollowStateSvc:       a.FollowStateSvc,
+		AdminTokenSvc:        a.AdminTokenSvc,
+		SignupSvc:            a.IdentitySignupSvc,
+		SigninSvc:            a.IdentitySigninSvc,
+		SignoutSvc:           a.IdentitySignoutSvc,
+		AuthSvc:              a.IdentityAuthSvc,
+		PasscodeChangeSvc:    a.IdentityPasscodeChangeSvc,
+		IdentityRepo:         a.IdentityRepo,
+		OrgRepo:              a.IdentityOrgRepo,
+		OrgCreateSvc:         a.IdentityOrgCreateSvc,
+		OrgLifecycleSvc:      a.IdentityOrgLifecycleSvc,
+		MemberRepo:           a.IdentityMemberRepo,
+		MemberAddSvc:         a.IdentityMemberAddSvc,
+		MemberCreateUserSvc:  a.IdentityMemberCreateUserSvc,
+		MemberRoleChangeSvc:  a.IdentityMemberRoleChangeSvc,
+		MemberDisableSvc:     a.IdentityMemberDisableSvc,
+		MemberRemoveSvc:      a.IdentityMemberRemoveSvc,
+		AgentProvisionSvc:    a.IdentityAgentProvisionSvc,
+		OrgUpdateSvc:         a.IdentityOrgUpdateSvc,
+		InvitationRepo:       a.IdentityInvitationRepo,
 		// I7-D1 (T216): center settings store backing GET/PUT /api/system/wake-guardrail
 		// (the I7-D3 Settings panel reads/writes the wake-guardrail thresholds here).
 		SettingsStore: settingssql.NewStore(a.DB, a.Clock),
@@ -448,6 +450,8 @@ func (a *App) outboxProjectors(
 	// periodic loop is the completeness backstop. MUST be registered here or only the
 	// periodic path runs (a defined-but-unregistered projector has no prod consumer).
 	autoAssignTriggerProj := pmservice.NewAutoAssignTriggerProjector(a.PMService, nil)
+	effectRepo, _ := collaborationeffect.NewSQLiteRepository(a.DB)
+	effectProj := collaborationeffect.NewProjector(effectRepo, collaborationeffect.NewEngine(""))
 	projectors := []outbox.Projector{
 		participantProj,
 		planParticipantProj,
@@ -458,6 +462,7 @@ func (a *App) outboxProjectors(
 		dispatchWakeProj,
 		msgAckProj,
 		autoAssignTriggerProj,
+		effectProj,
 	}
 	// reminder-event: the ReminderEventProjector arms on_event reminders when a
 	// watched pm entity transitions (pm.task/issue.state_changed, pm.plan.completed/
@@ -535,57 +540,58 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		}
 	}
 	deps := api.HandlerDeps{
-		DB:                  a.DB,
-		Actor:               a.operatorActor(),
-		Authorizer:          a.Authorization,
-		EventSink:           a.Sink,
-		ConvRepo:            a.ConvRepo,
-		MsgRepo:             a.MsgRepo,
-		MessageWriter:       a.MessageWriter,
-		ChannelMgmtSvc:      a.ChannelMgmtSvc,
-		ParticipantMgmtSvc:  a.ParticipantMgmtSvc,
-		CarryOverSvc:        a.CarryOverSvc,
-		UserSecretRepo:      a.UserSecretRepo,
-		UserSecretSvc:       a.UserSecretSvc,
-		PM:                  a.PMService,
-		CodeRepoSvc:         a.CodeRepoService,
-		Reminder:            buildReminderService(a),
-		AgentSvc:            a.AgentService,
-		LiveState:           a.LiveState, // v2.19.0 concurrency snapshot reader
-		Insight:             a.InsightSvc,
-		EnvControl:          a.EnvControlSvc,
-		RuntimeFsDispatcher: a.RuntimeFsDispatcher,
-		FilesSvc:            filesSvc,
-		FleetSvc:            a.FleetSvc,
-		ReadStateRepo:       a.ReadStateRepo,
-		ReadStateSvc:        a.ReadStateSvc,
-		FollowStateSvc:      a.FollowStateSvc,
-		AdminTokenSvc:       a.AdminTokenSvc,
-		EnrollBootstrapHost: enroll.BootstrapHost,
-		EnrollFingerprint:   enroll.Fingerprint,
-		WorkerRenameSvc:     a.EnrollSvc,
-		WorkerAddSvc:        a.EnrollSvc,
-		WorkerRemoveSvc:     a.EnrollSvc,
-		WorkerRepo:          a.WorkerRepo,
-		FileTransferRepo:    filessql.NewFileTransferSessionRepo(a.DB),
-		SignupSvc:           a.IdentitySignupSvc,
-		SigninSvc:           a.IdentitySigninSvc,
-		SignoutSvc:          a.IdentitySignoutSvc,
-		AuthSvc:             a.IdentityAuthSvc,
-		PasscodeChangeSvc:   a.IdentityPasscodeChangeSvc,
-		IdentityRepo:        a.IdentityRepo,
-		OrgRepo:             a.IdentityOrgRepo,
-		OrgCreateSvc:        a.IdentityOrgCreateSvc,
-		OrgLifecycleSvc:     a.IdentityOrgLifecycleSvc,
-		MemberRepo:          a.IdentityMemberRepo,
-		MemberAddSvc:        a.IdentityMemberAddSvc,
-		MemberCreateUserSvc: a.IdentityMemberCreateUserSvc,
-		MemberRoleChangeSvc: a.IdentityMemberRoleChangeSvc,
-		MemberDisableSvc:    a.IdentityMemberDisableSvc,
-		MemberRemoveSvc:     a.IdentityMemberRemoveSvc,
-		AgentProvisionSvc:   a.IdentityAgentProvisionSvc,
-		OrgUpdateSvc:        a.IdentityOrgUpdateSvc,
-		InvitationRepo:      a.IdentityInvitationRepo,
+		DB:                   a.DB,
+		Actor:                a.operatorActor(),
+		Authorizer:           a.Authorization,
+		EventSink:            a.Sink,
+		ConvRepo:             a.ConvRepo,
+		MsgRepo:              a.MsgRepo,
+		MessageWriter:        a.MessageWriter,
+		ChannelMgmtSvc:       a.ChannelMgmtSvc,
+		ParticipantMgmtSvc:   a.ParticipantMgmtSvc,
+		CarryOverSvc:         a.CarryOverSvc,
+		UserSecretRepo:       a.UserSecretRepo,
+		UserSecretSvc:        a.UserSecretSvc,
+		PM:                   a.PMService,
+		CodeRepoSvc:          a.CodeRepoService,
+		Reminder:             buildReminderService(a),
+		AgentSvc:             a.AgentService,
+		LiveState:            a.LiveState, // v2.19.0 concurrency snapshot reader
+		Insight:              a.InsightSvc,
+		CollaborationInsight: buildCollaborationInsight(a),
+		EnvControl:           a.EnvControlSvc,
+		RuntimeFsDispatcher:  a.RuntimeFsDispatcher,
+		FilesSvc:             filesSvc,
+		FleetSvc:             a.FleetSvc,
+		ReadStateRepo:        a.ReadStateRepo,
+		ReadStateSvc:         a.ReadStateSvc,
+		FollowStateSvc:       a.FollowStateSvc,
+		AdminTokenSvc:        a.AdminTokenSvc,
+		EnrollBootstrapHost:  enroll.BootstrapHost,
+		EnrollFingerprint:    enroll.Fingerprint,
+		WorkerRenameSvc:      a.EnrollSvc,
+		WorkerAddSvc:         a.EnrollSvc,
+		WorkerRemoveSvc:      a.EnrollSvc,
+		WorkerRepo:           a.WorkerRepo,
+		FileTransferRepo:     filessql.NewFileTransferSessionRepo(a.DB),
+		SignupSvc:            a.IdentitySignupSvc,
+		SigninSvc:            a.IdentitySigninSvc,
+		SignoutSvc:           a.IdentitySignoutSvc,
+		AuthSvc:              a.IdentityAuthSvc,
+		PasscodeChangeSvc:    a.IdentityPasscodeChangeSvc,
+		IdentityRepo:         a.IdentityRepo,
+		OrgRepo:              a.IdentityOrgRepo,
+		OrgCreateSvc:         a.IdentityOrgCreateSvc,
+		OrgLifecycleSvc:      a.IdentityOrgLifecycleSvc,
+		MemberRepo:           a.IdentityMemberRepo,
+		MemberAddSvc:         a.IdentityMemberAddSvc,
+		MemberCreateUserSvc:  a.IdentityMemberCreateUserSvc,
+		MemberRoleChangeSvc:  a.IdentityMemberRoleChangeSvc,
+		MemberDisableSvc:     a.IdentityMemberDisableSvc,
+		MemberRemoveSvc:      a.IdentityMemberRemoveSvc,
+		AgentProvisionSvc:    a.IdentityAgentProvisionSvc,
+		OrgUpdateSvc:         a.IdentityOrgUpdateSvc,
+		InvitationRepo:       a.IdentityInvitationRepo,
 		// I7-D1 (T216) center settings store backing GET/PUT /api/system/wake-guardrail
 		// (the I7-D3 Settings panel reads/writes the wake-guardrail thresholds). This is
 		// the LIVE webconsole deps path — buildWebConsoleHandler is test-only, so without
@@ -828,6 +834,21 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		return busErr
 	}
 	return cleanup, nil
+}
+
+func buildCollaborationInsight(a *App) *collaborationeffect.QueryService {
+	if a == nil || a.DB == nil || a.EventRepo == nil {
+		return nil
+	}
+	repo, err := collaborationeffect.NewSQLiteRepository(a.DB)
+	if err != nil {
+		return nil
+	}
+	svc, err := collaborationeffect.NewQueryService(repo, a.EventRepo)
+	if err != nil {
+		return nil
+	}
+	return svc
 }
 
 type startupTeamLister interface {

@@ -9,7 +9,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/insight"
+	"github.com/oopslink/agent-center/internal/observability/collaborationeffect"
+	obssql "github.com/oopslink/agent-center/internal/observability/sqlite"
+	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
+	pmsql "github.com/oopslink/agent-center/internal/projectmanager/sqlite"
 )
 
 func TestInsightsOverviewAPI_WindowValidationAndShape(t *testing.T) {
@@ -166,6 +174,139 @@ func TestInsightsAPIUnavailableReturnsFreshnessEnvelope(t *testing.T) {
 	}
 	if out.Window.Duration != "24h" || out.Freshness.State != "unavailable" || out.Error.Code != "insight_unavailable" {
 		t.Fatalf("503 envelope = %+v", out)
+	}
+}
+
+func TestCollaborationEffectsAPI_RealPlanStageGraphAndPlanFilter(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	ctx := context.Background()
+	actor := pm.IdentityRef("user:" + sess.IdentityID)
+	deps.PM = pmservice.New(pmservice.Deps{
+		DB:         db,
+		Projects:   pmsql.NewProjectRepo(db),
+		Members:    pmsql.NewProjectMemberRepo(db),
+		OrgMembers: deps.MemberRepo,
+		Tasks:      pmsql.NewTaskRepo(db),
+		Plans:      pmsql.NewPlanRepo(db),
+		Stages:     pmsql.NewStageRepo(db),
+		TaskSubs:   pmsql.NewTaskSubscriberRepo(db),
+		IssueSubs:  pmsql.NewIssueSubscriberRepo(db),
+		Outbox:     outboxsql.NewOutboxRepo(db),
+		IDGen:      idgen.NewGenerator(clock.SystemClock{}),
+		Clock:      clock.SystemClock{},
+	})
+	projectID, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "Graph Project", CreatedBy: actor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskID, err := deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: projectID, Title: "Real task", CreatedBy: actor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	planID, err := deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: projectID, Name: "Real Plan", CreatedBy: actor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := deps.PM.SelectTaskIntoPlan(ctx, planID, taskID, actor); err != nil {
+		t.Fatal(err)
+	}
+	stageID, err := deps.PM.CreateStage(ctx, pmservice.CreateStageCommand{PlanID: planID, Name: "Real Stage", Actor: actor})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := deps.PM.AssignTaskToStage(ctx, planID, taskID, stageID, actor); err != nil {
+		t.Fatal(err)
+	}
+	effectRepo, err := collaborationeffect.NewSQLiteRepository(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := obssql.NewEventRepo(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps.CollaborationInsight, err = collaborationeffect.NewQueryService(effectRepo, events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Date(2026, 9, 3, 10, 0, 0, 0, time.UTC)
+	effects := []collaborationeffect.Effect{
+		{EffectID: "ce_0001", ProjectID: string(projectID), TargetTaskID: string(taskID), SourceAgentRef: "agent:one", RelationType: collaborationeffect.RelationComplete, Polarity: collaborationeffect.PolarityPositive, Magnitude: 2, OccurredAt: at, RuleVersion: collaborationeffect.RuleVersionV1, EvidenceEventIDs: []string{"evt-1", "evt-2"}},
+		{EffectID: "ce_0002", ProjectID: string(projectID), TargetTaskID: string(taskID), SourceAgentRef: "agent:one", RelationType: collaborationeffect.RelationComplete, Polarity: collaborationeffect.PolarityPositive, Magnitude: 3, OccurredAt: at.Add(time.Minute), RuleVersion: collaborationeffect.RuleVersionV1, EvidenceEventIDs: []string{"evt-3"}},
+	}
+	if err := effectRepo.Apply(ctx, collaborationeffect.Fact{EventID: "evt-apply", OccurredAt: at}, collaborationeffect.RuleVersionV1, effects, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+
+	s := newTestServer(t, deps)
+	defer s.Close()
+	resp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?plan_id="+string(planID)+"&limit=100", sess)
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200", resp.StatusCode)
+	}
+	var out struct {
+		GraphVersion string `json:"graph_version"`
+		Graph        struct {
+			Nodes []struct {
+				ID        string `json:"id"`
+				Kind      string `json:"kind"`
+				PlanID    string `json:"plan_id"`
+				StageID   string `json:"stage_id"`
+				TaskID    string `json:"task_id"`
+				ProjectID string `json:"project_id"`
+			} `json:"nodes"`
+			Edges []struct {
+				SemanticKey      string `json:"semantic_key"`
+				Source           string `json:"source"`
+				Target           string `json:"target"`
+				RelationType     string `json:"relation_type"`
+				InteractionCount int    `json:"interaction_count"`
+				EvidenceCount    int    `json:"evidence_count"`
+				FirstOccurredAt  string `json:"first_occurred_at"`
+				LastOccurredAt   string `json:"last_occurred_at"`
+			} `json:"edges"`
+		} `json:"graph"`
+		Effects []any `json:"effects"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out.GraphVersion != collaborationeffect.RuleVersionV1 || len(out.Effects) != 2 {
+		t.Fatalf("version/effects = %q/%d", out.GraphVersion, len(out.Effects))
+	}
+	nodes := map[string]string{}
+	for _, node := range out.Graph.Nodes {
+		nodes[node.ID] = node.Kind
+		if node.ID == "plan:"+string(projectID) {
+			t.Fatalf("project was masqueraded as plan node: %+v", node)
+		}
+	}
+	for id, kind := range map[string]string{"plan:" + string(planID): "plan", "stage:" + string(stageID): "stage", "task:" + string(taskID): "task", "agent:one": "agent"} {
+		if nodes[id] != kind {
+			t.Fatalf("node %s kind=%q, want %q; nodes=%v", id, nodes[id], kind, nodes)
+		}
+	}
+	var aggregate, planTask, planStage, stageTask bool
+	for _, edge := range out.Graph.Edges {
+		switch edge.RelationType {
+		case "complete":
+			if edge.Source == "agent:one" && edge.Target == "task:"+string(taskID) && edge.InteractionCount == 2 && edge.EvidenceCount == 3 && edge.FirstOccurredAt != "" && edge.LastOccurredAt != "" {
+				aggregate = true
+			}
+		case "agent_plan":
+			if edge.Source == "agent:one" && edge.Target == "plan:"+string(planID) && edge.InteractionCount == 2 && edge.EvidenceCount == 3 {
+				planTask = true
+			}
+		case "plan_stage":
+			planStage = planStage || edge.Source == "plan:"+string(planID) && edge.Target == "stage:"+string(stageID)
+		case "stage_task":
+			stageTask = stageTask || edge.Source == "stage:"+string(stageID) && edge.Target == "task:"+string(taskID)
+		}
+	}
+	if !aggregate || !planTask || !planStage || !stageTask {
+		t.Fatalf("missing semantic edges aggregate=%v agentPlan=%v planStage=%v stageTask=%v edges=%+v", aggregate, planTask, planStage, stageTask, out.Graph.Edges)
 	}
 }
 

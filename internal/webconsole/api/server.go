@@ -181,6 +181,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/overview", s.insightsOverviewHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/executions", s.insightsExecutionsHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/executions/{execution_id}", s.insightsExecutionHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/collaboration-effects", s.collaborationEffectsHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/collaboration-effects/{effect_id}/evidence", s.collaborationEffectEvidenceHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/overview", s.insightsV2OverviewHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/agents", s.insightsV2AgentsHandler)
 	s.mux.HandleFunc("GET /api/orgs/{slug}/insights/v2/agents/{agent_ref}", s.insightsV2AgentHandler)

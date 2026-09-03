@@ -394,6 +394,8 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
     case 'pm.task.input_requested':
     case 'pm.task.input_replied':
     case 'pm.task.assigned':
+    case 'pm.task.reassigned':
+    case 'pm.audit_recorded':
       invalidate(qk.orgTasksAll());
       invalidate(qk.planAll());
       invalidate(qk.plansByProjectAll());
@@ -404,6 +406,10 @@ export function dispatchToQueryClient(qc: ReturnType<typeof useQueryClient>, ev:
       // v2.26.0 I61: the stuck-task band of the attention panel is derived from
       // the same block/unblock lifecycle — refresh it alongside the task lists.
       invalidate(qk.attention());
+      // Collaboration Insight is a replayable server projection. Realtime
+      // frames only invalidate its cached query; the browser never derives
+      // polarity or magnitude from event payloads.
+      invalidate(qk.collaborationEffects());
       return;
     case 'pm.plan.created':
       invalidate(qk.orgPlansAll());

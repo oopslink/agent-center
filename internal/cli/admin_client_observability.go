@@ -16,7 +16,21 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/oopslink/agent-center/internal/observability/collaborationeffect"
 )
+
+func (c *Client) CollaborationEffectsQuery(ctx context.Context, filter collaborationeffect.Filter) (collaborationeffect.QueryResult, error) {
+	var out collaborationeffect.QueryResult
+	err := c.postJSON(ctx, "/admin/observability/collaboration-effects/query", filter, &out)
+	return out, err
+}
+
+func (c *Client) CollaborationEffectEvidence(ctx context.Context, effectID, projectID string) (collaborationeffect.EvidenceResult, error) {
+	var out collaborationeffect.EvidenceResult
+	err := c.getJSON(ctx, "/admin/observability/collaboration-effects/"+effectID+"/evidence"+buildQuery("project_id", projectID), &out)
+	return out, err
+}
 
 // =============================================================================
 // DTOs — JSON shape returned by admin/api/observability.go projection helpers.

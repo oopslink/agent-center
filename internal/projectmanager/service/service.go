@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 
 	authz "github.com/oopslink/agent-center/internal/authorization"
@@ -22,6 +23,7 @@ import (
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/idgen"
+	"github.com/oopslink/agent-center/internal/observability"
 	"github.com/oopslink/agent-center/internal/outbox"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -298,6 +300,11 @@ type Service struct {
 	// append AuditEntry rows to pm_audit_log in the SAME tx (best-effort — an audit
 	// failure NEVER rolls back the primary mutation, see recordChange).
 	audit pm.AuditLogRepository
+	// auditEvents mirrors successfully appended semantic audit facts into the
+	// Observability event ledger in the same savepoint/transaction. It is optional
+	// for isolated tests, but wired in production; consumers must never read pm_*
+	// tables to reconstruct these facts.
+	auditEvents *observability.EventSink
 	// autoAssignDir is OPTIONAL (nil-safe, v2.18.3 BE-2). nil ⇒ the auto-assign
 	// reconciler has no candidate source and AutoAssignSweep is a no-op (pool tasks
 	// stay claim-only, pre-BE-2 behaviour). When wired, it lists each org's agents
@@ -438,6 +445,8 @@ type Deps struct {
 	// points record object-level change-ledger entries into pm_audit_log (in-tx,
 	// best-effort). nil ⇒ recordChange is a no-op (zero-regression).
 	Audit pm.AuditLogRepository
+	// AuditEvents is the durable pm.audit_recorded producer mirror.
+	AuditEvents *observability.EventSink
 	// AutoAssignDir is OPTIONAL (v2.18.3 BE-2): when set, the auto-assign reconciler
 	// can list each org's candidate agents. nil ⇒ AutoAssignSweep is a no-op.
 	AutoAssignDir AutoAssignDirectory
@@ -504,6 +513,7 @@ func New(d Deps) *Service {
 		pausedTasks: d.PausedTasks, nodeResumer: d.NodeResumer, poolClaimLimit: d.PoolClaimLimit,
 		actionLogs:           d.TaskActionLogs,
 		audit:                d.Audit,
+		auditEvents:          d.AuditEvents,
 		autoAssignDir:        d.AutoAssignDir,
 		autoAssignSettings:   d.AutoAssignSettings,
 		orch:                 orchSvc,
@@ -595,6 +605,9 @@ func (s *Service) recordChange(ctx context.Context, e pm.AuditEntry) {
 	if e.OccurredAt.IsZero() {
 		e.OccurredAt = s.clock.Now()
 	}
+	if e.ID == "" && s.auditEvents != nil && s.idgen != nil {
+		e.ID = s.idgen.NewULID()
+	}
 	exec, err := persistence.ExecutorFromCtx(ctx, s.db)
 	if err != nil {
 		// No tx and no db — nothing we can do; audit is best-effort.
@@ -613,6 +626,39 @@ func (s *Service) recordChange(ctx context.Context, e pm.AuditEntry) {
 	if aerr := s.audit.Append(ctx, e); aerr != nil {
 		slog.WarnContext(ctx, "pm: audit append failed (best-effort, mutation unaffected)", "err", aerr, "object_type", e.ObjectType, "object_id", e.ObjectID, "change_type", e.ChangeType)
 		_, _ = exec.ExecContext(ctx, "ROLLBACK TO pm_audit")
+	} else if s.auditEvents != nil {
+		var detail map[string]any
+		if err := json.Unmarshal([]byte(e.Detail), &detail); err != nil || detail == nil {
+			detail = map[string]any{}
+		}
+		actor := observability.Actor(e.ActorRef)
+		if strings.HasPrefix(string(actor), pm.ActorSystemPrefix) || actor.Validate() != nil {
+			actor = "system"
+		}
+		payload := map[string]any{"audit_id": e.ID, "project_id": string(e.ProjectID), "object_type": string(e.ObjectType), "object_id": e.ObjectID, "change_type": string(e.ChangeType), "field": e.Field, "from_value": e.FromValue, "to_value": e.ToValue, "actor_ref": string(e.ActorRef), "detail": detail}
+		mirrorID, merr := s.auditEvents.Emit(ctx, observability.EmitCommand{
+			EventType: "pm.audit_recorded", Actor: actor, OccurredAt: e.OccurredAt,
+			Refs: observability.EventRefs{ProjectID: string(e.ProjectID), TaskID: func() string {
+				if e.ObjectType == pm.AuditObjectTask {
+					return e.ObjectID
+				}
+				return ""
+			}()},
+			Payload: payload,
+		})
+		if merr == nil && s.outbox != nil {
+			pb, _ := json.Marshal(payload)
+			merr = s.outbox.Append(ctx, outbox.Event{ID: mirrorID.String(), EventType: "pm.audit_recorded", Refs: refsJSON(map[string]string{"project_id": string(e.ProjectID), "task_id": func() string {
+				if e.ObjectType == pm.AuditObjectTask {
+					return e.ObjectID
+				}
+				return ""
+			}()}), Payload: string(pb), CreatedAt: e.OccurredAt})
+		}
+		if merr != nil {
+			slog.WarnContext(ctx, "pm: audit event mirror failed (best-effort, mutation unaffected)", "err", merr, "audit_id", e.ID)
+			_, _ = exec.ExecContext(ctx, "ROLLBACK TO pm_audit")
+		}
 	}
 	_, _ = exec.ExecContext(ctx, "RELEASE pm_audit")
 }

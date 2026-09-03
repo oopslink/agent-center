@@ -11,6 +11,7 @@ import (
 
 	"github.com/oopslink/agent-center/internal/admin/backup"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/observability/collaborationeffect"
 )
 
 // AdminCommands returns the admin command subtree per
@@ -60,6 +61,83 @@ func (a *App) AdminCommands() []*Command {
 				},
 			},
 		},
+		{
+			Name: "collaboration-insight", Summary: "Query the collaboration effect projection",
+			Subcommands: []*Command{
+				{Name: "query", Summary: "Query graph, timeline, and effects", Flags: a.collaborationInsightQueryHandler},
+				{Name: "inspect", Summary: "Inspect one effect and its evidence", Flags: a.collaborationInsightInspectHandler},
+				{Name: "stats", Summary: "Summarize collaboration effects", Flags: a.collaborationInsightStatsHandler},
+			},
+		},
+	}
+}
+
+func (a *App) collaborationInsightFlags(fs *flag.FlagSet) (*string, *string, *string, *string, *int, *string) {
+	project := fs.String("project-id", "", "project scope (required)")
+	task := fs.String("task-id", "", "task scope (depth 1)")
+	agent := fs.String("agent-ref", "", "agent filter")
+	cursor := fs.String("cursor", "", "opaque next cursor")
+	limit := fs.Int("limit", 100, "page size (1..500)")
+	format := fs.String("format", FormatJSON, formatFlagHelp())
+	return project, task, agent, cursor, limit, format
+}
+
+func (a *App) collaborationInsightQueryHandler(fs *flag.FlagSet) Handler {
+	project, task, agent, cursor, limit, format := a.collaborationInsightFlags(fs)
+	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
+		if *project == "" {
+			return PrintError(errw, *format, "usage_error", "--project-id required", ExitUsage)
+		}
+		if a.Client == nil {
+			return PrintError(errw, *format, "internal_error", "admin client not configured", ExitNotImplemented)
+		}
+		res, err := a.Client.CollaborationEffectsQuery(ctx, collaborationeffect.Filter{ProjectID: *project, TaskID: *task, AgentRef: *agent, Cursor: *cursor, Limit: *limit})
+		if err != nil {
+			return HandleClientError(errw, *format, err)
+		}
+		b, _ := json.Marshal(res)
+		writeOut(out, string(b))
+		return ExitOK
+	}
+}
+
+func (a *App) collaborationInsightStatsHandler(fs *flag.FlagSet) Handler {
+	project, task, agent, cursor, limit, format := a.collaborationInsightFlags(fs)
+	_ = cursor
+	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
+		if *project == "" {
+			return PrintError(errw, *format, "usage_error", "--project-id required", ExitUsage)
+		}
+		if a.Client == nil {
+			return PrintError(errw, *format, "internal_error", "admin client not configured", ExitNotImplemented)
+		}
+		res, err := a.Client.CollaborationEffectsQuery(ctx, collaborationeffect.Filter{ProjectID: *project, TaskID: *task, AgentRef: *agent, Limit: *limit})
+		if err != nil {
+			return HandleClientError(errw, *format, err)
+		}
+		b, _ := json.Marshal(map[string]any{"summary": res.Summary, "as_of": res.AsOf, "rule_version": res.RuleVersion, "truncated": res.Truncated, "next_cursor": res.NextCursor})
+		writeOut(out, string(b))
+		return ExitOK
+	}
+}
+
+func (a *App) collaborationInsightInspectHandler(fs *flag.FlagSet) Handler {
+	project := fs.String("project-id", "", "project scope (required)")
+	format := fs.String("format", FormatJSON, formatFlagHelp())
+	return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
+		if *project == "" || len(args) != 1 {
+			return PrintError(errw, *format, "usage_error", "usage: inspect <effect-id> --project-id=...", ExitUsage)
+		}
+		if a.Client == nil {
+			return PrintError(errw, *format, "internal_error", "admin client not configured", ExitNotImplemented)
+		}
+		res, err := a.Client.CollaborationEffectEvidence(ctx, args[0], *project)
+		if err != nil {
+			return HandleClientError(errw, *format, err)
+		}
+		b, _ := json.Marshal(res)
+		writeOut(out, string(b))
+		return ExitOK
 	}
 }
 

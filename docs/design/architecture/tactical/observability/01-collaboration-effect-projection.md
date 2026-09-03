@@ -21,7 +21,7 @@ The projector may consume only append-only event ledgers owned by their BC:
 |---|---|---|
 | `events` | Historical replay of Domain Events that are already mirrored into Observability | Available, append-only |
 | `outbox_events` | Realtime tail for PM and Conversation cross-BC events before they are marked processed | Available, but not sufficient for every MVP rule |
-| `pm.audit_recorded` Domain Event | Required producer mirror for `pm_audit_log` semantic changes | Producer gap |
+| `pm.audit_recorded` Domain Event | Producer mirror for `pm_audit_log` semantic changes | Implemented by T2092 |
 
 The projector must not read ProjectManager repositories, `pm_*` tables, or
 Conversation repositories to fill missing fields.
@@ -112,10 +112,10 @@ reading PM tables.
 | review reject | `pm_audit_log` `task.review_verdict` with `to_value=reject` or `blocking=true` | Audit `actor_ref` | audit object id is review task id | Same as review accept | Producer gap: no Domain Event/outbox mirror today. |
 | neutral contact | `conversation.message_added` events/outbox | sender/actor | `conversation_id`, `message_id`; task/issue only via owner ref payload | `sender`, `text`, `mention_refs` | Contact only; not effect unless paired with state change. |
 
-Coverage threshold is met only after the audit mirror exists. Current production
-evidence covers 6 of 8 MVP rule inputs directly or via permanent audit, but only
-4 of 8 are consumable by an Observability-only replay projector today. Therefore
-implementation must first add producer/fan-out mirrors, not cross-BC reads.
+T2092 closes the audit-mirror gap: a successfully appended semantic audit row is
+mirrored as `pm.audit_recorded` inside the same transaction/savepoint. The
+projector consumes that event and the existing outbox facts without reading PM
+tables. Failed or incomplete facts are persisted as projection diagnostics.
 
 ## 7. Frozen Rule Table
 
@@ -140,6 +140,11 @@ projection diagnostic, not a guessed effect.
 ### Query
 
 `GET /api/insights/collaboration-effects`
+
+The authenticated Web transport exposes this contract at
+`GET /api/orgs/{slug}/insights/collaboration-effects`; `project_id` remains
+required and is checked against the organization in the path before the query
+service is called.
 
 Query parameters:
 
@@ -183,6 +188,9 @@ Response:
     "mixed_count": 0,
     "affected_task_count": 0
   },
+  "as_of": "2026-09-03T10:00:00Z",
+  "rule_version": "collaboration-effect.mvp.v1",
+  "truncated": false,
   "next_cursor": ""
 }
 ```
@@ -213,6 +221,10 @@ Response:
 
 `GET /api/insights/collaboration-effects/{effect_id}/evidence`
 
+The Web transport uses
+`GET /api/orgs/{slug}/insights/collaboration-effects/{effect_id}/evidence?project_id=...`.
+An effect outside that project is returned as not found.
+
 Response:
 
 ```json
@@ -230,6 +242,20 @@ Response:
   ]
 }
 ```
+
+### CLI / Supervisor transport
+
+The local admin transport exposes the same `CollaborationInsightQueryService`
+at `POST /admin/observability/collaboration-effects/query` and
+`GET /admin/observability/collaboration-effects/{effect_id}/evidence`.
+The operator CLI consumes only that transport:
+
+- `agent-center admin collaboration-insight query --project-id=...`
+- `agent-center admin collaboration-insight inspect EFFECT_ID --project-id=...`
+- `agent-center admin collaboration-insight stats --project-id=...`
+
+`stats` is a view of the summary returned by the same bounded query; it does
+not run a second aggregate over PM or Conversation tables.
 
 ## 9. Replay And Retention
 
@@ -266,5 +292,13 @@ row evidence anchors, required fields, `AgentTraceEvent` exclusion, and
 `R6_DEP_RELEASE` pairing semantics.
 
 Current expected consumability is fail-closed for review and dependency rows
-until `pm.audit_recorded` is produced. Dependency removal remains non-release
-evidence even when its `from/to` detail is present.
+through the T2092 `pm.audit_recorded` producer. Dependency removal remains
+non-release evidence even when its `from/to` detail is present.
+
+## 11. Implementation
+
+The v1 engine, realtime outbox projector, SQLite repository, checkpoint,
+diagnostics, and shadow rebuild live under
+`internal/observability/collaborationeffect`. Migration `0157` owns all derived
+tables. Deterministic effect ids include rule version and sorted evidence ids;
+deleting a version partition and replaying `events` cannot mutate PM truth.

@@ -3,13 +3,17 @@ package cli
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	adminapi "github.com/oopslink/agent-center/internal/admin/api"
 	agentpkg "github.com/oopslink/agent-center/internal/agent"
 	agentsql "github.com/oopslink/agent-center/internal/agent/sqlite"
 	"github.com/oopslink/agent-center/internal/environment"
 	envsql "github.com/oopslink/agent-center/internal/environment/sqlite"
+	"github.com/oopslink/agent-center/internal/observability/collaborationeffect"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -62,10 +66,133 @@ func TestOutboxProjectors_RegistersEventConsumers(t *testing.T) {
 		"env-agent-control",
 		"conv-agent-wake",
 		"task-dispatch-wake", // T465 (I34) — consumes pm.task.assigned/.reassigned/.state_changed → immediate agent.work_available
+		"observability-collaboration-effect",
 	} {
 		if !got[required] {
 			t.Errorf("App.outboxProjectors() does not register %q — the outbox events it consumes would have no consumer in the production relay (this is exactly how #266 broke the Plan headline)", required)
 		}
+	}
+}
+
+// TestProductionRelay_CollaborationEffect_AppServiceToHTTP is the integration
+// seam for the collaboration-effect feature. It deliberately creates and
+// completes a Task through ProjectManager's AppService, drains the exact
+// production outbox projector set, and reads the resulting graph and evidence
+// through the real admin HTTP routes. Direct projection fixtures cannot make
+// this test pass.
+func TestProductionRelay_CollaborationEffect_AppServiceToHTTP(t *testing.T) {
+	app := newTestApp(t)
+	ctx := context.Background()
+	svc := app.PMService
+
+	projectID, err := svc.CreateProject(ctx, pmservice.CreateProjectCommand{
+		OrganizationID: "org-effects", Name: "Effects", CreatedBy: "user:owner",
+	})
+	if err != nil {
+		t.Fatalf("CreateProject: %v", err)
+	}
+	if _, err := svc.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{
+		ProjectID: projectID, IdentityID: "agent:EFFECTBOT", Role: pm.RoleMember, Actor: "user:owner",
+	}); err != nil {
+		t.Fatalf("AddProjectMember: %v", err)
+	}
+	taskID, err := svc.CreateTask(ctx, pmservice.CreateTaskCommand{
+		ProjectID: projectID, Title: "ship effect", CreatedBy: "user:owner",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask: %v", err)
+	}
+	downstreamID, err := svc.CreateTask(ctx, pmservice.CreateTaskCommand{
+		ProjectID: projectID, Title: "consume released dependency", CreatedBy: "user:owner",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask downstream: %v", err)
+	}
+	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: projectID, Name: "effects plan", CreatedBy: "user:owner"})
+	if err != nil {
+		t.Fatalf("CreatePlan: %v", err)
+	}
+	if err := svc.SelectTaskIntoPlan(ctx, planID, taskID, "user:owner"); err != nil {
+		t.Fatalf("Select upstream: %v", err)
+	}
+	if err := svc.SelectTaskIntoPlan(ctx, planID, downstreamID, "user:owner"); err != nil {
+		t.Fatalf("Select downstream: %v", err)
+	}
+	// Production contract: AddPlanDependency(plan, B, A) means B depends_on A.
+	if err := svc.AddPlanDependency(ctx, planID, downstreamID, taskID, "user:owner"); err != nil {
+		t.Fatalf("AddPlanDependency: %v", err)
+	}
+	relay, _ := productionRelay(t, app)
+	drainRelay(t, relay)
+	assignee := "agent:EFFECTBOT"
+	if err := svc.BatchUpdateTask(ctx, taskID, pmservice.BatchTaskPatch{Assignee: &assignee}, "user:owner"); err != nil {
+		t.Fatalf("assign task: %v", err)
+	}
+	if err := svc.StartTask(ctx, taskID, "agent:EFFECTBOT"); err != nil {
+		t.Fatalf("StartTask: %v", err)
+	}
+	if err := svc.CompleteTask(ctx, taskID, "agent:EFFECTBOT"); err != nil {
+		t.Fatalf("CompleteTask: %v", err)
+	}
+
+	drainRelay(t, relay)
+	// A second drain proves replay/idempotency at the production relay seam.
+	drainRelay(t, relay)
+
+	server := adminapi.NewServer("")
+	httpServer := httptest.NewServer(adminapi.WithDeps(adminDepsFromApp(app))(server.Handler()))
+	t.Cleanup(httpServer.Close)
+	body, _ := json.Marshal(collaborationeffect.Filter{ProjectID: string(projectID), TaskID: string(taskID), Limit: 100})
+	resp, err := http.Post(httpServer.URL+"/admin/observability/collaboration-effects/query", "application/json", strings.NewReader(string(body)))
+	if err != nil {
+		t.Fatalf("query HTTP: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("query HTTP status = %d", resp.StatusCode)
+	}
+	var result collaborationeffect.QueryResult
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		t.Fatalf("decode query: %v", err)
+	}
+	if len(result.Effects) != 2 || len(result.Graph.Nodes) == 0 || len(result.Graph.Edges) != 2 {
+		t.Fatalf("production chain result = %+v, want one assign + one complete effect", result)
+	}
+	if result.Summary.PositiveCount != 1 || result.Summary.NeutralCount != 1 {
+		t.Fatalf("summary = %+v", result.Summary)
+	}
+	releaseBody, _ := json.Marshal(collaborationeffect.Filter{ProjectID: string(projectID), TaskID: string(downstreamID), RelationType: collaborationeffect.RelationDependencyRelease, Limit: 100})
+	releaseResp, err := http.Post(httpServer.URL+"/admin/observability/collaboration-effects/query", "application/json", strings.NewReader(string(releaseBody)))
+	if err != nil {
+		t.Fatalf("release query HTTP: %v", err)
+	}
+	defer releaseResp.Body.Close()
+	if releaseResp.StatusCode != http.StatusOK {
+		t.Fatalf("release query HTTP status = %d", releaseResp.StatusCode)
+	}
+	var releaseResult collaborationeffect.QueryResult
+	if err := json.NewDecoder(releaseResp.Body).Decode(&releaseResult); err != nil {
+		t.Fatalf("decode release query: %v", err)
+	}
+	if len(releaseResult.Effects) != 1 || releaseResult.Effects[0].TargetTaskID != string(downstreamID) || releaseResult.Effects[0].RelationType != collaborationeffect.RelationDependencyRelease {
+		t.Fatalf("production dependency release = %+v, want upstream completion releases downstream task", releaseResult.Effects)
+	}
+
+	effectID := result.Effects[0].EffectID
+	evidenceResp, err := http.Get(httpServer.URL + "/admin/observability/collaboration-effects/" + effectID + "/evidence?project_id=" + string(projectID))
+	if err != nil {
+		t.Fatalf("evidence HTTP: %v", err)
+	}
+	defer evidenceResp.Body.Close()
+	if evidenceResp.StatusCode != http.StatusOK {
+		t.Fatalf("evidence HTTP status = %d", evidenceResp.StatusCode)
+	}
+	var evidence collaborationeffect.EvidenceResult
+	if err := json.NewDecoder(evidenceResp.Body).Decode(&evidence); err != nil {
+		t.Fatalf("decode evidence: %v", err)
+	}
+	if evidence.EffectID != effectID || len(evidence.Evidence) != 1 {
+		t.Fatalf("evidence = %+v", evidence)
 	}
 }
 
