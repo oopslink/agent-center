@@ -115,7 +115,7 @@ func TestQueryServiceOrgGraphAggregatesRealProjectPlanStageTaskFixture(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first.RuleVersion != RuleVersionV1 || first.GraphVersion == "" || len(first.Effects) != 4 {
+	if first.RuleVersion != RuleVersionV1 || first.GraphVersion == "" || len(first.Effects) != 9 {
 		t.Fatalf("bad org graph envelope: %+v", first)
 	}
 	if !hasNode(first.Graph.Nodes, "project:proj-a", "project") || !hasNode(first.Graph.Nodes, "project:proj-b", "project") ||
@@ -156,7 +156,7 @@ func TestQueryServiceOrgGraphAggregatesRealProjectPlanStageTaskFixture(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(planOnly.Effects) != 2 || !hasNode(planOnly.Graph.Nodes, "plan:plan-a", "plan") || hasNode(planOnly.Graph.Nodes, "plan:plan-b", "plan") {
+	if len(planOnly.Effects) != 5 || !hasNode(planOnly.Graph.Nodes, "plan:plan-a", "plan") || hasNode(planOnly.Graph.Nodes, "plan:plan-b", "plan") {
 		t.Fatalf("plan/relation/polarity filter failed: %+v", planOnly)
 	}
 	stageOnly, err := svc.Query(ctx, Filter{OrganizationID: "org-g", StageID: "stage-a", AgentRef: "agent:alpha", Limit: 10})
@@ -167,15 +167,45 @@ func TestQueryServiceOrgGraphAggregatesRealProjectPlanStageTaskFixture(t *testin
 		t.Fatalf("stage/agent filter failed: %+v", stageOnly)
 	}
 
-	page1, err := svc.Query(ctx, Filter{OrganizationID: "org-g", Limit: 2})
+	page1, err := svc.Query(ctx, Filter{OrganizationID: "org-g", AgentRef: "agent:alpha", Limit: 2})
 	if err != nil || !page1.Truncated || page1.NextCursor == "" || !strings.HasPrefix(page1.NextCursor, "cg_") {
 		t.Fatalf("bad first page: %+v err=%v", page1, err)
 	}
-	page2, err := svc.Query(ctx, Filter{OrganizationID: "org-g", Cursor: page1.NextCursor, Limit: 2})
+	page2, err := svc.Query(ctx, Filter{OrganizationID: "org-g", AgentRef: "agent:alpha", Cursor: page1.NextCursor, Limit: 2})
 	if err != nil || page2.Truncated || len(page2.Effects) != 2 || page2.Effects[0].EffectID == page1.Effects[0].EffectID {
 		t.Fatalf("bad second page: %+v err=%v", page2, err)
 	}
-	clustered, err := svc.Query(ctx, Filter{OrganizationID: "org-g", LOD: "cluster", MaxNodes: 3, Limit: 10})
+	sameEdgePage1, err := svc.Query(ctx, Filter{OrganizationID: "org-g", Limit: 1})
+	if err != nil || !sameEdgePage1.Truncated || sameEdgePage1.NextCursor == "" {
+		t.Fatalf("bad same-edge first cursor page: %+v err=%v", sameEdgePage1, err)
+	}
+	sameEdgePage2, err := svc.Query(ctx, Filter{OrganizationID: "org-g", Cursor: sameEdgePage1.NextCursor, Limit: 1})
+	if err != nil || len(sameEdgePage2.Effects) != 1 {
+		t.Fatalf("bad same-edge second cursor page: %+v err=%v", sameEdgePage2, err)
+	}
+	firstComplete := findEdge(sameEdgePage1.Graph.Edges, "agent:alpha", "task:task-a1", RelationComplete, PolarityPositive)
+	secondComplete := findEdge(sameEdgePage2.Graph.Edges, "agent:alpha", "task:task-a1", RelationComplete, PolarityPositive)
+	if firstComplete == nil || secondComplete == nil || firstComplete.ID != secondComplete.ID {
+		t.Fatalf("semantic edge id not stable across cursor pages: first=%+v second=%+v", firstComplete, secondComplete)
+	}
+	splitByRelation, err := svc.Query(ctx, Filter{OrganizationID: "org-g", AgentRef: "agent:beta", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if findEdge(splitByRelation.Graph.Edges, "agent:beta", "task:task-a2", RelationComplete, PolarityPositive) == nil ||
+		findEdge(splitByRelation.Graph.Edges, "agent:beta", "task:task-a2", RelationComplete, PolarityNegative) == nil ||
+		findEdge(splitByRelation.Graph.Edges, "agent:beta", "task:task-a2", RelationBlock, PolarityNegative) == nil {
+		t.Fatalf("relation/polarity edges were incorrectly merged: %+v", splitByRelation.Graph.Edges)
+	}
+	dupEvidence, err := svc.Query(ctx, Filter{OrganizationID: "org-g", AgentRef: "agent:gamma", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	gammaComplete := findEdge(dupEvidence.Graph.Edges, "agent:gamma", "task:task-a2", RelationComplete, PolarityPositive)
+	if gammaComplete == nil || gammaComplete.InteractionCount != 2 || gammaComplete.EvidenceCount != 2 {
+		t.Fatalf("duplicate evidence not deduped on semantic edge: %+v", gammaComplete)
+	}
+	clustered, err := svc.Query(ctx, Filter{OrganizationID: "org-g", LOD: "cluster", MaxNodes: 7, Limit: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,29 +241,44 @@ func seedOrgGraphFixture(t *testing.T, ctx context.Context, db interface {
 	}
 	eventIDs := idgen.NewGenerator(clock.NewFakeClock(base))
 	var seq int64
-	seedEffect := func(id, task, source, target string, rel RelationType, pol Polarity, at time.Time) {
+	seedEffect := func(id, task, source, target string, rel RelationType, pol Polarity, at time.Time, reuseEventID ...string) string {
 		t.Helper()
 		eventID := eventIDs.NewULID()
+		if len(reuseEventID) > 0 {
+			eventID = reuseEventID[0]
+		}
 		seq++
-		ev, err := observability.NewEvent(observability.NewEventInput{ID: observability.EventID(eventID), Seq: seq, OccurredAt: at, CreatedAt: at, EventType: "pm.task.state_changed", Actor: observability.Actor(source), Refs: observability.EventRefs{ProjectID: "proj-a", TaskID: task}, Payload: map[string]any{"status": "completed"}})
-		if err != nil {
-			t.Fatal(err)
+		if len(reuseEventID) == 0 {
+			ev, err := observability.NewEvent(observability.NewEventInput{ID: observability.EventID(eventID), Seq: seq, OccurredAt: at, CreatedAt: at, EventType: "pm.task.state_changed", Actor: observability.Actor(source), Refs: observability.EventRefs{ProjectID: "proj-a", TaskID: task}, Payload: map[string]any{"status": "completed"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err = events.Append(ctx, ev); err != nil {
+				t.Fatal(err)
+			}
 		}
-		if err = events.Append(ctx, ev); err != nil {
-			t.Fatal(err)
+		evidenceIDs := []string{eventID}
+		if len(reuseEventID) > 0 {
+			evidenceIDs = append([]string(nil), reuseEventID...)
 		}
-		e := Effect{EffectID: id, ProjectID: "proj-a", TargetTaskID: task, SourceAgentRef: source, TargetAgentRef: target, RelationType: rel, Polarity: pol, Magnitude: 2, Confidence: "high", OccurredAt: at, RuleVersion: RuleVersionV1, EvidenceEventIDs: []string{eventID}, BeforeState: map[string]any{"task_status": "running"}, AfterState: map[string]any{"task_status": "completed"}, ExplanationKey: "collaboration.effect." + string(rel)}
+		e := Effect{EffectID: id, ProjectID: "proj-a", TargetTaskID: task, SourceAgentRef: source, TargetAgentRef: target, RelationType: rel, Polarity: pol, Magnitude: 2, Confidence: "high", OccurredAt: at, RuleVersion: RuleVersionV1, EvidenceEventIDs: evidenceIDs, BeforeState: map[string]any{"task_status": "running"}, AfterState: map[string]any{"task_status": "completed"}, ExplanationKey: "collaboration.effect." + string(rel)}
 		if task == "task-b1" {
 			e.ProjectID = "proj-b"
 		}
-		if err = repo.Apply(ctx, Fact{EventID: id, OccurredAt: at}, RuleVersionV1, []Effect{e}, nil, nil); err != nil {
+		if err := repo.Apply(ctx, Fact{EventID: id, OccurredAt: at}, RuleVersionV1, []Effect{e}, nil, nil); err != nil {
 			t.Fatal(err)
 		}
+		return eventID
 	}
 	seedEffect("ce_0001", "task-a1", "agent:alpha", "", RelationComplete, PolarityPositive, base.Add(time.Minute))
 	seedEffect("ce_0002", "task-a1", "agent:alpha", "", RelationComplete, PolarityPositive, base.Add(2*time.Minute))
 	seedEffect("ce_0003", "task-a2", "agent:alpha", "agent:beta", RelationReassign, PolarityMixed, base.Add(3*time.Minute))
 	seedEffect("ce_0004", "task-b1", "agent:alpha", "", RelationBlock, PolarityNegative, base.Add(4*time.Minute))
+	seedEffect("ce_0005", "task-a2", "agent:beta", "", RelationComplete, PolarityPositive, base.Add(5*time.Minute))
+	seedEffect("ce_0006", "task-a2", "agent:beta", "", RelationComplete, PolarityNegative, base.Add(6*time.Minute))
+	seedEffect("ce_0007", "task-a2", "agent:beta", "", RelationBlock, PolarityNegative, base.Add(7*time.Minute))
+	reused := seedEffect("ce_0008", "task-a2", "agent:gamma", "", RelationComplete, PolarityPositive, base.Add(8*time.Minute))
+	seedEffect("ce_0009", "task-a2", "agent:gamma", "", RelationComplete, PolarityPositive, base.Add(9*time.Minute), reused, "evt-extra")
 }
 
 func hasNode(nodes []GraphNode, id, kind string) bool {

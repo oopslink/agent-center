@@ -195,6 +195,7 @@ func (s *QueryService) assembleGraphResult(f Filter, version string, scope graph
 		addStaticEdge(&res.Graph.Edges, "task:"+d.ToTaskID, "task:"+d.FromTaskID, "task_dependency")
 	}
 	aggregated := map[string]*GraphEdge{}
+	evidenceByEdge := map[string]map[string]struct{}{}
 	for _, e := range scope.Effects {
 		addNode(nodes, GraphNode{ID: e.SourceAgentRef, Kind: "agent", Label: e.SourceAgentRef})
 		if e.TargetAgentRef != "" {
@@ -206,7 +207,7 @@ func (s *QueryService) assembleGraphResult(f Filter, version string, scope graph
 		if e.TargetAgentRef != "" {
 			target = e.TargetAgentRef
 		}
-		key := strings.Join([]string{graphVersion, e.SourceAgentRef, target, string(e.RelationType), string(e.Polarity)}, "\x00")
+		key := semanticEdgeKey(e.SourceAgentRef, target, e.RelationType, e.Polarity)
 		edge := aggregated[key]
 		if edge == nil {
 			at := e.OccurredAt.UTC()
@@ -214,7 +215,15 @@ func (s *QueryService) assembleGraphResult(f Filter, version string, scope graph
 			aggregated[key] = edge
 		}
 		edge.InteractionCount++
-		edge.EvidenceCount += len(e.EvidenceEventIDs)
+		if evidenceByEdge[key] == nil {
+			evidenceByEdge[key] = map[string]struct{}{}
+		}
+		for _, id := range e.EvidenceEventIDs {
+			if id != "" {
+				evidenceByEdge[key][id] = struct{}{}
+			}
+		}
+		edge.EvidenceCount = len(evidenceByEdge[key])
 		if e.Magnitude > edge.Magnitude {
 			edge.Magnitude = e.Magnitude
 		}
@@ -276,7 +285,7 @@ func addStaticEdge(edges *[]GraphEdge, source, target, rel string) {
 	if source == "" || target == "" {
 		return
 	}
-	key := "structure\x00" + source + "\x00" + target + "\x00" + rel
+	key := semanticEdgeKey(source, target, RelationType(rel), PolarityNeutral)
 	*edges = append(*edges, GraphEdge{ID: semanticEdgeID(key), Source: source, Target: target, RelationType: RelationType(rel), Polarity: PolarityNeutral, Magnitude: 1})
 }
 
@@ -296,6 +305,10 @@ func dedupeGraphEdges(edges []GraphEdge) []GraphEdge {
 func semanticEdgeID(key string) string {
 	sum := sha256.Sum256([]byte(key))
 	return "cge_" + hex.EncodeToString(sum[:12])
+}
+
+func semanticEdgeKey(source, target string, relation RelationType, polarity Polarity) string {
+	return strings.Join([]string{"edge", source, target, string(relation), string(polarity)}, "\x00")
 }
 
 func computeGraphVersion(ruleVersion string, scope graphScope) string {

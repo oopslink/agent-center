@@ -193,14 +193,60 @@ function summarizeEffects(effects: Array<{ polarity: CollaborationPolarity; targ
 }
 
 function accumulateGraph(pages: CollaborationGraphResponse[]): { nodes: CollaborationNode[]; edges: CollaborationEdge[] } {
+  const evidenceIdsByEdge = new Map<string, Set<string>>();
+  for (const page of pages) {
+    for (const effect of page.effects) {
+      const target = effect.target_agent_ref || (effect.target_task_id ? `task:${effect.target_task_id}` : effect.target);
+      const key = semanticEdgeKey(effect.source_agent_ref || effect.source, target, effect.relation_type, effect.polarity);
+      const ids = evidenceIdsByEdge.get(key) ?? new Set<string>();
+      effect.evidence_event_ids.forEach((id) => ids.add(id));
+      evidenceIdsByEdge.set(key, ids);
+    }
+  }
+  const mergedEdges = new Map<string, CollaborationEdge>();
+  for (const edge of pages.flatMap((page) => page.graph.edges)) {
+    const key = semanticEdgeKey(edge.source, edge.target, edge.relation_type, edge.polarity);
+    const current = mergedEdges.get(key);
+    if (!current) {
+      mergedEdges.set(key, { ...edge, evidence_count: evidenceIdsByEdge.get(key)?.size ?? edge.evidence_count });
+      continue;
+    }
+    const first = minDate(current.first_occurred_at, edge.first_occurred_at);
+    const last = maxDate(current.last_occurred_at, edge.last_occurred_at);
+    mergedEdges.set(key, {
+      ...current,
+      magnitude: Math.max(current.magnitude, edge.magnitude) as CollaborationEdge['magnitude'],
+      interaction_count: current.interaction_count + edge.interaction_count,
+      evidence_count: evidenceIdsByEdge.get(key)?.size ?? current.evidence_count + edge.evidence_count,
+      first_occurred_at: first,
+      last_occurred_at: last,
+      effect_id: current.effect_id || edge.effect_id,
+    });
+  }
   return {
     // A cursor page can have a different graph_version because the backend
     // includes that page's effects in the snapshot hash. Stable entity/edge
     // ids are therefore the cross-page identity; duplicate static graph data
     // is collapsed while newly paged effects remain visible.
     nodes: dedupeBy(pages.flatMap((page) => page.graph.nodes), (node) => node.id),
-    edges: dedupeBy(pages.flatMap((page) => page.graph.edges), (edge) => edge.id),
+    edges: [...mergedEdges.values()],
   };
+}
+
+function semanticEdgeKey(source: string, target: string, relation: string, polarity: string): string {
+  return [source, target, relation, polarity].join('\0');
+}
+
+function minDate(a?: string, b?: string): string | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return a <= b ? a : b;
+}
+
+function maxDate(a?: string, b?: string): string | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return a >= b ? a : b;
 }
 
 function CollaborationGraph({ nodes, edges, selected, onSelect, t }: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; selected: string | null; onSelect: (id: string) => void; t: Translator }) {

@@ -187,4 +187,43 @@ describe('Collaboration Insight', () => {
     expect(screen.getByLabelText('Keyboard-accessible graph edges')).toHaveTextContent('evidence 7');
     expect(screen.queryByTestId('collaboration-load-more')).not.toBeInTheDocument();
   });
+
+  it('merges the same semantic edge across cursor pages without merging different polarity', async () => {
+    const sameA = { ...effects[0], effect_id: 'same-a', id: 'same-a', source: 'agent:a0', source_agent_ref: 'agent:a0', target: 'task:T1', target_task_id: 'T1', relation_type: 'complete', polarity: 'positive', magnitude: 1, occurred_at: '2026-09-03T10:00:00Z', evidence_event_ids: ['evt-shared'] };
+    const sameB = { ...sameA, effect_id: 'same-b', id: 'same-b', magnitude: 3, occurred_at: '2026-09-03T09:00:00Z', evidence_event_ids: ['evt-shared'] };
+    const sameC = { ...sameA, effect_id: 'same-c', id: 'same-c', magnitude: 2, occurred_at: '2026-09-03T11:00:00Z', evidence_event_ids: ['evt-new'] };
+    const negative = { ...sameA, effect_id: 'negative-a', id: 'negative-a', polarity: 'negative', magnitude: 2, evidence_event_ids: ['evt-neg'] };
+    const nodes = [
+      { id: 'agent:a0', kind: 'agent', label: 'Agent A' },
+      { id: 'task:T1', kind: 'task', label: 'Task One', task_id: 'T1' },
+    ];
+    server.use(
+      http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        if (!cursor) {
+          return HttpResponse.json({
+            graph: { nodes, edges: [{ ...sameA, id: 'edge-page-1', interaction_count: 1, evidence_count: 1, first_occurred_at: sameA.occurred_at, last_occurred_at: sameA.occurred_at }] },
+            effects: [sameA], summary: {}, graph_version: 'gv-page-1', next_cursor: 'page-2',
+          });
+        }
+        return HttpResponse.json({
+          graph: { nodes, edges: [
+            { ...sameB, id: 'edge-page-2', interaction_count: 2, evidence_count: 2, first_occurred_at: sameB.occurred_at, last_occurred_at: sameC.occurred_at },
+            { ...negative, id: 'edge-negative', interaction_count: 1, evidence_count: 1, first_occurred_at: negative.occurred_at, last_occurred_at: negative.occurred_at },
+          ] },
+          effects: [sameB, sameC, negative], summary: {}, graph_version: 'gv-page-2', next_cursor: '',
+        });
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
+    expect(await screen.findByLabelText('Keyboard-accessible graph edges')).toHaveTextContent('1 effect');
+    await user.click(screen.getByTestId('collaboration-load-more'));
+    const edgeList = screen.getByLabelText('Keyboard-accessible graph edges');
+    await waitFor(() => expect(within(edgeList).getAllByRole('button')).toHaveLength(2));
+    expect(edgeList).toHaveTextContent('3 effects');
+    expect(edgeList).toHaveTextContent('evidence 2');
+    expect(edgeList).toHaveTextContent('strength 3');
+    expect(edgeList).toHaveTextContent('Negative');
+  });
 });
