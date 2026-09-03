@@ -28,6 +28,7 @@ import (
 	filessql "github.com/oopslink/agent-center/internal/files/sqlite"
 	"github.com/oopslink/agent-center/internal/insight"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/observability/collaborationeffect"
 	"github.com/oopslink/agent-center/internal/outbox"
 	outboxsql "github.com/oopslink/agent-center/internal/outbox/sqlite"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -448,6 +449,8 @@ func (a *App) outboxProjectors(
 	// periodic loop is the completeness backstop. MUST be registered here or only the
 	// periodic path runs (a defined-but-unregistered projector has no prod consumer).
 	autoAssignTriggerProj := pmservice.NewAutoAssignTriggerProjector(a.PMService, nil)
+	effectRepo, _ := collaborationeffect.NewSQLiteRepository(a.DB)
+	effectProj := collaborationeffect.NewProjector(effectRepo, collaborationeffect.NewEngine(""))
 	projectors := []outbox.Projector{
 		participantProj,
 		planParticipantProj,
@@ -458,6 +461,7 @@ func (a *App) outboxProjectors(
 		dispatchWakeProj,
 		msgAckProj,
 		autoAssignTriggerProj,
+		effectProj,
 	}
 	// reminder-event: the ReminderEventProjector arms on_event reminders when a
 	// watched pm entity transitions (pm.task/issue.state_changed, pm.plan.completed/
