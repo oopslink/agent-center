@@ -31,6 +31,7 @@ import (
 	"github.com/oopslink/agent-center/internal/identity"
 	"github.com/oopslink/agent-center/internal/insight"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/observability/collaborationeffect"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/persistence"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
@@ -131,7 +132,8 @@ type HandlerDeps struct {
 	// instance as the admin API's. nil → the endpoint reports stale (no live state).
 	LiveState concurrency.LiveStateStore
 	// Insight is the DuckDB analytical read model for fixed 24h execution metrics.
-	Insight *insight.Service
+	Insight              *insight.Service
+	CollaborationInsight *collaborationeffect.QueryService
 
 	// I5 (issue-921db054) — the agent runtime file browser transport. EnvControl
 	// enqueues the `agent.runtime_fs` read command down the control-loop;

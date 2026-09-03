@@ -141,6 +141,11 @@ projection diagnostic, not a guessed effect.
 
 `GET /api/insights/collaboration-effects`
 
+The authenticated Web transport exposes this contract at
+`GET /api/orgs/{slug}/insights/collaboration-effects`; `project_id` remains
+required and is checked against the organization in the path before the query
+service is called.
+
 Query parameters:
 
 | Name | Type | Required | Notes |
@@ -183,6 +188,9 @@ Response:
     "mixed_count": 0,
     "affected_task_count": 0
   },
+  "as_of": "2026-09-03T10:00:00Z",
+  "rule_version": "collaboration-effect.mvp.v1",
+  "truncated": false,
   "next_cursor": ""
 }
 ```
@@ -213,6 +221,10 @@ Response:
 
 `GET /api/insights/collaboration-effects/{effect_id}/evidence`
 
+The Web transport uses
+`GET /api/orgs/{slug}/insights/collaboration-effects/{effect_id}/evidence?project_id=...`.
+An effect outside that project is returned as not found.
+
 Response:
 
 ```json
@@ -230,6 +242,20 @@ Response:
   ]
 }
 ```
+
+### CLI / Supervisor transport
+
+The local admin transport exposes the same `CollaborationInsightQueryService`
+at `POST /admin/observability/collaboration-effects/query` and
+`GET /admin/observability/collaboration-effects/{effect_id}/evidence`.
+The operator CLI consumes only that transport:
+
+- `agent-center admin collaboration-insight query --project-id=...`
+- `agent-center admin collaboration-insight inspect EFFECT_ID --project-id=...`
+- `agent-center admin collaboration-insight stats --project-id=...`
+
+`stats` is a view of the summary returned by the same bounded query; it does
+not run a second aggregate over PM or Conversation tables.
 
 ## 9. Replay And Retention
 

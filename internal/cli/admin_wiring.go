@@ -372,12 +372,13 @@ func adminDepsFromApp(a *App) api.HandlerDeps {
 		AdminTokenSvc: a.AdminTokenSvc,
 
 		// Observability BC
-		EventRepo: a.EventRepo,
-		QuerySvc:  a.QuerySvc,
-		FleetSvc:  a.FleetSvc,
-		StatsSvc:  a.StatsSvc,
-		LogsSvc:   a.LogsSvc,
-		BlobStore: a.BlobStore,
+		EventRepo:            a.EventRepo,
+		QuerySvc:             a.QuerySvc,
+		CollaborationInsight: buildCollaborationInsight(a),
+		FleetSvc:             a.FleetSvc,
+		StatsSvc:             a.StatsSvc,
+		LogsSvc:              a.LogsSvc,
+		BlobStore:            a.BlobStore,
 
 		// Usage BC (v2.15.0 I28/F2)
 		UsageEventRepo: a.UsageEventRepo,

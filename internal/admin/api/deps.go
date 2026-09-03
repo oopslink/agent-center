@@ -27,6 +27,7 @@ import (
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/insight"
 	"github.com/oopslink/agent-center/internal/observability"
+	"github.com/oopslink/agent-center/internal/observability/collaborationeffect"
 	"github.com/oopslink/agent-center/internal/observability/query"
 	"github.com/oopslink/agent-center/internal/outbox"
 	projectmanager "github.com/oopslink/agent-center/internal/projectmanager"
@@ -216,12 +217,13 @@ type HandlerDeps struct {
 	AdminTokenSvc *admintokensvc.Service
 
 	// Observability BC
-	EventRepo observability.EventRepository
-	QuerySvc  *query.Service
-	FleetSvc  *query.FleetSnapshotService
-	StatsSvc  *query.StatsService
-	LogsSvc   *query.LogsService
-	BlobStore blobstore.BlobStore
+	EventRepo            observability.EventRepository
+	QuerySvc             *query.Service
+	CollaborationInsight *collaborationeffect.QueryService
+	FleetSvc             *query.FleetSnapshotService
+	StatsSvc             *query.StatsService
+	LogsSvc              *query.LogsService
+	BlobStore            blobstore.BlobStore
 
 	// Usage BC (v2.15.0 I28/F2): the report_usage agent-tool materializes cost
 	// (ModelPriceRepo → PriceBook) and persists raw events (UsageEventRepo).
