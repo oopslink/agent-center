@@ -2,6 +2,8 @@ package collaborationeffect
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sort"
@@ -44,13 +46,20 @@ type GraphNode struct {
 	TaskID string `json:"task_id,omitempty"`
 }
 type GraphEdge struct {
-	ID           string       `json:"id"`
-	Source       string       `json:"source"`
-	Target       string       `json:"target"`
-	RelationType RelationType `json:"relation_type"`
-	Polarity     Polarity     `json:"polarity"`
-	Magnitude    int          `json:"magnitude"`
-	EffectID     string       `json:"effect_id"`
+	ID                string       `json:"id"`
+	Source            string       `json:"source"`
+	Target            string       `json:"target"`
+	RelationType      RelationType `json:"relation_type"`
+	Polarity          Polarity     `json:"polarity"`
+	Magnitude         int          `json:"magnitude"`
+	EffectID          string       `json:"effect_id,omitempty"`
+	InteractionCount  int          `json:"interaction_count"`
+	EvidenceCount     int          `json:"evidence_count"`
+	FirstOccurredAt   time.Time    `json:"first_occurred_at,omitempty"`
+	LastOccurredAt    time.Time    `json:"last_occurred_at,omitempty"`
+	Clustered         bool         `json:"clustered,omitempty"`
+	EvidenceEffectIDs []string     `json:"evidence_effect_ids,omitempty"`
+	EvidenceEventIDs  []string     `json:"evidence_event_ids,omitempty"`
 }
 type Graph struct {
 	Nodes []GraphNode `json:"nodes"`
@@ -99,6 +108,7 @@ func (s *QueryService) Query(ctx context.Context, f Filter) (QueryResult, error)
 	}
 	res := QueryResult{Effects: effects, AsOf: s.now().UTC(), RuleVersion: version, NextCursor: next, Truncated: next != "", Graph: Graph{Nodes: []GraphNode{}, Edges: []GraphEdge{}}}
 	nodes := map[string]GraphNode{}
+	edges := map[string]GraphEdge{}
 	tasks := map[string]struct{}{}
 	for _, e := range effects {
 		addNode(nodes, GraphNode{ID: e.SourceAgentRef, Kind: "agent", Label: e.SourceAgentRef})
@@ -111,7 +121,8 @@ func (s *QueryService) Query(ctx context.Context, f Filter) (QueryResult, error)
 		if e.TargetAgentRef != "" {
 			target = e.TargetAgentRef
 		}
-		res.Graph.Edges = append(res.Graph.Edges, GraphEdge{ID: e.EffectID, Source: e.SourceAgentRef, Target: target, RelationType: e.RelationType, Polarity: e.Polarity, Magnitude: e.Magnitude, EffectID: e.EffectID})
+		evidenceIDs := uniqueStrings(e.EvidenceEventIDs)
+		addGraphEdge(edges, GraphEdge{ID: semanticGraphEdgeID(e.SourceAgentRef, target, e.RelationType, e.Polarity), Source: e.SourceAgentRef, Target: target, RelationType: e.RelationType, Polarity: e.Polarity, Magnitude: e.Magnitude, EffectID: e.EffectID, InteractionCount: 1, EvidenceCount: len(evidenceIDs), FirstOccurredAt: e.OccurredAt.UTC(), LastOccurredAt: e.OccurredAt.UTC(), EvidenceEffectIDs: []string{e.EffectID}, EvidenceEventIDs: evidenceIDs})
 		tasks[e.TargetTaskID] = struct{}{}
 		switch e.Polarity {
 		case PolarityPositive:
@@ -132,6 +143,14 @@ func (s *QueryService) Query(ctx context.Context, f Filter) (QueryResult, error)
 	for _, k := range keys {
 		res.Graph.Nodes = append(res.Graph.Nodes, nodes[k])
 	}
+	edgeKeys := make([]string, 0, len(edges))
+	for k := range edges {
+		edgeKeys = append(edgeKeys, k)
+	}
+	sort.Strings(edgeKeys)
+	for _, k := range edgeKeys {
+		res.Graph.Edges = append(res.Graph.Edges, edges[k])
+	}
 	res.Summary.AffectedTaskCount = len(tasks)
 	return res, nil
 }
@@ -140,6 +159,60 @@ func addNode(m map[string]GraphNode, n GraphNode) {
 	if n.ID != "" {
 		m[n.ID] = n
 	}
+}
+
+func addGraphEdge(m map[string]GraphEdge, next GraphEdge) {
+	existing, ok := m[next.ID]
+	if !ok {
+		m[next.ID] = next
+		return
+	}
+	existing.InteractionCount += max(1, next.InteractionCount)
+	existing.EvidenceEffectIDs = appendUniqueStrings(existing.EvidenceEffectIDs, next.EvidenceEffectIDs...)
+	existing.EvidenceEventIDs = appendUniqueStrings(existing.EvidenceEventIDs, next.EvidenceEventIDs...)
+	if len(existing.EvidenceEventIDs) > 0 || len(next.EvidenceEventIDs) > 0 {
+		existing.EvidenceCount = len(existing.EvidenceEventIDs)
+	} else {
+		existing.EvidenceCount += next.EvidenceCount
+	}
+	if next.Magnitude > existing.Magnitude {
+		existing.Magnitude = next.Magnitude
+	}
+	if existing.FirstOccurredAt.IsZero() || (!next.FirstOccurredAt.IsZero() && next.FirstOccurredAt.Before(existing.FirstOccurredAt)) {
+		existing.FirstOccurredAt = next.FirstOccurredAt
+	}
+	if next.LastOccurredAt.After(existing.LastOccurredAt) {
+		existing.LastOccurredAt = next.LastOccurredAt
+	}
+	existing.Clustered = existing.InteractionCount > 1 || len(existing.EvidenceEffectIDs) > 1
+	m[next.ID] = existing
+}
+
+func semanticGraphEdgeID(source, target string, relation RelationType, polarity Polarity) string {
+	h := sha256.Sum256([]byte(source + "\x00" + target + "\x00" + string(relation) + "\x00" + string(polarity)))
+	return "ce_sem_" + hex.EncodeToString(h[:8])
+}
+
+func uniqueStrings(values []string) []string {
+	return appendUniqueStrings(nil, values...)
+}
+
+func appendUniqueStrings(values []string, adds ...string) []string {
+	seen := make(map[string]struct{}, len(values)+len(adds))
+	for _, value := range values {
+		seen[value] = struct{}{}
+	}
+	for _, value := range adds {
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		values = append(values, value)
+	}
+	return values
 }
 
 type EvidenceEvent struct {

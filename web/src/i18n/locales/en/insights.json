@@ -19,13 +19,13 @@
     },
     "collaboration": {
       "title": "Collaboration effects", "subtitle": "Task-scoped Agent → Task → Agent relationships and deterministic effects.",
-      "scopeRequired": "Choose a project and task", "scopeRequiredBody": "The graph is deliberately task-scoped and limited to one hop.",
+      "scopeRequired": "Choose a project", "scopeRequiredBody": "The graph is project-scoped and can be narrowed by task, agent, relationship, or polarity.",
       "loading": "Loading collaboration effects", "failed": "Collaboration effects failed", "forbidden": "You do not have permission to view collaboration evidence",
-      "empty": "No collaboration effects", "emptyBody": "No deterministic effects match these filters.", "truncated": "Showing the first {{count}} edges. Narrow the filters to inspect the rest.",
-      "summary": "Effect summary", "affectedTasks": "Affected tasks", "graph": "Collaboration effect graph", "edgeList": "Keyboard-accessible graph edges", "timeline": "Effect timeline", "magnitude": "strength {{value}}",
+      "empty": "No collaboration effects", "emptyBody": "No deterministic effects match these filters.", "truncated": "Showing the first {{count}} edges. Narrow the filters to inspect the rest.", "loadMore": "Load more",
+      "summary": "Effect summary", "affectedTasks": "Affected tasks", "graph": "Collaboration effect graph", "edgeList": "Keyboard-accessible graph edges", "timeline": "Effect timeline", "magnitude": "strength {{value}}", "aggregatedEffects": "{{count}} effects",
       "filters": { "label": "Collaboration filters", "project": "Project", "task": "Task", "agent": "Agent", "since": "Since", "until": "Until", "relation": "Relationship", "polarity": "Polarity", "all": "All", "chooseProject": "Choose project", "chooseTask": "Choose task", "chooseProjectFirst": "Choose project first", "anyAgent": "Any agent", "loadingProjects": "Loading projects", "loadingTasks": "Loading tasks", "searchProjects": "Search projects", "searchTasks": "Search tasks", "searchAgents": "Search agents", "noProjects": "No projects", "noTasks": "No tasks", "noAgents": "No agents" },
       "legend": { "relationship": "assignment relationship", "effect": "state-changing effect", "mixed": "mixed positive / negative" },
-      "evidence": { "title": "Effect evidence", "close": "Close evidence", "loading": "Loading evidence", "failed": "Evidence failed to load" },
+      "evidence": { "title": "Effect evidence", "close": "Close evidence", "loading": "Loading evidence", "failed": "Evidence failed to load", "count": "evidence {{count}}" },
       "values": { "assign": "Assign", "reassign": "Reassign", "complete": "Complete", "block": "Block", "unblock": "Unblock", "dependency_release": "Dependency release", "review_accept": "Review accepted", "review_reject": "Review rejected", "positive": "Positive", "negative": "Negative", "neutral": "Neutral", "mixed": "Mixed" }
     },
     "executions": {

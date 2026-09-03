@@ -4,12 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/insight"
+	"github.com/oopslink/agent-center/internal/observability/collaborationeffect"
+	obssql "github.com/oopslink/agent-center/internal/observability/sqlite"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
 
 func TestInsightsOverviewAPI_WindowValidationAndShape(t *testing.T) {
@@ -336,6 +341,112 @@ func TestInsightsExecutionAPI_ForeignOrgExecutionIsNotFound(t *testing.T) {
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("foreign execution status = %d, want 404", resp.StatusCode)
 	}
+}
+
+func TestCollaborationEffectsAPIStableSemanticEdgesAcrossCursorPages(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	ctx := context.Background()
+	projectID, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: sess.OrgID, Name: "P", CreatedBy: pm.IdentityRef("user:" + sess.IdentityID)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo, err := collaborationeffect.NewSQLiteRepository(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := obssql.NewEventRepo(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	deps.CollaborationInsight, err = collaborationeffect.NewQueryService(repo, events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := time.Date(2026, 9, 3, 10, 0, 0, 0, time.UTC)
+	for i, effect := range []collaborationeffect.Effect{
+		{EffectID: "ce_01", ProjectID: string(projectID), TargetTaskID: "T1", SourceAgentRef: "agent:a", RelationType: collaborationeffect.RelationComplete, Polarity: collaborationeffect.PolarityPositive, Magnitude: 1, OccurredAt: at, RuleVersion: collaborationeffect.RuleVersionV1, EvidenceEventIDs: []string{"evt-1"}},
+		{EffectID: "ce_02", ProjectID: string(projectID), TargetTaskID: "T1", SourceAgentRef: "agent:a", RelationType: collaborationeffect.RelationComplete, Polarity: collaborationeffect.PolarityPositive, Magnitude: 3, OccurredAt: at.Add(time.Hour), RuleVersion: collaborationeffect.RuleVersionV1, EvidenceEventIDs: []string{"evt-2"}},
+		{EffectID: "ce_03", ProjectID: string(projectID), TargetTaskID: "T1", SourceAgentRef: "agent:a", RelationType: collaborationeffect.RelationComplete, Polarity: collaborationeffect.PolarityNegative, Magnitude: 2, OccurredAt: at.Add(2 * time.Hour), RuleVersion: collaborationeffect.RuleVersionV1, EvidenceEventIDs: []string{"evt-3"}},
+		{EffectID: "ce_04", ProjectID: string(projectID), TargetTaskID: "T1", SourceAgentRef: "agent:a", RelationType: collaborationeffect.RelationBlock, Polarity: collaborationeffect.PolarityPositive, Magnitude: 2, OccurredAt: at.Add(3 * time.Hour), RuleVersion: collaborationeffect.RuleVersionV1, EvidenceEventIDs: []string{"evt-4"}},
+	} {
+		if err = repo.Apply(ctx, collaborationeffect.Fact{EventID: string(rune('a' + i)), OccurredAt: effect.OccurredAt}, collaborationeffect.RuleVersionV1, []collaborationeffect.Effect{effect}, nil, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ts := httptest.NewServer(WithDeps(deps)(NewServer(":0", Deps{}).Handler()))
+	defer ts.Close()
+
+	first := getCollaborationPage(t, ts.URL, sess, string(projectID), "")
+	second := getCollaborationPage(t, ts.URL, sess, string(projectID), first.NextCursor)
+	if len(first.Graph.Edges) != 1 || len(second.Graph.Edges) != 1 {
+		t.Fatalf("paged graph edge counts = %d/%d, want 1/1", len(first.Graph.Edges), len(second.Graph.Edges))
+	}
+	if first.Graph.Edges[0].ID == "" || first.Graph.Edges[0].ID != second.Graph.Edges[0].ID {
+		t.Fatalf("semantic edge id changed across cursor pages: %q vs %q", first.Graph.Edges[0].ID, second.Graph.Edges[0].ID)
+	}
+	full := getCollaborationPage(t, ts.URL, sess, string(projectID), "")
+	if full.NextCursor == "" {
+		t.Fatalf("test setup expected a real second page for limit=1")
+	}
+	fullReq, _ := http.NewRequest(http.MethodGet, ts.URL+"/api/orgs/"+sess.OrgSlug+"/insights/collaboration-effects?project_id="+string(projectID)+"&limit=4", nil)
+	fullReq.AddCookie(sess.Cookie)
+	fullResp, err := http.DefaultClient.Do(fullReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fullResp.Body.Close()
+	if fullResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(fullResp.Body)
+		t.Fatalf("full status=%d body=%s", fullResp.StatusCode, body)
+	}
+	var all collaborationeffect.QueryResult
+	if err = json.NewDecoder(fullResp.Body).Decode(&all); err != nil {
+		t.Fatal(err)
+	}
+	if len(all.Graph.Edges) != 3 {
+		t.Fatalf("different polarity/relation merged incorrectly; edges=%+v", all.Graph.Edges)
+	}
+	pos := findCollaborationHTTPGraphEdge(all.Graph.Edges, collaborationeffect.RelationComplete, collaborationeffect.PolarityPositive)
+	if pos == nil || pos.InteractionCount != 2 || pos.EvidenceCount != 2 || pos.Magnitude != 3 {
+		t.Fatalf("positive aggregate edge=%+v", pos)
+	}
+	if findCollaborationHTTPGraphEdge(all.Graph.Edges, collaborationeffect.RelationComplete, collaborationeffect.PolarityNegative) == nil || findCollaborationHTTPGraphEdge(all.Graph.Edges, collaborationeffect.RelationBlock, collaborationeffect.PolarityPositive) == nil {
+		t.Fatalf("missing distinct polarity/relation edges: %+v", all.Graph.Edges)
+	}
+}
+
+func getCollaborationPage(t *testing.T, baseURL string, sess testSession, projectID, cursor string) collaborationeffect.QueryResult {
+	t.Helper()
+	url := baseURL + "/api/orgs/" + sess.OrgSlug + "/insights/collaboration-effects?project_id=" + projectID + "&limit=1"
+	if cursor != "" {
+		url += "&cursor=" + cursor
+	}
+	req, _ := http.NewRequest(http.MethodGet, url, nil)
+	req.AddCookie(sess.Cookie)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("collaboration status=%d body=%s", resp.StatusCode, body)
+	}
+	var out collaborationeffect.QueryResult
+	if err = json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	return out
+}
+
+func findCollaborationHTTPGraphEdge(edges []collaborationeffect.GraphEdge, relation collaborationeffect.RelationType, polarity collaborationeffect.Polarity) *collaborationeffect.GraphEdge {
+	for i := range edges {
+		if edges[i].RelationType == relation && edges[i].Polarity == polarity {
+			return &edges[i]
+		}
+	}
+	return nil
 }
 
 func seedInsightHTTPFacts(t *testing.T, db *sql.DB, orgID string, finished time.Time) {
