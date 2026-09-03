@@ -74,6 +74,7 @@ type EventRefsFilter struct {
 	ConversationID string
 	MessageID      string
 	TaskID         string
+	PlanID         string
 	ExecutionID    string
 	InputRequestID string
 	IssueID        string

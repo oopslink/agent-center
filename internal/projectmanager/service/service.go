@@ -300,10 +300,8 @@ type Service struct {
 	// append AuditEntry rows to pm_audit_log in the SAME tx (best-effort — an audit
 	// failure NEVER rolls back the primary mutation, see recordChange).
 	audit pm.AuditLogRepository
-	// auditEvents mirrors successfully appended semantic audit facts into the
-	// Observability event ledger in the same savepoint/transaction. It is optional
-	// for isolated tests, but wired in production; consumers must never read pm_*
-	// tables to reconstruct these facts.
+	// auditEvents is OPTIONAL. When wired, successfully-written audit rows are
+	// mirrored into Observability as pm.audit_recorded in the same transaction.
 	auditEvents *observability.EventSink
 	// autoAssignDir is OPTIONAL (nil-safe, v2.18.3 BE-2). nil ⇒ the auto-assign
 	// reconciler has no candidate source and AutoAssignSweep is a no-op (pool tasks
@@ -445,7 +443,8 @@ type Deps struct {
 	// points record object-level change-ledger entries into pm_audit_log (in-tx,
 	// best-effort). nil ⇒ recordChange is a no-op (zero-regression).
 	Audit pm.AuditLogRepository
-	// AuditEvents is the durable pm.audit_recorded producer mirror.
+	// AuditEvents is OPTIONAL: a same-transaction Observability mirror for the audit
+	// rows that replay-only consumers can read without crossing back into PM repos.
 	AuditEvents *observability.EventSink
 	// AutoAssignDir is OPTIONAL (v2.18.3 BE-2): when set, the auto-assign reconciler
 	// can list each org's candidate agents. nil ⇒ AutoAssignSweep is a no-op.
@@ -605,7 +604,7 @@ func (s *Service) recordChange(ctx context.Context, e pm.AuditEntry) {
 	if e.OccurredAt.IsZero() {
 		e.OccurredAt = s.clock.Now()
 	}
-	if e.ID == "" && s.auditEvents != nil && s.idgen != nil {
+	if e.ID == "" && s.idgen != nil {
 		e.ID = s.idgen.NewULID()
 	}
 	exec, err := persistence.ExecutorFromCtx(ctx, s.db)
@@ -620,47 +619,98 @@ func (s *Service) recordChange(ctx context.Context, e pm.AuditEntry) {
 	if _, sperr := exec.ExecContext(ctx, "SAVEPOINT pm_audit"); sperr != nil {
 		if aerr := s.audit.Append(ctx, e); aerr != nil {
 			slog.WarnContext(ctx, "pm: audit append failed (best-effort, mutation unaffected)", "err", aerr, "object_type", e.ObjectType, "object_id", e.ObjectID, "change_type", e.ChangeType)
+			return
 		}
+		s.mirrorAuditRecorded(ctx, e, nil)
 		return
 	}
 	if aerr := s.audit.Append(ctx, e); aerr != nil {
 		slog.WarnContext(ctx, "pm: audit append failed (best-effort, mutation unaffected)", "err", aerr, "object_type", e.ObjectType, "object_id", e.ObjectID, "change_type", e.ChangeType)
 		_, _ = exec.ExecContext(ctx, "ROLLBACK TO pm_audit")
-	} else if s.auditEvents != nil {
-		var detail map[string]any
-		if err := json.Unmarshal([]byte(e.Detail), &detail); err != nil || detail == nil {
-			detail = map[string]any{}
-		}
-		actor := observability.Actor(e.ActorRef)
-		if strings.HasPrefix(string(actor), pm.ActorSystemPrefix) || actor.Validate() != nil {
-			actor = "system"
-		}
-		payload := map[string]any{"audit_id": e.ID, "project_id": string(e.ProjectID), "object_type": string(e.ObjectType), "object_id": e.ObjectID, "change_type": string(e.ChangeType), "field": e.Field, "from_value": e.FromValue, "to_value": e.ToValue, "actor_ref": string(e.ActorRef), "detail": detail}
-		mirrorID, merr := s.auditEvents.Emit(ctx, observability.EmitCommand{
-			EventType: "pm.audit_recorded", Actor: actor, OccurredAt: e.OccurredAt,
-			Refs: observability.EventRefs{ProjectID: string(e.ProjectID), TaskID: func() string {
-				if e.ObjectType == pm.AuditObjectTask {
-					return e.ObjectID
-				}
-				return ""
-			}()},
-			Payload: payload,
-		})
-		if merr == nil && s.outbox != nil {
-			pb, _ := json.Marshal(payload)
-			merr = s.outbox.Append(ctx, outbox.Event{ID: mirrorID.String(), EventType: "pm.audit_recorded", Refs: refsJSON(map[string]string{"project_id": string(e.ProjectID), "task_id": func() string {
-				if e.ObjectType == pm.AuditObjectTask {
-					return e.ObjectID
-				}
-				return ""
-			}()}), Payload: string(pb), CreatedAt: e.OccurredAt})
-		}
-		if merr != nil {
-			slog.WarnContext(ctx, "pm: audit event mirror failed (best-effort, mutation unaffected)", "err", merr, "audit_id", e.ID)
-			_, _ = exec.ExecContext(ctx, "ROLLBACK TO pm_audit")
-		}
+		_, _ = exec.ExecContext(ctx, "RELEASE pm_audit")
+		return
+	}
+	if _, sperr := exec.ExecContext(ctx, "SAVEPOINT pm_audit_event"); sperr == nil {
+		s.mirrorAuditRecorded(ctx, e, exec)
+		_, _ = exec.ExecContext(ctx, "RELEASE pm_audit_event")
+	} else {
+		s.mirrorAuditRecorded(ctx, e, nil)
 	}
 	_, _ = exec.ExecContext(ctx, "RELEASE pm_audit")
+}
+
+func (s *Service) mirrorAuditRecorded(ctx context.Context, e pm.AuditEntry, exec persistence.SQLExecutor) {
+	if s.auditEvents == nil {
+		return
+	}
+	payload := map[string]any{
+		"audit_id":    e.ID,
+		"object_type": string(e.ObjectType),
+		"object_id":   e.ObjectID,
+		"change_type": string(e.ChangeType),
+		"field":       e.Field,
+		"from_value":  e.FromValue,
+		"to_value":    e.ToValue,
+		"actor_ref":   string(e.ActorRef),
+	}
+	if detail := decodeAuditDetail(e.Detail); detail != nil {
+		payload["detail"] = detail
+	}
+	refs := observability.EventRefs{ProjectID: string(e.ProjectID)}
+	switch e.ObjectType {
+	case pm.AuditObjectTask:
+		refs.TaskID = e.ObjectID
+	case pm.AuditObjectIssue:
+		refs.IssueID = e.ObjectID
+	case pm.AuditObjectPlan:
+		refs.PlanID = e.ObjectID
+	}
+	mirrorID, err := s.auditEvents.Emit(ctx, observability.EmitCommand{
+		EventType:  observability.EventType("pm.audit_recorded"),
+		Refs:       refs,
+		Actor:      auditEventActor(e.ActorRef),
+		Payload:    payload,
+		OccurredAt: e.OccurredAt,
+	})
+	if err != nil {
+		slog.WarnContext(ctx, "pm: audit event mirror failed (best-effort, mutation unaffected)", "err", err, "object_type", e.ObjectType, "object_id", e.ObjectID, "change_type", e.ChangeType)
+		if exec != nil {
+			_, _ = exec.ExecContext(ctx, "ROLLBACK TO pm_audit_event")
+		}
+		return
+	}
+	if s.outbox == nil {
+		return
+	}
+	refsJSONBytes, _ := json.Marshal(refs)
+	payloadJSON, _ := json.Marshal(payload)
+	if err := s.outbox.Append(ctx, outbox.Event{ID: mirrorID.String(), EventType: "pm.audit_recorded", Refs: string(refsJSONBytes), Payload: string(payloadJSON), CreatedAt: e.OccurredAt}); err != nil {
+		slog.WarnContext(ctx, "pm: audit outbox mirror failed (best-effort, mutation unaffected)", "err", err, "object_type", e.ObjectType, "object_id", e.ObjectID, "change_type", e.ChangeType)
+		if exec != nil {
+			_, _ = exec.ExecContext(ctx, "ROLLBACK TO pm_audit_event")
+		}
+	}
+}
+
+func decodeAuditDetail(raw string) map[string]any {
+	if raw == "" || raw == "{}" {
+		return nil
+	}
+	var out map[string]any
+	if err := json.Unmarshal([]byte(raw), &out); err != nil || len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func auditEventActor(ref pm.IdentityRef) observability.Actor {
+	if strings.HasPrefix(string(ref), pm.ActorSystemPrefix) {
+		return observability.Actor("system")
+	}
+	if ref == "" {
+		return observability.Actor("system")
+	}
+	return observability.Actor(ref)
 }
 
 // ListObjectAudit returns an object's change ledger newest-first with cursor

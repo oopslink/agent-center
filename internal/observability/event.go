@@ -94,6 +94,7 @@ type EventRefs struct {
 	ConversationID string `json:"conversation_id,omitempty"`
 	MessageID      string `json:"message_id,omitempty"`
 	TaskID         string `json:"task_id,omitempty"`
+	PlanID         string `json:"plan_id,omitempty"`
 	ExecutionID    string `json:"execution_id,omitempty"`
 	InputRequestID string `json:"input_request_id,omitempty"`
 	IssueID        string `json:"issue_id,omitempty"`

@@ -76,10 +76,10 @@ func TestOutboxProjectors_RegistersEventConsumers(t *testing.T) {
 
 // TestProductionRelay_CollaborationEffect_AppServiceToHTTP is the integration
 // seam for the collaboration-effect feature. It deliberately creates and
-// completes a Task through ProjectManager's AppService, drains the exact
-// production outbox projector set, and reads the resulting graph and evidence
-// through the real admin HTTP routes. Direct projection fixtures cannot make
-// this test pass.
+// completes an upstream Plan task through ProjectManager's AppService, drains
+// the exact production outbox projector set, and reads the dependent release
+// effect through the real admin HTTP routes. Direct projection fixtures cannot
+// make this test pass.
 func TestProductionRelay_CollaborationEffect_AppServiceToHTTP(t *testing.T) {
 	app := newTestApp(t)
 	ctx := context.Background()
@@ -91,29 +91,59 @@ func TestProductionRelay_CollaborationEffect_AppServiceToHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateProject: %v", err)
 	}
-	if _, err := svc.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{
-		ProjectID: projectID, IdentityID: "agent:EFFECTBOT", Role: pm.RoleMember, Actor: "user:owner",
-	}); err != nil {
-		t.Fatalf("AddProjectMember: %v", err)
+	agentRepo := agentsql.NewAgentRepo(app.DB)
+	for _, agentID := range []string{"UPBOT", "DOWNBOT"} {
+		ag, err := agentpkg.RehydrateAgent(agentpkg.RehydrateAgentInput{
+			ID: agentpkg.AgentID(agentID), OrganizationID: "org-effects",
+			Profile: agentpkg.Profile{Name: agentID}, WorkerID: "W1",
+			Lifecycle: agentpkg.LifecycleRunning, CreatedBy: "system",
+			CreatedAt: app.Clock.Now(), UpdatedAt: app.Clock.Now(), Version: 1,
+		})
+		if err != nil {
+			t.Fatalf("RehydrateAgent(%s): %v", agentID, err)
+		}
+		if err := agentRepo.Save(ctx, ag); err != nil {
+			t.Fatalf("save agent %s: %v", agentID, err)
+		}
+		if _, err := svc.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{
+			ProjectID: projectID, IdentityID: pm.IdentityRef("agent:" + agentID), Role: pm.RoleMember, Actor: "user:owner",
+		}); err != nil {
+			t.Fatalf("AddProjectMember(%s): %v", agentID, err)
+		}
 	}
-	taskID, err := svc.CreateTask(ctx, pmservice.CreateTaskCommand{
-		ProjectID: projectID, Title: "ship effect", CreatedBy: "user:owner",
-	})
-	if err != nil {
-		t.Fatalf("CreateTask: %v", err)
-	}
-	assignee := "agent:EFFECTBOT"
-	if err := svc.BatchUpdateTask(ctx, taskID, pmservice.BatchTaskPatch{Assignee: &assignee}, "user:owner"); err != nil {
-		t.Fatalf("assign task: %v", err)
-	}
-	if err := svc.StartTask(ctx, taskID, "agent:EFFECTBOT"); err != nil {
-		t.Fatalf("StartTask: %v", err)
-	}
-	if err := svc.CompleteTask(ctx, taskID, "agent:EFFECTBOT"); err != nil {
-		t.Fatalf("CompleteTask: %v", err)
-	}
-
 	relay, _ := productionRelay(t, app)
+	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: projectID, Name: "dependency effect", CreatedBy: "user:owner"})
+	if err != nil {
+		t.Fatalf("CreatePlan: %v", err)
+	}
+	drainRelay(t, relay)
+	mkTask := func(title, assignee string) pm.TaskID {
+		tid, terr := svc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: projectID, Title: title, CreatedBy: "user:owner"})
+		if terr != nil {
+			t.Fatalf("CreateTask(%s): %v", title, terr)
+		}
+		a := assignee
+		if uerr := svc.BatchUpdateTask(ctx, tid, pmservice.BatchTaskPatch{Assignee: &a}, "user:owner"); uerr != nil {
+			t.Fatalf("assign(%s): %v", title, uerr)
+		}
+		if serr := svc.SelectTaskIntoPlan(ctx, planID, tid, "user:owner"); serr != nil {
+			t.Fatalf("select(%s): %v", title, serr)
+		}
+		drainRelay(t, relay)
+		return tid
+	}
+	upstream := mkTask("upstream", "agent:UPBOT")
+	dependent := mkTask("dependent", "agent:DOWNBOT")
+	if err := svc.AddPlanDependency(ctx, planID, dependent, upstream, "user:owner"); err != nil {
+		t.Fatalf("AddPlanDependency(dependent, upstream): %v", err)
+	}
+	if err := svc.StartPlan(ctx, planID, "user:owner"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	drainRelay(t, relay)
+	if err := svc.SetTaskStatus(ctx, upstream, pm.TaskCompleted, "agent:UPBOT"); err != nil {
+		t.Fatalf("complete upstream: %v", err)
+	}
 	drainRelay(t, relay)
 	// A second drain proves replay/idempotency at the production relay seam.
 	drainRelay(t, relay)
@@ -121,7 +151,7 @@ func TestProductionRelay_CollaborationEffect_AppServiceToHTTP(t *testing.T) {
 	server := adminapi.NewServer("")
 	httpServer := httptest.NewServer(adminapi.WithDeps(adminDepsFromApp(app))(server.Handler()))
 	t.Cleanup(httpServer.Close)
-	body, _ := json.Marshal(collaborationeffect.Filter{ProjectID: string(projectID), TaskID: string(taskID), Limit: 100})
+	body, _ := json.Marshal(collaborationeffect.Filter{ProjectID: string(projectID), TaskID: string(dependent), RelationType: collaborationeffect.RelationDependencyRelease, Limit: 100})
 	resp, err := http.Post(httpServer.URL+"/admin/observability/collaboration-effects/query", "application/json", strings.NewReader(string(body)))
 	if err != nil {
 		t.Fatalf("query HTTP: %v", err)
@@ -134,14 +164,21 @@ func TestProductionRelay_CollaborationEffect_AppServiceToHTTP(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("decode query: %v", err)
 	}
-	if len(result.Effects) != 2 || len(result.Graph.Nodes) == 0 || len(result.Graph.Edges) != 2 {
-		t.Fatalf("production chain result = %+v, want one assign + one complete effect", result)
+	if len(result.Effects) != 1 || len(result.Graph.Nodes) == 0 || len(result.Graph.Edges) != 1 {
+		t.Fatalf("production chain result = %+v, want one dependency_release effect for dependent task", result)
 	}
-	if result.Summary.PositiveCount != 1 || result.Summary.NeutralCount != 1 {
+	effect := result.Effects[0]
+	if effect.RelationType != collaborationeffect.RelationDependencyRelease || effect.TargetTaskID != string(dependent) {
+		t.Fatalf("effect = %+v, want dependency_release targeted at dependent task %s", effect, dependent)
+	}
+	if len(effect.EvidenceEventIDs) != 2 {
+		t.Fatalf("effect evidence ids = %v, want dependency_added + upstream completion", effect.EvidenceEventIDs)
+	}
+	if result.Summary.PositiveCount != 1 || result.Summary.NeutralCount != 0 {
 		t.Fatalf("summary = %+v", result.Summary)
 	}
 
-	effectID := result.Effects[0].EffectID
+	effectID := effect.EffectID
 	evidenceResp, err := http.Get(httpServer.URL + "/admin/observability/collaboration-effects/" + effectID + "/evidence?project_id=" + string(projectID))
 	if err != nil {
 		t.Fatalf("evidence HTTP: %v", err)
@@ -154,7 +191,7 @@ func TestProductionRelay_CollaborationEffect_AppServiceToHTTP(t *testing.T) {
 	if err := json.NewDecoder(evidenceResp.Body).Decode(&evidence); err != nil {
 		t.Fatalf("decode evidence: %v", err)
 	}
-	if evidence.EffectID != effectID || len(evidence.Evidence) != 1 {
+	if evidence.EffectID != effectID || len(evidence.Evidence) != 2 {
 		t.Fatalf("evidence = %+v", evidence)
 	}
 }

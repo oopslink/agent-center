@@ -124,7 +124,7 @@ func TestOutOfOrderDependencyReplayConvergesWhenOrderedLedgerIsReplayed(t *testi
 	ctx := context.Background()
 	r := testRepo(t)
 	p := NewProjector(r, NewEngine(""))
-	dep := fact("01DEP", "pm.audit_recorded", "", "agent:lead", map[string]any{"change_type": "dependency_added", "detail": map[string]any{"from": "UP", "to": "DOWN", "plan_id": "PL"}})
+	dep := fact("01DEP", "pm.audit_recorded", "", "agent:lead", map[string]any{"change_type": "dependency_added", "detail": map[string]any{"from": "DOWN", "to": "UP", "plan_id": "PL"}})
 	complete := fact("02DONE", "pm.task.state_changed", "UP", "agent:a", map[string]any{"prev_status": "running", "status": "completed"})
 	if err := p.ProjectFact(ctx, complete); err != nil {
 		t.Fatal(err)
