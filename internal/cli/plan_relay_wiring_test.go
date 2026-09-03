@@ -164,7 +164,7 @@ func TestProductionRelay_CollaborationEffect_AppServiceToHTTP(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		t.Fatalf("decode query: %v", err)
 	}
-	if len(result.Effects) != 1 || len(result.Graph.Nodes) == 0 || len(result.Graph.Edges) != 1 {
+	if len(result.Effects) != 1 || len(result.Graph.Nodes) == 0 || !hasCollaborationGraphEdge(result.Graph.Edges, collaborationeffect.RelationDependencyRelease, string(dependent)) {
 		t.Fatalf("production chain result = %+v, want one dependency_release effect for dependent task", result)
 	}
 	effect := result.Effects[0]
@@ -194,6 +194,15 @@ func TestProductionRelay_CollaborationEffect_AppServiceToHTTP(t *testing.T) {
 	if evidence.EffectID != effectID || len(evidence.Evidence) != 2 {
 		t.Fatalf("evidence = %+v", evidence)
 	}
+}
+
+func hasCollaborationGraphEdge(edges []collaborationeffect.GraphEdge, rel collaborationeffect.RelationType, taskID string) bool {
+	for _, e := range edges {
+		if e.RelationType == rel && e.Target == "task:"+taskID && e.InteractionCount == 1 && e.EvidenceCount == 2 {
+			return true
+		}
+	}
+	return false
 }
 
 // TestProductionRelay_PlanCreated_BindsConversation is the behavioral guard: a

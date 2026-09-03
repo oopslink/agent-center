@@ -844,7 +844,11 @@ func buildCollaborationInsight(a *App) *collaborationeffect.QueryService {
 	if err != nil {
 		return nil
 	}
-	svc, err := collaborationeffect.NewQueryService(repo, a.EventRepo)
+	graphs, err := collaborationeffect.NewSQLiteGraphReader(a.DB)
+	if err != nil {
+		return nil
+	}
+	svc, err := collaborationeffect.NewQueryServiceWithGraph(repo, a.EventRepo, graphs)
 	if err != nil {
 		return nil
 	}

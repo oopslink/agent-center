@@ -72,16 +72,22 @@ type Dependency struct {
 }
 
 type Filter struct {
-	ProjectID    string       `json:"project_id"`
-	TaskID       string       `json:"task_id,omitempty"`
-	AgentRef     string       `json:"agent_ref,omitempty"`
-	RelationType RelationType `json:"relation_type,omitempty"`
-	Polarity     Polarity     `json:"polarity,omitempty"`
-	Since        *time.Time   `json:"since,omitempty"`
-	Until        *time.Time   `json:"until,omitempty"`
-	Cursor       string       `json:"cursor,omitempty"`
-	Limit        int          `json:"limit,omitempty"`
-	RuleVersion  string       `json:"rule_version,omitempty"`
+	OrganizationID string       `json:"organization_id,omitempty"`
+	ProjectID      string       `json:"project_id"`
+	PlanID         string       `json:"plan_id,omitempty"`
+	TaskID         string       `json:"task_id,omitempty"`
+	StageID        string       `json:"stage_id,omitempty"`
+	AgentRef       string       `json:"agent_ref,omitempty"`
+	RelationType   RelationType `json:"relation_type,omitempty"`
+	Polarity       Polarity     `json:"polarity,omitempty"`
+	Since          *time.Time   `json:"since,omitempty"`
+	Until          *time.Time   `json:"until,omitempty"`
+	Cursor         string       `json:"cursor,omitempty"`
+	Limit          int          `json:"limit,omitempty"`
+	LOD            string       `json:"lod,omitempty"`
+	MaxNodes       int          `json:"max_nodes,omitempty"`
+	RuleVersion    string       `json:"rule_version,omitempty"`
+	GraphVersion   string       `json:"graph_version,omitempty"`
 }
 
 type Repository interface {
