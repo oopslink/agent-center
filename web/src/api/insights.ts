@@ -749,6 +749,108 @@ function normalizeExecutionRow(value: unknown): InsightExecutionRow {
   };
 }
 
+function normalizeCollaborationNode(value: unknown): CollaborationNode {
+  const source = isRecord(value) ? value : {};
+  const kind = source.kind === 'agent' || source.kind === 'task' ? source.kind : 'task';
+  const id = stringOrEmpty(source.id) || (kind === 'agent' ? 'agent:unknown' : 'task:unknown');
+  return {
+    id,
+    kind,
+    label: stringOrEmpty(source.label) || id,
+    task_id: stringOrEmpty(source.task_id) || undefined,
+  };
+}
+
+function normalizeCollaborationRelation(value: unknown): CollaborationRelation {
+  return RELATION_VALUES.includes(value as CollaborationRelation) ? value as CollaborationRelation : 'assign';
+}
+
+function normalizeCollaborationPolarity(value: unknown): CollaborationPolarity {
+  return POLARITY_VALUES.includes(value as CollaborationPolarity) ? value as CollaborationPolarity : 'neutral';
+}
+
+const RELATION_VALUES: CollaborationRelation[] = ['assign', 'reassign', 'complete', 'block', 'unblock', 'dependency_release', 'review_accept', 'review_reject'];
+const POLARITY_VALUES: CollaborationPolarity[] = ['positive', 'negative', 'neutral', 'mixed'];
+
+function normalizeMagnitude(value: unknown): 1 | 2 | 3 {
+  return value === 2 || value === 3 ? value : 1;
+}
+
+function normalizeCollaborationEdge(value: unknown): CollaborationEdge {
+  const source = isRecord(value) ? value : {};
+  const id = stringOrEmpty(source.id) || stringOrEmpty(source.effect_id) || 'ce_unknown';
+  return {
+    id,
+    source: stringOrEmpty(source.source) || stringOrEmpty(source.source_agent_ref) || 'agent:unknown',
+    target: stringOrEmpty(source.target) || `task:${stringOrEmpty(source.target_task_id) || 'unknown'}`,
+    relation_type: normalizeCollaborationRelation(source.relation_type),
+    polarity: normalizeCollaborationPolarity(source.polarity),
+    magnitude: normalizeMagnitude(source.magnitude),
+    effect_id: stringOrEmpty(source.effect_id) || id,
+  };
+}
+
+function normalizeCollaborationEffect(value: unknown): CollaborationEffect {
+  const source = isRecord(value) ? value : {};
+  const edge = normalizeCollaborationEdge(source);
+  return {
+    ...edge,
+    project_id: stringOrEmpty(source.project_id),
+    target_task_id: stringOrEmpty(source.target_task_id),
+    source_agent_ref: stringOrEmpty(source.source_agent_ref),
+    target_agent_ref: stringOrEmpty(source.target_agent_ref),
+    confidence: stringOrEmpty(source.confidence) || 'unknown',
+    occurred_at: stringOrEmpty(source.occurred_at),
+    rule_version: stringOrEmpty(source.rule_version),
+    evidence_event_ids: Array.isArray(source.evidence_event_ids) ? source.evidence_event_ids.filter((item): item is string => typeof item === 'string') : [],
+    before_state: isRecord(source.before_state) ? source.before_state : {},
+    after_state: isRecord(source.after_state) ? source.after_state : {},
+    explanation_key: stringOrEmpty(source.explanation_key),
+  };
+}
+
+function normalizeCollaborationGraphResponse(value: unknown): CollaborationGraphResponse {
+  const source = isRecord(value) ? value : {};
+  const graph = isRecord(source.graph) ? source.graph : {};
+  const effects = arrayOrEmpty(source.effects as unknown[] | null | undefined).map(normalizeCollaborationEffect);
+  const summary = isRecord(source.summary) ? source.summary : {};
+  return {
+    graph: {
+      nodes: arrayOrEmpty(graph.nodes as unknown[] | null | undefined).map(normalizeCollaborationNode),
+      edges: arrayOrEmpty(graph.edges as unknown[] | null | undefined).map(normalizeCollaborationEdge),
+    },
+    effects,
+    summary: {
+      positive_count: numberOrZero(summary.positive_count),
+      negative_count: numberOrZero(summary.negative_count),
+      neutral_count: numberOrZero(summary.neutral_count),
+      mixed_count: numberOrZero(summary.mixed_count),
+      affected_task_count: numberOrZero(summary.affected_task_count),
+    },
+    next_cursor: stringOrEmpty(source.next_cursor),
+  };
+}
+
+function normalizeCollaborationEvidenceEvent(value: unknown): CollaborationEvidenceEvent {
+  const source = isRecord(value) ? value : {};
+  return {
+    event_id: stringOrEmpty(source.event_id) || 'event:unknown',
+    event_type: stringOrEmpty(source.event_type),
+    occurred_at: stringOrEmpty(source.occurred_at),
+    actor_ref: stringOrEmpty(source.actor_ref),
+    refs: isRecord(source.refs) ? Object.fromEntries(Object.entries(source.refs).filter((entry): entry is [string, string] => typeof entry[1] === 'string')) : {},
+    payload: isRecord(source.payload) ? source.payload : {},
+  };
+}
+
+function normalizeCollaborationEvidenceResponse(value: unknown): CollaborationEvidenceResponse {
+  const source = isRecord(value) ? value : {};
+  return {
+    effect_id: stringOrEmpty(source.effect_id),
+    evidence: arrayOrEmpty(source.evidence as unknown[] | null | undefined).map(normalizeCollaborationEvidenceEvent),
+  };
+}
+
 function normalizeOverview(value: unknown): InsightOverview {
   const source = isRecord(value) ? value : {};
   return {
@@ -896,7 +998,7 @@ function collaborationParams(filters: CollaborationFilters): string {
 export function useCollaborationEffects(filters: CollaborationFilters, enabled = true) {
   return useQuery({
     queryKey: qk.collaborationEffects(filters),
-    queryFn: () => api.get<CollaborationGraphResponse>(`/insights/collaboration-effects?${collaborationParams(filters)}`),
+    queryFn: async () => normalizeCollaborationGraphResponse(await api.get<unknown>(`/insights/collaboration-effects?${collaborationParams(filters)}`)),
     enabled: enabled && Boolean(filters.project_id),
   });
 }
@@ -904,7 +1006,7 @@ export function useCollaborationEffects(filters: CollaborationFilters, enabled =
 export function useCollaborationEvidence(effectId: string | null) {
   return useQuery({
     queryKey: qk.collaborationEvidence(effectId ?? ''),
-    queryFn: () => api.get<CollaborationEvidenceResponse>(`/insights/collaboration-effects/${encodeURIComponent(effectId ?? '')}/evidence`),
+    queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(effectId ?? '')}/evidence`)),
     enabled: Boolean(effectId),
   });
 }

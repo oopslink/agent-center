@@ -123,4 +123,16 @@ describe('Collaboration Insight', () => {
     renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
     expect(await screen.findByTestId('collaboration-error')).toBeVisible();
   });
+
+  it('normalizes nullable collaboration response collections without crashing', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
+      graph: { nodes: null, edges: null },
+      effects: null,
+      summary: null,
+      next_cursor: null,
+    })));
+    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
+    expect(await screen.findByTestId('collaboration-empty')).toBeVisible();
+    expect(screen.getByLabelText('Effect summary')).toHaveTextContent('Affected tasks0');
+  });
 });
