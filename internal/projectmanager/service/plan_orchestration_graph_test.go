@@ -57,6 +57,7 @@ func planGraphSetup(t *testing.T) (*planAdvanceHarness, *orch.Service) {
 		Stages:         pmsql.NewStageRepo(db), // 2026-07-03 plan-stage-model: Stage落图/driver
 		Remediation:    pmsql.NewRemediationRepo(db),
 		Audit:          auditRepo, // v2.29: change-ledger (decision_outcome/loopback write-points)
+		AuditEvents:    sink,
 	})
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
