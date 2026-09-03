@@ -460,6 +460,14 @@ func (l *lazyApp) adminCommands() []*Command {
 		)
 	}
 	out = append(out, tokenGroup)
+	insightGroup := &Command{Name: "collaboration-insight", Summary: "Inspect collaboration effects through the shared query transport"}
+	for _, sub := range []string{"query", "inspect", "stats"} {
+		s := sub
+		insightGroup.Subcommands = append(insightGroup.Subcommands, l.withApp(func(a *App) *Command {
+			return findCmd(findCmd(a.AdminCommands(), "collaboration-insight").Subcommands, s)
+		}))
+	}
+	out = append(out, insightGroup)
 	return out
 }
 

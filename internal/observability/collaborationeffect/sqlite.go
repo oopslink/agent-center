@@ -145,6 +145,23 @@ func (r *SQLiteRepository) List(ctx context.Context, f Filter) ([]Effect, string
 	return out, next, rows.Err()
 }
 
+func (r *SQLiteRepository) FindByID(ctx context.Context, id string) (Effect, error) {
+	var e Effect
+	var at, evidence, before, after string
+	err := r.db.QueryRowContext(ctx, `SELECT effect_id,project_id,target_task_id,source_agent_ref,target_agent_ref,relation_type,polarity,magnitude,confidence,occurred_at,rule_version,evidence_event_ids,before_state,after_state,explanation_key FROM collaboration_effects WHERE effect_id=?`, id).Scan(&e.EffectID, &e.ProjectID, &e.TargetTaskID, &e.SourceAgentRef, &e.TargetAgentRef, &e.RelationType, &e.Polarity, &e.Magnitude, &e.Confidence, &at, &e.RuleVersion, &evidence, &before, &after, &e.ExplanationKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return Effect{}, ErrEffectNotFound
+	}
+	if err != nil {
+		return Effect{}, err
+	}
+	e.OccurredAt, _ = time.Parse(time.RFC3339Nano, at)
+	_ = json.Unmarshal([]byte(evidence), &e.EvidenceEventIDs)
+	_ = json.Unmarshal([]byte(before), &e.BeforeState)
+	_ = json.Unmarshal([]byte(after), &e.AfterState)
+	return e, nil
+}
+
 func (r *SQLiteRepository) ReplaceVersion(ctx context.Context, from, to string) error {
 	_, err := r.db.ExecContext(ctx, `INSERT INTO collaboration_effect_active(id,rule_version,updated_at) VALUES(1,?,?) ON CONFLICT(id) DO UPDATE SET rule_version=excluded.rule_version,updated_at=excluded.updated_at`, to, formatTime(time.Now()))
 	return err

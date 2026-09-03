@@ -72,22 +72,27 @@ type Dependency struct {
 }
 
 type Filter struct {
-	ProjectID, TaskID, AgentRef string
-	RelationType                RelationType
-	Polarity                    Polarity
-	Since, Until                *time.Time
-	Cursor                      string
-	Limit                       int
-	RuleVersion                 string
+	ProjectID    string       `json:"project_id"`
+	TaskID       string       `json:"task_id,omitempty"`
+	AgentRef     string       `json:"agent_ref,omitempty"`
+	RelationType RelationType `json:"relation_type,omitempty"`
+	Polarity     Polarity     `json:"polarity,omitempty"`
+	Since        *time.Time   `json:"since,omitempty"`
+	Until        *time.Time   `json:"until,omitempty"`
+	Cursor       string       `json:"cursor,omitempty"`
+	Limit        int          `json:"limit,omitempty"`
+	RuleVersion  string       `json:"rule_version,omitempty"`
 }
 
 type Repository interface {
 	Apply(context.Context, Fact, string, []Effect, []Dependency, []Diagnostic) error
 	DependenciesForUpstream(context.Context, string, string, string) ([]Dependency, error)
 	List(context.Context, Filter) ([]Effect, string, error)
+	FindByID(context.Context, string) (Effect, error)
 	ReplaceVersion(context.Context, string, string) error
 	ActiveVersion(context.Context) (string, error)
 	DeleteVersion(context.Context, string) error
 }
 
 var ErrInvalidFact = errors.New("collaboration effect: invalid fact")
+var ErrEffectNotFound = errors.New("collaboration effect: effect not found")
