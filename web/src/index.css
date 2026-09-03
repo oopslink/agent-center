@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+.collaboration-edge { stroke: #64748b; fill: none; }
+.collaboration-edge--positive { stroke: #16803c; }
+.collaboration-edge--negative { stroke: #c0362c; }
+.collaboration-edge--neutral { stroke: #64748b; }
+.collaboration-edge--mixed { stroke: url('#collaboration-mixed'); }
+
 @layer utilities {
   /*
    * Mobile viewport-aware full height for the app shell. NOT Tailwind's
