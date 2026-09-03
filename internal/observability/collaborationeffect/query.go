@@ -74,9 +74,6 @@ type QueryResult struct {
 }
 
 func (s *QueryService) Query(ctx context.Context, f Filter) (QueryResult, error) {
-	if strings.TrimSpace(f.ProjectID) == "" {
-		return QueryResult{}, fmt.Errorf("%w: project_id required", ErrInvalidQuery)
-	}
 	if f.Limit < 0 || f.Limit > MaxQueryLimit {
 		return QueryResult{}, fmt.Errorf("%w: limit must be 1..%d", ErrInvalidQuery, MaxQueryLimit)
 	}

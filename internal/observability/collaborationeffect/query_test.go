@@ -74,8 +74,8 @@ func TestQueryServiceStableValidationErrors(t *testing.T) {
 	repo, _ := NewSQLiteRepository(db)
 	events, _ := obssql.NewEventRepo(ctx, db)
 	svc, _ := NewQueryService(repo, events)
-	if _, err := svc.Query(ctx, Filter{}); !errors.Is(err, ErrInvalidQuery) {
-		t.Fatalf("missing project err=%v", err)
+	if page, err := svc.Query(ctx, Filter{}); err != nil || len(page.Effects) != 0 {
+		t.Fatalf("org-scope empty query page=%+v err=%v", page, err)
 	}
 	if _, err := svc.Query(ctx, Filter{ProjectID: "P1", Limit: 501}); !errors.Is(err, ErrInvalidQuery) {
 		t.Fatalf("large limit err=%v", err)

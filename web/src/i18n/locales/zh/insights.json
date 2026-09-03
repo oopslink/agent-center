@@ -18,13 +18,15 @@
       "collaboration": "协作作用力"
     },
     "collaboration": {
-      "title": "协作作用力", "subtitle": "以任务为中心的 Agent → Task → Agent 关系与确定性作用。",
-      "scopeRequired": "请选择项目和任务", "scopeRequiredBody": "作用力图刻意限定为单任务、单跳范围。",
+      "title": "协作大图", "subtitle": "组织级 Agent、Task、Plan 关系与确定性作用证据。",
       "loading": "正在加载协作作用力", "failed": "协作作用力加载失败", "forbidden": "你没有查看协作证据的权限",
       "empty": "没有协作作用", "emptyBody": "没有确定性作用符合当前筛选。", "truncated": "当前显示前 {{count}} 条边，请缩小筛选范围查看其余结果。",
-      "summary": "作用摘要", "affectedTasks": "受影响任务", "graph": "协作作用力图", "edgeList": "可键盘操作的图边", "timeline": "作用时间线", "magnitude": "强度 {{value}}",
+      "summary": "作用摘要", "affectedTasks": "受影响任务", "graph": "组织协作大图", "edgeList": "可键盘操作的图边", "timeline": "作用时间线", "magnitude": "强度 {{value}}",
+      "search": "搜索图谱", "locate": "定位", "clear": "清空筛选", "loadMore": "加载下一段", "planContainer": "Plan 容器",
+      "zoomControls": "图谱缩放控件", "zoomIn": "放大", "zoomOut": "缩小", "resetView": "重置视图",
+      "lod": "LOD 已启用：显示 {{shown}} / {{total}} 个节点", "lodFull": "显示 {{total}} 个图节点", "interactions": "可拖拽节点、拖动画布平移、按 Shift 拖拽框选；键盘可用 +/- 和 Escape。", "truncationHint": "图谱已截断；可加载下一段或缩小筛选。",
       "filters": { "label": "协作筛选", "project": "项目 ID", "task": "任务 ID", "agent": "Agent 引用", "since": "开始时间", "until": "结束时间", "relation": "关系", "polarity": "极性", "all": "全部" },
-      "legend": { "relationship": "指派关系", "effect": "状态变化作用", "mixed": "正负混合" },
+      "legend": { "agent": "Agent 圆形", "task": "Task 矩形", "plan": "Plan 容器 / 六边形节点", "relationship": "Agent-Agent 联系边", "effect": "Agent 到 Task/Plan 作用力边", "mixed": "正负混合", "colorblind": "极性除颜色外还使用文字、虚线和粗细编码。" },
       "evidence": { "title": "作用证据", "close": "关闭证据", "loading": "正在加载证据", "failed": "证据加载失败" },
       "values": { "assign": "指派", "reassign": "重新指派", "complete": "完成", "block": "阻塞", "unblock": "解除阻塞", "dependency_release": "依赖释放", "review_accept": "评审通过", "review_reject": "评审拒绝", "positive": "正向", "negative": "反向", "neutral": "中性", "mixed": "混合" }
     },

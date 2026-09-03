@@ -195,7 +195,7 @@ export interface InsightExecutionDetail {
 export type CollaborationRelation = 'assign' | 'reassign' | 'complete' | 'block' | 'unblock' | 'dependency_release' | 'review_accept' | 'review_reject';
 export type CollaborationPolarity = 'positive' | 'negative' | 'neutral' | 'mixed';
 
-export interface CollaborationNode { id: string; kind: 'agent' | 'task'; label: string; task_id?: string }
+export interface CollaborationNode { id: string; kind: 'agent' | 'task' | 'plan'; label: string; task_id?: string; project_id?: string }
 export interface CollaborationEdge { id: string; source: string; target: string; relation_type: CollaborationRelation; polarity: CollaborationPolarity; magnitude: 1 | 2 | 3; effect_id: string }
 export interface CollaborationEffect extends CollaborationEdge {
   project_id: string; target_task_id: string; source_agent_ref: string; target_agent_ref: string;
@@ -206,12 +206,15 @@ export interface CollaborationGraphResponse {
   graph: { nodes: CollaborationNode[]; edges: CollaborationEdge[] };
   effects: CollaborationEffect[];
   summary: { positive_count: number; negative_count: number; neutral_count: number; mixed_count: number; affected_task_count: number };
+  as_of?: string;
+  rule_version?: string;
+  truncated?: boolean;
   next_cursor: string;
 }
 export interface CollaborationEvidenceEvent { event_id: string; event_type: string; occurred_at: string; actor_ref: string; refs: Record<string, string>; payload: Record<string, unknown> }
 export interface CollaborationEvidenceResponse { effect_id: string; evidence: CollaborationEvidenceEvent[] }
 export interface CollaborationFilters {
-  project_id: string; task_id?: string; agent_ref?: string; relation_type?: CollaborationRelation; polarity?: CollaborationPolarity;
+  project_id?: string; task_id?: string; agent_ref?: string; relation_type?: CollaborationRelation; polarity?: CollaborationPolarity;
   since?: string; until?: string; cursor?: string; limit?: number;
 }
 
@@ -885,8 +888,8 @@ export function useInsightAgent(agentRef: string | undefined) {
 }
 
 function collaborationParams(filters: CollaborationFilters): string {
-  const params = new URLSearchParams({ project_id: filters.project_id, limit: String(Math.min(filters.limit ?? 100, 500)) });
-  for (const key of ['task_id', 'agent_ref', 'relation_type', 'polarity', 'since', 'until', 'cursor'] as const) {
+  const params = new URLSearchParams({ limit: String(Math.min(filters.limit ?? 100, 500)) });
+  for (const key of ['project_id', 'task_id', 'agent_ref', 'relation_type', 'polarity', 'since', 'until', 'cursor'] as const) {
     const value = filters[key];
     if (value) params.set(key, String(value));
   }
@@ -897,14 +900,14 @@ export function useCollaborationEffects(filters: CollaborationFilters, enabled =
   return useQuery({
     queryKey: qk.collaborationEffects(filters),
     queryFn: () => api.get<CollaborationGraphResponse>(`/insights/collaboration-effects?${collaborationParams(filters)}`),
-    enabled: enabled && Boolean(filters.project_id),
+    enabled,
   });
 }
 
-export function useCollaborationEvidence(effectId: string | null) {
+export function useCollaborationEvidence(effectId: string | null, projectId?: string) {
   return useQuery({
-    queryKey: qk.collaborationEvidence(effectId ?? ''),
-    queryFn: () => api.get<CollaborationEvidenceResponse>(`/insights/collaboration-effects/${encodeURIComponent(effectId ?? '')}/evidence`),
-    enabled: Boolean(effectId),
+    queryKey: [...qk.collaborationEvidence(effectId ?? ''), projectId ?? ''],
+    queryFn: () => api.get<CollaborationEvidenceResponse>(`/insights/collaboration-effects/${encodeURIComponent(effectId ?? '')}/evidence?project_id=${encodeURIComponent(projectId ?? '')}`),
+    enabled: Boolean(effectId && projectId),
   });
 }

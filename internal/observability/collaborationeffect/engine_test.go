@@ -124,7 +124,7 @@ func TestOutOfOrderDependencyReplayConvergesWhenOrderedLedgerIsReplayed(t *testi
 	ctx := context.Background()
 	r := testRepo(t)
 	p := NewProjector(r, NewEngine(""))
-	dep := fact("01DEP", "pm.audit_recorded", "", "agent:lead", map[string]any{"change_type": "dependency_added", "detail": map[string]any{"from": "UP", "to": "DOWN", "plan_id": "PL"}})
+	dep := fact("01DEP", "pm.audit_recorded", "", "agent:lead", map[string]any{"change_type": "dependency_added", "detail": map[string]any{"from": "DOWN", "to": "UP", "plan_id": "PL"}})
 	complete := fact("02DONE", "pm.task.state_changed", "UP", "agent:a", map[string]any{"prev_status": "running", "status": "completed"})
 	if err := p.ProjectFact(ctx, complete); err != nil {
 		t.Fatal(err)
@@ -148,6 +148,15 @@ func TestOutOfOrderDependencyReplayConvergesWhenOrderedLedgerIsReplayed(t *testi
 	second, _, _ := r.List(ctx, Filter{ProjectID: "P1", RuleVersion: RuleVersionV1})
 	if len(second) != 2 {
 		t.Fatalf("ordered replay should pair dependency, got %d", len(second))
+	}
+	var release *Effect
+	for i := range second {
+		if second[i].RelationType == RelationDependencyRelease {
+			release = &second[i]
+		}
+	}
+	if release == nil || release.TargetTaskID != "DOWN" {
+		t.Fatalf("production dependency direction broken: release=%+v", release)
 	}
 	if canonical(t, second) == "" || reflect.DeepEqual(first, second) {
 		t.Fatal("rebuild did not add release")

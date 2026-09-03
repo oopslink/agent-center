@@ -102,6 +102,28 @@ func TestProductionRelay_CollaborationEffect_AppServiceToHTTP(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
+	downstreamID, err := svc.CreateTask(ctx, pmservice.CreateTaskCommand{
+		ProjectID: projectID, Title: "consume released dependency", CreatedBy: "user:owner",
+	})
+	if err != nil {
+		t.Fatalf("CreateTask downstream: %v", err)
+	}
+	planID, err := svc.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: projectID, Name: "effects plan", CreatedBy: "user:owner"})
+	if err != nil {
+		t.Fatalf("CreatePlan: %v", err)
+	}
+	if err := svc.SelectTaskIntoPlan(ctx, planID, taskID, "user:owner"); err != nil {
+		t.Fatalf("Select upstream: %v", err)
+	}
+	if err := svc.SelectTaskIntoPlan(ctx, planID, downstreamID, "user:owner"); err != nil {
+		t.Fatalf("Select downstream: %v", err)
+	}
+	// Production contract: AddPlanDependency(plan, B, A) means B depends_on A.
+	if err := svc.AddPlanDependency(ctx, planID, downstreamID, taskID, "user:owner"); err != nil {
+		t.Fatalf("AddPlanDependency: %v", err)
+	}
+	relay, _ := productionRelay(t, app)
+	drainRelay(t, relay)
 	assignee := "agent:EFFECTBOT"
 	if err := svc.BatchUpdateTask(ctx, taskID, pmservice.BatchTaskPatch{Assignee: &assignee}, "user:owner"); err != nil {
 		t.Fatalf("assign task: %v", err)
@@ -113,7 +135,6 @@ func TestProductionRelay_CollaborationEffect_AppServiceToHTTP(t *testing.T) {
 		t.Fatalf("CompleteTask: %v", err)
 	}
 
-	relay, _ := productionRelay(t, app)
 	drainRelay(t, relay)
 	// A second drain proves replay/idempotency at the production relay seam.
 	drainRelay(t, relay)
@@ -139,6 +160,22 @@ func TestProductionRelay_CollaborationEffect_AppServiceToHTTP(t *testing.T) {
 	}
 	if result.Summary.PositiveCount != 1 || result.Summary.NeutralCount != 1 {
 		t.Fatalf("summary = %+v", result.Summary)
+	}
+	releaseBody, _ := json.Marshal(collaborationeffect.Filter{ProjectID: string(projectID), TaskID: string(downstreamID), RelationType: collaborationeffect.RelationDependencyRelease, Limit: 100})
+	releaseResp, err := http.Post(httpServer.URL+"/admin/observability/collaboration-effects/query", "application/json", strings.NewReader(string(releaseBody)))
+	if err != nil {
+		t.Fatalf("release query HTTP: %v", err)
+	}
+	defer releaseResp.Body.Close()
+	if releaseResp.StatusCode != http.StatusOK {
+		t.Fatalf("release query HTTP status = %d", releaseResp.StatusCode)
+	}
+	var releaseResult collaborationeffect.QueryResult
+	if err := json.NewDecoder(releaseResp.Body).Decode(&releaseResult); err != nil {
+		t.Fatalf("decode release query: %v", err)
+	}
+	if len(releaseResult.Effects) != 1 || releaseResult.Effects[0].TargetTaskID != string(downstreamID) || releaseResult.Effects[0].RelationType != collaborationeffect.RelationDependencyRelease {
+		t.Fatalf("production dependency release = %+v, want upstream completion releases downstream task", releaseResult.Effects)
 	}
 
 	effectID := result.Effects[0].EffectID

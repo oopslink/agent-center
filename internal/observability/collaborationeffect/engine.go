@@ -87,6 +87,12 @@ func (e Engine) Evaluate(f Fact, deps []Dependency) ([]Effect, []Dependency, *Di
 				effects = append(effects, e.effect(f, actor, "", RelationBlock, PolarityNegative, 3, state("task_status", from), state("task_status", to)))
 			} else if to == "completed" {
 				effects = append(effects, e.effect(f, actor, "", RelationComplete, PolarityPositive, 2, state("task_status", from), state("task_status", to)))
+				for _, d := range deps {
+					ff := f
+					ff.TaskID = d.DownstreamTaskID
+					ff.EventID = f.EventID + "+" + d.SourceEventID
+					effects = append(effects, e.effectWithEvidence(ff, actor, "", RelationDependencyRelease, PolarityPositive, 3, map[string]any{"upstream_task_status": from, "downstream_task_id": d.DownstreamTaskID}, map[string]any{"upstream_task_status": to, "downstream_task_id": d.DownstreamTaskID, "released": true}, []string{d.SourceEventID, f.EventID}))
+				}
 			}
 		case "review_verdict":
 			verdict, blocking := str(p, "to_value"), boolv(detail(p), "blocking")
@@ -104,7 +110,7 @@ func (e Engine) Evaluate(f Fact, deps []Dependency) ([]Effect, []Dependency, *Di
 			if from == "" || to == "" {
 				return nil, nil, e.skip(f, "dependency missing endpoints")
 			}
-			learned = append(learned, Dependency{ProjectID: f.ProjectID, PlanID: str(d, "plan_id"), UpstreamTaskID: from, DownstreamTaskID: to, SourceEventID: f.EventID, OccurredAt: f.OccurredAt})
+			learned = append(learned, Dependency{ProjectID: f.ProjectID, PlanID: str(d, "plan_id"), UpstreamTaskID: to, DownstreamTaskID: from, SourceEventID: f.EventID, OccurredAt: f.OccurredAt})
 		case "dependency_removed":
 			return nil, nil, nil
 		default:
