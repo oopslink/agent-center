@@ -10,6 +10,10 @@ import {
   type CollaborationPolarity,
   type CollaborationRelation,
 } from '@/api/insights';
+import { identityRefOf, normalizeIdentityRef, refKind, useMembers } from '@/api/members';
+import { useProjectMembers, useProjects } from '@/api/projects';
+import { useTasksList } from '@/api/tasks';
+import { EntitySelect, type EntityOption } from '@/components/EntitySelect';
 
 const RELATIONS: CollaborationRelation[] = ['assign', 'reassign', 'complete', 'block', 'unblock', 'dependency_release', 'review_accept', 'review_reject'];
 const POLARITIES: CollaborationPolarity[] = ['positive', 'negative', 'neutral', 'mixed'];
@@ -22,9 +26,10 @@ export default function InsightCollaboration(): React.ReactElement {
   const query = useCollaborationEffects(filters, Boolean(filters.project_id && filters.task_id));
   const effect = query.data?.effects.find((item) => item.effect_id === selected) ?? null;
 
-  const update = (key: string, value: string) => {
+  const update = (key: string, value: string, clear: string[] = []) => {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value); else next.delete(key);
+    clear.forEach((item) => next.delete(item));
     next.delete('cursor');
     setParams(next);
     setSelected(null);
@@ -62,17 +67,75 @@ function filtersFromParams(params: URLSearchParams): CollaborationFilters {
 }
 
 type Translator = ReturnType<typeof useTranslation>['t'];
-function CollaborationFiltersBar({ params, update, t }: { params: URLSearchParams; update: (key: string, value: string) => void; t: Translator }) {
+function CollaborationFiltersBar({ params, update, t }: { params: URLSearchParams; update: (key: string, value: string, clear?: string[]) => void; t: Translator }) {
+  const projectId = params.get('project_id') ?? '';
+  const projects = useProjects();
+  const tasks = useTasksList(projectId || undefined, { status: ['all'], sort: 'updated', dir: 'desc', page_size: 500 });
+  const members = useMembers();
+  const projectMembers = useProjectMembers(projectId || undefined);
+  const projectOptions = useMemo<EntityOption[]>(() => (projects.data ?? [])
+    .map((project) => ({ value: project.id, label: project.name || project.id, hint: project.id, badge: project.status }))
+    .sort((a, b) => a.label.localeCompare(b.label) || a.value.localeCompare(b.value)), [projects.data]);
+  const taskOptions = useMemo<EntityOption[]>(() => (tasks.data?.items ?? [])
+    .map((task) => ({ value: task.id, label: task.title || task.org_ref || task.id, hint: task.org_ref ? `${task.org_ref} · ${task.id}` : task.id, badge: task.status }))
+    .sort((a, b) => a.label.localeCompare(b.label) || a.value.localeCompare(b.value)), [tasks.data?.items]);
+  const agentOptions = useMemo<EntityOption[]>(() => {
+    const directory = new Map((members.data ?? []).map((member) => [identityRefOf({ kind: member.kind, identity_id: member.identity_id }), member]));
+    return (projectMembers.data ?? [])
+      .map((member) => identityRefOf({ kind: refKind(member.identity_id), identity_id: member.identity_id }))
+      .filter((ref) => ref.startsWith('agent:'))
+      .map((ref) => {
+        const member = directory.get(ref);
+        return { value: ref, label: member?.display_name ?? normalizeIdentityRef(ref), hint: ref, badge: 'agent' };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label) || a.value.localeCompare(b.value));
+  }, [members.data, projectMembers.data]);
   const fields = [
-    ['project_id', t('insight.collaboration.filters.project'), 'text'], ['task_id', t('insight.collaboration.filters.task'), 'text'],
-    ['agent_ref', t('insight.collaboration.filters.agent'), 'text'], ['since', t('insight.collaboration.filters.since'), 'datetime-local'],
+    ['since', t('insight.collaboration.filters.since'), 'datetime-local'],
     ['until', t('insight.collaboration.filters.until'), 'datetime-local'],
   ];
   return <form aria-label={t('insight.collaboration.filters.label')} className="grid gap-3 rounded-lg border border-border bg-bg-surface p-4 md:grid-cols-3" onSubmit={(e) => e.preventDefault()}>
+    <EntityFilter
+      name="project_id"
+      label={t('insight.collaboration.filters.project')}
+      value={projectId}
+      options={projectOptions}
+      disabled={projects.isLoading}
+      placeholder={projects.isLoading ? t('insight.collaboration.filters.loadingProjects') : t('insight.collaboration.filters.chooseProject')}
+      searchPlaceholder={t('insight.collaboration.filters.searchProjects')}
+      emptyLabel={t('insight.collaboration.filters.noProjects')}
+      update={(key, value) => update(key, value, value !== projectId ? ['task_id', 'agent_ref'] : [])}
+    />
+    <EntityFilter
+      name="task_id"
+      label={t('insight.collaboration.filters.task')}
+      value={params.get('task_id') ?? ''}
+      options={taskOptions}
+      disabled={!projectId || tasks.isLoading}
+      placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : tasks.isLoading ? t('insight.collaboration.filters.loadingTasks') : t('insight.collaboration.filters.chooseTask')}
+      searchPlaceholder={t('insight.collaboration.filters.searchTasks')}
+      emptyLabel={t('insight.collaboration.filters.noTasks')}
+      update={update}
+    />
+    <EntityFilter
+      name="agent_ref"
+      label={t('insight.collaboration.filters.agent')}
+      value={params.get('agent_ref') ?? ''}
+      options={agentOptions}
+      disabled={!projectId || projectMembers.isLoading || members.isLoading}
+      placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyAgent')}
+      searchPlaceholder={t('insight.collaboration.filters.searchAgents')}
+      emptyLabel={t('insight.collaboration.filters.noAgents')}
+      update={update}
+    />
     {fields.map(([name, label, type]) => <label key={name} className="text-xs text-text-muted">{label}<input aria-label={label} type={type} value={params.get(name) ?? ''} onChange={(e) => update(name, e.target.value)} className="mt-1 w-full rounded border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary" /></label>)}
     <SelectFilter name="relation_type" label={t('insight.collaboration.filters.relation')} values={RELATIONS} value={params.get('relation_type') ?? ''} update={update} t={t} />
     <SelectFilter name="polarity" label={t('insight.collaboration.filters.polarity')} values={POLARITIES} value={params.get('polarity') ?? ''} update={update} t={t} />
   </form>;
+}
+
+function EntityFilter({ name, label, value, options, disabled, placeholder, searchPlaceholder, emptyLabel, update }: { name: string; label: string; value: string; options: EntityOption[]; disabled?: boolean; placeholder: string; searchPlaceholder: string; emptyLabel: string; update: (key: string, value: string) => void }) {
+  return <label className="text-xs text-text-muted">{label}<div className="mt-1 flex gap-2"><div className="min-w-0 flex-1"><EntitySelect testId={`collaboration-${name}`} ariaLabel={label} value={value} options={options} onChange={(next) => update(name, next)} disabled={disabled} placeholder={placeholder} searchPlaceholder={searchPlaceholder} emptyLabel={emptyLabel} /></div>{value ? <button type="button" onClick={() => update(name, '')} className="shrink-0 rounded border border-border px-2 text-sm text-text-muted hover:bg-bg-subtle" aria-label={`Clear ${label}`}>×</button> : null}</div></label>;
 }
 
 function SelectFilter({ name, label, values, value, update, t }: { name: string; label: string; values: string[]; value: string; update: (k: string, v: string) => void; t: Translator }) {

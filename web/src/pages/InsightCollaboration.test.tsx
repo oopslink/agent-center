@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -30,6 +30,27 @@ function renderAt(path: string) {
 
 afterEach(async () => { cleanup(); await i18n.changeLanguage('en'); });
 
+beforeEach(() => {
+  server.use(
+    http.get('/api/orgs/:slug/projects', () => HttpResponse.json({ projects: [
+      { id: 'P1', organization_id: 'org-1', name: 'Alpha Project', description: '', status: 'active', created_by: 'user:u1', version: 1, created_at: '2026-09-03T00:00:00Z', updated_at: '2026-09-03T00:00:00Z' },
+      { id: 'P2', organization_id: 'org-1', name: 'Beta Project', description: '', status: 'active', created_by: 'user:u1', version: 1, created_at: '2026-09-03T00:00:00Z', updated_at: '2026-09-03T00:00:00Z' },
+    ] })),
+    http.get('/api/orgs/:slug/projects/:projectId/tasks', () => HttpResponse.json({ tasks: [
+      { id: 'T1', project_id: 'P1', title: 'Task One', description: '', status: 'completed', created_by: 'user:u1', version: 1, created_at: '2026-09-03T00:00:00Z', updated_at: '2026-09-03T00:00:00Z', org_ref: 'T1001' },
+      { id: 'T2', project_id: 'P1', title: 'Deploy analytics', description: '', status: 'open', created_by: 'user:u1', version: 1, created_at: '2026-09-03T00:00:00Z', updated_at: '2026-09-03T00:00:00Z', org_ref: 'T1002' },
+    ], total: 2 })),
+    http.get('/api/orgs/:slug/members', () => HttpResponse.json([
+      { id: 'm-agent-1', organization_id: 'org-1', identity_id: 'agent:a0', kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-09-03T00:00:00Z', display_name: 'Runner A' },
+      { id: 'm-user-1', organization_id: 'org-1', identity_id: 'user:u1', kind: 'user', role: 'member', status: 'joined', joined_at: '2026-09-03T00:00:00Z', display_name: 'Human One' },
+    ])),
+    http.get('/api/orgs/:slug/projects/:projectId/members', () => HttpResponse.json({ members: [
+      { id: 'pm-agent-1', project_id: 'P1', identity_id: 'agent:a0', role: 'member', added_by: 'user:u1', created_at: '2026-09-03T00:00:00Z' },
+      { id: 'pm-user-1', project_id: 'P1', identity_id: 'user:u1', role: 'member', added_by: 'user:u1', created_at: '2026-09-03T00:00:00Z' },
+    ] })),
+  );
+});
+
 describe('Collaboration Insight', () => {
   it('renders contract relations, accessible edges, summary, timeline and lazy evidence', async () => {
     server.use(
@@ -60,6 +81,27 @@ describe('Collaboration Insight', () => {
     view.unmount();
     renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1&polarity=mixed');
     expect(screen.getByLabelText('Polarity')).toHaveValue('mixed');
+  });
+
+  it('selects project, task and agent from searchable dropdown filters', async () => {
+    let requested = '';
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { requested = request.url; return HttpResponse.json({ ...graph, next_cursor: '' }); }));
+    const user = userEvent.setup();
+    renderAt('/organizations/acme/insights/collaboration');
+    await user.click(await screen.findByTestId('collaboration-project_id-trigger'));
+    await user.type(screen.getByTestId('collaboration-project_id-search'), 'alpha');
+    await user.click(screen.getByRole('option', { name: /Alpha Project/ }));
+    await user.click(await screen.findByTestId('collaboration-task_id-trigger'));
+    await user.type(screen.getByTestId('collaboration-task_id-search'), 'deploy');
+    await user.click(screen.getByRole('option', { name: /Deploy analytics/ }));
+    await user.click(await screen.findByTestId('collaboration-agent_ref-trigger'));
+    await user.type(screen.getByTestId('collaboration-agent_ref-search'), 'runner');
+    await user.click(screen.getByRole('option', { name: /Runner A/ }));
+    await waitFor(() => expect(new URL(requested).searchParams.get('task_id')).toBe('T2'));
+    const search = new URL(requested).searchParams;
+    expect(search.get('project_id')).toBe('P1');
+    expect(search.get('task_id')).toBe('T2');
+    expect(search.get('agent_ref')).toBe('agent:a0');
   });
 
   it('shows scope, empty, permission and server states', async () => {

@@ -23,7 +23,7 @@
       "loading": "正在加载协作作用力", "failed": "协作作用力加载失败", "forbidden": "你没有查看协作证据的权限",
       "empty": "没有协作作用", "emptyBody": "没有确定性作用符合当前筛选。", "truncated": "当前显示前 {{count}} 条边，请缩小筛选范围查看其余结果。",
       "summary": "作用摘要", "affectedTasks": "受影响任务", "graph": "协作作用力图", "edgeList": "可键盘操作的图边", "timeline": "作用时间线", "magnitude": "强度 {{value}}",
-      "filters": { "label": "协作筛选", "project": "项目 ID", "task": "任务 ID", "agent": "Agent 引用", "since": "开始时间", "until": "结束时间", "relation": "关系", "polarity": "极性", "all": "全部" },
+      "filters": { "label": "协作筛选", "project": "项目", "task": "任务", "agent": "Agent", "since": "开始时间", "until": "结束时间", "relation": "关系", "polarity": "极性", "all": "全部", "chooseProject": "选择项目", "chooseTask": "选择任务", "chooseProjectFirst": "先选择项目", "anyAgent": "任意 Agent", "loadingProjects": "正在加载项目", "loadingTasks": "正在加载任务", "searchProjects": "搜索项目", "searchTasks": "搜索任务", "searchAgents": "搜索 Agent", "noProjects": "没有项目", "noTasks": "没有任务", "noAgents": "没有 Agent" },
       "legend": { "relationship": "指派关系", "effect": "状态变化作用", "mixed": "正负混合" },
       "evidence": { "title": "作用证据", "close": "关闭证据", "loading": "正在加载证据", "failed": "证据加载失败" },
       "values": { "assign": "指派", "reassign": "重新指派", "complete": "完成", "block": "阻塞", "unblock": "解除阻塞", "dependency_release": "依赖释放", "review_accept": "评审通过", "review_reject": "评审拒绝", "positive": "正向", "negative": "反向", "neutral": "中性", "mixed": "混合" }
