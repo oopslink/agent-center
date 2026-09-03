@@ -128,7 +128,7 @@ Rule version: `collaboration-effect.mvp.v1`.
 | `R3_BLOCK` | `pm.task.state_changed` or audit mirror with `to_value=blocked` | `block` | `negative` | 3 | `status: open/running/review -> blocked`; reason required if present in source. |
 | `R4_UNBLOCK` | audit mirror `from_value=blocked`, `to_value=running` | `unblock` | `positive` | 3 | `status: blocked -> running`. |
 | `R5_COMPLETE` | `pm.task.state_changed` or audit mirror with `to_value=completed` | `complete` | `positive` | 2 | `status: running/review -> completed`. |
-| `R6_DEP_RELEASE` | upstream task `completed` plus mirrored plan dependency where downstream becomes ready/dispatched | `dependency_release` | `positive` | 3 | upstream terminal state releases downstream wait. |
+| `R6_DEP_RELEASE` | upstream task `completed` plus a prior mirrored `dependency_added` fact where downstream becomes ready/dispatched | `dependency_release` | `positive` | 3 | upstream terminal state releases downstream wait. `dependency_removed` is topology cleanup/removal evidence only and never satisfies this rule. |
 | `R7_REVIEW_ACCEPT` | audit mirror `change_type=review_verdict`, `to_value=pass`, `blocking=false` | `review_accept` | `positive` | 2 | review verdict absent/reject -> pass. |
 | `R8_REVIEW_REJECT` | audit mirror `change_type=review_verdict`, `to_value=reject` or `blocking=true` | `review_reject` | `mixed` | 2 | progress negative; quality gate positive. |
 
@@ -258,6 +258,13 @@ Retention:
 Reusable field-coverage fixture:
 `docs/design/fixtures/collaboration-effect-mvp-v1.json`.
 
-The fixture contains 24 code-aligned event/audit facts. Its audit section checks
-required fields for every MVP rule; current expected consumability is fail-closed
-for review and dependency rows until `pm.audit_recorded` is produced.
+The fixture contains 24 production-code/test-anchored event/audit facts. Each
+row has `source_evidence` pointing to a producer line, existing production test,
+or sanitized historical audit fixture. The executable audit is
+`docs/design/fixtures/validate-collaboration-effect-fixture.mjs`; it verifies the
+row evidence anchors, required fields, `AgentTraceEvent` exclusion, and
+`R6_DEP_RELEASE` pairing semantics.
+
+Current expected consumability is fail-closed for review and dependency rows
+until `pm.audit_recorded` is produced. Dependency removal remains non-release
+evidence even when its `from/to` detail is present.

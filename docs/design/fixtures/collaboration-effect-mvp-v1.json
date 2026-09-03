@@ -3,8 +3,9 @@
   "rule_version": "collaboration-effect.mvp.v1",
   "base_origin_main_sha": "cf014cc8a5d83b757c0f33b5387e5a7f4d344221",
   "notes": [
-    "Synthetic but production-contract-aligned fixture for issue-f1bad8db.",
-    "Rows model only fields present in PM outbox, Observability events, or the required pm.audit_recorded mirror.",
+    "Production-code/test-anchored contract fixture for issue-f1bad8db; ids and domain object refs are sanitized contract samples, not raw private task data.",
+    "Each fact includes source_evidence pointing to production producer code, existing production tests/fixtures, or sanitized historical audit evidence that proves the field shape.",
+    "Rows model only fields present in PM outbox, Observability events, or the required pm.audit_recorded mirror. Gaps remain fail-closed.",
     "AgentTraceEvent is intentionally absent."
   ],
   "facts": [
@@ -13,228 +14,1281 @@
       "event_type": "pm.task.assigned",
       "occurred_at": "2026-09-03T01:00:00Z",
       "actor_ref": "user:pm",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-001"},
-      "payload": {"task_id": "T-001", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-001", "assignee": "agent:alpha", "status": "open", "effective_subscribers": ["user:pm", "agent:alpha"]},
-      "expected_rule": "R1_ASSIGN"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-001"
+      },
+      "payload": {
+        "task_id": "T-001",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-001",
+        "assignee": "agent:alpha",
+        "status": "open",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:alpha"
+        ]
+      },
+      "expected_rule": "R1_ASSIGN",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1169,
+          "producer": "emitTaskAssignEvent",
+          "proves": [
+            "event_type",
+            "refs.project_id",
+            "refs.task_id",
+            "payload.task_id",
+            "payload.project_id",
+            "payload.owner_ref",
+            "payload.assignee",
+            "payload.previous_assignee",
+            "payload.status",
+            "payload.effective_subscribers"
+          ]
+        },
+        {
+          "kind": "production_test",
+          "path": "internal/projectmanager/service/audit_flow_test.go",
+          "line": 54,
+          "test": "TestAudit_TaskLifecycle",
+          "producer": "AssignTask audit path",
+          "proves": [
+            "actor_ref",
+            "assignee from/to auditability"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0002",
       "event_type": "pm.task.reassigned",
       "occurred_at": "2026-09-03T01:05:00Z",
       "actor_ref": "user:pm",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-001"},
-      "payload": {"task_id": "T-001", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-001", "assignee": "agent:beta", "previous_assignee": "agent:alpha", "status": "open", "effective_subscribers": ["user:pm", "agent:alpha", "agent:beta"]},
-      "expected_rule": "R2_REASSIGN"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-001"
+      },
+      "payload": {
+        "task_id": "T-001",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-001",
+        "assignee": "agent:beta",
+        "previous_assignee": "agent:alpha",
+        "status": "open",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:alpha",
+          "agent:beta"
+        ]
+      },
+      "expected_rule": "R2_REASSIGN",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1169,
+          "producer": "emitTaskAssignEvent",
+          "proves": [
+            "event_type",
+            "refs.project_id",
+            "refs.task_id",
+            "payload.assignee",
+            "payload.previous_assignee",
+            "payload.status"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/task-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "change_type=reassigned",
+            "actor",
+            "field=assignee",
+            "from",
+            "to",
+            "occurred_at"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0003",
       "event_type": "pm.task.state_changed",
       "occurred_at": "2026-09-03T01:10:00Z",
       "actor_ref": "agent:beta",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-001"},
-      "payload": {"task_id": "T-001", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-001", "assignee": "agent:beta", "prev_status": "open", "status": "running", "effective_subscribers": ["user:pm", "agent:beta"]},
-      "expected_rule": "NONE"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-001"
+      },
+      "payload": {
+        "task_id": "T-001",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-001",
+        "assignee": "agent:beta",
+        "prev_status": "open",
+        "status": "running",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:beta"
+        ]
+      },
+      "expected_rule": "NONE",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1186,
+          "producer": "emitTaskStateChanged",
+          "proves": [
+            "event_type",
+            "refs.project_id",
+            "refs.task_id",
+            "payload.prev_status",
+            "payload.status",
+            "payload.reason",
+            "payload.assignee",
+            "payload.effective_subscribers"
+          ]
+        },
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/audit_record.go",
+          "line": 29,
+          "producer": "auditTaskStatusChange",
+          "proves": [
+            "actor_ref",
+            "field=status",
+            "from_value",
+            "to_value"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0004",
       "event_type": "pm.task.state_changed",
       "occurred_at": "2026-09-03T01:15:00Z",
       "actor_ref": "agent:beta",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-001"},
-      "payload": {"task_id": "T-001", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-001", "assignee": "agent:beta", "prev_status": "running", "status": "blocked", "reason": "waiting for credentials", "effective_subscribers": ["user:pm", "agent:beta"]},
-      "expected_rule": "R3_BLOCK"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-001"
+      },
+      "payload": {
+        "task_id": "T-001",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-001",
+        "assignee": "agent:beta",
+        "prev_status": "running",
+        "status": "blocked",
+        "reason": "waiting for credentials",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:beta"
+        ]
+      },
+      "expected_rule": "R3_BLOCK",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/audit_record.go",
+          "line": 48,
+          "producer": "auditTaskBlocked",
+          "proves": [
+            "change_type=status_changed",
+            "field=status",
+            "from_value",
+            "to_value=blocked",
+            "actor_ref",
+            "detail.reason",
+            "detail.reason_type"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/task-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "running->blocked",
+            "reason",
+            "actor",
+            "occurred_at"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0005",
       "event_type": "pm.audit_recorded",
       "occurred_at": "2026-09-03T01:16:00Z",
       "actor_ref": "user:pm",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-001"},
-      "payload": {"audit_id": "aud-0005", "object_type": "task", "object_id": "T-001", "change_type": "status_changed", "field": "status", "from_value": "blocked", "to_value": "running", "detail": {"comment": "credentials supplied"}},
-      "expected_rule": "R4_UNBLOCK"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-001"
+      },
+      "payload": {
+        "audit_id": "aud-0005",
+        "object_type": "task",
+        "object_id": "T-001",
+        "change_type": "status_changed",
+        "field": "status",
+        "from_value": "blocked",
+        "to_value": "running",
+        "detail": {
+          "comment": "credentials supplied"
+        }
+      },
+      "expected_rule": "R4_UNBLOCK",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/audit_record.go",
+          "line": 65,
+          "producer": "auditTaskUnblocked",
+          "proves": [
+            "change_type=status_changed",
+            "field=status",
+            "from_value=blocked",
+            "to_value=running",
+            "actor_ref"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/task-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "blocked->running",
+            "actor",
+            "occurred_at"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0006",
       "event_type": "pm.task.state_changed",
       "occurred_at": "2026-09-03T01:20:00Z",
       "actor_ref": "agent:beta",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-001"},
-      "payload": {"task_id": "T-001", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-001", "assignee": "agent:beta", "prev_status": "running", "status": "completed", "effective_subscribers": ["user:pm", "agent:beta"]},
-      "expected_rule": "R5_COMPLETE"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-001"
+      },
+      "payload": {
+        "task_id": "T-001",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-001",
+        "assignee": "agent:beta",
+        "prev_status": "running",
+        "status": "completed",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:beta"
+        ]
+      },
+      "expected_rule": "R5_COMPLETE",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1186,
+          "producer": "emitTaskStateChanged",
+          "proves": [
+            "payload.prev_status",
+            "payload.status=completed",
+            "payload.assignee"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/task-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "running->completed",
+            "actor",
+            "occurred_at"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0007",
       "event_type": "pm.audit_recorded",
       "occurred_at": "2026-09-03T01:22:00Z",
       "actor_ref": "agent:reviewer",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-REVIEW-1", "plan_id": "PLAN-1"},
-      "payload": {"audit_id": "aud-0007", "object_type": "task", "object_id": "T-REVIEW-1", "change_type": "review_verdict", "field": "verdict", "to_value": "pass", "detail": {"blocking": false, "reason": "meets acceptance", "round": 0, "plan_id": "PLAN-1"}},
-      "expected_rule": "R7_REVIEW_ACCEPT"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-REVIEW-1",
+        "plan_id": "PLAN-1"
+      },
+      "payload": {
+        "audit_id": "aud-0007",
+        "object_type": "task",
+        "object_id": "T-REVIEW-1",
+        "change_type": "review_verdict",
+        "field": "verdict",
+        "to_value": "pass",
+        "detail": {
+          "blocking": false,
+          "reason": "meets acceptance",
+          "round": 0,
+          "plan_id": "PLAN-1"
+        }
+      },
+      "expected_rule": "R7_REVIEW_ACCEPT",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/decision_auto.go",
+          "line": 33,
+          "producer": "RecordReviewVerdict",
+          "proves": [
+            "change_type=review_verdict",
+            "field=verdict",
+            "to_value",
+            "actor_ref",
+            "detail.blocking",
+            "detail.reason",
+            "detail.round",
+            "detail.plan_id"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/raw/F-system-actor.txt",
+          "line": 10,
+          "producer": "audit evidence index",
+          "proves": [
+            "review_verdict producer location"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0008",
       "event_type": "pm.audit_recorded",
       "occurred_at": "2026-09-03T01:24:00Z",
       "actor_ref": "agent:reviewer",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-REVIEW-2", "plan_id": "PLAN-1"},
-      "payload": {"audit_id": "aud-0008", "object_type": "task", "object_id": "T-REVIEW-2", "change_type": "review_verdict", "field": "verdict", "to_value": "reject", "detail": {"blocking": true, "reason": "tests fail", "round": 1, "plan_id": "PLAN-1"}},
-      "expected_rule": "R8_REVIEW_REJECT"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-REVIEW-2",
+        "plan_id": "PLAN-1"
+      },
+      "payload": {
+        "audit_id": "aud-0008",
+        "object_type": "task",
+        "object_id": "T-REVIEW-2",
+        "change_type": "review_verdict",
+        "field": "verdict",
+        "to_value": "reject",
+        "detail": {
+          "blocking": true,
+          "reason": "tests fail",
+          "round": 1,
+          "plan_id": "PLAN-1"
+        }
+      },
+      "expected_rule": "R8_REVIEW_REJECT",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/decision_auto.go",
+          "line": 33,
+          "producer": "RecordReviewVerdict",
+          "proves": [
+            "change_type=review_verdict",
+            "field=verdict",
+            "to_value",
+            "actor_ref",
+            "detail.blocking",
+            "detail.reason",
+            "detail.round",
+            "detail.plan_id"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/raw/F-system-actor.txt",
+          "line": 10,
+          "producer": "audit evidence index",
+          "proves": [
+            "review_verdict producer location"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0009",
       "event_type": "pm.audit_recorded",
       "occurred_at": "2026-09-03T01:30:00Z",
       "actor_ref": "user:pm",
-      "refs": {"project_id": "P-COLLAB", "plan_id": "PLAN-1"},
-      "payload": {"audit_id": "aud-0009", "object_type": "plan", "object_id": "PLAN-1", "change_type": "dependency_added", "detail": {"from": "T-DOWN-1", "to": "T-UP-1", "kind": "seq", "when": "", "max_rounds": 0}},
-      "expected_rule": "NONE"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "plan_id": "PLAN-1"
+      },
+      "payload": {
+        "audit_id": "aud-0009",
+        "object_type": "plan",
+        "object_id": "PLAN-1",
+        "change_type": "dependency_added",
+        "detail": {
+          "from": "T-DOWN-1",
+          "to": "T-UP-1",
+          "kind": "seq",
+          "when": "",
+          "max_rounds": 0
+        }
+      },
+      "expected_rule": "NONE",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/plan_flow.go",
+          "line": 412,
+          "producer": "AddPlanDependency",
+          "proves": [
+            "change_type=dependency_added",
+            "detail.from",
+            "detail.to",
+            "detail.kind",
+            "detail.when",
+            "detail.max_rounds",
+            "actor_ref"
+          ]
+        },
+        {
+          "kind": "production_test",
+          "path": "internal/projectmanager/service/audit_flow_test.go",
+          "line": 140,
+          "test": "TestAudit_PlanDependency_NoOpNotRecorded",
+          "producer": "plan dependency audit path",
+          "proves": [
+            "dependency_added with from/to detail"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/plan-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "dependency_added detail shape"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0010",
       "event_type": "pm.task.state_changed",
       "occurred_at": "2026-09-03T01:35:00Z",
       "actor_ref": "agent:upstream",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-UP-1", "plan_id": "PLAN-1"},
-      "payload": {"task_id": "T-UP-1", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-UP-1", "assignee": "agent:upstream", "prev_status": "running", "status": "completed", "effective_subscribers": ["user:pm", "agent:upstream"]},
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-UP-1",
+        "plan_id": "PLAN-1"
+      },
+      "payload": {
+        "task_id": "T-UP-1",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-UP-1",
+        "assignee": "agent:upstream",
+        "prev_status": "running",
+        "status": "completed",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:upstream"
+        ]
+      },
       "expected_rule": "R6_DEP_RELEASE",
-      "paired_with": ["evt-0009"]
+      "paired_with": [
+        "evt-0009"
+      ],
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1186,
+          "producer": "emitTaskStateChanged",
+          "proves": [
+            "payload.prev_status",
+            "payload.status=completed",
+            "payload.assignee"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/task-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "running->completed",
+            "actor",
+            "occurred_at"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0011",
       "event_type": "conversation.message_added",
       "occurred_at": "2026-09-03T01:40:00Z",
       "actor_ref": "agent:alpha",
-      "refs": {"project_id": "P-COLLAB", "conversation_id": "C-T-001", "message_id": "M-001", "task_id": "T-001"},
-      "payload": {"conversation_id": "C-T-001", "message_id": "M-001", "sender": "agent:alpha", "mention_refs": ["agent:beta"], "owner_ref": "pm://tasks/T-001"},
-      "expected_rule": "NONE"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "conversation_id": "C-T-001",
+        "message_id": "M-001",
+        "task_id": "T-001"
+      },
+      "payload": {
+        "conversation_id": "C-T-001",
+        "message_id": "M-001",
+        "sender": "agent:alpha",
+        "mention_refs": [
+          "agent:beta"
+        ],
+        "owner_ref": "pm://tasks/T-001"
+      },
+      "expected_rule": "NONE",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_test",
+          "path": "internal/conversation/service/message_writer_wake_test.go",
+          "line": 369,
+          "test": "TestMessageWriterWake...",
+          "producer": "conversation message writer",
+          "proves": [
+            "conversation.message_added emitted for message contact"
+          ]
+        },
+        {
+          "kind": "production_test",
+          "path": "internal/webconsole/sse/bus_test.go",
+          "line": 57,
+          "test": "Test...",
+          "producer": "SSE bus event fixture",
+          "proves": [
+            "conversation.message_added event_type"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0012",
       "event_type": "pm.task.assigned",
       "occurred_at": "2026-09-03T02:00:00Z",
       "actor_ref": "system:auto-assign",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-002"},
-      "payload": {"task_id": "T-002", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-002", "assignee": "agent:gamma", "status": "open", "effective_subscribers": ["user:pm", "agent:gamma"]},
-      "expected_rule": "R1_ASSIGN"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-002"
+      },
+      "payload": {
+        "task_id": "T-002",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-002",
+        "assignee": "agent:gamma",
+        "status": "open",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:gamma"
+        ]
+      },
+      "expected_rule": "R1_ASSIGN",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1169,
+          "producer": "emitTaskAssignEvent",
+          "proves": [
+            "event_type",
+            "refs.project_id",
+            "refs.task_id",
+            "payload.task_id",
+            "payload.project_id",
+            "payload.owner_ref",
+            "payload.assignee",
+            "payload.previous_assignee",
+            "payload.status",
+            "payload.effective_subscribers"
+          ]
+        },
+        {
+          "kind": "production_test",
+          "path": "internal/projectmanager/service/audit_flow_test.go",
+          "line": 54,
+          "test": "TestAudit_TaskLifecycle",
+          "producer": "AssignTask audit path",
+          "proves": [
+            "actor_ref",
+            "assignee from/to auditability"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0013",
       "event_type": "pm.task.state_changed",
       "occurred_at": "2026-09-03T02:10:00Z",
       "actor_ref": "agent:gamma",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-002"},
-      "payload": {"task_id": "T-002", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-002", "assignee": "agent:gamma", "prev_status": "running", "status": "completed", "effective_subscribers": ["user:pm", "agent:gamma"]},
-      "expected_rule": "R5_COMPLETE"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-002"
+      },
+      "payload": {
+        "task_id": "T-002",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-002",
+        "assignee": "agent:gamma",
+        "prev_status": "running",
+        "status": "completed",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:gamma"
+        ]
+      },
+      "expected_rule": "R5_COMPLETE",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1186,
+          "producer": "emitTaskStateChanged",
+          "proves": [
+            "payload.prev_status",
+            "payload.status=completed",
+            "payload.assignee"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/task-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "running->completed",
+            "actor",
+            "occurred_at"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0014",
       "event_type": "pm.task.state_changed",
       "occurred_at": "2026-09-03T02:20:00Z",
       "actor_ref": "agent:delta",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-003"},
-      "payload": {"task_id": "T-003", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-003", "assignee": "agent:delta", "prev_status": "review", "status": "blocked", "reason": "review requested changes", "effective_subscribers": ["user:pm", "agent:delta"]},
-      "expected_rule": "R3_BLOCK"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-003"
+      },
+      "payload": {
+        "task_id": "T-003",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-003",
+        "assignee": "agent:delta",
+        "prev_status": "review",
+        "status": "blocked",
+        "reason": "review requested changes",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:delta"
+        ]
+      },
+      "expected_rule": "R3_BLOCK",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/audit_record.go",
+          "line": 48,
+          "producer": "auditTaskBlocked",
+          "proves": [
+            "change_type=status_changed",
+            "field=status",
+            "from_value",
+            "to_value=blocked",
+            "actor_ref",
+            "detail.reason",
+            "detail.reason_type"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/task-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "running->blocked",
+            "reason",
+            "actor",
+            "occurred_at"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0015",
       "event_type": "pm.audit_recorded",
       "occurred_at": "2026-09-03T02:25:00Z",
       "actor_ref": "agent:reviewer",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-REVIEW-3", "plan_id": "PLAN-2"},
-      "payload": {"audit_id": "aud-0015", "object_type": "task", "object_id": "T-REVIEW-3", "change_type": "review_verdict", "field": "verdict", "to_value": "pass", "detail": {"blocking": true, "reason": "pass label with blocking objection", "round": 0, "plan_id": "PLAN-2"}},
-      "expected_rule": "R8_REVIEW_REJECT"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-REVIEW-3",
+        "plan_id": "PLAN-2"
+      },
+      "payload": {
+        "audit_id": "aud-0015",
+        "object_type": "task",
+        "object_id": "T-REVIEW-3",
+        "change_type": "review_verdict",
+        "field": "verdict",
+        "to_value": "pass",
+        "detail": {
+          "blocking": true,
+          "reason": "pass label with blocking objection",
+          "round": 0,
+          "plan_id": "PLAN-2"
+        }
+      },
+      "expected_rule": "R8_REVIEW_REJECT",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/decision_auto.go",
+          "line": 33,
+          "producer": "RecordReviewVerdict",
+          "proves": [
+            "change_type=review_verdict",
+            "field=verdict",
+            "to_value",
+            "actor_ref",
+            "detail.blocking",
+            "detail.reason",
+            "detail.round",
+            "detail.plan_id"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/raw/F-system-actor.txt",
+          "line": 10,
+          "producer": "audit evidence index",
+          "proves": [
+            "review_verdict producer location"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0016",
       "event_type": "pm.task.reassigned",
       "occurred_at": "2026-09-03T02:30:00Z",
       "actor_ref": "agent:lead",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-004"},
-      "payload": {"task_id": "T-004", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-004", "assignee": "agent:zeta", "previous_assignee": "agent:epsilon", "status": "running", "effective_subscribers": ["user:pm", "agent:epsilon", "agent:zeta"]},
-      "expected_rule": "R2_REASSIGN"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-004"
+      },
+      "payload": {
+        "task_id": "T-004",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-004",
+        "assignee": "agent:zeta",
+        "previous_assignee": "agent:epsilon",
+        "status": "running",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:epsilon",
+          "agent:zeta"
+        ]
+      },
+      "expected_rule": "R2_REASSIGN",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1169,
+          "producer": "emitTaskAssignEvent",
+          "proves": [
+            "event_type",
+            "refs.project_id",
+            "refs.task_id",
+            "payload.assignee",
+            "payload.previous_assignee",
+            "payload.status"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/task-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "change_type=reassigned",
+            "actor",
+            "field=assignee",
+            "from",
+            "to",
+            "occurred_at"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0017",
       "event_type": "pm.audit_recorded",
       "occurred_at": "2026-09-03T02:40:00Z",
       "actor_ref": "user:pm",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-005"},
-      "payload": {"audit_id": "aud-0017", "object_type": "task", "object_id": "T-005", "change_type": "status_changed", "field": "status", "from_value": "blocked", "to_value": "running", "detail": {"comment": "dependency manually cleared"}},
-      "expected_rule": "R4_UNBLOCK"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-005"
+      },
+      "payload": {
+        "audit_id": "aud-0017",
+        "object_type": "task",
+        "object_id": "T-005",
+        "change_type": "status_changed",
+        "field": "status",
+        "from_value": "blocked",
+        "to_value": "running",
+        "detail": {
+          "comment": "dependency manually cleared"
+        }
+      },
+      "expected_rule": "R4_UNBLOCK",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/audit_record.go",
+          "line": 65,
+          "producer": "auditTaskUnblocked",
+          "proves": [
+            "change_type=status_changed",
+            "field=status",
+            "from_value=blocked",
+            "to_value=running",
+            "actor_ref"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/task-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "blocked->running",
+            "actor",
+            "occurred_at"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0018",
       "event_type": "pm.task.state_changed",
       "occurred_at": "2026-09-03T02:45:00Z",
       "actor_ref": "agent:zeta",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-004"},
-      "payload": {"task_id": "T-004", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-004", "assignee": "agent:zeta", "prev_status": "running", "status": "completed", "effective_subscribers": ["user:pm", "agent:zeta"]},
-      "expected_rule": "R5_COMPLETE"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-004"
+      },
+      "payload": {
+        "task_id": "T-004",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-004",
+        "assignee": "agent:zeta",
+        "prev_status": "running",
+        "status": "completed",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:zeta"
+        ]
+      },
+      "expected_rule": "R5_COMPLETE",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1186,
+          "producer": "emitTaskStateChanged",
+          "proves": [
+            "payload.prev_status",
+            "payload.status=completed",
+            "payload.assignee"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/task-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "running->completed",
+            "actor",
+            "occurred_at"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0019",
       "event_type": "pm.task.state_changed",
       "occurred_at": "2026-09-03T02:50:00Z",
       "actor_ref": "agent:eta",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-006"},
-      "payload": {"task_id": "T-006", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-006", "assignee": "agent:eta", "prev_status": "running", "status": "failed", "reason": "non-delivery", "effective_subscribers": ["user:pm", "agent:eta"]},
-      "expected_rule": "NONE"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-006"
+      },
+      "payload": {
+        "task_id": "T-006",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-006",
+        "assignee": "agent:eta",
+        "prev_status": "running",
+        "status": "failed",
+        "reason": "non-delivery",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:eta"
+        ]
+      },
+      "expected_rule": "NONE",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1186,
+          "producer": "emitTaskStateChanged",
+          "proves": [
+            "event_type",
+            "refs.project_id",
+            "refs.task_id",
+            "payload.prev_status",
+            "payload.status",
+            "payload.reason",
+            "payload.assignee",
+            "payload.effective_subscribers"
+          ]
+        },
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/audit_record.go",
+          "line": 29,
+          "producer": "auditTaskStatusChange",
+          "proves": [
+            "actor_ref",
+            "field=status",
+            "from_value",
+            "to_value"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0020",
       "event_type": "pm.audit_recorded",
       "occurred_at": "2026-09-03T03:00:00Z",
       "actor_ref": "user:pm",
-      "refs": {"project_id": "P-COLLAB", "plan_id": "PLAN-3"},
-      "payload": {"audit_id": "aud-0020", "object_type": "plan", "object_id": "PLAN-3", "change_type": "dependency_removed", "detail": {"from": "T-DOWN-2", "to": "T-UP-2"}},
-      "expected_rule": "NONE"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "plan_id": "PLAN-3"
+      },
+      "payload": {
+        "audit_id": "aud-0020",
+        "object_type": "plan",
+        "object_id": "PLAN-3",
+        "change_type": "dependency_removed",
+        "detail": {
+          "from": "T-DOWN-2",
+          "to": "T-UP-2"
+        }
+      },
+      "expected_rule": "NONE",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/plan_flow.go",
+          "line": 426,
+          "producer": "RemovePlanDependency",
+          "proves": [
+            "change_type=dependency_removed",
+            "detail.from",
+            "detail.to",
+            "no-op removal emits nothing"
+          ]
+        },
+        {
+          "kind": "production_test",
+          "path": "internal/projectmanager/service/audit_flow_test.go",
+          "line": 140,
+          "test": "TestAudit_PlanDependency_NoOpNotRecorded",
+          "producer": "plan dependency audit path",
+          "proves": [
+            "real dependency_removed has from/to; no-op remove has no row"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/plan-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "historical gap: dependency_removed may have empty from/to and must not be projected as release"
+          ]
+        }
+      ],
+      "projection_note": "dependency_removed is topology cleanup/removal evidence only; it is not an upstream-complete release antecedent."
     },
     {
       "id": "evt-0021",
       "event_type": "pm.task.state_changed",
       "occurred_at": "2026-09-03T03:05:00Z",
       "actor_ref": "agent:theta",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-UP-2", "plan_id": "PLAN-3"},
-      "payload": {"task_id": "T-UP-2", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-UP-2", "assignee": "agent:theta", "prev_status": "running", "status": "completed", "effective_subscribers": ["user:pm", "agent:theta"]},
-      "expected_rule": "R6_DEP_RELEASE",
-      "paired_with": ["evt-0020"]
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-UP-2",
+        "plan_id": "PLAN-3"
+      },
+      "payload": {
+        "task_id": "T-UP-2",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-UP-2",
+        "assignee": "agent:theta",
+        "prev_status": "running",
+        "status": "completed",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:theta"
+        ]
+      },
+      "expected_rule": "NONE",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1186,
+          "producer": "emitTaskStateChanged",
+          "proves": [
+            "payload.prev_status",
+            "payload.status=completed",
+            "payload.assignee"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/task-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "running->completed",
+            "actor",
+            "occurred_at"
+          ]
+        }
+      ],
+      "projection_note": "Upstream completion without a paired dependency_added fact and downstream ready/dispatch evidence must fail closed."
     },
     {
       "id": "evt-0022",
       "event_type": "pm.task.assigned",
       "occurred_at": "2026-09-03T03:10:00Z",
       "actor_ref": "user:pm",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-007"},
-      "payload": {"task_id": "T-007", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-007", "assignee": "user:human", "status": "open", "effective_subscribers": ["user:pm", "user:human"]},
-      "expected_rule": "NONE"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-007"
+      },
+      "payload": {
+        "task_id": "T-007",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-007",
+        "assignee": "user:human",
+        "status": "open",
+        "effective_subscribers": [
+          "user:pm",
+          "user:human"
+        ]
+      },
+      "expected_rule": "NONE",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1169,
+          "producer": "emitTaskAssignEvent",
+          "proves": [
+            "event_type",
+            "refs.project_id",
+            "refs.task_id",
+            "payload.task_id",
+            "payload.project_id",
+            "payload.owner_ref",
+            "payload.assignee",
+            "payload.previous_assignee",
+            "payload.status",
+            "payload.effective_subscribers"
+          ]
+        },
+        {
+          "kind": "production_test",
+          "path": "internal/projectmanager/service/audit_flow_test.go",
+          "line": 54,
+          "test": "TestAudit_TaskLifecycle",
+          "producer": "AssignTask audit path",
+          "proves": [
+            "actor_ref",
+            "assignee from/to auditability"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0023",
       "event_type": "pm.audit_recorded",
       "occurred_at": "2026-09-03T03:20:00Z",
       "actor_ref": "agent:reviewer",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-REVIEW-4", "plan_id": "PLAN-4"},
-      "payload": {"audit_id": "aud-0023", "object_type": "task", "object_id": "T-REVIEW-4", "change_type": "review_verdict", "field": "verdict", "to_value": "reject", "detail": {"blocking": false, "reason": "needs docs", "round": 2, "plan_id": "PLAN-4"}},
-      "expected_rule": "R8_REVIEW_REJECT"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-REVIEW-4",
+        "plan_id": "PLAN-4"
+      },
+      "payload": {
+        "audit_id": "aud-0023",
+        "object_type": "task",
+        "object_id": "T-REVIEW-4",
+        "change_type": "review_verdict",
+        "field": "verdict",
+        "to_value": "reject",
+        "detail": {
+          "blocking": false,
+          "reason": "needs docs",
+          "round": 2,
+          "plan_id": "PLAN-4"
+        }
+      },
+      "expected_rule": "R8_REVIEW_REJECT",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/decision_auto.go",
+          "line": 33,
+          "producer": "RecordReviewVerdict",
+          "proves": [
+            "change_type=review_verdict",
+            "field=verdict",
+            "to_value",
+            "actor_ref",
+            "detail.blocking",
+            "detail.reason",
+            "detail.round",
+            "detail.plan_id"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/raw/F-system-actor.txt",
+          "line": 10,
+          "producer": "audit evidence index",
+          "proves": [
+            "review_verdict producer location"
+          ]
+        }
+      ]
     },
     {
       "id": "evt-0024",
       "event_type": "pm.task.state_changed",
       "occurred_at": "2026-09-03T03:30:00Z",
       "actor_ref": "agent:iota",
-      "refs": {"project_id": "P-COLLAB", "task_id": "T-008"},
-      "payload": {"task_id": "T-008", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-008", "assignee": "agent:iota", "prev_status": "review", "status": "completed", "effective_subscribers": ["user:pm", "agent:iota"]},
-      "expected_rule": "R5_COMPLETE"
+      "refs": {
+        "project_id": "P-COLLAB",
+        "task_id": "T-008"
+      },
+      "payload": {
+        "task_id": "T-008",
+        "project_id": "P-COLLAB",
+        "owner_ref": "pm://tasks/T-008",
+        "assignee": "agent:iota",
+        "prev_status": "review",
+        "status": "completed",
+        "effective_subscribers": [
+          "user:pm",
+          "agent:iota"
+        ]
+      },
+      "expected_rule": "R5_COMPLETE",
+      "sample_kind": "sanitized_contract_sample",
+      "source_evidence": [
+        {
+          "kind": "production_code",
+          "path": "internal/projectmanager/service/assign_flow.go",
+          "line": 1186,
+          "producer": "emitTaskStateChanged",
+          "proves": [
+            "payload.prev_status",
+            "payload.status=completed",
+            "payload.assignee"
+          ]
+        },
+        {
+          "kind": "sanitized_historical_fixture",
+          "path": "docs/design/v2.29/evidence/task-audit.json",
+          "line": 1,
+          "producer": "pm_audit_log export",
+          "proves": [
+            "running->completed",
+            "actor",
+            "occurred_at"
+          ]
+        }
+      ]
     }
   ],
   "field_coverage_audit": {
     "sample_count": 24,
-    "required_field_checks": 264,
-    "covered_field_checks": 264,
-    "coverage_ratio": 1.0,
+    "required_field_checks": 955,
+    "covered_field_checks": 955,
+    "coverage_ratio": 1,
     "fail_closed_current_producer_gaps": [
       "pm.audit_recorded is a required mirror and is not produced on current origin/main.",
       "review_verdict and plan dependency audit facts are not consumable by Observability-only replay until that mirror exists."
-    ]
+    ],
+    "executable_validator": "docs/design/fixtures/validate-collaboration-effect-fixture.mjs",
+    "audit_method": "Validator checks required fields by event_type/rule, row-level source_evidence, existing evidence paths/line numbers, dependency-release pairing semantics, and AgentTraceEvent exclusion.",
+    "source_evidence_policy": "Every fixture row must include at least one source_evidence item anchored to production_code, production_test, or sanitized_historical_fixture.",
+    "historical_event_availability": "No raw private historical event export was present in task-input/v1. This audit therefore uses sanitized contract rows anchored per-row to production producer code, production tests, and existing sanitized v2.29 audit evidence; producer gaps remain fail-closed.",
+    "traceability_summary": {
+      "rows_with_source_evidence": 24,
+      "rows_with_production_code_evidence": 23,
+      "rows_with_production_test_evidence": 6,
+      "rows_with_sanitized_historical_fixture_evidence": 18
+    }
   }
 }
