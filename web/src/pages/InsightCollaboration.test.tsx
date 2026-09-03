@@ -226,4 +226,58 @@ describe('Collaboration Insight', () => {
     expect(edgeList).toHaveTextContent('strength 3');
     expect(edgeList).toHaveTextContent('Negative');
   });
+
+  it('loads evidence for every effect contributing to a merged semantic edge across cursor pages', async () => {
+    const first = { ...effects[0], effect_id: 'merge-page-1', id: 'merge-page-1', source: 'agent:a0', source_agent_ref: 'agent:a0', target: 'task:T1', target_task_id: 'T1', relation_type: 'complete', polarity: 'positive', magnitude: 1, occurred_at: '2026-09-03T10:00:00Z', evidence_event_ids: ['evt-shared', 'evt-a'] };
+    const second = { ...first, effect_id: 'merge-page-2', id: 'merge-page-2', magnitude: 3, occurred_at: '2026-09-03T10:05:00Z', evidence_event_ids: ['evt-shared', 'evt-b'] };
+    const nodes = [
+      { id: 'agent:a0', kind: 'agent', label: 'Agent A' },
+      { id: 'task:T1', kind: 'task', label: 'Task One', task_id: 'T1' },
+    ];
+    const evidenceRequests: string[] = [];
+    server.use(
+      http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        if (!cursor) {
+          return HttpResponse.json({
+            graph: { nodes, edges: [{ ...first, id: 'edge-page-1', interaction_count: 1, evidence_count: 2, first_occurred_at: first.occurred_at, last_occurred_at: first.occurred_at }] },
+            effects: [first], summary: {}, graph_version: 'gv-page-1', next_cursor: 'page-2',
+          });
+        }
+        return HttpResponse.json({
+          graph: { nodes, edges: [{ ...second, id: 'edge-page-2', interaction_count: 1, evidence_count: 2, first_occurred_at: second.occurred_at, last_occurred_at: second.occurred_at }] },
+          effects: [second], summary: {}, graph_version: 'gv-page-2', next_cursor: '',
+        });
+      }),
+      http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', ({ params, request }) => {
+        evidenceRequests.push(String(params.id));
+        expect(new URL(request.url).searchParams.get('project_id')).toBe('P1');
+        const unique = params.id === 'merge-page-1'
+          ? { event_id: 'evt-a', event_type: 'unique.a', occurred_at: '2026-09-03T10:01:00Z', actor_ref: 'agent:a0', refs: { project_id: 'P1', task_id: 'T1' }, payload: { endpoint: 'a' } }
+          : { event_id: 'evt-b', event_type: 'unique.b', occurred_at: '2026-09-03T10:03:00Z', actor_ref: 'agent:a0', refs: { project_id: 'P1', task_id: 'T1' }, payload: { endpoint: 'b' } };
+        return HttpResponse.json({ effect_id: params.id, evidence: [
+          { event_id: 'evt-shared', event_type: 'shared.event', occurred_at: '2026-09-03T10:02:00Z', actor_ref: 'agent:a0', refs: { project_id: 'P1', task_id: 'T1' }, payload: { shared: true } },
+          unique,
+        ] });
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
+    await screen.findByLabelText('Keyboard-accessible graph edges');
+    await user.click(screen.getByTestId('collaboration-load-more'));
+    const edgeList = screen.getByLabelText('Keyboard-accessible graph edges');
+    await waitFor(() => expect(edgeList).toHaveTextContent('2 effects'));
+
+    await user.click(within(edgeList).getByRole('button', { name: /Complete/ }));
+    await waitFor(() => expect([...evidenceRequests].sort()).toEqual(['merge-page-1', 'merge-page-2']));
+    const drawer = await screen.findByTestId('collaboration-evidence-drawer');
+    expect(within(drawer).getAllByText('shared.event')).toHaveLength(1);
+    expect(within(drawer).getAllByText('unique.a')).toHaveLength(1);
+    expect(within(drawer).getAllByText('unique.b')).toHaveLength(1);
+    const renderedEvents = within(drawer).getAllByRole('listitem').map((item) => item.textContent ?? '');
+    expect(renderedEvents).toHaveLength(3);
+    expect(renderedEvents[0]).toContain('unique.a');
+    expect(renderedEvents[1]).toContain('shared.event');
+    expect(renderedEvents[2]).toContain('unique.b');
+  });
 });

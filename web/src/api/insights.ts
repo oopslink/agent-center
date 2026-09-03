@@ -1,4 +1,4 @@
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueries, useQuery } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
 
@@ -202,7 +202,7 @@ export interface CollaborationNode {
 }
 export interface CollaborationEdge {
   id: string; source: string; target: string; relation_type: string; polarity: CollaborationPolarity;
-  magnitude: 1 | 2 | 3; effect_id?: string; interaction_count: number; evidence_count: number;
+  magnitude: 1 | 2 | 3; effect_id?: string; effect_ids?: string[]; interaction_count: number; evidence_count: number;
   first_occurred_at?: string; last_occurred_at?: string; clustered?: boolean;
 }
 export interface CollaborationEffect extends CollaborationEdge {
@@ -801,6 +801,7 @@ function normalizeCollaborationEdge(value: unknown): CollaborationEdge {
     polarity: normalizeCollaborationPolarity(source.polarity),
     magnitude: normalizeMagnitude(source.magnitude),
     effect_id: stringOrEmpty(source.effect_id) || undefined,
+    effect_ids: Array.isArray(source.effect_ids) ? source.effect_ids.filter((item): item is string => typeof item === 'string') : undefined,
     interaction_count: numberOrZero(source.interaction_count),
     evidence_count: numberOrZero(source.evidence_count),
     first_occurred_at: stringOrEmpty(source.first_occurred_at) || undefined,
@@ -1047,4 +1048,30 @@ export function useCollaborationEvidence(effectId: string | null, projectId?: st
     queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(effectId ?? '')}/evidence${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`)),
     enabled: Boolean(effectId),
   });
+}
+
+export function useCollaborationEvidenceBundle(effectIds: string[], projectId?: string) {
+  const uniqueEffectIds = [...new Set(effectIds.filter(Boolean))].sort();
+  const queries = useQueries({
+    queries: uniqueEffectIds.map((effectId) => ({
+      queryKey: [...qk.collaborationEvidence(effectId), projectId ?? ''],
+      queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(effectId)}/evidence${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`)),
+      enabled: Boolean(effectId),
+    })),
+  });
+  const evidence = dedupeEvidenceEvents(queries.flatMap((query) => query.data?.evidence ?? []));
+  return {
+    effect_ids: uniqueEffectIds,
+    data: { effect_id: uniqueEffectIds.join(','), evidence },
+    isLoading: queries.some((query) => query.isLoading),
+    isError: queries.some((query) => query.isError),
+  };
+}
+
+function dedupeEvidenceEvents(events: CollaborationEvidenceEvent[]): CollaborationEvidenceEvent[] {
+  const byID = new Map<string, CollaborationEvidenceEvent>();
+  for (const event of events) {
+    if (!byID.has(event.event_id)) byID.set(event.event_id, event);
+  }
+  return [...byID.values()].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at) || a.event_id.localeCompare(b.event_id));
 }
