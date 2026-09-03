@@ -1,9 +1,11 @@
 package api
 
 import (
-	"errors"
+	"context"
+	"database/sql"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/conversation"
@@ -84,25 +86,29 @@ func (s *Server) listUnreadConversationsHandler(w http.ResponseWriter, r *http.R
 		last := page[len(page)-1].ID()
 		cursor = &last
 	}
-	var ferr error
-	all, ferr = s.filterVisibleConversationList(r.Context(), d, all, self, self)
+
+	top := topLevelVisibleDMConversations(all, self)
+
+	// Batch-resolve followed (one repo round-trip) before heavier unread/PM work.
+	followedMap := map[conversation.ConversationID]bool{}
+	if m, ferr := d.FollowStateSvc.ResolveFollowed(r.Context(), self, top); ferr == nil {
+		followedMap = m
+	}
+	candidates := followedConversations(top, followedMap)
+
+	pmOwners, ferr := s.newUnreadPMOwnerResolver(r.Context(), d, orgID, self, candidates)
 	if ferr != nil {
 		writeError(w, http.StatusInternalServerError, "visibility_failed", ferr.Error())
 		return
 	}
-
-	// Batch-resolve followed (one repo round-trip) — same as the list path.
-	followedMap := map[conversation.ConversationID]bool{}
-	if m, ferr := d.FollowStateSvc.ResolveFollowed(r.Context(), self, all); ferr == nil {
-		followedMap = m
-	}
+	readStates := readStateConversationSet(r.Context(), d, self)
 
 	// Newest message per conversation for the last_message_preview (ONE batch
 	// window query — no N+1). Fail-soft: a batch error leaves previews empty.
 	recentByConv := map[conversation.ConversationID][]*conversation.Message{}
-	if d.MsgRepo != nil && len(all) > 0 {
-		ids := make([]conversation.ConversationID, len(all))
-		for i, c := range all {
+	if d.MsgRepo != nil && len(candidates) > 0 {
+		ids := make([]conversation.ConversationID, len(candidates))
+		for i, c := range candidates {
 			ids[i] = c.ID()
 		}
 		if m, rerr := d.MsgRepo.RecentByConversations(r.Context(), ids, 1); rerr == nil {
@@ -116,26 +122,22 @@ func (s *Server) listUnreadConversationsHandler(w http.ResponseWriter, r *http.R
 		ts  time.Time
 	}
 	rows := make([]sortableRow, 0, 16)
-	for _, c := range all {
+	for _, c := range candidates {
 		if len(rows) >= unreadConvResultCap {
 			break
 		}
-		// Top-level only (threads resolve their own follow/unread, not this digest).
-		if c.ParentConversationID() != "" {
-			continue
-		}
-		if !followedMap[c.ID()] {
+		kind := c.Kind()
+		if isPMConversationKind(kind) && !pmOwners.visible(c) {
 			continue
 		}
 		sum, err := d.ReadStateSvc.UnreadWithMentions(r.Context(), self, c.ID(), selfDisplayName)
 		if err != nil || sum.UnreadCount == 0 {
 			continue
 		}
-		kind := c.Kind()
-		if isPMConversationKind(kind) && !s.userEngagedWith(r, d, self, c, sum) {
+		if isPMConversationKind(kind) && !s.userEngagedWithReadStates(self, c, sum, readStates) {
 			continue
 		}
-		row, ts, ok := s.buildUnreadConvRow(r, d, nr, c, sum, recentByConv[c.ID()])
+		row, ts, ok := s.buildUnreadConvRow(r, d, nr, c, sum, recentByConv[c.ID()], pmOwners)
 		if !ok {
 			continue
 		}
@@ -191,22 +193,24 @@ func (s *Server) markAllUnreadConversationsSeenHandler(w http.ResponseWriter, r 
 		last := page[len(page)-1].ID()
 		cursor = &last
 	}
-	var ferr error
-	all, ferr = s.filterVisibleConversationList(r.Context(), d, all, self, self)
+
+	followedMap := map[conversation.ConversationID]bool{}
+	top := topLevelVisibleDMConversations(all, self)
+	if m, ferr := d.FollowStateSvc.ResolveFollowed(r.Context(), self, top); ferr == nil {
+		followedMap = m
+	}
+	candidates := followedConversations(top, followedMap)
+	pmOwners, ferr := s.newUnreadPMOwnerResolver(r.Context(), d, orgID, self, candidates)
 	if ferr != nil {
 		writeError(w, http.StatusInternalServerError, "visibility_failed", ferr.Error())
 		return
 	}
-
-	followedMap := map[conversation.ConversationID]bool{}
-	if m, ferr := d.FollowStateSvc.ResolveFollowed(r.Context(), self, all); ferr == nil {
-		followedMap = m
-	}
+	readStates := readStateConversationSet(r.Context(), d, self)
 	// Newest message per conversation — the cursor target for MarkSeen.
 	recentByConv := map[conversation.ConversationID][]*conversation.Message{}
-	if len(all) > 0 {
-		ids := make([]conversation.ConversationID, len(all))
-		for i, c := range all {
+	if len(candidates) > 0 {
+		ids := make([]conversation.ConversationID, len(candidates))
+		for i, c := range candidates {
 			ids[i] = c.ID()
 		}
 		if m, rerr := d.MsgRepo.RecentByConversations(r.Context(), ids, 1); rerr == nil {
@@ -215,15 +219,15 @@ func (s *Server) markAllUnreadConversationsSeenHandler(w http.ResponseWriter, r 
 	}
 
 	marked := 0
-	for _, c := range all {
-		if c.ParentConversationID() != "" || !followedMap[c.ID()] {
+	for _, c := range candidates {
+		if isPMConversationKind(c.Kind()) && !pmOwners.visible(c) {
 			continue
 		}
 		sum, err := d.ReadStateSvc.UnreadWithMentions(r.Context(), self, c.ID(), selfDisplayName)
 		if err != nil || sum.UnreadCount == 0 {
 			continue
 		}
-		if isPMConversationKind(c.Kind()) && !s.userEngagedWith(r, d, self, c, sum) {
+		if isPMConversationKind(c.Kind()) && !s.userEngagedWithReadStates(self, c, sum, readStates) {
 			continue
 		}
 		recent := recentByConv[c.ID()]
@@ -243,6 +247,30 @@ func (s *Server) markAllUnreadConversationsSeenHandler(w http.ResponseWriter, r 
 	writeJSON(w, http.StatusOK, map[string]any{"marked": marked})
 }
 
+func topLevelVisibleDMConversations(convs []*conversation.Conversation, self conversation.IdentityRef) []*conversation.Conversation {
+	out := make([]*conversation.Conversation, 0, len(convs))
+	for _, c := range convs {
+		if c.ParentConversationID() != "" {
+			continue
+		}
+		if !visibleDMInConversationList(c, self) {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+func followedConversations(convs []*conversation.Conversation, followedMap map[conversation.ConversationID]bool) []*conversation.Conversation {
+	out := make([]*conversation.Conversation, 0, len(convs))
+	for _, c := range convs {
+		if followedMap[c.ID()] {
+			out = append(out, c)
+		}
+	}
+	return out
+}
+
 // isPMConversationKind reports whether a kind is a ProjectManager-owned
 // conversation (task/issue/plan) — the kinds that get the extra "engaged" gate
 // and need a project_id resolved for their route.
@@ -252,13 +280,26 @@ func isPMConversationKind(k conversation.ConversationKind) bool {
 		k == conversation.ConversationKindPlan
 }
 
+func readStateConversationSet(ctx context.Context, d HandlerDeps, self conversation.IdentityRef) map[conversation.ConversationID]bool {
+	out := map[conversation.ConversationID]bool{}
+	if d.ReadStateRepo == nil {
+		return out
+	}
+	rows, err := d.ReadStateRepo.FindByUserBatch(ctx, self)
+	if err != nil {
+		return out
+	}
+	for _, rs := range rows {
+		out[rs.ConversationID] = true
+	}
+	return out
+}
+
 // userEngagedWith reports whether the human has actually engaged with a pm
 // conversation: an unread @mention, an active participation, or a pre-existing
 // read-state row (they opened or posted before). Used to keep the digest to the
 // pm conversations the user cares about rather than every one in the org.
-func (s *Server) userEngagedWith(r *http.Request, d HandlerDeps,
-	self conversation.IdentityRef, c *conversation.Conversation, sum convservice.MentionSummary,
-) bool {
+func (s *Server) userEngagedWithReadStates(self conversation.IdentityRef, c *conversation.Conversation, sum convservice.MentionSummary, readStates map[conversation.ConversationID]bool) bool {
 	if sum.MentionCount > 0 {
 		return true
 	}
@@ -267,16 +308,8 @@ func (s *Server) userEngagedWith(r *http.Request, d HandlerDeps,
 			return true
 		}
 	}
-	if d.ReadStateRepo != nil {
-		rs, err := d.ReadStateRepo.FindByUserAndConv(r.Context(), self, c.ID())
-		if err == nil && rs != nil {
-			return true
-		}
-		if err != nil && !errors.Is(err, conversation.ErrReadStateNotFound) {
-			// A read-state lookup hiccup must not hide a genuine unread; treat as
-			// engaged (fail-open for the user's own digest).
-			return true
-		}
+	if readStates[c.ID()] {
+		return true
 	}
 	return false
 }
@@ -285,7 +318,7 @@ func (s *Server) userEngagedWith(r *http.Request, d HandlerDeps,
 // when the row can't be made navigable (e.g. a pm conversation whose owning object
 // is gone), so it is dropped rather than rendered as a dead link.
 func (s *Server) buildUnreadConvRow(r *http.Request, d HandlerDeps, nr *nameResolver,
-	c *conversation.Conversation, sum convservice.MentionSummary, recent []*conversation.Message,
+	c *conversation.Conversation, sum convservice.MentionSummary, recent []*conversation.Message, pmOwners *unreadPMOwnerResolver,
 ) (map[string]any, time.Time, bool) {
 	kind := c.Kind()
 	row := map[string]any{
@@ -326,7 +359,7 @@ func (s *Server) buildUnreadConvRow(r *http.Request, d HandlerDeps, nr *nameReso
 		row["source_id"] = string(c.ID())
 		row["route"] = "/dms/" + string(c.ID())
 	case conversation.ConversationKindTask, conversation.ConversationKindIssue, conversation.ConversationKindPlan:
-		title, projectID, ok := s.resolvePMOwner(r, d, kind, c.OwnerRef())
+		title, projectID, ok := s.resolvePMOwner(r, d, kind, c.OwnerRef(), pmOwners)
 		if !ok {
 			return nil, ts, false
 		}
@@ -346,8 +379,14 @@ func (s *Server) buildUnreadConvRow(r *http.Request, d HandlerDeps, nr *nameReso
 // task/issue/plan conversation. Returns ok=false when PM is unwired or the
 // object is gone (the row is then dropped — a dead link helps no one).
 func (s *Server) resolvePMOwner(r *http.Request, d HandlerDeps,
-	kind conversation.ConversationKind, owner conversation.OwnerRef,
+	kind conversation.ConversationKind, owner conversation.OwnerRef, pmOwners *unreadPMOwnerResolver,
 ) (title, projectID string, ok bool) {
+	if pmOwners != nil {
+		if got, ok := pmOwners.owner(owner); ok {
+			return got.title, string(got.projectID), true
+		}
+		return "", "", false
+	}
 	if d.PM == nil {
 		return "", "", false
 	}
@@ -376,6 +415,154 @@ func (s *Server) resolvePMOwner(r *http.Request, d HandlerDeps,
 		return p.Name(), string(p.ProjectID()), true
 	}
 	return "", "", false
+}
+
+type unreadPMOwner struct {
+	title     string
+	projectID pm.ProjectID
+}
+
+type unreadPMOwnerResolver struct {
+	owners map[conversation.OwnerRef]unreadPMOwner
+}
+
+func (r *unreadPMOwnerResolver) visible(c *conversation.Conversation) bool {
+	_, ok := r.owner(c.OwnerRef())
+	return ok
+}
+
+func (r *unreadPMOwnerResolver) owner(ref conversation.OwnerRef) (unreadPMOwner, bool) {
+	if r == nil {
+		return unreadPMOwner{}, false
+	}
+	got, ok := r.owners[ref]
+	return got, ok
+}
+
+func (s *Server) newUnreadPMOwnerResolver(ctx context.Context, d HandlerDeps, orgID string, self conversation.IdentityRef, convs []*conversation.Conversation) (*unreadPMOwnerResolver, error) {
+	r := &unreadPMOwnerResolver{owners: map[conversation.OwnerRef]unreadPMOwner{}}
+	if d.PM == nil || d.DB == nil {
+		return r, nil
+	}
+	visibleProjects, err := unreadVisibleProjectSet(ctx, d.DB, orgID, self)
+	if err != nil {
+		return nil, err
+	}
+	plans := map[string]conversation.OwnerRef{}
+	tasks := map[string]conversation.OwnerRef{}
+	issues := map[string]conversation.OwnerRef{}
+	activeParticipantOwners := map[conversation.OwnerRef]bool{}
+	for _, c := range convs {
+		if !isPMConversationKind(c.Kind()) {
+			continue
+		}
+		if c.HasActiveParticipant(self) {
+			activeParticipantOwners[c.OwnerRef()] = true
+		}
+		oc, ok := conversation.ResolveOwnerContext(string(c.OwnerRef()))
+		if !ok || oc.ID == "" {
+			continue
+		}
+		switch c.Kind() {
+		case conversation.ConversationKindPlan:
+			plans[oc.ID] = c.OwnerRef()
+		case conversation.ConversationKindTask:
+			tasks[oc.ID] = c.OwnerRef()
+		case conversation.ConversationKindIssue:
+			issues[oc.ID] = c.OwnerRef()
+		}
+	}
+	if err := batchUnreadPMOwners(ctx, d.DB, "pm_plans", "name", plans, visibleProjects, activeParticipantOwners, r.owners); err != nil {
+		return nil, err
+	}
+	if err := batchUnreadPMOwners(ctx, d.DB, "pm_tasks", "title", tasks, visibleProjects, activeParticipantOwners, r.owners); err != nil {
+		return nil, err
+	}
+	if err := batchUnreadPMOwners(ctx, d.DB, "pm_issues", "title", issues, visibleProjects, activeParticipantOwners, r.owners); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func unreadVisibleProjectSet(ctx context.Context, db *sql.DB, orgID string, self conversation.IdentityRef) (map[pm.ProjectID]bool, error) {
+	rows, err := db.QueryContext(ctx, `
+SELECT m.project_id
+FROM pm_project_members m
+JOIN pm_projects p ON p.id = m.project_id
+WHERE p.organization_id = ? AND m.identity_id = ?`, orgID, string(self))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[pm.ProjectID]bool{}
+	for rows.Next() {
+		var projectID string
+		if err := rows.Scan(&projectID); err != nil {
+			return nil, err
+		}
+		out[pm.ProjectID(projectID)] = true
+	}
+	return out, rows.Err()
+}
+
+func batchUnreadPMOwners(
+	ctx context.Context,
+	db *sql.DB,
+	table, titleColumn string,
+	ids map[string]conversation.OwnerRef,
+	visibleProjects map[pm.ProjectID]bool,
+	activeParticipantOwners map[conversation.OwnerRef]bool,
+	out map[conversation.OwnerRef]unreadPMOwner,
+) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	const chunkSize = 500
+	pending := make([]string, 0, len(ids))
+	for id := range ids {
+		pending = append(pending, id)
+	}
+	for start := 0; start < len(pending); start += chunkSize {
+		end := start + chunkSize
+		if end > len(pending) {
+			end = len(pending)
+		}
+		chunk := pending[start:end]
+		args := make([]any, 0, len(chunk))
+		placeholders := make([]string, 0, len(chunk))
+		for _, id := range chunk {
+			args = append(args, id)
+			placeholders = append(placeholders, "?")
+		}
+		q := "SELECT id, project_id, " + titleColumn + " FROM " + table + " WHERE id IN (" + strings.Join(placeholders, ",") + ")"
+		rows, err := db.QueryContext(ctx, q, args...)
+		if err != nil {
+			return err
+		}
+		for rows.Next() {
+			var id, projectID, title string
+			if err := rows.Scan(&id, &projectID, &title); err != nil {
+				rows.Close()
+				return err
+			}
+			pid := pm.ProjectID(projectID)
+			ref, ok := ids[id]
+			if !ok {
+				continue
+			}
+			if !visibleProjects[pid] && !activeParticipantOwners[ref] {
+				continue
+			}
+			out[ref] = unreadPMOwner{title: title, projectID: pid}
+		}
+		if err := rows.Close(); err != nil {
+			return err
+		}
+		if err := rows.Err(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // pmRoute builds the relative (orgBase-less) SPA route to a pm conversation's

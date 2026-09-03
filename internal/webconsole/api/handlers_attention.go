@@ -242,7 +242,7 @@ func (s *Server) collectDirectedMentionItems(
 		} else if sum.MentionCount == 0 {
 			continue
 		}
-		base, ts, ok := s.buildUnreadConvRow(r, d, nr, c, sum, recentByConv[c.ID()])
+		base, ts, ok := s.buildUnreadConvRow(r, d, nr, c, sum, recentByConv[c.ID()], nil)
 		if !ok {
 			continue // unnavigable (owning object gone) — drop rather than dead-link
 		}
