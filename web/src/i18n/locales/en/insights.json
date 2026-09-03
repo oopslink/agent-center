@@ -14,7 +14,19 @@
       "overview": "Overview",
       "agents": "Agents",
       "projects": "Projects",
-      "executions": "Task executions"
+      "executions": "Task executions",
+      "collaboration": "Collaboration effects"
+    },
+    "collaboration": {
+      "title": "Collaboration effects", "subtitle": "Task-scoped Agent → Task → Agent relationships and deterministic effects.",
+      "scopeRequired": "Choose a project and task", "scopeRequiredBody": "The graph is deliberately task-scoped and limited to one hop.",
+      "loading": "Loading collaboration effects", "failed": "Collaboration effects failed", "forbidden": "You do not have permission to view collaboration evidence",
+      "empty": "No collaboration effects", "emptyBody": "No deterministic effects match these filters.", "truncated": "Showing the first {{count}} edges. Narrow the filters to inspect the rest.",
+      "summary": "Effect summary", "affectedTasks": "Affected tasks", "graph": "Collaboration effect graph", "edgeList": "Keyboard-accessible graph edges", "timeline": "Effect timeline", "magnitude": "strength {{value}}",
+      "filters": { "label": "Collaboration filters", "project": "Project ID", "task": "Task ID", "agent": "Agent ref", "since": "Since", "until": "Until", "relation": "Relationship", "polarity": "Polarity", "all": "All" },
+      "legend": { "relationship": "assignment relationship", "effect": "state-changing effect", "mixed": "mixed positive / negative" },
+      "evidence": { "title": "Effect evidence", "close": "Close evidence", "loading": "Loading evidence", "failed": "Evidence failed to load" },
+      "values": { "assign": "Assign", "reassign": "Reassign", "complete": "Complete", "block": "Block", "unblock": "Unblock", "dependency_release": "Dependency release", "review_accept": "Review accepted", "review_reject": "Review rejected", "positive": "Positive", "negative": "Negative", "neutral": "Neutral", "mixed": "Mixed" }
     },
     "executions": {
       "title": "Task executions",

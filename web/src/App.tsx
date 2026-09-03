@@ -43,6 +43,7 @@ const InsightAgentDetail = lazy(() => import('./pages/InsightAgents').then((m) =
 const InsightExecutions = lazy(() => import('./pages/InsightOverview').then((m) => ({ default: m.InsightExecutionsPage })));
 const InsightExecutionDetail = lazy(() => import('./pages/InsightOverview').then((m) => ({ default: m.InsightExecutionDetailPage })));
 const InsightProjects = lazy(() => import('./pages/InsightProjects'));
+const InsightCollaboration = lazy(() => import('./pages/InsightCollaboration'));
 const InsightProjectDetail = lazy(() => import('./pages/InsightProjects').then((m) => ({ default: m.InsightProjectDetailPage })));
 const InsightPlanLineage = lazy(() => import('./pages/InsightProjects').then((m) => ({ default: m.InsightPlanLineagePage })));
 const Access = lazy(() => import('./pages/Access'));
@@ -137,6 +138,7 @@ export function App(): React.ReactElement {
           <Route path="insights/agents" element={<InsightAgents />} />
           <Route path="insights/agents/:agentRef" element={<InsightAgentDetail />} />
           <Route path="insights/projects" element={<InsightProjects />} />
+          <Route path="insights/collaboration" element={<InsightCollaboration />} />
           <Route path="insights/projects/:projectId" element={<InsightProjectDetail />} />
           <Route path="insights/projects/:projectId/plans/:planId/lineage" element={<InsightPlanLineage />} />
           <Route path="insights/executions" element={<InsightExecutions />} />
