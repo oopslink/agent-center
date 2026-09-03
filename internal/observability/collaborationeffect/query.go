@@ -60,18 +60,23 @@ type GraphNode struct {
 	Status    string `json:"status,omitempty"`
 }
 type GraphEdge struct {
-	ID               string       `json:"id"`
-	Source           string       `json:"source"`
-	Target           string       `json:"target"`
-	RelationType     RelationType `json:"relation_type"`
-	Polarity         Polarity     `json:"polarity"`
-	Magnitude        int          `json:"magnitude"`
-	EffectID         string       `json:"effect_id,omitempty"`
-	InteractionCount int          `json:"interaction_count"`
-	FirstOccurredAt  *time.Time   `json:"first_occurred_at,omitempty"`
-	LastOccurredAt   *time.Time   `json:"last_occurred_at,omitempty"`
-	EvidenceCount    int          `json:"evidence_count"`
-	Clustered        bool         `json:"clustered,omitempty"`
+	ID               string        `json:"id"`
+	Source           string        `json:"source"`
+	Target           string        `json:"target"`
+	RelationType     RelationType  `json:"relation_type"`
+	Polarity         Polarity      `json:"polarity"`
+	Magnitude        int           `json:"magnitude"`
+	EffectID         string        `json:"effect_id,omitempty"`
+	EffectScopes     []EffectScope `json:"effect_scopes,omitempty"`
+	InteractionCount int           `json:"interaction_count"`
+	FirstOccurredAt  *time.Time    `json:"first_occurred_at,omitempty"`
+	LastOccurredAt   *time.Time    `json:"last_occurred_at,omitempty"`
+	EvidenceCount    int           `json:"evidence_count"`
+	Clustered        bool          `json:"clustered,omitempty"`
+}
+type EffectScope struct {
+	EffectID  string `json:"effect_id"`
+	ProjectID string `json:"project_id"`
 }
 type Graph struct {
 	Nodes     []GraphNode `json:"nodes"`
@@ -196,6 +201,7 @@ func (s *QueryService) assembleGraphResult(f Filter, version string, scope graph
 	}
 	aggregated := map[string]*GraphEdge{}
 	evidenceByEdge := map[string]map[string]struct{}{}
+	effectScopesByEdge := map[string]map[string]string{}
 	for _, e := range scope.Effects {
 		addNode(nodes, GraphNode{ID: e.SourceAgentRef, Kind: "agent", Label: e.SourceAgentRef})
 		if e.TargetAgentRef != "" {
@@ -215,6 +221,13 @@ func (s *QueryService) assembleGraphResult(f Filter, version string, scope graph
 			aggregated[key] = edge
 		}
 		edge.InteractionCount++
+		if effectScopesByEdge[key] == nil {
+			effectScopesByEdge[key] = map[string]string{}
+		}
+		if e.EffectID != "" {
+			effectScopesByEdge[key][e.EffectID] = e.ProjectID
+			edge.EffectScopes = sortedEffectScopes(effectScopesByEdge[key])
+		}
 		if evidenceByEdge[key] == nil {
 			evidenceByEdge[key] = map[string]struct{}{}
 		}
@@ -309,6 +322,19 @@ func semanticEdgeID(key string) string {
 
 func semanticEdgeKey(source, target string, relation RelationType, polarity Polarity) string {
 	return strings.Join([]string{"edge", source, target, string(relation), string(polarity)}, "\x00")
+}
+
+func sortedEffectScopes(scopes map[string]string) []EffectScope {
+	keys := make([]string, 0, len(scopes))
+	for id := range scopes {
+		keys = append(keys, id)
+	}
+	sort.Strings(keys)
+	out := make([]EffectScope, 0, len(keys))
+	for _, id := range keys {
+		out = append(out, EffectScope{EffectID: id, ProjectID: scopes[id]})
+	}
+	return out
 }
 
 func computeGraphVersion(ruleVersion string, scope graphScope) string {

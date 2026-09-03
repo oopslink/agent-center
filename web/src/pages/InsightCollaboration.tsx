@@ -7,6 +7,7 @@ import {
   useCollaborationEvidenceBundle,
   type CollaborationEdge,
   type CollaborationEffect,
+  type CollaborationEffectScope,
   type CollaborationFilters,
   type CollaborationGraphResponse,
   type CollaborationNode,
@@ -25,11 +26,12 @@ const POLARITIES: CollaborationPolarity[] = ['positive', 'negative', 'neutral', 
 export default function InsightCollaboration(): React.ReactElement {
   const { t } = useTranslation('insights');
   const [params, setParams] = useSearchParams();
-  const [selected, setSelected] = useState<string[] | null>(null);
+  const [selected, setSelected] = useState<CollaborationEffectScope[] | null>(null);
   const filters = filtersFromParams(params);
   const query = useInfiniteCollaborationEffects(filters);
   const effects = useMemo(() => dedupeBy(query.data?.pages.flatMap((page) => page.effects) ?? [], (item) => item.effect_id), [query.data?.pages]);
-  const effect = effects.find((item) => selected?.includes(item.effect_id)) ?? null;
+  const selectedIds = selected?.map((item) => item.effect_id) ?? [];
+  const effect = effects.find((item) => selectedIds.includes(item.effect_id)) ?? null;
   const view = useMemo(() => accumulateGraph(query.data?.pages ?? []), [query.data?.pages]);
   const summary = useMemo(() => summarizeEffects(effects), [effects]);
 
@@ -196,6 +198,7 @@ function summarizeEffects(effects: Array<{ polarity: CollaborationPolarity; targ
 function accumulateGraph(pages: CollaborationGraphResponse[]): { nodes: CollaborationNode[]; edges: CollaborationEdge[] } {
   const evidenceIdsByEdge = new Map<string, Set<string>>();
   const effectIdsByEdge = new Map<string, Set<string>>();
+  const effectScopesByEdge = new Map<string, Map<string, CollaborationEffectScope>>();
   for (const page of pages) {
     for (const effect of page.effects) {
       const target = effect.target_agent_ref || (effect.target_task_id ? `task:${effect.target_task_id}` : effect.target);
@@ -206,15 +209,19 @@ function accumulateGraph(pages: CollaborationGraphResponse[]): { nodes: Collabor
       const effectIds = effectIdsByEdge.get(key) ?? new Set<string>();
       effectIds.add(effect.effect_id);
       effectIdsByEdge.set(key, effectIds);
+      const scopes = effectScopesByEdge.get(key) ?? new Map<string, CollaborationEffectScope>();
+      scopes.set(effect.effect_id, { effect_id: effect.effect_id, project_id: effect.project_id });
+      effectScopesByEdge.set(key, scopes);
     }
   }
   const mergedEdges = new Map<string, CollaborationEdge>();
   for (const edge of pages.flatMap((page) => page.graph.edges)) {
     const key = semanticEdgeKey(edge.source, edge.target, edge.relation_type, edge.polarity);
     const effectIds = sortedEdgeEffectIds(edge, effectIdsByEdge.get(key));
+    const effectScopes = sortedEdgeEffectScopes(edge, effectScopesByEdge.get(key));
     const current = mergedEdges.get(key);
     if (!current) {
-      mergedEdges.set(key, { ...edge, effect_ids: effectIds, evidence_count: evidenceIdsByEdge.get(key)?.size ?? edge.evidence_count });
+      mergedEdges.set(key, { ...edge, effect_ids: effectIds, effect_scopes: effectScopes, evidence_count: evidenceIdsByEdge.get(key)?.size ?? edge.evidence_count });
       continue;
     }
     const first = minDate(current.first_occurred_at, edge.first_occurred_at);
@@ -228,6 +235,7 @@ function accumulateGraph(pages: CollaborationGraphResponse[]): { nodes: Collabor
       last_occurred_at: last,
       effect_id: current.effect_id || edge.effect_id,
       effect_ids: sortedEdgeEffectIds(current, new Set(effectIds)),
+      effect_scopes: sortedEdgeEffectScopes(current, new Map((effectScopes ?? []).map((scope) => [scope.effect_id, scope]))),
     });
   }
   return {
@@ -251,6 +259,16 @@ function sortedEdgeEffectIds(edge: CollaborationEdge, aggregated?: Set<string>):
   return ids.size > 0 ? [...ids].sort() : undefined;
 }
 
+function sortedEdgeEffectScopes(edge: CollaborationEdge, aggregated?: Map<string, CollaborationEffectScope>): CollaborationEffectScope[] | undefined {
+  const scopes = new Map<string, CollaborationEffectScope>(aggregated ?? []);
+  edge.effect_scopes?.forEach((scope) => {
+    if (scope.effect_id) scopes.set(scope.effect_id, scope);
+  });
+  if (edge.effect_id && !scopes.has(edge.effect_id)) scopes.set(edge.effect_id, { effect_id: edge.effect_id, project_id: '' });
+  const sorted = [...scopes.values()].sort((a, b) => a.effect_id.localeCompare(b.effect_id) || a.project_id.localeCompare(b.project_id));
+  return sorted.length > 0 ? sorted : undefined;
+}
+
 function minDate(a?: string, b?: string): string | undefined {
   if (!a) return b;
   if (!b) return a;
@@ -263,11 +281,11 @@ function maxDate(a?: string, b?: string): string | undefined {
   return a >= b ? a : b;
 }
 
-function CollaborationGraph({ nodes, edges, selected, onSelect, t }: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; selected: string[] | null; onSelect: (ids: string[]) => void; t: Translator }) {
+function CollaborationGraph({ nodes, edges, selected, onSelect, t }: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
   const lanes = { agent: 65, project: 200, plan: 335, stage: 500, task: 660 };
   const laneIndex = new Map<string, number>();
   const nodeMap = useMemo(() => new Map(nodes.map((node) => { const i = laneIndex.get(node.kind) ?? 0; laneIndex.set(node.kind, i + 1); return [node.id, { ...node, x: lanes[node.kind], y: 70 + i * 68 }]; })), [nodes]);
-  const selectedKey = selected?.join('\0') ?? '';
+  const selectedKey = selected?.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0') ?? '';
   return <section className="rounded-lg border border-border bg-bg-surface p-4" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
     <div className="mb-3 flex flex-wrap gap-3 text-xs text-text-muted"><span>━━ {t('insight.collaboration.legend.relationship')}</span><span>┄┄ {t('insight.collaboration.legend.effect')}</span><span>+/− {t('insight.collaboration.legend.mixed')}</span></div>
     <svg viewBox={`0 0 720 ${Math.max(260, nodes.length * 64 + 30)}`} className="min-h-64 w-full" role="img" aria-label={t('insight.collaboration.graph')}>
@@ -275,16 +293,16 @@ function CollaborationGraph({ nodes, edges, selected, onSelect, t }: { nodes: Co
       {edges.map((edge) => { const a = nodeMap.get(edge.source); const b = nodeMap.get(edge.target); if (!a || !b) return null; const structural = !edge.effect_id && edge.evidence_count === 0; return <g key={edge.id}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} /><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="fill-text-muted text-[11px]">{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</text></g>; })}
       {[...nodeMap.values()].map((node) => <g key={node.id}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" className="fill-bg-primary stroke-brand" strokeWidth="2" /> : <rect x={node.x-54} y={node.y-22} width="108" height="44" rx="5" className="fill-bg-primary stroke-text-muted" strokeWidth="2" />}<text x={node.x} y={node.y+4} textAnchor="middle" className="fill-text-primary text-[11px]">{node.label.slice(0, 18)}</text><text x={node.x} y={node.y+18} textAnchor="middle" className="fill-text-muted text-[8px]">{node.kind}</text></g>)}
     </svg>
-    <div className="grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{edges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const ids = edge.effect_ids?.length ? edge.effect_ids : edge.effect_id ? [edge.effect_id] : []; return <button key={edge.id} type="button" disabled={ids.length === 0} aria-pressed={selectedKey === ids.join('\0')} onClick={() => ids.length > 0 && onSelect(ids)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
+    <div className="grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{edges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = edge.effect_scopes?.length ? edge.effect_scopes : edge.effect_ids?.length ? edge.effect_ids.map((id) => ({ effect_id: id, project_id: '' })) : edge.effect_id ? [{ effect_id: edge.effect_id, project_id: '' }] : []; const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
   </section>;
 }
 
-function Timeline({ effects, onSelect, t }: { effects: { effect_id: string; occurred_at: string; relation_type: string; polarity: string; source_agent_ref: string; target_task_id: string }[]; onSelect: (ids: string[]) => void; t: Translator }) {
+function Timeline({ effects, onSelect, t }: { effects: { effect_id: string; project_id: string; occurred_at: string; relation_type: string; polarity: string; source_agent_ref: string; target_task_id: string }[]; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
   const ordered = [...effects].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
-  return <section className="rounded-lg border border-border bg-bg-surface p-4" data-testid="collaboration-timeline"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2><ol className="mt-3 border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([item.effect_id])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol></section>;
+  return <section className="rounded-lg border border-border bg-bg-surface p-4" data-testid="collaboration-timeline"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2><ol className="mt-3 border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol></section>;
 }
 
-function EvidenceDrawer({ effect, effectIds, onClose, t }: { effect: Pick<CollaborationEffect, 'project_id' | 'explanation_key' | 'before_state' | 'after_state'> | null; effectIds: string[]; onClose: () => void; t: Translator }) {
+function EvidenceDrawer({ effect, effectIds, onClose, t }: { effect: Pick<CollaborationEffect, 'project_id' | 'explanation_key' | 'before_state' | 'after_state'> | null; effectIds: CollaborationEffectScope[]; onClose: () => void; t: Translator }) {
   const query = useCollaborationEvidenceBundle(effectIds, effect?.project_id);
   return <aside role="dialog" aria-modal="true" aria-labelledby="evidence-title" className="fixed inset-y-0 right-0 z-50 w-full max-w-lg overflow-y-auto border-l border-border bg-bg-primary p-5 shadow-xl" data-testid="collaboration-evidence-drawer"><div className="flex items-center justify-between"><h2 id="evidence-title" className="text-lg font-semibold">{t('insight.collaboration.evidence.title')}</h2><button type="button" onClick={onClose} aria-label={t('insight.collaboration.evidence.close')} className="rounded border border-border px-3 py-1">×</button></div>{effect ? <div className="mt-4 text-sm"><p>{t(effect.explanation_key, { defaultValue: effect.explanation_key })}</p><pre className="mt-2 overflow-auto rounded bg-bg-subtle p-2">{JSON.stringify({ before: effect.before_state, after: effect.after_state }, null, 2)}</pre></div> : null}{query.isLoading ? <p className="mt-4">{t('insight.collaboration.evidence.loading')}</p> : null}{query.isError ? <p role="alert" className="mt-4 text-danger">{t('insight.collaboration.evidence.failed')}</p> : null}<ol className="mt-4 space-y-3">{query.data?.evidence.map((event) => <li key={event.event_id} className="rounded border border-border p-3 text-sm"><strong>{event.event_type}</strong><time className="block text-xs text-text-muted">{new Date(event.occurred_at).toLocaleString()}</time><p>{event.actor_ref}</p><pre className="mt-2 overflow-auto text-xs">{JSON.stringify(event.payload, null, 2)}</pre></li>)}</ol></aside>;
 }

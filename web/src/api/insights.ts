@@ -202,9 +202,10 @@ export interface CollaborationNode {
 }
 export interface CollaborationEdge {
   id: string; source: string; target: string; relation_type: string; polarity: CollaborationPolarity;
-  magnitude: 1 | 2 | 3; effect_id?: string; effect_ids?: string[]; interaction_count: number; evidence_count: number;
+  magnitude: 1 | 2 | 3; effect_id?: string; effect_ids?: string[]; effect_scopes?: CollaborationEffectScope[]; interaction_count: number; evidence_count: number;
   first_occurred_at?: string; last_occurred_at?: string; clustered?: boolean;
 }
+export interface CollaborationEffectScope { effect_id: string; project_id: string }
 export interface CollaborationEffect extends CollaborationEdge {
   effect_id: string; relation_type: CollaborationRelation;
   project_id: string; target_task_id: string; source_agent_ref: string; target_agent_ref: string;
@@ -802,12 +803,20 @@ function normalizeCollaborationEdge(value: unknown): CollaborationEdge {
     magnitude: normalizeMagnitude(source.magnitude),
     effect_id: stringOrEmpty(source.effect_id) || undefined,
     effect_ids: Array.isArray(source.effect_ids) ? source.effect_ids.filter((item): item is string => typeof item === 'string') : undefined,
+    effect_scopes: Array.isArray(source.effect_scopes)
+      ? source.effect_scopes.map(normalizeCollaborationEffectScope).filter((item) => item.effect_id)
+      : undefined,
     interaction_count: numberOrZero(source.interaction_count),
     evidence_count: numberOrZero(source.evidence_count),
     first_occurred_at: stringOrEmpty(source.first_occurred_at) || undefined,
     last_occurred_at: stringOrEmpty(source.last_occurred_at) || undefined,
     clustered: booleanOrFalse(source.clustered),
   };
+}
+
+function normalizeCollaborationEffectScope(value: unknown): CollaborationEffectScope {
+  const source = isRecord(value) ? value : {};
+  return { effect_id: stringOrEmpty(source.effect_id), project_id: stringOrEmpty(source.project_id) };
 }
 
 function normalizeCollaborationEffect(value: unknown): CollaborationEffect {
@@ -1050,22 +1059,34 @@ export function useCollaborationEvidence(effectId: string | null, projectId?: st
   });
 }
 
-export function useCollaborationEvidenceBundle(effectIds: string[], projectId?: string) {
-  const uniqueEffectIds = [...new Set(effectIds.filter(Boolean))].sort();
+export function useCollaborationEvidenceBundle(effectScopes: Array<string | CollaborationEffectScope>, projectId?: string) {
+  const uniqueEffectScopes = dedupeEffectScopes(effectScopes, projectId);
   const queries = useQueries({
-    queries: uniqueEffectIds.map((effectId) => ({
-      queryKey: [...qk.collaborationEvidence(effectId), projectId ?? ''],
-      queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(effectId)}/evidence${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`)),
-      enabled: Boolean(effectId),
+    queries: uniqueEffectScopes.map((scope) => ({
+      queryKey: [...qk.collaborationEvidence(scope.effect_id), scope.project_id],
+      queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(scope.effect_id)}/evidence${scope.project_id ? `?project_id=${encodeURIComponent(scope.project_id)}` : ''}`)),
+      enabled: Boolean(scope.effect_id),
     })),
   });
   const evidence = dedupeEvidenceEvents(queries.flatMap((query) => query.data?.evidence ?? []));
   return {
-    effect_ids: uniqueEffectIds,
-    data: { effect_id: uniqueEffectIds.join(','), evidence },
+    effect_ids: uniqueEffectScopes.map((scope) => scope.effect_id),
+    data: { effect_id: uniqueEffectScopes.map((scope) => scope.effect_id).join(','), evidence },
     isLoading: queries.some((query) => query.isLoading),
     isError: queries.some((query) => query.isError),
   };
+}
+
+function dedupeEffectScopes(effectScopes: Array<string | CollaborationEffectScope>, fallbackProjectId?: string): CollaborationEffectScope[] {
+  const byKey = new Map<string, CollaborationEffectScope>();
+  for (const item of effectScopes) {
+    const scope = typeof item === 'string' ? { effect_id: item, project_id: fallbackProjectId ?? '' } : item;
+    if (!scope.effect_id) continue;
+    const scoped = { ...scope, project_id: scope.project_id || fallbackProjectId || '' };
+    const key = `${scoped.effect_id}\0${scoped.project_id}`;
+    if (!byKey.has(key)) byKey.set(key, scoped);
+  }
+  return [...byKey.values()].sort((a, b) => a.effect_id.localeCompare(b.effect_id) || a.project_id.localeCompare(b.project_id));
 }
 
 function dedupeEvidenceEvents(events: CollaborationEvidenceEvent[]): CollaborationEvidenceEvent[] {

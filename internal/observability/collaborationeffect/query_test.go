@@ -214,6 +214,68 @@ func TestQueryServiceOrgGraphAggregatesRealProjectPlanStageTaskFixture(t *testin
 	}
 }
 
+func TestQueryServiceOrgGraphCarriesEffectProjectScopes(t *testing.T) {
+	ctx := context.Background()
+	db, err := persistence.Open(t.TempDir() + "/org-edge-scopes.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err = persistence.NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, _ := NewSQLiteRepository(db)
+	events, err := obssql.NewEventRepo(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	graphs, err := NewSQLiteGraphReader(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, _ := NewQueryServiceWithGraph(repo, events, graphs)
+	base := time.Date(2026, 9, 4, 9, 0, 0, 0, time.UTC)
+	for _, stmt := range []struct {
+		q    string
+		args []any
+	}{
+		{`INSERT INTO pm_projects (id, organization_id, name, description, status, created_by, created_at, updated_at) VALUES (?, ?, ?, '', 'active', 'user:test', ?, ?)`, []any{"P1", "org-g", "Project 1", formatTime(base), formatTime(base)}},
+		{`INSERT INTO pm_projects (id, organization_id, name, description, status, created_by, created_at, updated_at) VALUES (?, ?, ?, '', 'active', 'user:test', ?, ?)`, []any{"P2", "org-g", "Project 2", formatTime(base), formatTime(base)}},
+		{`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, created_by, created_at, updated_at) VALUES (?, ?, ?, '', 'running', ?, 'user:test', ?, ?)`, []any{"T1", "P1", "Task 1", "agent:alpha", formatTime(base), formatTime(base)}},
+		{`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, created_by, created_at, updated_at) VALUES (?, ?, ?, '', 'running', ?, 'user:test', ?, ?)`, []any{"T2", "P2", "Task 2", "agent:alpha", formatTime(base), formatTime(base)}},
+	} {
+		if _, err := db.ExecContext(ctx, stmt.q, stmt.args...); err != nil {
+			t.Fatalf("seed SQL: %v\n%s", err, stmt.q)
+		}
+	}
+	effects := []Effect{
+		{EffectID: "ce_p1", ProjectID: "P1", TargetTaskID: "T1", SourceAgentRef: "agent:alpha", TargetAgentRef: "agent:beta", RelationType: RelationComplete, Polarity: PolarityPositive, Magnitude: 1, OccurredAt: base.Add(time.Minute), RuleVersion: RuleVersionV1, EvidenceEventIDs: []string{"evt-shared", "evt-p1"}},
+		{EffectID: "ce_p2", ProjectID: "P2", TargetTaskID: "T2", SourceAgentRef: "agent:alpha", TargetAgentRef: "agent:beta", RelationType: RelationComplete, Polarity: PolarityPositive, Magnitude: 3, OccurredAt: base.Add(2 * time.Minute), RuleVersion: RuleVersionV1, EvidenceEventIDs: []string{"evt-shared", "evt-p2"}},
+	}
+	for _, e := range effects {
+		if err := repo.Apply(ctx, Fact{EventID: e.EffectID, OccurredAt: e.OccurredAt}, RuleVersionV1, []Effect{e}, nil, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result, err := svc.Query(ctx, Filter{OrganizationID: "org-g", Limit: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	edge := findEdge(result.Graph.Edges, "agent:alpha", "agent:beta", RelationComplete, PolarityPositive)
+	if edge == nil || edge.InteractionCount != 2 || edge.EvidenceCount != 3 {
+		t.Fatalf("agent-agent edge not aggregated with deduped evidence: %+v", edge)
+	}
+	want := []EffectScope{{EffectID: "ce_p1", ProjectID: "P1"}, {EffectID: "ce_p2", ProjectID: "P2"}}
+	if len(edge.EffectScopes) != len(want) {
+		t.Fatalf("effect scopes = %+v, want %+v", edge.EffectScopes, want)
+	}
+	for i := range want {
+		if edge.EffectScopes[i] != want[i] {
+			t.Fatalf("effect scopes = %+v, want %+v", edge.EffectScopes, want)
+		}
+	}
+}
+
 func seedOrgGraphFixture(t *testing.T, ctx context.Context, db interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }, repo *SQLiteRepository, events observability.EventRepository, base time.Time) {

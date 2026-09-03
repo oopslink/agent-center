@@ -280,4 +280,98 @@ describe('Collaboration Insight', () => {
     expect(renderedEvents[1]).toContain('shared.event');
     expect(renderedEvents[2]).toContain('unique.b');
   });
+
+  it('loads cross-project agent-agent edge evidence using each contributor project scope', async () => {
+    const p1 = {
+      ...effects[0],
+      effect_id: 'agent-agent-p1',
+      id: 'agent-agent-p1',
+      source: 'agent:alpha',
+      source_agent_ref: 'agent:alpha',
+      target: 'agent:beta',
+      target_agent_ref: 'agent:beta',
+      target_task_id: 'T-P1',
+      project_id: 'P1',
+      relation_type: 'complete',
+      polarity: 'positive',
+      magnitude: 1,
+      occurred_at: '2026-09-04T10:00:00Z',
+      evidence_event_ids: ['evt-shared', 'evt-p1'],
+    };
+    const p2 = {
+      ...p1,
+      effect_id: 'agent-agent-p2',
+      id: 'agent-agent-p2',
+      project_id: 'P2',
+      target_task_id: 'T-P2',
+      magnitude: 3,
+      occurred_at: '2026-09-04T10:05:00Z',
+      evidence_event_ids: ['evt-shared', 'evt-p2'],
+    };
+    const nodes = [
+      { id: 'agent:alpha', kind: 'agent', label: 'Agent Alpha' },
+      { id: 'agent:beta', kind: 'agent', label: 'Agent Beta' },
+    ];
+    const requests: Array<{ id: string; project: string | null }> = [];
+    server.use(
+      http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
+        expect(new URL(request.url).searchParams.has('project_id')).toBe(false);
+        return HttpResponse.json({
+          graph: {
+            nodes,
+            edges: [{
+              id: 'agent-agent-edge',
+              source: 'agent:alpha',
+              target: 'agent:beta',
+              relation_type: 'complete',
+              polarity: 'positive',
+              magnitude: 3,
+              effect_id: 'agent-agent-p1',
+              effect_scopes: [
+                { effect_id: 'agent-agent-p1', project_id: 'P1' },
+                { effect_id: 'agent-agent-p2', project_id: 'P2' },
+              ],
+              interaction_count: 2,
+              evidence_count: 3,
+              first_occurred_at: p1.occurred_at,
+              last_occurred_at: p2.occurred_at,
+            }],
+          },
+          effects: [p1, p2],
+          summary: {},
+          graph_version: 'gv-cross-project-agent-agent',
+          next_cursor: '',
+        });
+      }),
+      http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', ({ params, request }) => {
+        const id = String(params.id);
+        const project = new URL(request.url).searchParams.get('project_id');
+        requests.push({ id, project });
+        if ((id === 'agent-agent-p1' && project !== 'P1') || (id === 'agent-agent-p2' && project !== 'P2')) {
+          return HttpResponse.json({ error: 'effect_not_found' }, { status: 404 });
+        }
+        const unique = id === 'agent-agent-p1'
+          ? { event_id: 'evt-p1', event_type: 'p1.unique', occurred_at: '2026-09-04T10:01:00Z', actor_ref: 'agent:alpha', refs: { project_id: 'P1', task_id: 'T-P1' }, payload: { project: 'P1' } }
+          : { event_id: 'evt-p2', event_type: 'p2.unique', occurred_at: '2026-09-04T10:03:00Z', actor_ref: 'agent:alpha', refs: { project_id: 'P2', task_id: 'T-P2' }, payload: { project: 'P2' } };
+        return HttpResponse.json({ effect_id: id, evidence: [
+          { event_id: 'evt-shared', event_type: 'shared.event', occurred_at: '2026-09-04T10:02:00Z', actor_ref: 'agent:alpha', refs: { project_id: project ?? '', task_id: 'shared' }, payload: { shared: true } },
+          unique,
+        ] });
+      }),
+    );
+    const user = userEvent.setup();
+    renderAt('/organizations/acme/insights/collaboration');
+    const edgeList = await screen.findByLabelText('Keyboard-accessible graph edges');
+    await user.click(within(edgeList).getByRole('button', { name: /Complete/ }));
+    await waitFor(() => expect(requests).toEqual([
+      { id: 'agent-agent-p1', project: 'P1' },
+      { id: 'agent-agent-p2', project: 'P2' },
+    ]));
+    const drawer = await screen.findByTestId('collaboration-evidence-drawer');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(within(drawer).getAllByText('shared.event')).toHaveLength(1);
+    expect(within(drawer).getByText('p1.unique')).toBeVisible();
+    expect(within(drawer).getByText('p2.unique')).toBeVisible();
+    expect(within(drawer).getAllByRole('listitem')).toHaveLength(3);
+  });
 });
