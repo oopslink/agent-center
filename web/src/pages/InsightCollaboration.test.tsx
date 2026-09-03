@@ -32,6 +32,7 @@ afterEach(async () => { cleanup(); await i18n.changeLanguage('en'); });
 
 beforeEach(() => {
   server.use(
+    http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({ ...graph, next_cursor: '', graph_version: 'gv-default' })),
     http.get('/api/orgs/:slug/projects', () => HttpResponse.json({ projects: [
       { id: 'P1', organization_id: 'org-1', name: 'Alpha Project', description: '', status: 'active', created_by: 'user:u1', version: 1, created_at: '2026-09-03T00:00:00Z', updated_at: '2026-09-03T00:00:00Z' },
       { id: 'P2', organization_id: 'org-1', name: 'Beta Project', description: '', status: 'active', created_by: 'user:u1', version: 1, created_at: '2026-09-03T00:00:00Z', updated_at: '2026-09-03T00:00:00Z' },
@@ -62,7 +63,7 @@ describe('Collaboration Insight', () => {
   it('renders contract relations, accessible edges, summary, timeline and lazy evidence', async () => {
     server.use(
       http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { const p = new URL(request.url).searchParams; expect(p.get('project_id')).toBe('P1'); expect(p.get('task_id')).toBe('T1'); expect(p.get('limit')).toBe('100'); return HttpResponse.json(graph); }),
-      http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', ({ params }) => HttpResponse.json({ effect_id: params.id, evidence: [{ event_id: 'evt-0', event_type: 'pm.task.assigned', occurred_at: '2026-09-03T10:00:00Z', actor_ref: 'agent:a0', refs: { project_id: 'P1', task_id: 'T1' }, payload: { assignee: 'agent:a0' } }] })),
+      http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', ({ params, request }) => { expect(new URL(request.url).searchParams.get('project_id')).toBe('P1'); return HttpResponse.json({ effect_id: params.id, evidence: [{ event_id: 'evt-0', event_type: 'pm.task.assigned', occurred_at: '2026-09-03T10:00:00Z', actor_ref: 'agent:a0', refs: { project_id: 'P1', task_id: 'T1' }, payload: { assignee: 'agent:a0' } }] }); }),
     );
     const user = userEvent.setup();
     renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
@@ -114,9 +115,13 @@ describe('Collaboration Insight', () => {
     expect(search.get('agent_ref')).toBe('agent:a0');
   });
 
-  it('shows scope, empty, permission and server states', async () => {
+  it('loads the organization graph without a project filter and shows empty, permission and server states', async () => {
+    let organizationRequest = '';
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { organizationRequest = request.url; return HttpResponse.json({ ...graph, next_cursor: '', graph_version: 'gv-org' }); }));
     const first = renderAt('/organizations/acme/insights/collaboration');
-    expect(screen.getByTestId('collaboration-scope-required')).toBeVisible();
+    expect(await screen.findByTestId('collaboration-graph')).toBeVisible();
+    expect(new URL(organizationRequest).searchParams.has('project_id')).toBe(false);
+    expect(screen.queryByTestId('collaboration-scope-required')).not.toBeInTheDocument();
     first.unmount();
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({ graph: { nodes: [], edges: [] }, effects: [], summary: { positive_count: 0, negative_count: 0, neutral_count: 0, mixed_count: 0, affected_task_count: 0 }, next_cursor: '' })));
     renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
@@ -148,15 +153,27 @@ describe('Collaboration Insight', () => {
     const second = { ...effects[1], effect_id: 'page-2', id: 'page-2' };
     server.use(
       http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
-        const cursor = new URL(request.url).searchParams.get('cursor');
+        const search = new URL(request.url).searchParams;
+        const cursor = search.get('cursor');
+        expect(search.get('plan_id')).toBe('PL1');
         const pageEffects = cursor ? [second] : [first];
-        return HttpResponse.json({ graph: { nodes: [], edges: pageEffects }, effects: pageEffects, summary: {}, next_cursor: cursor ? '' : 'page-2' });
+        const ownershipNodes = [
+          { id: 'plan:PL1', kind: 'plan', label: 'Delivery Plan', plan_id: 'PL1' },
+          { id: 'stage:S1', kind: 'stage', label: 'Build', plan_id: 'PL1', stage_id: 'S1' },
+          { id: 'task:T1', kind: 'task', label: 'Task One', plan_id: 'PL1', stage_id: 'S1', task_id: 'T1' },
+          { id: first.source, kind: 'agent', label: 'Agent A' },
+          { id: second.source, kind: 'agent', label: 'Agent B' },
+          { id: 'agent:peer', kind: 'agent', label: 'Review Peer' },
+        ];
+        const structural = [
+          { id: 'plan-stage', source: 'plan:PL1', target: 'stage:S1', relation_type: 'plan_stage', polarity: 'neutral', magnitude: 1 },
+          { id: 'stage-task', source: 'stage:S1', target: 'task:T1', relation_type: 'stage_task', polarity: 'neutral', magnitude: 1 },
+        ];
+        const graphEffects = cursor
+          ? [{ ...second, target: 'agent:peer', interaction_count: 4, evidence_count: 7, first_occurred_at: '2026-09-03T09:00:00Z', last_occurred_at: '2026-09-03T10:05:00Z' }]
+          : [{ ...first, interaction_count: 1, evidence_count: 1 }];
+        return HttpResponse.json({ graph: { nodes: ownershipNodes, edges: [...structural, ...graphEffects] }, effects: pageEffects, summary: {}, graph_version: cursor ? 'gv-page-2' : 'gv-page-1', next_cursor: cursor ? '' : 'page-2' });
       }),
-      http.get('/api/orgs/:slug/projects/:projectId/plans/:planId/stages', () => HttpResponse.json({ stages: [{
-        id: 'S1', name: 'Build', status: 'running', rounds: 0, max_rounds: 3, depends_on_stages: [], gate_node_id: '', gate_task_id: '',
-        gate_spec: { evaluator_kind: 'human', pass_route: 'downstream', reject_route: 'append_remediation', exhausted_route: 'escalate' },
-        members: [{ task_id: 'T1', title: 'Task One', task_status: 'completed' }],
-      }] })),
     );
     const user = userEvent.setup();
     renderAt('/organizations/acme/insights/collaboration?project_id=P1&plan_id=PL1');
@@ -165,6 +182,9 @@ describe('Collaboration Insight', () => {
     expect(within(screen.getByLabelText('Keyboard-accessible graph edges')).getAllByRole('button')).toHaveLength(1);
     await user.click(screen.getByTestId('collaboration-load-more'));
     await waitFor(() => expect(within(screen.getByLabelText('Keyboard-accessible graph edges')).getAllByRole('button')).toHaveLength(2));
+    expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Review Peer');
+    expect(screen.getByLabelText('Keyboard-accessible graph edges')).toHaveTextContent('4 effects');
+    expect(screen.getByLabelText('Keyboard-accessible graph edges')).toHaveTextContent('evidence 7');
     expect(screen.queryByTestId('collaboration-load-more')).not.toBeInTheDocument();
   });
 });

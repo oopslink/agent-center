@@ -195,9 +195,18 @@ export interface InsightExecutionDetail {
 export type CollaborationRelation = 'assign' | 'reassign' | 'complete' | 'block' | 'unblock' | 'dependency_release' | 'review_accept' | 'review_reject';
 export type CollaborationPolarity = 'positive' | 'negative' | 'neutral' | 'mixed';
 
-export interface CollaborationNode { id: string; kind: 'agent' | 'task'; label: string; task_id?: string }
-export interface CollaborationEdge { id: string; source: string; target: string; relation_type: CollaborationRelation; polarity: CollaborationPolarity; magnitude: 1 | 2 | 3; effect_id: string }
+export type CollaborationNodeKind = 'agent' | 'project' | 'plan' | 'stage' | 'task';
+export interface CollaborationNode {
+  id: string; kind: CollaborationNodeKind; label: string; project_id?: string; plan_id?: string;
+  stage_id?: string; task_id?: string; status?: string;
+}
+export interface CollaborationEdge {
+  id: string; source: string; target: string; relation_type: string; polarity: CollaborationPolarity;
+  magnitude: 1 | 2 | 3; effect_id?: string; interaction_count: number; evidence_count: number;
+  first_occurred_at?: string; last_occurred_at?: string; clustered?: boolean;
+}
 export interface CollaborationEffect extends CollaborationEdge {
+  effect_id: string; relation_type: CollaborationRelation;
   project_id: string; target_task_id: string; source_agent_ref: string; target_agent_ref: string;
   confidence: string; occurred_at: string; rule_version: string; evidence_event_ids: string[];
   before_state: Record<string, unknown>; after_state: Record<string, unknown>; explanation_key: string;
@@ -207,12 +216,13 @@ export interface CollaborationGraphResponse {
   effects: CollaborationEffect[];
   summary: { positive_count: number; negative_count: number; neutral_count: number; mixed_count: number; affected_task_count: number };
   next_cursor: string;
+  graph_version: string;
 }
 export interface CollaborationEvidenceEvent { event_id: string; event_type: string; occurred_at: string; actor_ref: string; refs: Record<string, string>; payload: Record<string, unknown> }
 export interface CollaborationEvidenceResponse { effect_id: string; evidence: CollaborationEvidenceEvent[] }
 export interface CollaborationFilters {
-  project_id: string; task_id?: string; agent_ref?: string; relation_type?: CollaborationRelation; polarity?: CollaborationPolarity;
-  since?: string; until?: string; cursor?: string; limit?: number;
+  project_id: string; plan_id?: string; task_id?: string; agent_ref?: string; relation_type?: CollaborationRelation; polarity?: CollaborationPolarity;
+  since?: string; until?: string; cursor?: string; graph_version?: string; limit?: number;
 }
 
 export type InsightV2HealthStatus = 'healthy' | 'elevated' | 'degraded' | 'unknown';
@@ -751,13 +761,17 @@ function normalizeExecutionRow(value: unknown): InsightExecutionRow {
 
 function normalizeCollaborationNode(value: unknown): CollaborationNode {
   const source = isRecord(value) ? value : {};
-  const kind = source.kind === 'agent' || source.kind === 'task' ? source.kind : 'task';
+  const kind = (['agent', 'project', 'plan', 'stage', 'task'].includes(String(source.kind)) ? source.kind : 'task') as CollaborationNodeKind;
   const id = stringOrEmpty(source.id) || (kind === 'agent' ? 'agent:unknown' : 'task:unknown');
   return {
     id,
     kind,
     label: stringOrEmpty(source.label) || id,
+    project_id: stringOrEmpty(source.project_id) || undefined,
+    plan_id: stringOrEmpty(source.plan_id) || undefined,
+    stage_id: stringOrEmpty(source.stage_id) || undefined,
     task_id: stringOrEmpty(source.task_id) || undefined,
+    status: stringOrEmpty(source.status) || undefined,
   };
 }
 
@@ -783,10 +797,15 @@ function normalizeCollaborationEdge(value: unknown): CollaborationEdge {
     id,
     source: stringOrEmpty(source.source) || stringOrEmpty(source.source_agent_ref) || 'agent:unknown',
     target: stringOrEmpty(source.target) || `task:${stringOrEmpty(source.target_task_id) || 'unknown'}`,
-    relation_type: normalizeCollaborationRelation(source.relation_type),
+    relation_type: stringOrEmpty(source.relation_type) || 'unknown',
     polarity: normalizeCollaborationPolarity(source.polarity),
     magnitude: normalizeMagnitude(source.magnitude),
-    effect_id: stringOrEmpty(source.effect_id) || id,
+    effect_id: stringOrEmpty(source.effect_id) || undefined,
+    interaction_count: numberOrZero(source.interaction_count),
+    evidence_count: numberOrZero(source.evidence_count),
+    first_occurred_at: stringOrEmpty(source.first_occurred_at) || undefined,
+    last_occurred_at: stringOrEmpty(source.last_occurred_at) || undefined,
+    clustered: booleanOrFalse(source.clustered),
   };
 }
 
@@ -795,6 +814,8 @@ function normalizeCollaborationEffect(value: unknown): CollaborationEffect {
   const edge = normalizeCollaborationEdge(source);
   return {
     ...edge,
+    effect_id: stringOrEmpty(source.effect_id) || edge.id,
+    relation_type: normalizeCollaborationRelation(source.relation_type),
     project_id: stringOrEmpty(source.project_id),
     target_task_id: stringOrEmpty(source.target_task_id),
     source_agent_ref: stringOrEmpty(source.source_agent_ref),
@@ -828,6 +849,7 @@ function normalizeCollaborationGraphResponse(value: unknown): CollaborationGraph
       affected_task_count: numberOrZero(summary.affected_task_count),
     },
     next_cursor: stringOrEmpty(source.next_cursor),
+    graph_version: stringOrEmpty(source.graph_version),
   };
 }
 
@@ -987,8 +1009,8 @@ export function useInsightAgent(agentRef: string | undefined) {
 }
 
 function collaborationParams(filters: CollaborationFilters): string {
-  const params = new URLSearchParams({ project_id: filters.project_id, limit: String(Math.min(filters.limit ?? 100, 500)) });
-  for (const key of ['task_id', 'agent_ref', 'relation_type', 'polarity', 'since', 'until', 'cursor'] as const) {
+  const params = new URLSearchParams({ limit: String(Math.min(filters.limit ?? 100, 500)) });
+  for (const key of ['project_id', 'plan_id', 'task_id', 'agent_ref', 'relation_type', 'polarity', 'since', 'until', 'cursor', 'graph_version'] as const) {
     const value = filters[key];
     if (value) params.set(key, String(value));
   }
@@ -999,7 +1021,7 @@ export function useCollaborationEffects(filters: CollaborationFilters, enabled =
   return useQuery({
     queryKey: qk.collaborationEffects(filters),
     queryFn: async () => normalizeCollaborationGraphResponse(await api.get<unknown>(`/insights/collaboration-effects?${collaborationParams(filters)}`)),
-    enabled: enabled && Boolean(filters.project_id),
+    enabled,
   });
 }
 
@@ -1015,14 +1037,14 @@ export function useInfiniteCollaborationEffects(filters: CollaborationFilters, e
     )),
     initialPageParam: '',
     getNextPageParam: (lastPage) => lastPage.next_cursor || undefined,
-    enabled: enabled && Boolean(filters.project_id),
+    enabled,
   });
 }
 
-export function useCollaborationEvidence(effectId: string | null) {
+export function useCollaborationEvidence(effectId: string | null, projectId?: string) {
   return useQuery({
-    queryKey: qk.collaborationEvidence(effectId ?? ''),
-    queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(effectId ?? '')}/evidence`)),
+    queryKey: [...qk.collaborationEvidence(effectId ?? ''), projectId ?? ''],
+    queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(effectId ?? '')}/evidence${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`)),
     enabled: Boolean(effectId),
   });
 }
