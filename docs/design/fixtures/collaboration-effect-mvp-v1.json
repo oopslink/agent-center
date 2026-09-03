@@ -1,0 +1,240 @@
+{
+  "schema": "collaboration-effect.fixture.v1",
+  "rule_version": "collaboration-effect.mvp.v1",
+  "base_origin_main_sha": "cf014cc8a5d83b757c0f33b5387e5a7f4d344221",
+  "notes": [
+    "Synthetic but production-contract-aligned fixture for issue-f1bad8db.",
+    "Rows model only fields present in PM outbox, Observability events, or the required pm.audit_recorded mirror.",
+    "AgentTraceEvent is intentionally absent."
+  ],
+  "facts": [
+    {
+      "id": "evt-0001",
+      "event_type": "pm.task.assigned",
+      "occurred_at": "2026-09-03T01:00:00Z",
+      "actor_ref": "user:pm",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-001"},
+      "payload": {"task_id": "T-001", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-001", "assignee": "agent:alpha", "status": "open", "effective_subscribers": ["user:pm", "agent:alpha"]},
+      "expected_rule": "R1_ASSIGN"
+    },
+    {
+      "id": "evt-0002",
+      "event_type": "pm.task.reassigned",
+      "occurred_at": "2026-09-03T01:05:00Z",
+      "actor_ref": "user:pm",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-001"},
+      "payload": {"task_id": "T-001", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-001", "assignee": "agent:beta", "previous_assignee": "agent:alpha", "status": "open", "effective_subscribers": ["user:pm", "agent:alpha", "agent:beta"]},
+      "expected_rule": "R2_REASSIGN"
+    },
+    {
+      "id": "evt-0003",
+      "event_type": "pm.task.state_changed",
+      "occurred_at": "2026-09-03T01:10:00Z",
+      "actor_ref": "agent:beta",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-001"},
+      "payload": {"task_id": "T-001", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-001", "assignee": "agent:beta", "prev_status": "open", "status": "running", "effective_subscribers": ["user:pm", "agent:beta"]},
+      "expected_rule": "NONE"
+    },
+    {
+      "id": "evt-0004",
+      "event_type": "pm.task.state_changed",
+      "occurred_at": "2026-09-03T01:15:00Z",
+      "actor_ref": "agent:beta",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-001"},
+      "payload": {"task_id": "T-001", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-001", "assignee": "agent:beta", "prev_status": "running", "status": "blocked", "reason": "waiting for credentials", "effective_subscribers": ["user:pm", "agent:beta"]},
+      "expected_rule": "R3_BLOCK"
+    },
+    {
+      "id": "evt-0005",
+      "event_type": "pm.audit_recorded",
+      "occurred_at": "2026-09-03T01:16:00Z",
+      "actor_ref": "user:pm",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-001"},
+      "payload": {"audit_id": "aud-0005", "object_type": "task", "object_id": "T-001", "change_type": "status_changed", "field": "status", "from_value": "blocked", "to_value": "running", "detail": {"comment": "credentials supplied"}},
+      "expected_rule": "R4_UNBLOCK"
+    },
+    {
+      "id": "evt-0006",
+      "event_type": "pm.task.state_changed",
+      "occurred_at": "2026-09-03T01:20:00Z",
+      "actor_ref": "agent:beta",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-001"},
+      "payload": {"task_id": "T-001", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-001", "assignee": "agent:beta", "prev_status": "running", "status": "completed", "effective_subscribers": ["user:pm", "agent:beta"]},
+      "expected_rule": "R5_COMPLETE"
+    },
+    {
+      "id": "evt-0007",
+      "event_type": "pm.audit_recorded",
+      "occurred_at": "2026-09-03T01:22:00Z",
+      "actor_ref": "agent:reviewer",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-REVIEW-1", "plan_id": "PLAN-1"},
+      "payload": {"audit_id": "aud-0007", "object_type": "task", "object_id": "T-REVIEW-1", "change_type": "review_verdict", "field": "verdict", "to_value": "pass", "detail": {"blocking": false, "reason": "meets acceptance", "round": 0, "plan_id": "PLAN-1"}},
+      "expected_rule": "R7_REVIEW_ACCEPT"
+    },
+    {
+      "id": "evt-0008",
+      "event_type": "pm.audit_recorded",
+      "occurred_at": "2026-09-03T01:24:00Z",
+      "actor_ref": "agent:reviewer",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-REVIEW-2", "plan_id": "PLAN-1"},
+      "payload": {"audit_id": "aud-0008", "object_type": "task", "object_id": "T-REVIEW-2", "change_type": "review_verdict", "field": "verdict", "to_value": "reject", "detail": {"blocking": true, "reason": "tests fail", "round": 1, "plan_id": "PLAN-1"}},
+      "expected_rule": "R8_REVIEW_REJECT"
+    },
+    {
+      "id": "evt-0009",
+      "event_type": "pm.audit_recorded",
+      "occurred_at": "2026-09-03T01:30:00Z",
+      "actor_ref": "user:pm",
+      "refs": {"project_id": "P-COLLAB", "plan_id": "PLAN-1"},
+      "payload": {"audit_id": "aud-0009", "object_type": "plan", "object_id": "PLAN-1", "change_type": "dependency_added", "detail": {"from": "T-DOWN-1", "to": "T-UP-1", "kind": "seq", "when": "", "max_rounds": 0}},
+      "expected_rule": "NONE"
+    },
+    {
+      "id": "evt-0010",
+      "event_type": "pm.task.state_changed",
+      "occurred_at": "2026-09-03T01:35:00Z",
+      "actor_ref": "agent:upstream",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-UP-1", "plan_id": "PLAN-1"},
+      "payload": {"task_id": "T-UP-1", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-UP-1", "assignee": "agent:upstream", "prev_status": "running", "status": "completed", "effective_subscribers": ["user:pm", "agent:upstream"]},
+      "expected_rule": "R6_DEP_RELEASE",
+      "paired_with": ["evt-0009"]
+    },
+    {
+      "id": "evt-0011",
+      "event_type": "conversation.message_added",
+      "occurred_at": "2026-09-03T01:40:00Z",
+      "actor_ref": "agent:alpha",
+      "refs": {"project_id": "P-COLLAB", "conversation_id": "C-T-001", "message_id": "M-001", "task_id": "T-001"},
+      "payload": {"conversation_id": "C-T-001", "message_id": "M-001", "sender": "agent:alpha", "mention_refs": ["agent:beta"], "owner_ref": "pm://tasks/T-001"},
+      "expected_rule": "NONE"
+    },
+    {
+      "id": "evt-0012",
+      "event_type": "pm.task.assigned",
+      "occurred_at": "2026-09-03T02:00:00Z",
+      "actor_ref": "system:auto-assign",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-002"},
+      "payload": {"task_id": "T-002", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-002", "assignee": "agent:gamma", "status": "open", "effective_subscribers": ["user:pm", "agent:gamma"]},
+      "expected_rule": "R1_ASSIGN"
+    },
+    {
+      "id": "evt-0013",
+      "event_type": "pm.task.state_changed",
+      "occurred_at": "2026-09-03T02:10:00Z",
+      "actor_ref": "agent:gamma",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-002"},
+      "payload": {"task_id": "T-002", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-002", "assignee": "agent:gamma", "prev_status": "running", "status": "completed", "effective_subscribers": ["user:pm", "agent:gamma"]},
+      "expected_rule": "R5_COMPLETE"
+    },
+    {
+      "id": "evt-0014",
+      "event_type": "pm.task.state_changed",
+      "occurred_at": "2026-09-03T02:20:00Z",
+      "actor_ref": "agent:delta",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-003"},
+      "payload": {"task_id": "T-003", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-003", "assignee": "agent:delta", "prev_status": "review", "status": "blocked", "reason": "review requested changes", "effective_subscribers": ["user:pm", "agent:delta"]},
+      "expected_rule": "R3_BLOCK"
+    },
+    {
+      "id": "evt-0015",
+      "event_type": "pm.audit_recorded",
+      "occurred_at": "2026-09-03T02:25:00Z",
+      "actor_ref": "agent:reviewer",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-REVIEW-3", "plan_id": "PLAN-2"},
+      "payload": {"audit_id": "aud-0015", "object_type": "task", "object_id": "T-REVIEW-3", "change_type": "review_verdict", "field": "verdict", "to_value": "pass", "detail": {"blocking": true, "reason": "pass label with blocking objection", "round": 0, "plan_id": "PLAN-2"}},
+      "expected_rule": "R8_REVIEW_REJECT"
+    },
+    {
+      "id": "evt-0016",
+      "event_type": "pm.task.reassigned",
+      "occurred_at": "2026-09-03T02:30:00Z",
+      "actor_ref": "agent:lead",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-004"},
+      "payload": {"task_id": "T-004", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-004", "assignee": "agent:zeta", "previous_assignee": "agent:epsilon", "status": "running", "effective_subscribers": ["user:pm", "agent:epsilon", "agent:zeta"]},
+      "expected_rule": "R2_REASSIGN"
+    },
+    {
+      "id": "evt-0017",
+      "event_type": "pm.audit_recorded",
+      "occurred_at": "2026-09-03T02:40:00Z",
+      "actor_ref": "user:pm",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-005"},
+      "payload": {"audit_id": "aud-0017", "object_type": "task", "object_id": "T-005", "change_type": "status_changed", "field": "status", "from_value": "blocked", "to_value": "running", "detail": {"comment": "dependency manually cleared"}},
+      "expected_rule": "R4_UNBLOCK"
+    },
+    {
+      "id": "evt-0018",
+      "event_type": "pm.task.state_changed",
+      "occurred_at": "2026-09-03T02:45:00Z",
+      "actor_ref": "agent:zeta",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-004"},
+      "payload": {"task_id": "T-004", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-004", "assignee": "agent:zeta", "prev_status": "running", "status": "completed", "effective_subscribers": ["user:pm", "agent:zeta"]},
+      "expected_rule": "R5_COMPLETE"
+    },
+    {
+      "id": "evt-0019",
+      "event_type": "pm.task.state_changed",
+      "occurred_at": "2026-09-03T02:50:00Z",
+      "actor_ref": "agent:eta",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-006"},
+      "payload": {"task_id": "T-006", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-006", "assignee": "agent:eta", "prev_status": "running", "status": "failed", "reason": "non-delivery", "effective_subscribers": ["user:pm", "agent:eta"]},
+      "expected_rule": "NONE"
+    },
+    {
+      "id": "evt-0020",
+      "event_type": "pm.audit_recorded",
+      "occurred_at": "2026-09-03T03:00:00Z",
+      "actor_ref": "user:pm",
+      "refs": {"project_id": "P-COLLAB", "plan_id": "PLAN-3"},
+      "payload": {"audit_id": "aud-0020", "object_type": "plan", "object_id": "PLAN-3", "change_type": "dependency_removed", "detail": {"from": "T-DOWN-2", "to": "T-UP-2"}},
+      "expected_rule": "NONE"
+    },
+    {
+      "id": "evt-0021",
+      "event_type": "pm.task.state_changed",
+      "occurred_at": "2026-09-03T03:05:00Z",
+      "actor_ref": "agent:theta",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-UP-2", "plan_id": "PLAN-3"},
+      "payload": {"task_id": "T-UP-2", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-UP-2", "assignee": "agent:theta", "prev_status": "running", "status": "completed", "effective_subscribers": ["user:pm", "agent:theta"]},
+      "expected_rule": "R6_DEP_RELEASE",
+      "paired_with": ["evt-0020"]
+    },
+    {
+      "id": "evt-0022",
+      "event_type": "pm.task.assigned",
+      "occurred_at": "2026-09-03T03:10:00Z",
+      "actor_ref": "user:pm",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-007"},
+      "payload": {"task_id": "T-007", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-007", "assignee": "user:human", "status": "open", "effective_subscribers": ["user:pm", "user:human"]},
+      "expected_rule": "NONE"
+    },
+    {
+      "id": "evt-0023",
+      "event_type": "pm.audit_recorded",
+      "occurred_at": "2026-09-03T03:20:00Z",
+      "actor_ref": "agent:reviewer",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-REVIEW-4", "plan_id": "PLAN-4"},
+      "payload": {"audit_id": "aud-0023", "object_type": "task", "object_id": "T-REVIEW-4", "change_type": "review_verdict", "field": "verdict", "to_value": "reject", "detail": {"blocking": false, "reason": "needs docs", "round": 2, "plan_id": "PLAN-4"}},
+      "expected_rule": "R8_REVIEW_REJECT"
+    },
+    {
+      "id": "evt-0024",
+      "event_type": "pm.task.state_changed",
+      "occurred_at": "2026-09-03T03:30:00Z",
+      "actor_ref": "agent:iota",
+      "refs": {"project_id": "P-COLLAB", "task_id": "T-008"},
+      "payload": {"task_id": "T-008", "project_id": "P-COLLAB", "owner_ref": "pm://tasks/T-008", "assignee": "agent:iota", "prev_status": "review", "status": "completed", "effective_subscribers": ["user:pm", "agent:iota"]},
+      "expected_rule": "R5_COMPLETE"
+    }
+  ],
+  "field_coverage_audit": {
+    "sample_count": 24,
+    "required_field_checks": 264,
+    "covered_field_checks": 264,
+    "coverage_ratio": 1.0,
+    "fail_closed_current_producer_gaps": [
+      "pm.audit_recorded is a required mirror and is not produced on current origin/main.",
+      "review_verdict and plan dependency audit facts are not consumable by Observability-only replay until that mirror exists."
+    ]
+  }
+}
