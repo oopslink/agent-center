@@ -1,0 +1,40 @@
+{
+  "contract_version": "collaboration-graph.org.v1",
+  "base_origin_main_sha": "45e23623e36aa57e44f8b1b42240545b7cc6d6a1",
+  "organization": {"slug": "fixture-org", "label": "Fixture Organization"},
+  "scale": {"agent_count": 48, "plan_count": 12, "tasks_per_plan": 10, "floating_task_count": 12},
+  "generation": {
+    "seed": "t2108-org-graph-v1",
+    "projects": ["project-alpha", "project-beta", "project-gamma"],
+    "statuses": ["open", "running", "blocked", "completed"],
+    "relations": ["assign", "complete", "block", "unblock", "review_accept", "review_reject", "dependency_release"],
+    "as_of": "2026-09-03T11:00:00Z",
+    "page_size": 64
+  },
+  "required_edge_kinds": ["agent_agent", "agent_task", "agent_plan", "plan_task"],
+  "pinned_cases": [
+    {"id": "zero-degree-agent", "agent_index": 47, "expected_degree": 0},
+    {"id": "floating-task", "floating_task_index": 0, "plan_id": null},
+    {"id": "directed-agent-contact", "source_agent_index": 0, "target_agent_index": 1},
+    {"id": "mixed-polarity-aggregate", "source_agent_index": 2, "plan_index": 0, "required_polarities": ["positive", "negative"]},
+    {"id": "disconnected-component", "plan_index": 11, "community_id": "community-3"}
+  ],
+  "screenshot_scenarios": [
+    {"id": "org-overview-loaded", "viewports": ["1440x900", "1024x768", "390x844"]},
+    {"id": "org-overview-progressive", "viewports": ["1440x900", "390x844"]},
+    {"id": "org-focus-task", "viewports": ["1440x900", "390x844"]},
+    {"id": "org-edge-evidence", "viewports": ["1440x900", "390x844"]},
+    {"id": "org-zero-degree-agent", "viewports": ["1440x900"]},
+    {"id": "org-empty", "viewports": ["1440x900", "390x844"]},
+    {"id": "org-error-retry", "viewports": ["1440x900", "390x844"]},
+    {"id": "org-reduced-motion", "viewports": ["1440x900", "390x844"]}
+  ],
+  "acceptance": {
+    "initial_query_required": false,
+    "search_is_focus_only": true,
+    "evidence_is_lazy": true,
+    "llm_adjudication_allowed": false,
+    "writes_business_truth": false,
+    "expected_materialized": {"agents": 48, "plans": 12, "tasks": 132, "nodes": 192}
+  }
+}

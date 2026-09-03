@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "collaboration-organization-graph-v1.json",
+  "title": "OrganizationCollaborationGraphResponse",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "snapshot_id", "as_of", "effective_lod", "nodes", "edges", "totals", "visible_counts", "truncated", "next_cursor"],
+  "properties": {
+    "contract_version": {"const": "collaboration-graph.org.v1"},
+    "snapshot_id": {"type": "string", "minLength": 1},
+    "as_of": {"type": "string", "format": "date-time"},
+    "effective_lod": {"enum": ["overview", "community", "detail"]},
+    "nodes": {"type": "array", "items": {"$ref": "#/$defs/node"}},
+    "edges": {"type": "array", "items": {"$ref": "#/$defs/edge"}},
+    "totals": {"$ref": "#/$defs/counts"},
+    "visible_counts": {"$ref": "#/$defs/counts"},
+    "truncated": {"type": "boolean"},
+    "next_cursor": {"type": ["string", "null"]}
+  },
+  "$defs": {
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "edges"],
+      "properties": {"nodes": {"type": "integer", "minimum": 0}, "edges": {"type": "integer", "minimum": 0}}
+    },
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "label", "status", "activity_count", "community_id"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^(agent|plan|task|community):"},
+        "kind": {"enum": ["agent", "plan", "task", "community"]},
+        "label": {"type": "string", "minLength": 1},
+        "status": {"type": "string", "minLength": 1},
+        "project_id": {"type": "string"},
+        "plan_id": {"type": ["string", "null"]},
+        "activity_count": {"type": "integer", "minimum": 0},
+        "community_id": {"type": "string", "minLength": 1},
+        "member_count": {"type": "integer", "minimum": 0},
+        "expand_cursor": {"type": "string"}
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "source", "target", "relation_types", "event_count", "first_seen_at", "last_seen_at", "polarity_counts", "magnitude_sum", "evidence_refs"],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"enum": ["agent_agent", "agent_task", "agent_plan", "plan_task"]},
+        "source": {"type": "string", "minLength": 1},
+        "target": {"type": "string", "minLength": 1},
+        "relation_types": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}},
+        "event_count": {"type": "integer", "minimum": 1},
+        "first_seen_at": {"type": "string", "format": "date-time"},
+        "last_seen_at": {"type": "string", "format": "date-time"},
+        "polarity_counts": {
+          "type": "object", "additionalProperties": false,
+          "required": ["positive", "negative", "neutral", "mixed"],
+          "properties": {"positive": {"type": "integer", "minimum": 0}, "negative": {"type": "integer", "minimum": 0}, "neutral": {"type": "integer", "minimum": 0}, "mixed": {"type": "integer", "minimum": 0}}
+        },
+        "magnitude_sum": {"type": "integer", "minimum": 0},
+        "evidence_refs": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    }
+  }
+}
