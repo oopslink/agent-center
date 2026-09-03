@@ -4,7 +4,7 @@ import { NavLink } from 'react-router-dom';
 import type { ModuleSecondaryNavProps } from '@/shell/secondaryNav';
 
 interface NavEntry {
-  id: 'overview' | 'agents' | 'projects' | 'executions';
+  id: 'overview' | 'agents' | 'projects' | 'executions' | 'collaboration';
   to: string;
   label: string;
   Icon: () => React.ReactElement;
@@ -17,6 +17,7 @@ export function InsightSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React
     { id: 'overview', to: `${orgBase}/insights/overview`, label: t('insight.nav.overview'), Icon: OverviewIcon, end: true },
     { id: 'agents', to: `${orgBase}/insights/agents`, label: t('insight.nav.agents'), Icon: AgentIcon, end: true },
     { id: 'projects', to: `${orgBase}/insights/projects`, label: t('insight.nav.projects'), Icon: ProjectIcon, end: true },
+    { id: 'collaboration', to: `${orgBase}/insights/collaboration`, label: t('insight.nav.collaboration'), Icon: CollaborationIcon, end: true },
     { id: 'executions', to: `${orgBase}/insights/executions?window=24h`, label: t('insight.nav.executions'), Icon: ExecutionIcon },
   ];
 
@@ -49,6 +50,10 @@ export function InsightSecondaryNav({ orgBase }: ModuleSecondaryNavProps): React
       </ul>
     </div>
   );
+}
+
+function CollaborationIcon(): React.ReactElement {
+  return <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="5" cy="5" r="2"/><rect x="12" y="3" width="5" height="4" rx=".5"/><circle cx="5" cy="15" r="2"/><path d="M7 5h5M7 14.5l5-7"/></svg>;
 }
 
 function OverviewIcon(): React.ReactElement {

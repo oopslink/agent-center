@@ -121,6 +121,8 @@ export const qk = {
   insightExecution: (executionId: string) => o('insight', 'executions', executionId),
   insightAgents: () => o('insight', 'v2', 'agents', '24h'),
   insightAgent: (agentRef: string) => o('insight', 'v2', 'agents', agentRef, '24h'),
+  collaborationEffects: (filters?: unknown) => filters === undefined ? o('insight', 'collaboration-effects') : o('insight', 'collaboration-effects', filters),
+  collaborationEvidence: (effectId: string) => o('insight', 'collaboration-effects', effectId, 'evidence'),
   ramRoles: () => o('access', 'ram-roles'),
   ramRole: (id: string) => o('access', 'ram-roles', id),
   permissions: () => o('permissions'),
