@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
 
@@ -999,6 +999,22 @@ export function useCollaborationEffects(filters: CollaborationFilters, enabled =
   return useQuery({
     queryKey: qk.collaborationEffects(filters),
     queryFn: async () => normalizeCollaborationGraphResponse(await api.get<unknown>(`/insights/collaboration-effects?${collaborationParams(filters)}`)),
+    enabled: enabled && Boolean(filters.project_id),
+  });
+}
+
+// The organization graph is intentionally accumulated a page at a time. Keeping
+// every page in the query cache means "load more" expands the graph instead of
+// replacing the user's current context with the next cursor page.
+export function useInfiniteCollaborationEffects(filters: CollaborationFilters, enabled = true) {
+  const baseFilters = { ...filters, cursor: undefined };
+  return useInfiniteQuery({
+    queryKey: [...qk.collaborationEffects(baseFilters), 'infinite'],
+    queryFn: async ({ pageParam }) => normalizeCollaborationGraphResponse(await api.get<unknown>(
+      `/insights/collaboration-effects?${collaborationParams({ ...baseFilters, cursor: pageParam || undefined })}`,
+    )),
+    initialPageParam: '',
+    getNextPageParam: (lastPage) => lastPage.next_cursor || undefined,
     enabled: enabled && Boolean(filters.project_id),
   });
 }
