@@ -626,6 +626,8 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /admin/observability/fleet/snapshot", s.fleetSnapshotHandler)
 	s.mux.HandleFunc("GET /admin/observability/stats/aggregate", s.statsAggregateHandler)
 	s.mux.HandleFunc("GET /admin/observability/logs/open", s.logsOpenHandler)
+	s.mux.HandleFunc("POST /admin/observability/collaboration-effects/query", s.collaborationEffectsQueryHandler)
+	s.mux.HandleFunc("GET /admin/observability/collaboration-effects/{effect_id}/evidence", s.collaborationEffectEvidenceHandler)
 
 	// --- blob (v2.3-3b task #29) ----------------------------------------
 	s.mux.HandleFunc("POST /admin/blob/put", s.blobPutHandler)

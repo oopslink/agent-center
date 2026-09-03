@@ -505,11 +505,12 @@ func NewApp(cfg config.Config, db *sql.DB, clk clock.Clock) (*App, error) {
 		// change-log/audit design §4: the object-level semantic change ledger
 		// (pm_audit_log). Wired here in production so the §5 write points record
 		// issue/task/plan changes; nil-safe at the Service level (zero-regression).
-		Audit:    pmsql.NewAuditLogRepo(db, gen),
-		Outbox:   outboxsql.NewOutboxRepo(db),
-		IDGen:    gen,
-		Clock:    clk,
-		AgentDir: agentpkg.NewOrgDirectory(agentRepo),
+		Audit:       pmsql.NewAuditLogRepo(db, gen),
+		AuditEvents: sink,
+		Outbox:      outboxsql.NewOutboxRepo(db),
+		IDGen:       gen,
+		Clock:       clk,
+		AgentDir:    agentpkg.NewOrgDirectory(agentRepo),
 		// v2.18.3 BE-2 (issue-577a7b0e): the auto-assign reconciler's candidate source
 		// (org agents × online/opt-out/capability/cap) + the per-project master switch's
 		// settings store. Both nil-safe at the Service level; wired here in production so
