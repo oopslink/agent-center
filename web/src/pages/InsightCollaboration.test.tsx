@@ -77,7 +77,10 @@ describe('Collaboration Insight', () => {
     const view = renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
     await screen.findByTestId('collaboration-graph');
     await user.selectOptions(screen.getByLabelText('Polarity'), 'mixed');
+    await user.type(screen.getByLabelText('Since'), '2026-09-03T12:30');
     await waitFor(() => expect(new URL(requested).searchParams.get('polarity')).toBe('mixed'));
+    expect(new URL(requested).searchParams.get('since')).toMatch(/^2026-09-03T/);
+    expect(new URL(requested).searchParams.get('since')).toMatch(/Z$/);
     view.unmount();
     renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1&polarity=mixed');
     expect(screen.getByLabelText('Polarity')).toHaveValue('mixed');
