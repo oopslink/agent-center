@@ -40,6 +40,13 @@ beforeEach(() => {
       { id: 'T1', project_id: 'P1', title: 'Task One', description: '', status: 'completed', created_by: 'user:u1', version: 1, created_at: '2026-09-03T00:00:00Z', updated_at: '2026-09-03T00:00:00Z', org_ref: 'T1001' },
       { id: 'T2', project_id: 'P1', title: 'Deploy analytics', description: '', status: 'open', created_by: 'user:u1', version: 1, created_at: '2026-09-03T00:00:00Z', updated_at: '2026-09-03T00:00:00Z', org_ref: 'T1002' },
     ], total: 2 })),
+    http.get('/api/orgs/:slug/projects/:projectId/plans', () => HttpResponse.json({ plans: [{
+      id: 'PL1', project_id: 'P1', name: 'Delivery Plan', description: '', status: 'running', creator_ref: 'user:u1', conversation_id: 'c1', has_failed: false,
+      progress: { done: 1, total: 2 }, created_at: '2026-09-03T00:00:00Z', nodes_preview: [
+        { task_id: 'T1', title: 'Task One', assignee_ref: 'agent:a0', task_status: 'completed', node_status: 'done', depends_on: [] },
+        { task_id: 'T2', title: 'Deploy analytics', assignee_ref: 'agent:a0', task_status: 'open', node_status: 'ready', depends_on: ['T1'] },
+      ], node_count: 2,
+    }] })),
     http.get('/api/orgs/:slug/members', () => HttpResponse.json([
       { id: 'm-agent-1', organization_id: 'org-1', identity_id: 'agent:a0', kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-09-03T00:00:00Z', display_name: 'Runner A' },
       { id: 'm-user-1', organization_id: 'org-1', identity_id: 'user:u1', kind: 'user', role: 'member', status: 'joined', joined_at: '2026-09-03T00:00:00Z', display_name: 'Human One' },
@@ -63,7 +70,7 @@ describe('Collaboration Insight', () => {
     expect(within(edgeList).getAllByRole('button')).toHaveLength(6);
     expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Review rejected · Mixed');
     expect(screen.getByLabelText('Effect summary')).toHaveTextContent('Affected tasks1');
-    expect(screen.getByTestId('collaboration-truncated')).toBeVisible();
+    expect(screen.getByTestId('collaboration-load-more')).toBeVisible();
     await user.click(within(edgeList).getByRole('button', { name: /Assign/ }));
     const drawer = await screen.findByTestId('collaboration-evidence-drawer');
     expect(await within(drawer).findByText('pm.task.assigned')).toBeVisible();
@@ -134,5 +141,30 @@ describe('Collaboration Insight', () => {
     renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
     expect(await screen.findByTestId('collaboration-empty')).toBeVisible();
     expect(screen.getByLabelText('Effect summary')).toHaveTextContent('Affected tasks0');
+  });
+
+  it('accumulates cursor pages and renders real Plan and Stage ownership', async () => {
+    const first = { ...effects[0], effect_id: 'page-1', id: 'page-1' };
+    const second = { ...effects[1], effect_id: 'page-2', id: 'page-2' };
+    server.use(
+      http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
+        const cursor = new URL(request.url).searchParams.get('cursor');
+        const pageEffects = cursor ? [second] : [first];
+        return HttpResponse.json({ graph: { nodes: [], edges: pageEffects }, effects: pageEffects, summary: {}, next_cursor: cursor ? '' : 'page-2' });
+      }),
+      http.get('/api/orgs/:slug/projects/:projectId/plans/:planId/stages', () => HttpResponse.json({ stages: [{
+        id: 'S1', name: 'Build', status: 'running', rounds: 0, max_rounds: 3, depends_on_stages: [], gate_node_id: '', gate_task_id: '',
+        gate_spec: { evaluator_kind: 'human', pass_route: 'downstream', reject_route: 'append_remediation', exhausted_route: 'escalate' },
+        members: [{ task_id: 'T1', title: 'Task One', task_status: 'completed' }],
+      }] })),
+    );
+    const user = userEvent.setup();
+    renderAt('/organizations/acme/insights/collaboration?project_id=P1&plan_id=PL1');
+    expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Delivery Plan');
+    expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Build');
+    expect(within(screen.getByLabelText('Keyboard-accessible graph edges')).getAllByRole('button')).toHaveLength(1);
+    await user.click(screen.getByTestId('collaboration-load-more'));
+    await waitFor(() => expect(within(screen.getByLabelText('Keyboard-accessible graph edges')).getAllByRole('button')).toHaveLength(2));
+    expect(screen.queryByTestId('collaboration-load-more')).not.toBeInTheDocument();
   });
 });
