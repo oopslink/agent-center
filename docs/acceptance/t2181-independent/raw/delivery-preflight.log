@@ -1,0 +1,10 @@
+HEAD=82478fe8b70612e3a456618bbcb28d5a4a9ed8a9
+REMOTE=82478fe8b70612e3a456618bbcb28d5a4a9ed8a9
+PARENT=6074ea621f178889bcfca5adca8cf27c3ad174da
+CANDIDATE=6074ea621f178889bcfca5adca8cf27c3ad174da
+BASE=ddfb87d47e8253fb2e4f22d014f497301fa4b7ec
+AHEAD_BASE=2
+AHEAD_CANDIDATE=1
+## ac-exec/task-86616b05/exec-ee01817e...origin/ac-exec/task-340201c6/exec-7a7d087b [ahead 1]
+?? docs/acceptance/t2181-independent/raw/delivery-preflight.log
+?? docs/acceptance/t2181-independent/raw/verdict-preflight.log

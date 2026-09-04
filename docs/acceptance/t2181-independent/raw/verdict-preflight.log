@@ -1,0 +1,7 @@
+{
+  "ok": true,
+  "product_verdict": "PASS",
+  "hard_gates": 10,
+  "nodes": 120,
+  "edges": 256
+}
