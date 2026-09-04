@@ -1,0 +1,2 @@
+* 6074ea62 (HEAD, origin-push/ac-exec/task-340201c6/exec-7a7d087b, ac-exec/task-340201c6/exec-7a7d087b) fix(insights): combine graph acceptance and project scoping
+o ddfb87d4 (origin/main, origin/HEAD, origin-push/main, origin-push/HEAD, main, ac-exec/task-86616b05/exec-448aab4a) feat(runtime): mirror execution state to center

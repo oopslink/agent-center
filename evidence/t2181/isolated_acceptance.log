@@ -1,0 +1,16 @@
+HEAD=6074ea621f178889bcfca5adca8cf27c3ad174da
+COMMAND: pnpm --dir tests/e2e/v2 install --frozen-lockfile
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +5
++++++
+Progress: resolved 5, reused 5, downloaded 0, added 5, done
+
+devDependencies:
++ @playwright/test 1.60.0
++ typescript 5.9.3
+
+Done in 238ms using pnpm v10.31.0
+E2E_INSTALL_EXIT_CODE=0
+COMMAND: CANDIDATE_SHA=6074ea621f178889bcfca5adca8cf27c3ad174da node docs/acceptance/t2181-fresh-main-combined/run-collaboration-graph-acceptance.mjs
+ISOLATED_ACCEPTANCE_EXIT_CODE=0

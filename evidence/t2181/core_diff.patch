@@ -1,0 +1,1668 @@
+diff --git a/internal/observability/collaborationeffect/graph_sqlite.go b/internal/observability/collaborationeffect/graph_sqlite.go
+index bacc12a7..0b74163b 100644
+--- a/internal/observability/collaborationeffect/graph_sqlite.go
++++ b/internal/observability/collaborationeffect/graph_sqlite.go
+@@ -70,287 +70,291 @@ func (r *SQLiteGraphReader) ReadGraphScope(ctx context.Context, f Filter, versio
+ 			return graphScope{}, ErrInvalidCursor
+ 		}
+ 	}
+ 	q := strings.Builder{}
+ 	q.WriteString(`SELECT ce.effect_id,ce.project_id,ce.target_task_id,ce.source_agent_ref,ce.target_agent_ref,ce.relation_type,ce.polarity,ce.magnitude,ce.confidence,ce.occurred_at,ce.rule_version,ce.evidence_event_ids,ce.before_state,ce.after_state,ce.explanation_key
+ FROM collaboration_effects ce
+ JOIN pm_projects pr ON pr.id=ce.project_id
+ LEFT JOIN pm_tasks t ON t.id=ce.target_task_id
+ WHERE ce.rule_version=?`)
+ 	args := []any{version}
+ 	add := func(clause string, v any) { q.WriteString(clause); args = append(args, v) }
+ 	if f.OrganizationID != "" {
+ 		add(" AND pr.organization_id=?", f.OrganizationID)
+ 	}
+ 	if f.ProjectID != "" {
+ 		add(" AND ce.project_id=?", f.ProjectID)
+ 	}
+ 	if f.PlanID != "" {
+ 		add(" AND t.plan_id=?", f.PlanID)
+ 	}
+ 	if f.TaskID != "" {
+ 		add(" AND ce.target_task_id=?", f.TaskID)
+ 	}
+ 	if f.StageID != "" {
+ 		add(" AND t.stage_id=?", f.StageID)
+ 	}
+ 	if f.AgentRef != "" {
+ 		q.WriteString(" AND (ce.source_agent_ref=? OR ce.target_agent_ref=? OR t.assignee=?)")
+ 		args = append(args, f.AgentRef, f.AgentRef, f.AgentRef)
+ 	}
+ 	if f.RelationType != "" {
+ 		add(" AND ce.relation_type=?", f.RelationType)
+ 	}
+ 	if f.Polarity != "" {
+ 		add(" AND ce.polarity=?", f.Polarity)
+ 	}
+ 	if f.Since != nil {
+ 		add(" AND ce.occurred_at>=?", formatTime(*f.Since))
+ 	}
+ 	if f.Until != nil {
+ 		add(" AND ce.occurred_at<?", formatTime(*f.Until))
+ 	}
+ 	if cursorID != "" {
+ 		if cursorAt == "" {
+ 			add(" AND ce.effect_id>?", cursorID)
+ 		} else {
+ 			q.WriteString(" AND (ce.occurred_at>? OR (ce.occurred_at=? AND ce.effect_id>?))")
+ 			args = append(args, cursorAt, cursorAt, cursorID)
+ 		}
+ 	}
+ 	q.WriteString(" ORDER BY ce.occurred_at, ce.effect_id LIMIT ?")
+ 	args = append(args, limit+1)
+ 	rows, err := r.db.QueryContext(ctx, q.String(), args...)
+ 	if err != nil {
+ 		return graphScope{}, err
+ 	}
+ 	defer rows.Close()
+ 	var scope graphScope
+ 	for rows.Next() {
+ 		e, err := scanEffect(rows.Scan)
+ 		if err != nil {
+ 			return graphScope{}, err
+ 		}
+ 		scope.Effects = append(scope.Effects, e)
+ 	}
+ 	if err := rows.Err(); err != nil {
+ 		return graphScope{}, err
+ 	}
+ 	if len(scope.Effects) > limit {
+ 		last := scope.Effects[limit-1]
+ 		scope.NextCursor = encodeGraphCursor(formatTime(last.OccurredAt), last.EffectID)
+ 		scope.Effects = scope.Effects[:limit]
+ 	}
+ 	if err := r.readStructure(ctx, f, &scope); err != nil {
+ 		return graphScope{}, err
+ 	}
+ 	return scope, nil
+ }
+ 
+ func (r *SQLiteGraphReader) readStructure(ctx context.Context, f Filter, scope *graphScope) error {
+-	where, projectArgs := projectScopeWhere(f)
++	where, projectArgs := projectScopeWhere(f, "pm_projects")
+ 	projectRows, err := r.db.QueryContext(ctx, `SELECT id, organization_id, name FROM pm_projects `+where+` ORDER BY organization_id, id`, projectArgs...)
+ 	if err != nil {
+ 		return err
+ 	}
+ 	for projectRows.Next() {
+ 		var p projectRow
+ 		if err := projectRows.Scan(&p.ID, &p.OrganizationID, &p.Name); err != nil {
+ 			_ = projectRows.Close()
+ 			return err
+ 		}
+ 		scope.Projects = append(scope.Projects, p)
+ 	}
+ 	if err := projectRows.Close(); err != nil {
+ 		return err
+ 	}
+ 	if err := projectRows.Err(); err != nil {
+ 		return err
+ 	}
+ 
+-	planWhere := strings.Replace(where, "pm_projects", "pr", 1)
++	planWhere, projectArgs := projectScopeWhere(f, "pr")
+ 	qPlans := `SELECT pl.id, pl.project_id, pl.name, pl.status
+ FROM pm_plans pl JOIN pm_projects pr ON pr.id=pl.project_id ` + planWhere
+ 	planArgs := append([]any(nil), projectArgs...)
+ 	if f.PlanID != "" {
+ 		qPlans += " AND pl.id=?"
+ 		planArgs = append(planArgs, f.PlanID)
+ 	}
+ 	qPlans += " ORDER BY pl.project_id, pl.id"
+ 	planRows, err := r.db.QueryContext(ctx, qPlans, planArgs...)
+ 	if err != nil {
+ 		return err
+ 	}
+ 	for planRows.Next() {
+ 		var p planRow
+ 		if err := planRows.Scan(&p.ID, &p.ProjectID, &p.Name, &p.Status); err != nil {
+ 			_ = planRows.Close()
+ 			return err
+ 		}
+ 		scope.Plans = append(scope.Plans, p)
+ 	}
+ 	if err := planRows.Close(); err != nil {
+ 		return err
+ 	}
+ 	if err := planRows.Err(); err != nil {
+ 		return err
+ 	}
+ 
+-	taskWhere := strings.Replace(where, "pm_projects", "pr", 1)
++	taskWhere, projectArgs := projectScopeWhere(f, "pr")
+ 	taskArgs := append([]any(nil), projectArgs...)
+ 	qTasks := `SELECT t.id, t.project_id, COALESCE(t.plan_id,''), COALESCE(t.stage_id,''), t.title, t.status, COALESCE(t.assignee,'')
+ FROM pm_tasks t JOIN pm_projects pr ON pr.id=t.project_id ` + taskWhere
+ 	if f.PlanID != "" {
+ 		qTasks += " AND t.plan_id=?"
+ 		taskArgs = append(taskArgs, f.PlanID)
+ 	}
+ 	if f.TaskID != "" {
+ 		qTasks += " AND t.id=?"
+ 		taskArgs = append(taskArgs, f.TaskID)
+ 	}
+ 	if f.StageID != "" {
+ 		qTasks += " AND t.stage_id=?"
+ 		taskArgs = append(taskArgs, f.StageID)
+ 	}
+ 	if f.AgentRef != "" {
+ 		qTasks += " AND t.assignee=?"
+ 		taskArgs = append(taskArgs, f.AgentRef)
+ 	}
+ 	qTasks += " ORDER BY t.project_id, t.plan_id, t.stage_id, t.id"
+ 	taskRows, err := r.db.QueryContext(ctx, qTasks, taskArgs...)
+ 	if err != nil {
+ 		return err
+ 	}
+ 	for taskRows.Next() {
+ 		var t taskRow
+ 		if err := taskRows.Scan(&t.ID, &t.ProjectID, &t.PlanID, &t.StageID, &t.Title, &t.Status, &t.Assignee); err != nil {
+ 			_ = taskRows.Close()
+ 			return err
+ 		}
+ 		scope.Tasks = append(scope.Tasks, t)
+ 	}
+ 	if err := taskRows.Close(); err != nil {
+ 		return err
+ 	}
+ 	if err := taskRows.Err(); err != nil {
+ 		return err
+ 	}
+ 
+ 	stageRows, err := r.db.QueryContext(ctx, `SELECT st.id, st.plan_id, st.name
+ FROM pm_stages st
+ JOIN pm_plans pl ON pl.id=st.plan_id
+ JOIN pm_projects pr ON pr.id=pl.project_id `+planWhere+filterClause("st.id", f.StageID)+filterClause("pl.id", f.PlanID)+`
+ ORDER BY st.plan_id, st.id`, append(append([]any(nil), projectScopeArgs(f)...), nonEmpty(f.StageID, f.PlanID)...)...)
+ 	if err != nil {
+ 		return err
+ 	}
+ 	for stageRows.Next() {
+ 		var st stageRow
+ 		if err := stageRows.Scan(&st.ID, &st.PlanID, &st.Name); err != nil {
+ 			_ = stageRows.Close()
+ 			return err
+ 		}
+ 		scope.Stages = append(scope.Stages, st)
+ 	}
+ 	if err := stageRows.Close(); err != nil {
+ 		return err
+ 	}
+ 	if err := stageRows.Err(); err != nil {
+ 		return err
+ 	}
+ 
+ 	depRows, err := r.db.QueryContext(ctx, `SELECT d.plan_id,d.from_task_id,d.to_task_id,d.kind,d."when",d.max_rounds
+ FROM pm_task_dependencies d
+ JOIN pm_plans pl ON pl.id=d.plan_id
+ JOIN pm_projects pr ON pr.id=pl.project_id `+planWhere+filterClause("d.plan_id", f.PlanID)+`
+ ORDER BY d.plan_id,d.from_task_id,d.to_task_id`, append(projectScopeArgs(f), nonEmpty(f.PlanID)...)...)
+ 	if err != nil {
+ 		return err
+ 	}
+ 	for depRows.Next() {
+ 		var d dependencyRow
+ 		if err := depRows.Scan(&d.PlanID, &d.FromTaskID, &d.ToTaskID, &d.Kind, &d.When, &d.MaxRounds); err != nil {
+ 			_ = depRows.Close()
+ 			return err
+ 		}
+ 		scope.Deps = append(scope.Deps, d)
+ 	}
+ 	if err := depRows.Close(); err != nil {
+ 		return err
+ 	}
+ 	return depRows.Err()
+ }
+ 
+-func projectScopeWhere(f Filter) (string, []any) {
++func projectScopeWhere(f Filter, table string) (string, []any) {
++	table = strings.TrimSpace(table)
++	if table == "" {
++		table = "pm_projects"
++	}
+ 	args := projectScopeArgs(f)
+ 	clauses := []string{"WHERE 1=1"}
+ 	if f.OrganizationID != "" {
+-		clauses = append(clauses, "AND pm_projects.organization_id=?")
++		clauses = append(clauses, "AND "+table+".organization_id=?")
+ 	}
+ 	if f.ProjectID != "" {
+-		clauses = append(clauses, "AND pm_projects.id=?")
++		clauses = append(clauses, "AND "+table+".id=?")
+ 	}
+ 	return strings.Join(clauses, " "), args
+ }
+ 
+ func projectScopeArgs(f Filter) []any {
+ 	args := []any{}
+ 	if f.OrganizationID != "" {
+ 		args = append(args, f.OrganizationID)
+ 	}
+ 	if f.ProjectID != "" {
+ 		args = append(args, f.ProjectID)
+ 	}
+ 	return args
+ }
+ 
+ func filterClause(column, value string) string {
+ 	if value == "" {
+ 		return ""
+ 	}
+ 	return " AND " + column + "=?"
+ }
+ 
+ func nonEmpty(values ...string) []any {
+ 	out := make([]any, 0, len(values))
+ 	for _, v := range values {
+ 		if v != "" {
+ 			out = append(out, v)
+ 		}
+ 	}
+ 	return out
+ }
+ 
+ func scanEffect(scan func(...any) error) (Effect, error) {
+ 	var e Effect
+ 	var at, evidence, before, after string
+ 	if err := scan(&e.EffectID, &e.ProjectID, &e.TargetTaskID, &e.SourceAgentRef, &e.TargetAgentRef, &e.RelationType, &e.Polarity, &e.Magnitude, &e.Confidence, &at, &e.RuleVersion, &evidence, &before, &after, &e.ExplanationKey); err != nil {
+ 		return Effect{}, err
+ 	}
+ 	e.OccurredAt, _ = time.Parse(time.RFC3339Nano, at)
+ 	_ = json.Unmarshal([]byte(evidence), &e.EvidenceEventIDs)
+ 	_ = json.Unmarshal([]byte(before), &e.BeforeState)
+ 	_ = json.Unmarshal([]byte(after), &e.AfterState)
+ 	return e, nil
+ }
+ 
+ func encodeGraphCursor(occurredAt, effectID string) string {
+ 	return "cg_" + base64.RawURLEncoding.EncodeToString([]byte(occurredAt+"|"+effectID))
+ }
+ 
+ func decodeGraphCursor(cursor string) (string, string, error) {
+ 	if strings.HasPrefix(cursor, "ce_") {
+ 		return "", cursor, nil
+ 	}
+ 	if !strings.HasPrefix(cursor, "cg_") {
+ 		return "", "", ErrInvalidCursor
+ 	}
+ 	raw, err := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(cursor, "cg_"))
+ 	if err != nil {
+ 		return "", "", err
+ 	}
+ 	parts := strings.SplitN(string(raw), "|", 2)
+ 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+ 		return "", "", ErrInvalidCursor
+ 	}
+ 	return parts[0], parts[1], nil
+ }
+diff --git a/internal/webconsole/api/handlers_collaboration_insight_test.go b/internal/webconsole/api/handlers_collaboration_insight_test.go
+new file mode 100644
+index 00000000..d8aa2295
+--- /dev/null
++++ b/internal/webconsole/api/handlers_collaboration_insight_test.go
+@@ -0,0 +1,162 @@
++package api
++
++import (
++	"context"
++	"database/sql"
++	"encoding/json"
++	"io"
++	"net/http"
++	"testing"
++	"time"
++
++	authz "github.com/oopslink/agent-center/internal/authorization"
++	"github.com/oopslink/agent-center/internal/observability/collaborationeffect"
++	obssql "github.com/oopslink/agent-center/internal/observability/sqlite"
++	pm "github.com/oopslink/agent-center/internal/projectmanager"
++	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
++)
++
++type collaborationHTTPExecContext interface {
++	ExecContext(context.Context, string, ...any) (sql.Result, error)
++}
++
++func TestCollaborationEffectsHTTPProjectScopeAndFailures(t *testing.T) {
++	ctx := context.Background()
++	deps, db := setupAPIWithAuth(t)
++	deps.Authorizer = authz.New(authz.Deps{DB: db, Mode: authz.EnforcementEnforce})
++	effects, err := collaborationeffect.NewSQLiteRepository(db)
++	if err != nil {
++		t.Fatal(err)
++	}
++	events, err := obssql.NewEventRepo(ctx, db)
++	if err != nil {
++		t.Fatal(err)
++	}
++	graphs, err := collaborationeffect.NewSQLiteGraphReader(db)
++	if err != nil {
++		t.Fatal(err)
++	}
++	deps.CollaborationInsight, err = collaborationeffect.NewQueryServiceWithGraph(effects, events, graphs)
++	if err != nil {
++		t.Fatal(err)
++	}
++	sess := setupTestSession(t, db, deps)
++	projectA, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{
++		OrganizationID: sess.OrgID,
++		Name:           "Alpha",
++		Description:    "in-scope",
++		CreatedBy:      pm.IdentityRef("user:" + sess.IdentityID),
++	})
++	if err != nil {
++		t.Fatal(err)
++	}
++	projectB, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{
++		OrganizationID: sess.OrgID,
++		Name:           "Beta",
++		Description:    "organization-level peer",
++		CreatedBy:      pm.IdentityRef("user:" + sess.IdentityID),
++	})
++	if err != nil {
++		t.Fatal(err)
++	}
++	base := time.Date(2026, 9, 4, 9, 0, 0, 0, time.UTC)
++	seedCollaborationHTTPProject(t, ctx, db, effects, sess.OrgID, string(projectA), "task-a", "agent:alpha", "ce_http_a", base.Add(time.Minute))
++	seedCollaborationHTTPProject(t, ctx, db, effects, sess.OrgID, string(projectB), "task-b", "agent:beta", "ce_http_b", base.Add(2*time.Minute))
++	seedCollaborationHTTPProject(t, ctx, db, effects, "org-other", "project-other", "task-other", "agent:other", "ce_http_other", base.Add(4*time.Minute))
++
++	s := newTestServer(t, deps)
++	defer s.Close()
++
++	projectResp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?limit=100&project_id="+string(projectA), sess)
++	defer projectResp.Body.Close()
++	if projectResp.StatusCode != http.StatusOK {
++		t.Fatalf("project query status=%d body=%s", projectResp.StatusCode, readCollaborationHTTPBody(t, projectResp))
++	}
++	var projectBody collaborationeffect.QueryResult
++	if err := json.NewDecoder(projectResp.Body).Decode(&projectBody); err != nil {
++		t.Fatal(err)
++	}
++	if len(projectBody.Effects) != 1 || projectBody.Effects[0].ProjectID != string(projectA) {
++		t.Fatalf("project query was not scoped to %s: %+v", projectA, projectBody.Effects)
++	}
++	t.Logf("project query params: limit=100 project_id=%s; status=%d effects=%d nodes=%d graph_version=%s", projectA, projectResp.StatusCode, len(projectBody.Effects), len(projectBody.Graph.Nodes), projectBody.GraphVersion)
++	for _, node := range projectBody.Graph.Nodes {
++		if node.ProjectID != "" && node.ProjectID != string(projectA) {
++			t.Fatalf("project query leaked node %+v", node)
++		}
++	}
++
++	orgResp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?limit=100", sess)
++	defer orgResp.Body.Close()
++	if orgResp.StatusCode != http.StatusOK {
++		t.Fatalf("org query status=%d body=%s", orgResp.StatusCode, readCollaborationHTTPBody(t, orgResp))
++	}
++	var orgBody collaborationeffect.QueryResult
++	if err := json.NewDecoder(orgResp.Body).Decode(&orgBody); err != nil {
++		t.Fatal(err)
++	}
++	if len(orgBody.Effects) != 2 {
++		t.Fatalf("org query should include readable projects only, got %+v", orgBody.Effects)
++	}
++	t.Logf("organization query params: limit=100; status=%d effects=%d nodes=%d graph_version=%s", orgResp.StatusCode, len(orgBody.Effects), len(orgBody.Graph.Nodes), orgBody.GraphVersion)
++
++	cursorResp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?limit=100&cursor=not-opaque", sess)
++	defer cursorResp.Body.Close()
++	if cursorResp.StatusCode != http.StatusBadRequest {
++		t.Fatalf("bad cursor status=%d body=%s", cursorResp.StatusCode, readCollaborationHTTPBody(t, cursorResp))
++	}
++	t.Logf("invalid cursor query params: limit=100 cursor=not-opaque; status=%d", cursorResp.StatusCode)
++
++	missingProjectResp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?limit=100&project_id=project-missing", sess)
++	defer missingProjectResp.Body.Close()
++	if missingProjectResp.StatusCode != http.StatusNotFound {
++		t.Fatalf("missing project status=%d body=%s", missingProjectResp.StatusCode, readCollaborationHTTPBody(t, missingProjectResp))
++	}
++	t.Logf("missing project query params: limit=100 project_id=project-missing; status=%d", missingProjectResp.StatusCode)
++
++	seedCollaborationHTTPProject(t, ctx, db, effects, sess.OrgID, "project-noauth", "task-noauth", "agent:blocked", "ce_http_noauth", base.Add(3*time.Minute))
++	noauthResp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?limit=100&project_id=project-noauth", sess)
++	defer noauthResp.Body.Close()
++	if noauthResp.StatusCode != http.StatusForbidden {
++		t.Fatalf("noauth project status=%d body=%s", noauthResp.StatusCode, readCollaborationHTTPBody(t, noauthResp))
++	}
++	t.Logf("unauthorized project query params: limit=100 project_id=project-noauth; status=%d", noauthResp.StatusCode)
++	crossOrgResp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?limit=100&project_id=project-other", sess)
++	defer crossOrgResp.Body.Close()
++	if crossOrgResp.StatusCode != http.StatusNotFound {
++		t.Fatalf("cross-org project status=%d body=%s", crossOrgResp.StatusCode, readCollaborationHTTPBody(t, crossOrgResp))
++	}
++	t.Logf("cross-org project query params: limit=100 project_id=project-other; status=%d", crossOrgResp.StatusCode)
++}
++
++func seedCollaborationHTTPProject(t *testing.T, ctx context.Context, db collaborationHTTPExecContext, repo *collaborationeffect.SQLiteRepository, orgID, projectID, taskID, assignee, effectID string, at time.Time) {
++	t.Helper()
++	ts := at.UTC().Format(time.RFC3339Nano)
++	if _, err := db.ExecContext(ctx, `INSERT OR IGNORE INTO pm_projects (id, organization_id, name, description, status, created_by, created_at, updated_at) VALUES (?, ?, ?, '', 'active', 'user:test', ?, ?)`, projectID, orgID, projectID, ts, ts); err != nil {
++		t.Fatalf("seed project %s: %v", projectID, err)
++	}
++	if _, err := db.ExecContext(ctx, `INSERT OR IGNORE INTO pm_tasks (id, project_id, title, description, status, assignee, created_by, created_at, updated_at) VALUES (?, ?, ?, '', 'running', ?, 'user:test', ?, ?)`, taskID, projectID, taskID, assignee, ts, ts); err != nil {
++		t.Fatalf("seed task %s: %v", taskID, err)
++	}
++	effect := collaborationeffect.Effect{
++		EffectID: effectID, ProjectID: projectID, TargetTaskID: taskID, SourceAgentRef: assignee,
++		RelationType: collaborationeffect.RelationComplete, Polarity: collaborationeffect.PolarityPositive,
++		Magnitude: 2, Confidence: "high", OccurredAt: at, RuleVersion: collaborationeffect.RuleVersionV1,
++		EvidenceEventIDs: []string{effectID + "-event"},
++		BeforeState:      map[string]any{"task_status": "running"},
++		AfterState:       map[string]any{"task_status": "completed"},
++		ExplanationKey:   "collaboration.effect.complete",
++	}
++	if err := repo.Apply(ctx, collaborationeffect.Fact{EventID: effectID, OccurredAt: at}, collaborationeffect.RuleVersionV1, []collaborationeffect.Effect{effect}, nil, nil); err != nil {
++		t.Fatalf("seed effect %s: %v", effectID, err)
++	}
++}
++
++func readCollaborationHTTPBody(t *testing.T, resp *http.Response) string {
++	t.Helper()
++	b, err := io.ReadAll(resp.Body)
++	if err != nil {
++		t.Fatal(err)
++	}
++	return string(b)
++}
+diff --git a/web/src/api/insights.ts b/web/src/api/insights.ts
+index ad9c7580..838ffc8f 100644
+--- a/web/src/api/insights.ts
++++ b/web/src/api/insights.ts
+@@ -118,189 +118,190 @@ export interface InsightProjectLifecycleSummary {
+ }
+ 
+ export interface InsightLeaderboardAgent {
+   agent_ref: string;
+   display_name: string | null;
+   summary: InsightSummary;
+ }
+ 
+ export interface InsightLeaderboardProject {
+   project_id: string;
+   name: string | null;
+   summary: InsightSummary;
+ }
+ 
+ export interface InsightDiagnostics {
+   invalid_facts: number;
+   late_events: number;
+ }
+ 
+ export interface InsightOverview {
+   window: InsightWindow;
+   as_of: string;
+   refreshed_at: string;
+   freshness: InsightFreshness;
+   summary: InsightSummary;
+   trend: InsightTrendPoint[];
+   usage: InsightUsageSummary;
+   plan_scale: InsightPlanScaleSummary[];
+   project_lifecycle: InsightProjectLifecycleSummary[];
+   agents: InsightLeaderboardAgent[];
+   projects: InsightLeaderboardProject[];
+   diagnostics: InsightDiagnostics;
+ }
+ 
+ export interface InsightExecutionRow {
+   execution_id: string;
+   command_id: string | null;
+   task_id: string | null;
+   task_ref: string | null;
+   task_title: string | null;
+   agent_ref: string;
+   agent_name: string | null;
+   project_id: string | null;
+   project_name: string | null;
+   worker_id: string | null;
+   outcome: string | null;
+   failure_reason: string | null;
+   failure_message: string | null;
+   command_status: string | null;
+   status_reason: string | null;
+   status_message: string | null;
+   queued_at: string | null;
+   started_at: string | null;
+   finished_at: string | null;
+   queue_wait_ms: number | null;
+   duration_ms: number | null;
+   recovered: boolean;
+   quality: string;
+ }
+ 
+ export interface InsightExecutions {
+   window: InsightWindow;
+   as_of: string;
+   refreshed_at: string;
+   freshness: InsightFreshness;
+   executions: InsightExecutionRow[];
+   next_cursor: string | null;
+ }
+ 
+ export interface InsightExecutionDetail {
+   window: InsightWindow;
+   as_of: string;
+   refreshed_at: string;
+   freshness: InsightFreshness;
+   execution: InsightExecutionRow;
+ }
+ 
+ export type CollaborationRelation = 'assign' | 'reassign' | 'complete' | 'block' | 'unblock' | 'dependency_release' | 'review_accept' | 'review_reject';
+ export type CollaborationPolarity = 'positive' | 'negative' | 'neutral' | 'mixed';
+ 
+-export type CollaborationNodeKind = 'agent' | 'project' | 'plan' | 'stage' | 'task';
++export type CollaborationNodeKind = 'agent' | 'project' | 'plan' | 'stage' | 'task' | 'cluster';
+ export interface CollaborationNode {
+   id: string; kind: CollaborationNodeKind; label: string; project_id?: string; plan_id?: string;
+   stage_id?: string; task_id?: string; status?: string;
+ }
+ export interface CollaborationEdge {
+   id: string; source: string; target: string; relation_type: string; polarity: CollaborationPolarity;
+   magnitude: 1 | 2 | 3; effect_id?: string; effect_ids?: string[]; effect_scopes?: CollaborationEffectScope[]; interaction_count: number; evidence_count: number;
+   first_occurred_at?: string; last_occurred_at?: string; clustered?: boolean;
+ }
+ export interface CollaborationEffectScope { effect_id: string; project_id: string }
+ export interface CollaborationEffect extends CollaborationEdge {
+   effect_id: string; relation_type: CollaborationRelation;
+   project_id: string; target_task_id: string; source_agent_ref: string; target_agent_ref: string;
+   confidence: string; occurred_at: string; rule_version: string; evidence_event_ids: string[];
+   before_state: Record<string, unknown>; after_state: Record<string, unknown>; explanation_key: string;
+ }
+ export interface CollaborationGraphResponse {
+-  graph: { nodes: CollaborationNode[]; edges: CollaborationEdge[] };
++  graph: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; lod: 'full' | 'cluster'; clusters: CollaborationNode[]; truncated: boolean };
+   effects: CollaborationEffect[];
+   summary: { positive_count: number; negative_count: number; neutral_count: number; mixed_count: number; affected_task_count: number };
+   next_cursor: string;
+   graph_version: string;
++  truncated: boolean;
+ }
+ export interface CollaborationEvidenceEvent { event_id: string; event_type: string; occurred_at: string; actor_ref: string; refs: Record<string, string>; payload: Record<string, unknown> }
+ export interface CollaborationEvidenceResponse { effect_id: string; evidence: CollaborationEvidenceEvent[] }
+ export interface CollaborationFilters {
+   project_id: string; plan_id?: string; task_id?: string; agent_ref?: string; relation_type?: CollaborationRelation; polarity?: CollaborationPolarity;
+-  since?: string; until?: string; cursor?: string; graph_version?: string; limit?: number;
++  since?: string; until?: string; cursor?: string; graph_version?: string; lod?: 'full' | 'cluster'; max_nodes?: number; limit?: number;
+ }
+ 
+ export type InsightV2HealthStatus = 'healthy' | 'elevated' | 'degraded' | 'unknown';
+ 
+ export interface InsightV2Health {
+   status: InsightV2HealthStatus;
+   reason_codes: string[];
+   evidence: Record<string, unknown>[];
+ }
+ 
+ export interface InsightV2Meta {
+   metric_version: 'insight.metrics.v2';
+   sample_count: number;
+   coverage: number | null;
+   freshness: InsightFreshness;
+   unknown_count: number;
+   known: boolean;
+ }
+ 
+ export interface InsightV2Envelope {
+   metric_version: 'insight.metrics.v2';
+   time_window: InsightWindow;
+   as_of: string;
+   health: InsightV2Health;
+   meta: InsightV2Meta;
+ }
+ 
+ export interface InsightV2CountMetric {
+   value: number | null;
+   meta: InsightV2Meta;
+ }
+ 
+ export interface InsightV2ProjectSummary {
+   id: string;
+   name: string | null;
+   health: InsightV2Health;
+   execution_count: InsightV2CountMetric;
+   failure_rate: number | null;
+   open_issues: InsightV2CountMetric;
+   blocked_tasks: InsightV2CountMetric;
+   active_plans: InsightV2CountMetric;
+   reason_codes: string[];
+ }
+ 
+ export type InsightV2Projects = InsightV2ProjectSummary[];
+ 
+ export interface InsightV2FunnelBreak {
+   kind: string;
+   count: InsightV2CountMetric;
+   drilldown: Record<string, unknown>;
+ }
+ 
+ export interface InsightV2Funnel {
+   issues: InsightV2CountMetric;
+   tasks: InsightV2CountMetric;
+   plans: InsightV2CountMetric;
+   done: InsightV2CountMetric;
+   breaks: InsightV2FunnelBreak[];
+ }
+ 
+ export interface InsightV2ProjectDelivery extends InsightV2Envelope {
+   project_id: string;
+   funnel: InsightV2Funnel;
+ }
+ 
+ export interface InsightV2ProjectEvolution extends InsightV2Envelope {
+   project_id: string;
+   evolution: {
+     plans: number;
+     evolved_plans: number;
+     evolution_rate: number | null;
+     generation_count: number;
+     rework_count: number;
+     rework_ratio: number | null;
+     recovery_attempts: number;
+     recovery_successes: number;
+     recovery_effectiveness: number | null;
+     max_loop_depth: number;
+     stale_orphan_residue: number;
+     anomaly_drilldowns: {
+@@ -685,414 +686,418 @@ function normalizeV2Evolution(value: unknown): InsightV2ProjectEvolution {
+       ...evolution,
+       plans: numberOrZero(evolution.plans),
+       evolved_plans: numberOrZero(evolution.evolved_plans),
+       evolution_rate: numberOrNull(evolution.evolution_rate),
+       generation_count: numberOrZero(evolution.generation_count),
+       rework_count: numberOrZero(evolution.rework_count),
+       rework_ratio: numberOrNull(evolution.rework_ratio),
+       recovery_attempts: numberOrZero(evolution.recovery_attempts),
+       recovery_successes: numberOrZero(evolution.recovery_successes),
+       recovery_effectiveness: numberOrNull(evolution.recovery_effectiveness),
+       max_loop_depth: numberOrZero(evolution.max_loop_depth),
+       stale_orphan_residue: numberOrZero(evolution.stale_orphan_residue),
+       anomaly_drilldowns: {
+         rework: isRecord(drilldowns.rework) ? drilldowns.rework : {},
+         recovery: isRecord(drilldowns.recovery) ? drilldowns.recovery : {},
+         loop_depth: isRecord(drilldowns.loop_depth) ? drilldowns.loop_depth : {},
+         residue: isRecord(drilldowns.residue) ? drilldowns.residue : {},
+       },
+     },
+   };
+ }
+ 
+ function normalizeV2Generation(value: unknown): InsightV2Generation {
+   const source = isRecord(value) ? value : {};
+   return {
+     generation: numberOrZero(source.generation),
+     created_at: stringOrEmpty(source.created_at),
+     triggered_by: stringOrEmpty(source.triggered_by),
+     reason: stringOrEmpty(source.reason) || 'unknown',
+     evidence: recordArrayOrEmpty(source.evidence),
+     node_changes: recordArrayOrEmpty(source.node_changes),
+     recovery_duration_ms: numberOrNull(source.recovery_duration_ms),
+     recovery_outcome: stringOrEmpty(source.recovery_outcome) || 'unknown',
+     delivery_branch: stringOrEmpty(source.delivery_branch),
+     delivery_sha: stringOrEmpty(source.delivery_sha),
+     acceptance_verdict: stringOrEmpty(source.acceptance_verdict) || 'pending',
+   };
+ }
+ 
+ function normalizeV2Lineage(value: unknown): InsightV2PlanLineage {
+   const source = isRecord(value) ? value : {};
+   return {
+     ...normalizeV2Envelope(source),
+     project_id: stringOrEmpty(source.project_id),
+     plan_id: stringOrEmpty(source.plan_id),
+     generations: arrayOrEmpty(source.generations as InsightV2Generation[] | null | undefined).map(normalizeV2Generation),
+   };
+ }
+ 
+ function normalizeExecutionRow(value: unknown): InsightExecutionRow {
+   const source = isRecord(value) ? value : {};
+   return {
+     execution_id: stringOrEmpty(source.execution_id) || 'unknown',
+     command_id: stringOrNull(source.command_id),
+     task_id: stringOrNull(source.task_id),
+     task_ref: stringOrNull(source.task_ref),
+     task_title: stringOrNull(source.task_title),
+     agent_ref: stringOrEmpty(source.agent_ref) || 'unknown',
+     agent_name: stringOrNull(source.agent_name),
+     project_id: stringOrNull(source.project_id),
+     project_name: stringOrNull(source.project_name),
+     worker_id: stringOrNull(source.worker_id),
+     outcome: stringOrNull(source.outcome),
+     failure_reason: stringOrNull(source.failure_reason),
+     failure_message: stringOrNull(source.failure_message),
+     command_status: stringOrNull(source.command_status),
+     status_reason: stringOrNull(source.status_reason),
+     status_message: stringOrNull(source.status_message),
+     queued_at: stringOrNull(source.queued_at),
+     started_at: stringOrNull(source.started_at),
+     finished_at: stringOrNull(source.finished_at),
+     queue_wait_ms: numberOrNull(source.queue_wait_ms),
+     duration_ms: numberOrNull(source.duration_ms),
+     recovered: booleanOrFalse(source.recovered),
+     quality: stringOrEmpty(source.quality) || 'unknown',
+   };
+ }
+ 
+ function normalizeCollaborationNode(value: unknown): CollaborationNode {
+   const source = isRecord(value) ? value : {};
+-  const kind = (['agent', 'project', 'plan', 'stage', 'task'].includes(String(source.kind)) ? source.kind : 'task') as CollaborationNodeKind;
++  const kind = (['agent', 'project', 'plan', 'stage', 'task', 'cluster'].includes(String(source.kind)) ? source.kind : 'task') as CollaborationNodeKind;
+   const id = stringOrEmpty(source.id) || (kind === 'agent' ? 'agent:unknown' : 'task:unknown');
+   return {
+     id,
+     kind,
+     label: stringOrEmpty(source.label) || id,
+     project_id: stringOrEmpty(source.project_id) || undefined,
+     plan_id: stringOrEmpty(source.plan_id) || undefined,
+     stage_id: stringOrEmpty(source.stage_id) || undefined,
+     task_id: stringOrEmpty(source.task_id) || undefined,
+     status: stringOrEmpty(source.status) || undefined,
+   };
+ }
+ 
+ function normalizeCollaborationRelation(value: unknown): CollaborationRelation {
+   return RELATION_VALUES.includes(value as CollaborationRelation) ? value as CollaborationRelation : 'assign';
+ }
+ 
+ function normalizeCollaborationPolarity(value: unknown): CollaborationPolarity {
+   return POLARITY_VALUES.includes(value as CollaborationPolarity) ? value as CollaborationPolarity : 'neutral';
+ }
+ 
+ const RELATION_VALUES: CollaborationRelation[] = ['assign', 'reassign', 'complete', 'block', 'unblock', 'dependency_release', 'review_accept', 'review_reject'];
+ const POLARITY_VALUES: CollaborationPolarity[] = ['positive', 'negative', 'neutral', 'mixed'];
+ 
+ function normalizeMagnitude(value: unknown): 1 | 2 | 3 {
+   return value === 2 || value === 3 ? value : 1;
+ }
+ 
+ function normalizeCollaborationEdge(value: unknown): CollaborationEdge {
+   const source = isRecord(value) ? value : {};
+   const id = stringOrEmpty(source.id) || stringOrEmpty(source.effect_id) || 'ce_unknown';
+   return {
+     id,
+     source: stringOrEmpty(source.source) || stringOrEmpty(source.source_agent_ref) || 'agent:unknown',
+     target: stringOrEmpty(source.target) || `task:${stringOrEmpty(source.target_task_id) || 'unknown'}`,
+     relation_type: stringOrEmpty(source.relation_type) || 'unknown',
+     polarity: normalizeCollaborationPolarity(source.polarity),
+     magnitude: normalizeMagnitude(source.magnitude),
+     effect_id: stringOrEmpty(source.effect_id) || undefined,
+     effect_ids: Array.isArray(source.effect_ids) ? source.effect_ids.filter((item): item is string => typeof item === 'string') : undefined,
+     effect_scopes: Array.isArray(source.effect_scopes)
+       ? source.effect_scopes.map(normalizeCollaborationEffectScope).filter((item) => item.effect_id)
+       : undefined,
+     interaction_count: numberOrZero(source.interaction_count),
+     evidence_count: numberOrZero(source.evidence_count),
+     first_occurred_at: stringOrEmpty(source.first_occurred_at) || undefined,
+     last_occurred_at: stringOrEmpty(source.last_occurred_at) || undefined,
+     clustered: booleanOrFalse(source.clustered),
+   };
+ }
+ 
+ function normalizeCollaborationEffectScope(value: unknown): CollaborationEffectScope {
+   const source = isRecord(value) ? value : {};
+   return { effect_id: stringOrEmpty(source.effect_id), project_id: stringOrEmpty(source.project_id) };
+ }
+ 
+ function normalizeCollaborationEffect(value: unknown): CollaborationEffect {
+   const source = isRecord(value) ? value : {};
+   const edge = normalizeCollaborationEdge(source);
+   return {
+     ...edge,
+     effect_id: stringOrEmpty(source.effect_id) || edge.id,
+     relation_type: normalizeCollaborationRelation(source.relation_type),
+     project_id: stringOrEmpty(source.project_id),
+     target_task_id: stringOrEmpty(source.target_task_id),
+     source_agent_ref: stringOrEmpty(source.source_agent_ref),
+     target_agent_ref: stringOrEmpty(source.target_agent_ref),
+     confidence: stringOrEmpty(source.confidence) || 'unknown',
+     occurred_at: stringOrEmpty(source.occurred_at),
+     rule_version: stringOrEmpty(source.rule_version),
+     evidence_event_ids: Array.isArray(source.evidence_event_ids) ? source.evidence_event_ids.filter((item): item is string => typeof item === 'string') : [],
+     before_state: isRecord(source.before_state) ? source.before_state : {},
+     after_state: isRecord(source.after_state) ? source.after_state : {},
+     explanation_key: stringOrEmpty(source.explanation_key),
+   };
+ }
+ 
+ function normalizeCollaborationGraphResponse(value: unknown): CollaborationGraphResponse {
+   const source = isRecord(value) ? value : {};
+   const graph = isRecord(source.graph) ? source.graph : {};
+   const effects = arrayOrEmpty(source.effects as unknown[] | null | undefined).map(normalizeCollaborationEffect);
+   const summary = isRecord(source.summary) ? source.summary : {};
+   return {
+     graph: {
+       nodes: arrayOrEmpty(graph.nodes as unknown[] | null | undefined).map(normalizeCollaborationNode),
+       edges: arrayOrEmpty(graph.edges as unknown[] | null | undefined).map(normalizeCollaborationEdge),
++      lod: graph.lod === 'cluster' ? 'cluster' : 'full',
++      clusters: arrayOrEmpty(graph.clusters as unknown[] | null | undefined).map(normalizeCollaborationNode),
++      truncated: booleanOrFalse(graph.truncated),
+     },
+     effects,
+     summary: {
+       positive_count: numberOrZero(summary.positive_count),
+       negative_count: numberOrZero(summary.negative_count),
+       neutral_count: numberOrZero(summary.neutral_count),
+       mixed_count: numberOrZero(summary.mixed_count),
+       affected_task_count: numberOrZero(summary.affected_task_count),
+     },
+     next_cursor: stringOrEmpty(source.next_cursor),
+     graph_version: stringOrEmpty(source.graph_version),
++    truncated: booleanOrFalse(source.truncated),
+   };
+ }
+ 
+ function normalizeCollaborationEvidenceEvent(value: unknown): CollaborationEvidenceEvent {
+   const source = isRecord(value) ? value : {};
+   return {
+     event_id: stringOrEmpty(source.event_id) || 'event:unknown',
+     event_type: stringOrEmpty(source.event_type),
+     occurred_at: stringOrEmpty(source.occurred_at),
+     actor_ref: stringOrEmpty(source.actor_ref),
+     refs: isRecord(source.refs) ? Object.fromEntries(Object.entries(source.refs).filter((entry): entry is [string, string] => typeof entry[1] === 'string')) : {},
+     payload: isRecord(source.payload) ? source.payload : {},
+   };
+ }
+ 
+ function normalizeCollaborationEvidenceResponse(value: unknown): CollaborationEvidenceResponse {
+   const source = isRecord(value) ? value : {};
+   return {
+     effect_id: stringOrEmpty(source.effect_id),
+     evidence: arrayOrEmpty(source.evidence as unknown[] | null | undefined).map(normalizeCollaborationEvidenceEvent),
+   };
+ }
+ 
+ function normalizeOverview(value: unknown): InsightOverview {
+   const source = isRecord(value) ? value : {};
+   return {
+     window: normalizeWindow(source.window),
+     as_of: stringOrEmpty(source.as_of),
+     refreshed_at: stringOrEmpty(source.refreshed_at),
+     freshness: normalizeFreshness(source.freshness),
+     summary: normalizeSummary(source.summary),
+     trend: arrayOrEmpty(source.trend as InsightTrendPoint[] | null | undefined).map(normalizeTrendPoint),
+     usage: normalizeUsage(source.usage),
+     plan_scale: arrayOrEmpty(source.plan_scale as InsightPlanScaleSummary[] | null | undefined).map(normalizePlanScale),
+     project_lifecycle: arrayOrEmpty(source.project_lifecycle as InsightProjectLifecycleSummary[] | null | undefined).map(normalizeProjectLifecycle),
+     agents: arrayOrEmpty(source.agents as InsightLeaderboardAgent[] | null | undefined).map(normalizeAgent),
+     projects: arrayOrEmpty(source.projects as InsightLeaderboardProject[] | null | undefined).map(normalizeProject),
+     diagnostics: normalizeDiagnostics(source.diagnostics),
+   };
+ }
+ 
+ function normalizeExecutions(value: unknown): InsightExecutions {
+   const source = isRecord(value) ? value : {};
+   return {
+     window: normalizeWindow(source.window),
+     as_of: stringOrEmpty(source.as_of),
+     refreshed_at: stringOrEmpty(source.refreshed_at),
+     freshness: normalizeFreshness(source.freshness),
+     executions: arrayOrEmpty(source.executions as InsightExecutionRow[] | null | undefined).map(normalizeExecutionRow),
+     next_cursor: stringOrNull(source.next_cursor),
+   };
+ }
+ 
+ function normalizeExecutionDetail(value: unknown): InsightExecutionDetail {
+   const source = isRecord(value) ? value : {};
+   return {
+     window: normalizeWindow(source.window),
+     as_of: stringOrEmpty(source.as_of),
+     refreshed_at: stringOrEmpty(source.refreshed_at),
+     freshness: normalizeFreshness(source.freshness),
+     execution: normalizeExecutionRow(source.execution),
+   };
+ }
+ 
+ function executionParams(filters: InsightExecutionFilters = {}): string {
+   const params = new URLSearchParams({ window: '24h' });
+   if (filters.agent_ref) params.set('agent_ref', filters.agent_ref);
+   if (filters.project_id) params.set('project_id', filters.project_id);
+   if (filters.cursor) params.set('cursor', filters.cursor);
+   if (filters.limit) params.set('limit', String(filters.limit));
+   return params.toString();
+ }
+ 
+ export function useInsightOverview() {
+   return useQuery({
+     queryKey: qk.insightOverview(),
+     queryFn: async () => normalizeOverview(await api.get<unknown>('/insights/overview?window=24h')),
+   });
+ }
+ 
+ export function useInsightExecutions(filters: InsightExecutionFilters, enabled: boolean) {
+   return useQuery({
+     queryKey: qk.insightExecutions(filters),
+     queryFn: async () => normalizeExecutions(await api.get<unknown>(`/insights/executions?${executionParams(filters)}`)),
+     enabled,
+   });
+ }
+ 
+ export function useInsightExecution(executionId: string | undefined) {
+   return useQuery({
+     queryKey: qk.insightExecution(executionId ?? ''),
+     queryFn: async () => normalizeExecutionDetail(await api.get<unknown>(`/insights/executions/${encodeURIComponent(executionId ?? '')}?window=24h`)),
+     enabled: Boolean(executionId),
+   });
+ }
+ 
+ export function useInsightV2Projects() {
+   return useQuery({
+     queryKey: qk.insightV2Projects(),
+     queryFn: async () => normalizeV2Projects(await api.get<unknown>('/insights/v2/projects?window=24h')),
+   });
+ }
+ 
+ export function useInsightV2Project(projectId: string | undefined) {
+   return useQuery({
+     queryKey: qk.insightV2Project(projectId ?? ''),
+     queryFn: async () => normalizeV2ProjectSummary(await api.get<unknown>(`/insights/v2/projects/${encodeURIComponent(projectId ?? '')}?window=24h`)),
+     enabled: Boolean(projectId),
+   });
+ }
+ 
+ export function useInsightV2ProjectDelivery(projectId: string | undefined) {
+   return useQuery({
+     queryKey: qk.insightV2ProjectDelivery(projectId ?? ''),
+     queryFn: async () => normalizeV2Delivery(await api.get<unknown>(`/insights/v2/projects/${encodeURIComponent(projectId ?? '')}/delivery?window=24h`)),
+     enabled: Boolean(projectId),
+   });
+ }
+ 
+ export function useInsightV2ProjectLifecycle(projectId: string | undefined) {
+   return useQuery({
+     queryKey: qk.insightV2ProjectLifecycle(projectId ?? ''),
+     queryFn: async () => normalizeProjectLifecycle(await api.get<unknown>(`/insights/v2/projects/${encodeURIComponent(projectId ?? '')}/lifecycle?window=24h`)),
+     enabled: Boolean(projectId),
+   });
+ }
+ 
+ export function useInsightV2ProjectEvolution(projectId: string | undefined) {
+   return useQuery({
+     queryKey: qk.insightV2ProjectEvolution(projectId ?? ''),
+     queryFn: async () => normalizeV2Evolution(await api.get<unknown>(`/insights/v2/projects/${encodeURIComponent(projectId ?? '')}/evolution?window=24h`)),
+     enabled: Boolean(projectId),
+   });
+ }
+ 
+ export function useInsightV2PlanLineage(projectId: string | undefined, planId: string | undefined) {
+   return useQuery({
+     queryKey: qk.insightV2PlanLineage(projectId ?? '', planId ?? ''),
+     queryFn: async () => normalizeV2Lineage(await api.get<unknown>(`/insights/v2/projects/${encodeURIComponent(projectId ?? '')}/plans/${encodeURIComponent(planId ?? '')}/lineage?window=24h`)),
+     enabled: Boolean(projectId && planId),
+   });
+ }
+ 
+ export function useInsightAgents() {
+   return useQuery({
+     queryKey: qk.insightAgents(),
+     queryFn: async () => arrayOrEmpty(await api.get<unknown[]>('/insights/v2/agents?window=24h')).map(normalizeV2Agent),
+   });
+ }
+ 
+ export function useInsightAgent(agentRef: string | undefined) {
+   return useQuery({
+     queryKey: qk.insightAgent(agentRef ?? ''),
+     queryFn: async () => normalizeV2Agent(await api.get<unknown>(`/insights/v2/agents/${encodeURIComponent(agentRef ?? '')}?window=24h`)),
+     enabled: Boolean(agentRef),
+   });
+ }
+ 
+ function collaborationParams(filters: CollaborationFilters): string {
+   const params = new URLSearchParams({ limit: String(Math.min(filters.limit ?? 100, 500)) });
+-  for (const key of ['project_id', 'plan_id', 'task_id', 'agent_ref', 'relation_type', 'polarity', 'since', 'until', 'cursor', 'graph_version'] as const) {
++  for (const key of ['project_id', 'plan_id', 'task_id', 'agent_ref', 'relation_type', 'polarity', 'since', 'until', 'cursor', 'graph_version', 'lod', 'max_nodes'] as const) {
+     const value = filters[key];
+     if (value) params.set(key, String(value));
+   }
+   return params.toString();
+ }
+ 
+ export function useCollaborationEffects(filters: CollaborationFilters, enabled = true) {
+   return useQuery({
+     queryKey: qk.collaborationEffects(filters),
+     queryFn: async () => normalizeCollaborationGraphResponse(await api.get<unknown>(`/insights/collaboration-effects?${collaborationParams(filters)}`)),
+     enabled,
+   });
+ }
+ 
+ // The organization graph is intentionally accumulated a page at a time. Keeping
+ // every page in the query cache means "load more" expands the graph instead of
+ // replacing the user's current context with the next cursor page.
+ export function useInfiniteCollaborationEffects(filters: CollaborationFilters, enabled = true) {
+   const baseFilters = { ...filters, cursor: undefined };
+   return useInfiniteQuery({
+     queryKey: [...qk.collaborationEffects(baseFilters), 'infinite'],
+     queryFn: async ({ pageParam }) => normalizeCollaborationGraphResponse(await api.get<unknown>(
+       `/insights/collaboration-effects?${collaborationParams({ ...baseFilters, cursor: pageParam || undefined })}`,
+     )),
+     initialPageParam: '',
+     getNextPageParam: (lastPage) => lastPage.next_cursor || undefined,
+     enabled,
+   });
+ }
+ 
+ export function useCollaborationEvidence(effectId: string | null, projectId?: string) {
+   return useQuery({
+     queryKey: [...qk.collaborationEvidence(effectId ?? ''), projectId ?? ''],
+     queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(effectId ?? '')}/evidence${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`)),
+     enabled: Boolean(effectId),
+   });
+ }
+ 
+ export function useCollaborationEvidenceBundle(effectScopes: Array<string | CollaborationEffectScope>, projectId?: string) {
+   const uniqueEffectScopes = dedupeEffectScopes(effectScopes, projectId);
+   const queries = useQueries({
+     queries: uniqueEffectScopes.map((scope) => ({
+       queryKey: [...qk.collaborationEvidence(scope.effect_id), scope.project_id],
+       queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(scope.effect_id)}/evidence${scope.project_id ? `?project_id=${encodeURIComponent(scope.project_id)}` : ''}`)),
+       enabled: Boolean(scope.effect_id),
+     })),
+   });
+   const evidence = dedupeEvidenceEvents(queries.flatMap((query) => query.data?.evidence ?? []));
+   return {
+     effect_ids: uniqueEffectScopes.map((scope) => scope.effect_id),
+     data: { effect_id: uniqueEffectScopes.map((scope) => scope.effect_id).join(','), evidence },
+     isLoading: queries.some((query) => query.isLoading),
+     isError: queries.some((query) => query.isError),
+   };
+ }
+ 
+ function dedupeEffectScopes(effectScopes: Array<string | CollaborationEffectScope>, fallbackProjectId?: string): CollaborationEffectScope[] {
+   const byKey = new Map<string, CollaborationEffectScope>();
+   for (const item of effectScopes) {
+     const scope = typeof item === 'string' ? { effect_id: item, project_id: fallbackProjectId ?? '' } : item;
+     if (!scope.effect_id) continue;
+     const scoped = { ...scope, project_id: scope.project_id || fallbackProjectId || '' };
+     const key = `${scoped.effect_id}\0${scoped.project_id}`;
+     if (!byKey.has(key)) byKey.set(key, scoped);
+   }
+   return [...byKey.values()].sort((a, b) => a.effect_id.localeCompare(b.effect_id) || a.project_id.localeCompare(b.project_id));
+ }
+ 
+ function dedupeEvidenceEvents(events: CollaborationEvidenceEvent[]): CollaborationEvidenceEvent[] {
+   const byID = new Map<string, CollaborationEvidenceEvent>();
+   for (const event of events) {
+     if (!byID.has(event.event_id)) byID.set(event.event_id, event);
+   }
+   return [...byID.values()].sort((a, b) => a.occurred_at.localeCompare(b.occurred_at) || a.event_id.localeCompare(b.event_id));
+ }
+diff --git a/web/src/pages/InsightCollaboration.tsx b/web/src/pages/InsightCollaboration.tsx
+index aee3f6f7..fc3e19e3 100644
+--- a/web/src/pages/InsightCollaboration.tsx
++++ b/web/src/pages/InsightCollaboration.tsx
+@@ -1,451 +1,558 @@
+-import React, { useCallback, useMemo, useRef, useState } from 'react';
++import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
++import { flushSync } from 'react-dom';
+ import { useTranslation } from 'react-i18next';
+ import { useSearchParams } from 'react-router-dom';
+ import { ApiError } from '@/api/client';
+ import {
+   useInfiniteCollaborationEffects,
+   useCollaborationEvidenceBundle,
+   type CollaborationEdge,
+   type CollaborationEffect,
+   type CollaborationEffectScope,
+   type CollaborationFilters,
+   type CollaborationGraphResponse,
+   type CollaborationNode,
+   type CollaborationPolarity,
+   type CollaborationRelation,
+ } from '@/api/insights';
+ import { identityRefOf, normalizeIdentityRef, refKind, useMembers } from '@/api/members';
+ import { useProjectMembers, useProjects } from '@/api/projects';
+ import { useTasksList } from '@/api/tasks';
+ import { usePlans } from '@/api/plans';
+ import { EntitySelect, type EntityOption } from '@/components/EntitySelect';
+ 
+ const RELATIONS: CollaborationRelation[] = ['assign', 'reassign', 'complete', 'block', 'unblock', 'dependency_release', 'review_accept', 'review_reject'];
+ const POLARITIES: CollaborationPolarity[] = ['positive', 'negative', 'neutral', 'mixed'];
+ 
+ export default function InsightCollaboration(): React.ReactElement {
+   const { t } = useTranslation('insights');
+   const [params, setParams] = useSearchParams();
+   const [selected, setSelected] = useState<CollaborationEffectScope[] | null>(null);
+   const filters = filtersFromParams(params);
+   const query = useInfiniteCollaborationEffects(filters);
+   const effects = useMemo(() => dedupeBy(query.data?.pages.flatMap((page) => page.effects) ?? [], (item) => item.effect_id), [query.data?.pages]);
+   const selectedIds = selected?.map((item) => item.effect_id) ?? [];
+   const effect = effects.find((item) => selectedIds.includes(item.effect_id)) ?? null;
+   const view = useMemo(() => accumulateGraph(query.data?.pages ?? []), [query.data?.pages]);
+   const summary = useMemo(() => summarizeEffects(effects), [effects]);
++  const showFullGraph = () => {
++    const next = new URLSearchParams(params);
++    next.set('lod', 'full');
++    next.delete('max_nodes');
++    next.delete('cursor');
++    setParams(next);
++  };
+ 
+   const update = (key: string, value: string, clear: string[] = []) => {
+     const next = new URLSearchParams(params);
+     if (value) next.set(key, value); else next.delete(key);
+     clear.forEach((item) => next.delete(item));
+     next.delete('cursor');
+     setParams(next);
+     setSelected(null);
+   };
+ 
+   return (
+     <section className="space-y-4" data-testid="page-InsightCollaboration">
+       <header><h1 className="text-xl font-semibold text-text-primary">{t('insight.collaboration.title')}</h1><p className="mt-1 text-sm text-text-muted">{t('insight.collaboration.subtitle')}</p></header>
+       <CollaborationFiltersBar params={params} update={update} clearAll={() => { setParams(new URLSearchParams()); setSelected(null); }} t={t} />
+       {query.isLoading ? <State id="collaboration-loading" title={t('insight.collaboration.loading')} /> : null}
+       {query.isError ? <CollaborationError error={query.error} t={t} /> : null}
+       {query.data ? <>
+         <Summary summary={summary} t={t} />
++        <CollaborationLODNotice view={view} canLoadMore={query.hasNextPage} loadingMore={query.isFetchingNextPage} onLoadMore={() => void query.fetchNextPage()} onShowFull={showFullGraph} t={t} />
+         {view.edges.length === 0 ? <State id="collaboration-empty" title={t('insight.collaboration.empty')} body={t('insight.collaboration.emptyBody')} /> :
+-          <CollaborationGraph nodes={view.nodes} edges={view.edges} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} />}
++          <CollaborationGraph view={view} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} />}
+         {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="rounded border border-border px-3 py-2 text-sm" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
+         <Timeline effects={effects} onSelect={setSelected} t={t} />
+       </> : null}
+       {selected ? <EvidenceDrawer effect={effect} effectIds={selected} onClose={() => setSelected(null)} t={t} /> : null}
+     </section>
+   );
+ }
+ 
+ function filtersFromParams(params: URLSearchParams): CollaborationFilters {
+   const relation = params.get('relation_type');
+   const polarity = params.get('polarity');
++  const hasDetailFilter = Boolean(params.get('project_id') || params.get('plan_id') || params.get('task_id') || params.get('agent_ref') || params.get('relation_type') || params.get('polarity'));
++  const lod = params.get('lod') === 'full' ? 'full' : params.get('lod') === 'cluster' ? 'cluster' : hasDetailFilter ? undefined : 'cluster';
++  const maxNodes = Number(params.get('max_nodes') ?? '');
+   return {
+     project_id: params.get('project_id') ?? '', plan_id: params.get('plan_id') ?? undefined, task_id: params.get('task_id') ?? undefined,
+     agent_ref: params.get('agent_ref') ?? undefined,
+     relation_type: RELATIONS.includes(relation as CollaborationRelation) ? relation as CollaborationRelation : undefined,
+     polarity: POLARITIES.includes(polarity as CollaborationPolarity) ? polarity as CollaborationPolarity : undefined,
+-    since: params.get('since') ?? undefined, until: params.get('until') ?? undefined, cursor: params.get('cursor') ?? undefined, limit: 100,
++    since: params.get('since') ?? undefined, until: params.get('until') ?? undefined, cursor: params.get('cursor') ?? undefined,
++    lod, max_nodes: Number.isFinite(maxNodes) && maxNodes > 0 ? maxNodes : lod === 'cluster' ? 90 : undefined, limit: 100,
+   };
+ }
+ 
+ type Translator = ReturnType<typeof useTranslation>['t'];
+ function CollaborationFiltersBar({ params, update, clearAll, t }: { params: URLSearchParams; update: (key: string, value: string, clear?: string[]) => void; clearAll: () => void; t: Translator }) {
+   const projectId = params.get('project_id') ?? '';
+   const planId = params.get('plan_id') ?? '';
+   const projects = useProjects();
+   const plans = usePlans(projectId || undefined);
+   const tasks = useTasksList(projectId || undefined, { status: ['all'], sort: 'updated', dir: 'desc', page_size: 500 });
+   const members = useMembers();
+   const projectMembers = useProjectMembers(projectId || undefined);
+   const projectOptions = useMemo<EntityOption[]>(() => (projects.data ?? [])
+     .map((project) => ({ value: project.id, label: project.name || project.id, hint: project.id, badge: project.status }))
+     .sort((a, b) => a.label.localeCompare(b.label) || a.value.localeCompare(b.value)), [projects.data]);
+   const planOptions = useMemo<EntityOption[]>(() => (plans.data ?? [])
+     .filter((plan) => !plan.is_builtin)
+     .map((plan) => ({ value: plan.id, label: plan.name || plan.org_ref || plan.id, hint: plan.org_ref ? `${plan.org_ref} · ${plan.id}` : plan.id, badge: plan.status }))
+     .sort((a, b) => a.label.localeCompare(b.label) || a.value.localeCompare(b.value)), [plans.data]);
+   const taskOptions = useMemo<EntityOption[]>(() => (tasks.data?.items ?? [])
+     .filter((task) => !planId || task.plan_id === planId)
+     .map((task) => ({ value: task.id, label: task.title || task.org_ref || task.id, hint: task.org_ref ? `${task.org_ref} · ${task.id}` : task.id, badge: task.status }))
+     .sort((a, b) => a.label.localeCompare(b.label) || a.value.localeCompare(b.value)), [tasks.data?.items, planId]);
+   const agentOptions = useMemo<EntityOption[]>(() => {
+     const directory = new Map((members.data ?? []).map((member) => [identityRefOf({ kind: member.kind, identity_id: member.identity_id }), member]));
+     return (projectMembers.data ?? [])
+       .map((member) => identityRefOf({ kind: refKind(member.identity_id), identity_id: member.identity_id }))
+       .filter((ref) => ref.startsWith('agent:'))
+       .map((ref) => {
+         const member = directory.get(ref);
+         return { value: ref, label: member?.display_name ?? normalizeIdentityRef(ref), hint: ref, badge: 'agent' };
+       })
+       .sort((a, b) => a.label.localeCompare(b.label) || a.value.localeCompare(b.value));
+   }, [members.data, projectMembers.data]);
+   const fields = [
+     ['since', t('insight.collaboration.filters.since'), 'datetime-local'],
+     ['until', t('insight.collaboration.filters.until'), 'datetime-local'],
+   ];
+   return <form aria-label={t('insight.collaboration.filters.label')} className="grid gap-3 rounded-lg border border-border bg-bg-surface p-4 md:grid-cols-4" onSubmit={(e) => e.preventDefault()}>
+     <div className="flex items-center justify-between gap-3 md:col-span-4"><h2 className="text-sm font-semibold text-text-primary">{t('insight.collaboration.filters.label')}</h2><button type="button" onClick={clearAll} className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle">{t('insight.collaboration.filters.clearAll')}</button></div>
+     <EntityFilter
+       name="project_id"
+       label={t('insight.collaboration.filters.project')}
+       value={projectId}
+       options={projectOptions}
+       disabled={projects.isLoading}
+       placeholder={projects.isLoading ? t('insight.collaboration.filters.loadingProjects') : t('insight.collaboration.filters.chooseProject')}
+       searchPlaceholder={t('insight.collaboration.filters.searchProjects')}
+       emptyLabel={t('insight.collaboration.filters.noProjects')}
+       update={(key, value) => update(key, value, value !== projectId ? ['plan_id', 'task_id', 'agent_ref'] : [])}
+     />
+     <EntityFilter
+       name="plan_id"
+       label={t('insight.collaboration.filters.plan')}
+       value={planId}
+       options={planOptions}
+       disabled={!projectId || plans.isLoading}
+       placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyPlan')}
+       searchPlaceholder={t('insight.collaboration.filters.searchPlans')}
+       emptyLabel={t('insight.collaboration.filters.noPlans')}
+       update={(key, value) => update(key, value, ['task_id'])}
+     />
+     <EntityFilter
+       name="task_id"
+       label={t('insight.collaboration.filters.task')}
+       value={params.get('task_id') ?? ''}
+       options={taskOptions}
+       disabled={!projectId || tasks.isLoading}
+       placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : tasks.isLoading ? t('insight.collaboration.filters.loadingTasks') : t('insight.collaboration.filters.chooseTask')}
+       searchPlaceholder={t('insight.collaboration.filters.searchTasks')}
+       emptyLabel={t('insight.collaboration.filters.noTasks')}
+       update={update}
+     />
+     <EntityFilter
+       name="agent_ref"
+       label={t('insight.collaboration.filters.agent')}
+       value={params.get('agent_ref') ?? ''}
+       options={agentOptions}
+       disabled={!projectId || projectMembers.isLoading || members.isLoading}
+       placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyAgent')}
+       searchPlaceholder={t('insight.collaboration.filters.searchAgents')}
+       emptyLabel={t('insight.collaboration.filters.noAgents')}
+       update={update}
+     />
+     {fields.map(([name, label, type]) => <label key={name} className="text-xs text-text-muted">{label}<input aria-label={label} type={type} value={dateTimeInputValue(params.get(name))} onChange={(e) => update(name, dateTimeInputToRFC3339(e.target.value))} className="mt-1 w-full rounded border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary" /></label>)}
+     <SelectFilter name="relation_type" label={t('insight.collaboration.filters.relation')} values={RELATIONS} value={params.get('relation_type') ?? ''} update={update} t={t} />
+     <SelectFilter name="polarity" label={t('insight.collaboration.filters.polarity')} values={POLARITIES} value={params.get('polarity') ?? ''} update={update} t={t} />
+   </form>;
+ }
+ 
+ function EntityFilter({ name, label, value, options, disabled, placeholder, searchPlaceholder, emptyLabel, update }: { name: string; label: string; value: string; options: EntityOption[]; disabled?: boolean; placeholder: string; searchPlaceholder: string; emptyLabel: string; update: (key: string, value: string) => void }) {
+   return <label className="text-xs text-text-muted">{label}<div className="mt-1 flex gap-2"><div className="min-w-0 flex-1"><EntitySelect testId={`collaboration-${name}`} ariaLabel={label} value={value} options={options} onChange={(next) => update(name, next)} disabled={disabled} placeholder={placeholder} searchPlaceholder={searchPlaceholder} emptyLabel={emptyLabel} /></div>{value ? <button type="button" onClick={() => update(name, '')} className="shrink-0 rounded border border-border px-2 text-sm text-text-muted hover:bg-bg-subtle" aria-label={`Clear ${label}`}>×</button> : null}</div></label>;
+ }
+ 
+ function SelectFilter({ name, label, values, value, update, t }: { name: string; label: string; values: string[]; value: string; update: (k: string, v: string) => void; t: Translator }) {
+   return <label className="text-xs text-text-muted">{label}<select aria-label={label} value={value} onChange={(e) => update(name, e.target.value)} className="mt-1 w-full rounded border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary"><option value="">{t('insight.collaboration.filters.all')}</option>{values.map((item) => <option key={item} value={item}>{labelFor(t, item)}</option>)}</select></label>;
+ }
+ 
+ function dateTimeInputValue(value: string | null): string {
+   if (!value) return '';
+   const parsed = new Date(value);
+   if (Number.isNaN(parsed.getTime())) return value;
+   const pad = (n: number) => String(n).padStart(2, '0');
+   return `${parsed.getFullYear()}-${pad(parsed.getMonth() + 1)}-${pad(parsed.getDate())}T${pad(parsed.getHours())}:${pad(parsed.getMinutes())}`;
+ }
+ 
+ function dateTimeInputToRFC3339(value: string): string {
+   if (!value) return '';
+   const parsed = new Date(value);
+   return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+ }
+ 
+ function Summary({ summary, t }: { summary: { positive_count: number; negative_count: number; neutral_count: number; mixed_count: number; affected_task_count: number }; t: Translator }) {
+   return <section aria-label={t('insight.collaboration.summary')} className="grid grid-cols-2 gap-2 md:grid-cols-5">{(['positive', 'negative', 'neutral', 'mixed'] as const).map((key) => <div key={key} className="rounded border border-border bg-bg-surface p-3"><span className="text-xs text-text-muted">{labelFor(t, key)}</span><strong className="block text-lg">{summary[`${key}_count`]}</strong></div>)}<div className="rounded border border-border bg-bg-surface p-3"><span className="text-xs text-text-muted">{t('insight.collaboration.affectedTasks')}</span><strong className="block text-lg">{summary.affected_task_count}</strong></div></section>;
+ }
+ 
+ function dedupeBy<T>(items: T[], key: (item: T) => string): T[] {
+   return [...new Map(items.map((item) => [key(item), item])).values()];
+ }
+ 
+ function summarizeEffects(effects: Array<{ polarity: CollaborationPolarity; target_task_id: string }>) {
+   const count = (polarity: CollaborationPolarity) => effects.filter((effect) => effect.polarity === polarity).length;
+   return { positive_count: count('positive'), negative_count: count('negative'), neutral_count: count('neutral'), mixed_count: count('mixed'), affected_task_count: new Set(effects.map((effect) => effect.target_task_id)).size };
+ }
+ 
+-function accumulateGraph(pages: CollaborationGraphResponse[]): { nodes: CollaborationNode[]; edges: CollaborationEdge[] } {
++type CollaborationGraphView = { nodes: CollaborationNode[]; edges: CollaborationEdge[]; clusters: CollaborationNode[]; lod: 'full' | 'cluster'; truncated: boolean };
++
++function accumulateGraph(pages: CollaborationGraphResponse[]): CollaborationGraphView {
+   const evidenceIdsByEdge = new Map<string, Set<string>>();
+   const effectIdsByEdge = new Map<string, Set<string>>();
+   const effectScopesByEdge = new Map<string, Map<string, CollaborationEffectScope>>();
+   for (const page of pages) {
+     for (const effect of page.effects) {
+       const target = effect.target_agent_ref || (effect.target_task_id ? `task:${effect.target_task_id}` : effect.target);
+       const key = semanticEdgeKey(effect.source_agent_ref || effect.source, target, effect.relation_type, effect.polarity);
+       const ids = evidenceIdsByEdge.get(key) ?? new Set<string>();
+       effect.evidence_event_ids.forEach((id) => ids.add(id));
+       evidenceIdsByEdge.set(key, ids);
+       const effectIds = effectIdsByEdge.get(key) ?? new Set<string>();
+       effectIds.add(effect.effect_id);
+       effectIdsByEdge.set(key, effectIds);
+       const scopes = effectScopesByEdge.get(key) ?? new Map<string, CollaborationEffectScope>();
+       scopes.set(effect.effect_id, { effect_id: effect.effect_id, project_id: effect.project_id });
+       effectScopesByEdge.set(key, scopes);
+     }
+   }
+   const mergedEdges = new Map<string, CollaborationEdge>();
+   for (const edge of pages.flatMap((page) => page.graph.edges)) {
+     const key = semanticEdgeKey(edge.source, edge.target, edge.relation_type, edge.polarity);
+     const effectIds = sortedEdgeEffectIds(edge, effectIdsByEdge.get(key));
+     const effectScopes = sortedEdgeEffectScopes(edge, effectScopesByEdge.get(key));
+     const current = mergedEdges.get(key);
+     if (!current) {
+       mergedEdges.set(key, { ...edge, effect_ids: effectIds, effect_scopes: effectScopes, evidence_count: evidenceIdsByEdge.get(key)?.size ?? edge.evidence_count });
+       continue;
+     }
+     const first = minDate(current.first_occurred_at, edge.first_occurred_at);
+     const last = maxDate(current.last_occurred_at, edge.last_occurred_at);
+     mergedEdges.set(key, {
+       ...current,
+       magnitude: Math.max(current.magnitude, edge.magnitude) as CollaborationEdge['magnitude'],
+       interaction_count: current.interaction_count + edge.interaction_count,
+       evidence_count: evidenceIdsByEdge.get(key)?.size ?? current.evidence_count + edge.evidence_count,
+       first_occurred_at: first,
+       last_occurred_at: last,
+       effect_id: current.effect_id || edge.effect_id,
+       effect_ids: sortedEdgeEffectIds(current, new Set(effectIds)),
+       effect_scopes: sortedEdgeEffectScopes(current, new Map((effectScopes ?? []).map((scope) => [scope.effect_id, scope]))),
+     });
+   }
+   return {
+     // A cursor page can have a different graph_version because the backend
+     // includes that page's effects in the snapshot hash. Stable entity/edge
+     // ids are therefore the cross-page identity; duplicate static graph data
+     // is collapsed while newly paged effects remain visible.
+     nodes: dedupeBy(pages.flatMap((page) => page.graph.nodes), (node) => node.id),
+     edges: [...mergedEdges.values()],
++    clusters: dedupeBy(pages.flatMap((page) => page.graph.clusters), (node) => node.id),
++    lod: pages.some((page) => page.graph.lod === 'cluster') ? 'cluster' : 'full',
++    truncated: pages.some((page) => page.truncated || page.graph.truncated),
+   };
+ }
+ 
+ function semanticEdgeKey(source: string, target: string, relation: string, polarity: string): string {
+   return [source, target, relation, polarity].join('\0');
+ }
+ 
+ function sortedEdgeEffectIds(edge: CollaborationEdge, aggregated?: Set<string>): string[] | undefined {
+   const ids = new Set<string>(aggregated ?? []);
+   edge.effect_ids?.forEach((id) => ids.add(id));
+   if (edge.effect_id) ids.add(edge.effect_id);
+   return ids.size > 0 ? [...ids].sort() : undefined;
+ }
+ 
+ function sortedEdgeEffectScopes(edge: CollaborationEdge, aggregated?: Map<string, CollaborationEffectScope>): CollaborationEffectScope[] | undefined {
+   const scopes = new Map<string, CollaborationEffectScope>(aggregated ?? []);
+   edge.effect_scopes?.forEach((scope) => {
+     if (scope.effect_id) scopes.set(scope.effect_id, scope);
+   });
+   if (edge.effect_id && !scopes.has(edge.effect_id)) scopes.set(edge.effect_id, { effect_id: edge.effect_id, project_id: '' });
+   const sorted = [...scopes.values()].sort((a, b) => a.effect_id.localeCompare(b.effect_id) || a.project_id.localeCompare(b.project_id));
+   return sorted.length > 0 ? sorted : undefined;
+ }
+ 
+ function minDate(a?: string, b?: string): string | undefined {
+   if (!a) return b;
+   if (!b) return a;
+   return a <= b ? a : b;
+ }
+ 
+ function maxDate(a?: string, b?: string): string | undefined {
+   if (!a) return b;
+   if (!b) return a;
+   return a >= b ? a : b;
+ }
+ 
+-function CollaborationGraph({ nodes, edges, selected, onSelect, onClearSelection, t }: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; onClearSelection: () => void; t: Translator }) {
++function CollaborationLODNotice({ view, canLoadMore, loadingMore, onLoadMore, onShowFull, t }: { view: CollaborationGraphView; canLoadMore: boolean; loadingMore: boolean; onLoadMore: () => void; onShowFull: () => void; t: Translator }) {
++  const clustered = view.lod === 'cluster' || view.clusters.length > 0;
++  if (!clustered && !view.truncated) return null;
++  return (
++    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-bg-surface p-3 text-sm" data-testid="collaboration-lod-notice">
++      <div>
++        <strong className="text-text-primary">{clustered ? t('insight.collaboration.lod.clusteredTitle') : t('insight.collaboration.lod.truncatedTitle')}</strong>
++        <p className="mt-1 text-text-muted">{t('insight.collaboration.lod.body', { nodes: view.nodes.length, edges: view.edges.length })}</p>
++      </div>
++      <div className="flex flex-wrap gap-2">
++        {canLoadMore ? <button type="button" disabled={loadingMore} onClick={onLoadMore} className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" data-testid="collaboration-lod-load-more">{loadingMore ? t('insight.collaboration.loadingMore') : t('insight.collaboration.lod.continueLoading')}</button> : null}
++        {clustered ? <button type="button" onClick={onShowFull} className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" data-testid="collaboration-show-full-graph">{t('insight.collaboration.lod.showFull')}</button> : null}
++      </div>
++    </div>
++  );
++}
++
++function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: { view: CollaborationGraphView; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; onClearSelection: () => void; t: Translator }) {
++  const { nodes, edges, clusteredOverview } = useMemo(() => readableGraph(view, t), [view, t]);
+   const lanes = { agent: 65, project: 200, plan: 335, stage: 500, task: 660 };
+   const laneIndex = new Map<string, number>();
+-  const baseNodeMap = useMemo(() => new Map(nodes.map((node) => { const i = laneIndex.get(node.kind) ?? 0; laneIndex.set(node.kind, i + 1); return [node.id, { ...node, x: lanes[node.kind], y: 70 + i * 68 }]; })), [nodes]);
++  const baseNodeMap = useMemo(() => new Map(nodes.map((node) => { const i = laneIndex.get(node.kind) ?? 0; laneIndex.set(node.kind, i + 1); const lane = node.kind === 'cluster' ? 360 : lanes[node.kind]; return [node.id, { ...node, x: lane, y: 70 + i * 82 }]; })), [nodes]);
+   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({});
+   const nodeMap = useMemo(() => new Map([...baseNodeMap.values()].map((node) => [node.id, { ...node, ...(dragPositions[node.id] ?? {}) }])), [baseNodeMap, dragPositions]);
+   const graphBounds = useMemo(() => graphViewBox([...nodeMap.values()]), [nodeMap]);
+   const [viewport, setViewport] = useState(graphBounds);
+   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+   const svgRef = useRef<SVGSVGElement | null>(null);
++  const pointerInsideSvgRef = useRef(false);
++  const lastPointerRef = useRef<{ clientX: number; clientY: number } | null>(null);
+   const panRef = useRef<{ x: number; y: number; viewport: GraphViewBox } | null>(null);
+   const dragRef = useRef<{ id: string; pointer: { x: number; y: number }; origin: { x: number; y: number }; moved: boolean } | null>(null);
+   const selectedKey = selected?.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0') ?? '';
+   const selectedEffectIds = useMemo(() => new Set(selected?.map((scope) => scope.effect_id) ?? []), [selected]);
+   const context = useMemo(() => graphContext(edges, selectedEffectIds, focusedNodeId), [edges, focusedNodeId, selectedEffectIds]);
+   const hasNoiseReduction = selectedEffectIds.size > 0 || Boolean(focusedNodeId);
+   const fit = useCallback(() => setViewport(graphBounds), [graphBounds]);
+   const reset = useCallback(() => {
+     setFocusedNodeId(null);
+     onClearSelection();
+     setDragPositions({});
+     setViewport(graphViewBox([...baseNodeMap.values()]));
+   }, [baseNodeMap, onClearSelection]);
+   const zoom = useCallback((factor: number, center = { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 }) => {
+     setViewport((current) => zoomViewBox(current, factor, center));
+   }, [viewport]);
+   const toSvgPoint = useCallback((event: { clientX: number; clientY: number }) => {
+     const svg = svgRef.current;
+     const matrix = typeof svg?.getScreenCTM === 'function' ? svg.getScreenCTM() : null;
+     if (!svg) return { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 };
+     if (!matrix) {
+       const rect = svg.getBoundingClientRect();
+       if (rect.width > 0 && rect.height > 0) return {
+         x: viewport.x + ((event.clientX - rect.left) / rect.width) * viewport.width,
+         y: viewport.y + ((event.clientY - rect.top) / rect.height) * viewport.height,
+       };
+       return { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 };
+     }
+     const point = svg.createSVGPoint();
+     point.x = event.clientX;
+     point.y = event.clientY;
+     return point.matrixTransform(matrix.inverse());
+   }, [viewport]);
+-  const onWheel = useCallback((event: React.WheelEvent<SVGSVGElement>) => {
+-    event.preventDefault();
+-    zoom(event.deltaY > 0 ? 1.12 : 0.88, toSvgPoint(event));
+-  }, [toSvgPoint, zoom]);
++  useEffect(() => setViewport(graphBounds), [graphBounds]);
++  useEffect(() => {
++    const svg = svgRef.current;
++    if (!svg) return undefined;
++    const handler = (event: WheelEvent) => {
++      event.preventDefault();
++      const center = toSvgPoint(lastPointerRef.current ?? event);
++      flushSync(() => setViewport((current) => zoomViewBox(current, event.deltaY > 0 ? 1.12 : 0.88, center)));
++    };
++    svg.addEventListener('wheel', handler, { passive: false });
++    window.addEventListener('wheel', handler, { passive: false });
++    return () => {
++      svg.removeEventListener('wheel', handler);
++      window.removeEventListener('wheel', handler);
++    };
++  }, [toSvgPoint]);
+   return <section className="rounded-lg border border-border bg-bg-surface p-4" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
+     <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+       <div className="flex flex-wrap gap-3 text-xs text-text-muted"><span>━━ {t('insight.collaboration.legend.relationship')}</span><span>┄┄ {t('insight.collaboration.legend.effect')}</span><span>+/− {t('insight.collaboration.legend.mixed')}</span></div>
+       <div className="flex items-center gap-1" aria-label={t('insight.collaboration.viewport.controls')}>
+         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(0.82)} aria-label={t('insight.collaboration.viewport.zoomIn')}>+</button>
+         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(1.18)} aria-label={t('insight.collaboration.viewport.zoomOut')}>-</button>
+         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={fit}>{t('insight.collaboration.viewport.fit')}</button>
+         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={reset}>{t('insight.collaboration.viewport.reset')}</button>
+       </div>
+     </div>
+     <svg
+       ref={svgRef}
+       viewBox={`${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`}
+       className="min-h-64 w-full touch-none cursor-grab rounded border border-border bg-bg-primary active:cursor-grabbing"
+       role="img"
+       aria-label={t('insight.collaboration.graph')}
+       data-testid="collaboration-graph-svg"
+-      onWheel={onWheel}
+-      onPointerDown={(event) => { panRef.current = { x: event.clientX, y: event.clientY, viewport }; event.currentTarget.setPointerCapture?.(event.pointerId); }}
++      onMouseEnter={(event) => { pointerInsideSvgRef.current = true; lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; }}
++      onMouseMove={(event) => { pointerInsideSvgRef.current = true; lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; }}
++      onMouseLeave={() => { pointerInsideSvgRef.current = false; }}
++      onPointerEnter={(event) => { pointerInsideSvgRef.current = true; lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; }}
++      onPointerDown={(event) => { lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; panRef.current = { x: event.clientX, y: event.clientY, viewport }; event.currentTarget.setPointerCapture?.(event.pointerId); }}
+       onPointerMove={(event) => {
++        lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY };
+         const drag = dragRef.current;
+         if (drag) {
+           const point = toSvgPoint(event);
+           const dx = point.x - drag.pointer.x;
+           const dy = point.y - drag.pointer.y;
+           drag.moved = drag.moved || Math.hypot(dx, dy) > 4;
+           setDragPositions((current) => ({ ...current, [drag.id]: { x: drag.origin.x + dx, y: drag.origin.y + dy } }));
+           return;
+         }
+         const pan = panRef.current;
+         if (!pan) return;
+         const rect = event.currentTarget.getBoundingClientRect();
+         const dx = ((event.clientX - pan.x) / rect.width) * pan.viewport.width;
+         const dy = ((event.clientY - pan.y) / rect.height) * pan.viewport.height;
+         setViewport({ ...pan.viewport, x: pan.viewport.x - dx, y: pan.viewport.y - dy });
+       }}
+       onPointerUp={(event) => {
+         const drag = dragRef.current;
+         if (drag && !drag.moved) {
+           const node = nodeMap.get(drag.id);
+           if (node) {
+             setFocusedNodeId(node.id);
+             setViewport(focusViewBox(node));
+           }
+         }
+         dragRef.current = null;
+         panRef.current = null;
+         if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId);
+       }}
+-      onPointerLeave={() => { panRef.current = null; dragRef.current = null; }}
++      onPointerLeave={() => { pointerInsideSvgRef.current = false; panRef.current = null; dragRef.current = null; }}
+     >
+       <defs><linearGradient id="collaboration-mixed"><stop offset="0%" stopColor="#16803c"/><stop offset="50%" stopColor="#16803c"/><stop offset="50%" stopColor="#c0362c"/><stop offset="100%" stopColor="#c0362c"/></linearGradient></defs>
++      {clusteredOverview ? <text x={viewport.x + 12} y={viewport.y + 24} className="fill-text-muted text-[12px]">{t('insight.collaboration.lod.overviewBadge')}</text> : null}
+       {edges.map((edge) => { const a = nodeMap.get(edge.source); const b = nodeMap.get(edge.target); if (!a || !b) return null; const structural = !edge.effect_id && edge.evidence_count === 0; const active = !hasNoiseReduction || context.edges.has(edge.id); const selectedEdge = selectedEffectIds.size > 0 && edgeHasAnyEffect(edge, selectedEffectIds); return <g key={edge.id} opacity={active ? 1 : 0.16}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={selectedEdge ? edge.magnitude + 3 : structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} /><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="fill-text-muted text-[11px]">{active ? <>{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</> : null}</text></g>; })}
+-      {[...nodeMap.values()].map((node) => { const active = !hasNoiseReduction || context.nodes.has(node.id); const focused = focusedNodeId === node.id; return <g key={node.id} role="button" tabIndex={0} aria-label={node.label} className="cursor-pointer outline-none" opacity={active ? 1 : 0.18} onPointerDown={(event) => { event.stopPropagation(); const point = toSvgPoint(event); dragRef.current = { id: node.id, pointer: point, origin: { x: node.x, y: node.y }, moved: false }; svgRef.current?.setPointerCapture?.(event.pointerId); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocusedNodeId(node.id); setViewport(focusViewBox(node)); } }}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" className="fill-bg-primary stroke-brand" strokeWidth={focused ? 4 : 2} /> : <rect x={node.x-54} y={node.y-22} width="108" height="44" rx="5" className="fill-bg-primary stroke-text-muted" strokeWidth={focused ? 4 : 2} />}<text x={node.x} y={node.y+4} textAnchor="middle" className="pointer-events-none fill-text-primary text-[11px]">{truncateLabel(node.label)}</text><text x={node.x} y={node.y+18} textAnchor="middle" className="pointer-events-none fill-text-muted text-[8px]">{node.kind}</text></g>; })}
++      {[...nodeMap.values()].map((node) => { const active = !hasNoiseReduction || context.nodes.has(node.id); const focused = focusedNodeId === node.id; const wide = node.kind === 'cluster'; return <g key={node.id} role="button" tabIndex={0} aria-label={node.label} className="cursor-pointer outline-none" opacity={active ? 1 : 0.18} onPointerDown={(event) => { event.stopPropagation(); lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; const point = toSvgPoint(event); dragRef.current = { id: node.id, pointer: point, origin: { x: node.x, y: node.y }, moved: false }; svgRef.current?.setPointerCapture?.(event.pointerId); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocusedNodeId(node.id); setViewport(focusViewBox(node)); } }}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" fill="var(--color-bg-elevated)" stroke="var(--color-brand)" strokeWidth={focused ? 4 : 2} /> : <rect x={node.x-(wide ? 88 : 54)} y={node.y-24} width={wide ? 176 : 108} height="48" rx="5" fill="var(--color-bg-elevated)" stroke="var(--color-text-muted)" strokeWidth={focused ? 4 : 2} />}<text x={node.x} y={node.y+3} textAnchor="middle" fill="var(--color-text-primary)" className="pointer-events-none text-[11px]">{truncateLabel(node.label, wide ? 28 : 18)}</text><text x={node.x} y={node.y+18} textAnchor="middle" fill="var(--color-text-muted)" className="pointer-events-none text-[8px]">{node.kind}</text></g>; })}
+     </svg>
+     <div className="grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{edges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = edge.effect_scopes?.length ? edge.effect_scopes : edge.effect_ids?.length ? edge.effect_ids.map((id) => ({ effect_id: id, project_id: '' })) : edge.effect_id ? [{ effect_id: edge.effect_id, project_id: '' }] : []; const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
+   </section>;
+ }
+ 
++function readableGraph(view: CollaborationGraphView, t: Translator): CollaborationGraphView & { clusteredOverview: boolean } {
++  const shouldCluster = view.lod === 'cluster' || view.truncated || view.nodes.length > 90 || view.edges.length > 180;
++  if (!shouldCluster) return { ...view, clusteredOverview: false };
++  const groups = new Map<string, CollaborationNode & { count: number }>();
++  const nodeToGroup = new Map<string, string>();
++  const labelForGroup = (node: CollaborationNode) => {
++    if (node.kind === 'project') return node.label;
++    if (node.project_id) return `${node.project_id} ${labelFor(t, node.kind)}`;
++    return labelFor(t, node.kind);
++  };
++  for (const node of view.nodes) {
++    const groupID = node.kind === 'project' ? node.id : node.project_id ? `cluster:${node.project_id}:${node.kind}` : `cluster:global:${node.kind}`;
++    nodeToGroup.set(node.id, groupID);
++    const current = groups.get(groupID);
++    if (current) {
++      current.count += 1;
++      current.label = `${labelForGroup(node)} (${current.count})`;
++    } else {
++      groups.set(groupID, { id: groupID, kind: node.kind === 'project' ? 'project' : 'cluster', label: `${labelForGroup(node)} (1)`, project_id: node.project_id, count: 1 });
++    }
++  }
++  const groupedEdges = new Map<string, CollaborationEdge>();
++  for (const edge of view.edges) {
++    const source = nodeToGroup.get(edge.source) ?? edge.source;
++    const target = nodeToGroup.get(edge.target) ?? edge.target;
++    if (source === target) continue;
++    const key = semanticEdgeKey(source, target, edge.relation_type, edge.polarity);
++    const current = groupedEdges.get(key);
++    if (!current) {
++      groupedEdges.set(key, { ...edge, id: `cluster:${edge.id}`, source, target, clustered: true });
++      continue;
++    }
++    current.interaction_count += Math.max(1, edge.interaction_count);
++    current.evidence_count += edge.evidence_count;
++    current.magnitude = Math.max(current.magnitude, edge.magnitude) as CollaborationEdge['magnitude'];
++    current.effect_ids = sortedUnique([...(current.effect_ids ?? []), ...(edge.effect_ids ?? []), edge.effect_id ?? '']);
++    current.effect_scopes = sortedScopes([...(current.effect_scopes ?? []), ...(edge.effect_scopes ?? [])]);
++  }
++  return { ...view, nodes: [...groups.values()].map(({ count, ...node }) => node), edges: [...groupedEdges.values()], clusteredOverview: true };
++}
++
++function sortedUnique(values: string[]): string[] | undefined {
++  const out = [...new Set(values.filter(Boolean))].sort();
++  return out.length ? out : undefined;
++}
++
++function sortedScopes(scopes: CollaborationEffectScope[]): CollaborationEffectScope[] | undefined {
++  const out = [...new Map(scopes.filter((scope) => scope.effect_id).map((scope) => [`${scope.effect_id}\0${scope.project_id}`, scope])).values()]
++    .sort((a, b) => a.effect_id.localeCompare(b.effect_id) || a.project_id.localeCompare(b.project_id));
++  return out.length ? out : undefined;
++}
++
+ type GraphViewBox = { x: number; y: number; width: number; height: number };
+ 
+ function graphViewBox(nodes: Array<{ x: number; y: number }>): GraphViewBox {
+   if (nodes.length === 0) return { x: 0, y: 0, width: 720, height: 260 };
+   const xs = nodes.map((node) => node.x);
+   const ys = nodes.map((node) => node.y);
+   const minX = Math.min(...xs) - 80;
+   const maxX = Math.max(...xs) + 80;
+   const minY = Math.min(...ys) - 70;
+   const maxY = Math.max(...ys) + 70;
+   return { x: minX, y: minY, width: Math.max(260, maxX - minX), height: Math.max(260, maxY - minY) };
+ }
+ 
+ function zoomViewBox(box: GraphViewBox, factor: number, center: { x: number; y: number }): GraphViewBox {
+   const width = Math.min(1400, Math.max(160, box.width * factor));
+   const height = Math.min(1400, Math.max(160, box.height * factor));
+   const x = center.x - ((center.x - box.x) / box.width) * width;
+   const y = center.y - ((center.y - box.y) / box.height) * height;
+   return { x, y, width, height };
+ }
+ 
+ function focusViewBox(node: { x: number; y: number }): GraphViewBox {
+   return { x: node.x - 120, y: node.y - 90, width: 240, height: 180 };
+ }
+ 
+ function graphContext(edges: CollaborationEdge[], selectedEffectIds: Set<string>, focusedNodeId: string | null): { nodes: Set<string>; edges: Set<string> } {
+   const context = { nodes: new Set<string>(), edges: new Set<string>() };
+   if (focusedNodeId) context.nodes.add(focusedNodeId);
+   for (const edge of edges) {
+     const selectedEdge = selectedEffectIds.size > 0 && edgeHasAnyEffect(edge, selectedEffectIds);
+     const focusedEdge = Boolean(focusedNodeId && (edge.source === focusedNodeId || edge.target === focusedNodeId));
+     if (!selectedEdge && !focusedEdge) continue;
+     context.edges.add(edge.id);
+     context.nodes.add(edge.source);
+     context.nodes.add(edge.target);
+   }
+   return context;
+ }
+ 
+ function edgeHasAnyEffect(edge: CollaborationEdge, effectIds: Set<string>): boolean {
+   if (edge.effect_id && effectIds.has(edge.effect_id)) return true;
+   return (edge.effect_ids ?? edge.effect_scopes?.map((scope) => scope.effect_id) ?? []).some((id) => effectIds.has(id));
+ }
+ 
+-function truncateLabel(label: string): string {
+-  return label.length > 18 ? `${label.slice(0, 17)}...` : label;
++function truncateLabel(label: string, max = 18): string {
++  return label.length > max ? `${label.slice(0, max - 1)}...` : label;
+ }
+ 
+ function Timeline({ effects, onSelect, t }: { effects: { effect_id: string; project_id: string; occurred_at: string; relation_type: string; polarity: string; source_agent_ref: string; target_task_id: string }[]; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
+   const ordered = [...effects].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
+   return <section className="rounded-lg border border-border bg-bg-surface p-4" data-testid="collaboration-timeline"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2><ol className="mt-3 border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol></section>;
+ }
+ 
+ function EvidenceDrawer({ effect, effectIds, onClose, t }: { effect: Pick<CollaborationEffect, 'project_id' | 'explanation_key' | 'before_state' | 'after_state'> | null; effectIds: CollaborationEffectScope[]; onClose: () => void; t: Translator }) {
+   const query = useCollaborationEvidenceBundle(effectIds, effect?.project_id);
+   return <aside role="dialog" aria-modal="true" aria-labelledby="evidence-title" className="fixed inset-y-0 right-0 z-50 w-full max-w-lg overflow-y-auto border-l border-border bg-bg-primary p-5 shadow-xl" data-testid="collaboration-evidence-drawer"><div className="flex items-center justify-between"><h2 id="evidence-title" className="text-lg font-semibold">{t('insight.collaboration.evidence.title')}</h2><button type="button" onClick={onClose} aria-label={t('insight.collaboration.evidence.close')} className="rounded border border-border px-3 py-1">×</button></div>{effect ? <div className="mt-4 text-sm"><p>{t(effect.explanation_key, { defaultValue: effect.explanation_key })}</p><pre className="mt-2 overflow-auto rounded bg-bg-subtle p-2">{JSON.stringify({ before: effect.before_state, after: effect.after_state }, null, 2)}</pre></div> : null}{query.isLoading ? <p className="mt-4">{t('insight.collaboration.evidence.loading')}</p> : null}{query.isError ? <p role="alert" className="mt-4 text-danger">{t('insight.collaboration.evidence.failed')}</p> : null}<ol className="mt-4 space-y-3">{query.data?.evidence.map((event) => <li key={event.event_id} className="rounded border border-border p-3 text-sm"><strong>{event.event_type}</strong><time className="block text-xs text-text-muted">{new Date(event.occurred_at).toLocaleString()}</time><p>{event.actor_ref}</p><pre className="mt-2 overflow-auto text-xs">{JSON.stringify(event.payload, null, 2)}</pre></li>)}</ol></aside>;
+ }
+ 
+ function CollaborationError({ error, t }: { error: unknown; t: Translator }) { const forbidden = error instanceof ApiError && (error.status === 401 || error.status === 403); return <State id={forbidden ? 'collaboration-forbidden' : 'collaboration-error'} title={forbidden ? t('insight.collaboration.forbidden') : t('insight.collaboration.failed')} body={error instanceof Error ? error.message : undefined} danger />; }
+ function State({ id, title, body, danger = false }: { id: string; title: string; body?: string; danger?: boolean }) { return <div role={danger ? 'alert' : 'status'} data-testid={id} className={`rounded border p-4 ${danger ? 'border-danger/40 bg-danger/10' : 'border-border bg-bg-surface'}`}><strong>{title}</strong>{body ? <p className="mt-1 text-sm text-text-muted">{body}</p> : null}</div>; }
+ function labelFor(t: Translator, value: string): string { return t(`insight.collaboration.values.${value}`, { defaultValue: value.replaceAll('_', ' ') }); }

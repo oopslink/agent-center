@@ -1,0 +1,56 @@
+{
+  "nodes": 130,
+  "edges": 282,
+  "effects": 2,
+  "nodeKinds": [
+    "agent",
+    "plan",
+    "project",
+    "task"
+  ],
+  "relationTypes": [
+    "agent_plan",
+    "agent_task",
+    "plan_task",
+    "project_plan",
+    "reassign",
+    "task_dependency"
+  ],
+  "projects": [
+    "project-1a8227f5",
+    "project-f6f629c2"
+  ],
+  "lod": "full",
+  "truncated": false,
+  "probeSummary": {
+    "slug": "org-e6824511",
+    "projectID": "project-1a8227f5",
+    "foreignProjectID": "project-802a018c",
+    "valid": {
+      "status": 200,
+      "nodes": 120,
+      "edges": 256,
+      "effects": 2
+    },
+    "badProject": {
+      "status": 404,
+      "body": "{\"error\":\"not_found\",\"message\":\"project not found in this organization\"}\n"
+    },
+    "badCursor": {
+      "status": 400,
+      "body": "{\"error\":\"invalid_cursor\",\"message\":\"collaboration insight: invalid cursor\"}\n"
+    },
+    "unauth": {
+      "status": 401,
+      "body": "{\"error\":\"unauthenticated\",\"message\":\"no session cookie\"}\n"
+    },
+    "foreignProjectInOwnerOrg": {
+      "status": 404,
+      "nodes": null,
+      "edges": null,
+      "effects": null,
+      "body": "{\"error\":\"not_found\",\"message\":\"project not found in this organization\"}\n"
+    }
+  },
+  "probePass": true
+}

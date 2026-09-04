@@ -189,6 +189,28 @@ blob_store:
     await ok(seedReq.post(`${org}/projects/${projectID}/tasks/${tasks[0]}/start`, { data: {} }), "start first task");
     await ok(seedReq.post(`${org}/projects/${projectID}/tasks/${tasks[0]}/complete`, { data: {} }), "complete first task");
 
+    const betaProject = await json(seedReq.post(`${org}/projects`, { data: { name: "Beta Collaboration Graph", description: "T2181 second project seed" } }), "beta project");
+    const betaProjectID = betaProject.id;
+    const betaPlan = await json(seedReq.post(`${org}/projects/${betaProjectID}/plans`, { data: { name: "Beta delivery plan", description: "Second project DAG fixture" } }), "beta plan");
+    const betaTasks = [];
+    for (let i = 0; i < 8; i++) {
+      const assignee = i % 2 === 0 ? agentBRef : agentARef;
+      const task = await json(seedReq.post(`${org}/projects/${betaProjectID}/tasks`, {
+        data: { title: `Beta graph task ${String(i + 1).padStart(3, "0")}`, description: "second project scale fixture", assignee },
+      }), `beta task ${i + 1}`);
+      betaTasks.push(task.id);
+      await ok(seedReq.post(`${org}/projects/${betaProjectID}/plans/${betaPlan.id}/tasks`, { data: { task_id: task.id } }), `beta plan add ${i + 1}`);
+      if (i > 0) {
+        await ok(seedReq.post(`${org}/projects/${betaProjectID}/plans/${betaPlan.id}/dependencies`, { data: { from_task_id: task.id, to_task_id: betaTasks[i - 1] } }), `beta dependency ${i}`);
+      }
+    }
+    await ok(seedReq.post(`${org}/projects/${betaProjectID}/tasks/${betaTasks[0]}/assign`, { data: { assignee: agentARef } }), "beta reassign first task to A");
+    await ok(seedReq.post(`${org}/projects/${betaProjectID}/plans/${betaPlan.id}/start`, { data: {} }), "start beta plan");
+    await ok(seedReq.post(`${org}/projects/${betaProjectID}/tasks/${betaTasks[0]}/start`, { data: {} }), "start beta first task");
+    await ok(seedReq.post(`${org}/projects/${betaProjectID}/tasks/${betaTasks[0]}/complete`, { data: {} }), "complete beta first task");
+    provenance.secondary_project_id = betaProjectID;
+    provenance.secondary_plan_id = betaPlan.id;
+
     let graphJSON = null;
     for (let i = 0; i < 40; i++) {
       graphJSON = await json(seedReq.get(`${org}/insights/collaboration-effects?limit=100`), "org graph api");

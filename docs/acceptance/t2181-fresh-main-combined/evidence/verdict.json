@@ -1,85 +1,218 @@
 {
+  "product_verdict": "PASS",
   "verdict": "PASS",
+  "candidate": {
+    "fixed_ref": "ac-exec/task-340201c6/exec-7a7d087b",
+    "expected_sha": "6074ea621f178889bcfca5adca8cf27c3ad174da",
+    "validated_sha": "6074ea621f178889bcfca5adca8cf27c3ad174da",
+    "base_sha": "ddfb87d47e8253fb2e4f22d014f497301fa4b7ec",
+    "merge_base": "ddfb87d47e8253fb2e4f22d014f497301fa4b7ec",
+    "topology": "fresh-main single product commit; prior T2176/T2179 SHAs are coverage sources, not required ancestors"
+  },
+  "task_input_package_note": "task-input/v1 describes stale T1850 metadata and had no T2181 attachments; user-supplied T2181 contract was used as authoritative.",
   "provenance": {
-    "candidate_sha": "T2181-working-tree",
-    "install_root": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-fbnGY9",
-    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-fbnGY9/config.yaml",
-    "web_origin": "http://127.0.0.1:60201",
-    "grpc_port": 60202,
-    "admin_tcp_port": 60203,
-    "database": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-fbnGY9/agent-center.db",
-    "duckdb": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-fbnGY9/agent-center.duckdb",
+    "candidate_sha": "6074ea621f178889bcfca5adca8cf27c3ad174da",
+    "install_root": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-yTffoi",
+    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-yTffoi/config.yaml",
+    "web_origin": "http://127.0.0.1:64839",
+    "grpc_port": 64840,
+    "admin_tcp_port": 64841,
+    "database": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-yTffoi/agent-center.db",
+    "duckdb": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-yTffoi/agent-center.duckdb",
     "runtime_identity": "AGENT_CENTER_INVOCATION_ID=t2181-combined-ui",
     "cookie_namespace": "ac_session@127.0.0.1",
     "fixture_provenance": "Fresh isolated instance; data seeded via authenticated production HTTP endpoints only.",
-    "organization_id": "organization-8b969ac8",
-    "organization_slug": "org-b1ad2b7d",
-    "worker_id": "worker-25e5cf7b",
-    "worker_bootstrap_host": "127.0.0.1:60203",
-    "worker_fingerprint": "sha256:2D:06:4E:BD:9B:49:2F:43:6C:7A:99:1D:B7:00:A4:D4:E6:4F:84:BF:7C:B2:5C:55:C2:E8:58:63:73:2B:13:DE",
+    "organization_id": "organization-31469165",
+    "organization_slug": "org-e6824511",
+    "worker_id": "worker-c5922585",
+    "worker_bootstrap_host": "127.0.0.1:64841",
+    "worker_fingerprint": "sha256:10:A9:81:BE:DD:95:67:E1:D7:2C:EA:D8:24:B6:9A:4F:FD:7C:25:66:82:DE:5C:F3:15:AC:A2:84:24:AD:4B:7F",
     "runtime_catalog_revision": 1,
     "agent_refs": [
-      "agent:agent-6d7993d3",
-      "agent:agent-6da99413"
+      "agent:agent-d6d9562f",
+      "agent:agent-6acd1cd7"
     ],
-    "project_id": "project-9814482c",
-    "plan_id": "plan-8a639612"
+    "project_id": "project-1a8227f5",
+    "plan_id": "plan-a3108ed6",
+    "secondary_project_id": "project-f6f629c2",
+    "secondary_plan_id": "plan-ba09d914"
   },
-  "results": [
+  "graph_dataset": {
+    "nodes": 130,
+    "edges": 282,
+    "effects": 2,
+    "node_kinds": [
+      "agent",
+      "plan",
+      "project",
+      "task"
+    ],
+    "relation_types": [
+      "agent_plan",
+      "agent_task",
+      "plan_task",
+      "project_plan",
+      "reassign",
+      "task_dependency"
+    ],
+    "in_org_project_ids": [
+      "project-1a8227f5",
+      "project-f6f629c2"
+    ],
+    "multi_project": true,
+    "fixture_provenance": "Seeded through authenticated production HTTP APIs in a fresh isolated instance; no dev server, MSW, mock API, production instance, or agent-center control-plane fallback."
+  },
+  "coverage_matrix": [
+    {
+      "source": "T2176 1e14098b formal navigation",
+      "status": "COVERED",
+      "files": [
+        "web/src/AppLayout.tsx",
+        "web/src/shell/nav/InsightSecondaryNav.test.tsx",
+        "web/src/AppLayout.insightnav.test.tsx",
+        "web/src/AppLayout.mobilenav.test.tsx"
+      ],
+      "behavior": "Authenticated Insight rail shows Collaboration effects link; direct /organizations/{slug}/insights/collaboration refresh renders without import errors or unexpected 401."
+    },
+    {
+      "source": "T2176 1e14098b real wheel/zoom/pan/drag/focus/restore",
+      "status": "COVERED",
+      "files": [
+        "web/src/pages/InsightCollaboration.tsx"
+      ],
+      "behavior": "Buttons, real browser wheel event, pan, node drag, Fit, Reset, keyboard focus, and restore all changed SVG viewBox/node position as recorded in hard gate 5."
+    },
+    {
+      "source": "T2176 1e14098b LOD/truncation feedback",
+      "status": "COVERED",
+      "files": [
+        "web/src/api/insights.ts",
+        "web/src/pages/InsightCollaboration.tsx",
+        "web/src/i18n/locales/en/insights.json",
+        "web/src/i18n/locales/zh/insights.json"
+      ],
+      "behavior": "API accepts lod/max_nodes and returns cluster/truncated metadata; UI shows LOD notice and Show full action."
+    },
+    {
+      "source": "T2176 1e14098b large graph readability",
+      "status": "COVERED",
+      "files": [
+        "web/src/pages/InsightCollaboration.tsx"
+      ],
+      "behavior": "130-node/282-edge org graph renders clustered first screen with readable SVG density and performance under threshold."
+    },
+    {
+      "source": "T2179 94945e8f project_id 503 fix",
+      "status": "COVERED",
+      "files": [
+        "internal/observability/collaborationeffect/graph_sqlite.go",
+        "internal/observability/collaborationeffect/query_test.go",
+        "internal/webconsole/api/handlers_collaboration_insight_test.go",
+        "web/src/api/insights.ts"
+      ],
+      "behavior": "Valid project_id API/UI returns 200 and scoped graph; clear restores org graph; malformed cursor is 400, unauth is 401, missing/cross-org project is 404, and no probe returns 503."
+    }
+  ],
+  "quality_gates": {
+    "origin_main_lint": {
+      "status": "BASELINE_FAIL",
+      "exit_code": 2,
+      "log": "evidence/t2181/main_lint_rerun.log",
+      "failure": "web/src/components/WorkItemFilterBar.tsx:352:13 no-restricted-syntax checkbox rule"
+    },
+    "candidate_lint": {
+      "status": "BASELINE_FAIL_NO_NEW_FAILURE",
+      "exit_code": 2,
+      "log": "evidence/t2181/candidate_lint.log",
+      "failure": "same WorkItemFilterBar.tsx:352:13 failure as origin/main; no added candidate lint failure observed"
+    },
+    "candidate_go_related_tests": {
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "evidence/t2181/candidate_quality.log",
+      "command": "go test ./internal/observability/collaborationeffect ./internal/webconsole/api"
+    },
+    "candidate_web_tests": {
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "evidence/t2181/candidate_quality.log",
+      "command": "pnpm --dir web test -- InsightCollaboration AppLayout.insightnav AppLayout.mobilenav App.test",
+      "summary": "Vitest ran 200 files / 1924 tests; all passed, including targeted collaboration/navigation tests."
+    },
+    "candidate_typecheck": {
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "evidence/t2181/candidate_quality.log",
+      "command": "pnpm --dir web exec tsc -b --force"
+    },
+    "candidate_web_build": {
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "evidence/t2181/candidate_quality.log",
+      "command": "pnpm --dir web run build"
+    },
+    "candidate_make_build": {
+      "status": "PASS",
+      "exit_code": 0,
+      "log": "evidence/t2181/candidate_quality.log",
+      "command": "make build"
+    }
+  },
+  "hard_gates": [
     {
       "id": 1,
       "name": "Authenticated navigation and direct URL refresh",
       "status": "PASS",
-      "evidence": "nav_link=true; org_url=http://127.0.0.1:60201/organizations/org-b1ad2b7d/insights/collaboration; unexpected401=0; import_errors=0",
+      "evidence": "nav_link=true; org_url=http://127.0.0.1:64839/organizations/org-e6824511/insights/collaboration; unexpected401=0; import_errors=0",
       "repro": "Sign in as the seeded owner, land on /organizations/{slug}/projects, open the Insight rail, and look for a Collaboration effects navigation link."
     },
     {
       "id": 2,
       "name": "No-query first screen non-empty organization graph",
       "status": "PASS",
-      "evidence": "url=http://127.0.0.1:60201/organizations/org-b1ad2b7d/insights/collaboration; svg_nodes=4; svg_edges=6; api_nodes=120; api_edges=256",
+      "evidence": "url=http://127.0.0.1:64839/organizations/org-e6824511/insights/collaboration; svg_nodes=7; svg_edges=10; api_nodes=130; api_edges=282",
       "repro": ""
     },
     {
       "id": 3,
       "name": "Agent-Agent, Agent-Task, Agent-Plan, Plan-Task same screen",
       "status": "PASS",
-      "evidence": "agent_agent=true; agent_task=true; agent_plan=true; plan_task=true; effects=2; edge_text_sample=plan task · Neutral · strength 1 · 84 effects · evidence 0 | agent task · Neutral · strength 1 · 84 effects · evidence 0 | agent plan · Neutral · strength 1 · 1 effects · evidence 0 | Dependency release · Positive · strength 3 · 1 effects · evidence 2 · 9/5/2026, 3:15:20 AM | Complete · Positive · strength 2 · 1 effects · evidence 1 · 9/5/2026, 3:15:20 AM",
+      "evidence": "agent_agent=true; agent_task=true; agent_plan=true; plan_task=true; effects=2; edge_text_sample=plan task · Neutral · strength 1 · 78 effects · evidence 0 | agent task · Neutral · strength 1 · 78 effects · evidence 0 | agent plan · Neutral · strength 1 · 1 effects · evidence 0 | plan task · Neutral · strength 1 · 3 effects · evidence 0 | agent task · Neutral · strength 1 · 3 effects · evidence 0 | agent plan · Neutral · strength 1 · 1 effects · evidence 0",
       "repro": ""
     },
     {
       "id": 4,
       "name": "Search/filter and clear restores full graph",
       "status": "PASS",
-      "evidence": "filtered=http://127.0.0.1:60201/organizations/org-b1ad2b7d/insights/collaboration?project_id=project-9814482c; cleared=http://127.0.0.1:60201/organizations/org-b1ad2b7d/insights/collaboration",
+      "evidence": "filtered=http://127.0.0.1:64839/organizations/org-e6824511/insights/collaboration?project_id=project-1a8227f5; cleared=http://127.0.0.1:64839/organizations/org-e6824511/insights/collaboration",
       "repro": ""
     },
     {
       "id": 5,
       "name": "Zoom/pan/drag/Fit/Reset/focus/restore interactions",
       "status": "PASS",
-      "evidence": "{\"pass\":true,\"before\":{\"viewBox\":\"120 0 320 304\",\"nodes\":4,\"edges\":6},\"zoomIn\":{\"viewBox\":\"148.8 27.360000000000014 262.4 249.27999999999997\",\"nodes\":4,\"edges\":6},\"zoomOut\":{\"viewBox\":\"125.18400000000003 4.924800000000033 309.63199999999995 294.15039999999993\",\"nodes\":4,\"edges\":6},\"resetForWheel\":{\"viewBox\":\"120 0 320 304\",\"nodes\":4,\"edges\":6},\"wheel\":{\"viewBox\":\"156.0619135253906 34.28960273437501 247.80800000000002 235.4176\",\"nodes\":4,\"edges\":6},\"pan\":{\"viewBox\":\"158.82472229003906 -104.66074752807617 281.17527770996094 408.6607475280762\",\"nodes\":4,\"edges\":6},\"fit\":{\"viewBox\":\"120 0 392.617919921875 304\",\"nodes\":4,\"edges\":6},\"focus\":{\"viewBox\":\"312.617919921875 5.352790832519531 240 180\",\"nodes\":4,\"edges\":6},\"reset\":{\"viewBox\":\"120 0 320 304\",\"nodes\":4,\"edges\":6},\"circleBefore\":{\"cx\":null,\"x\":\"272\"},\"circleAfter\":{\"cx\":null,\"x\":\"344.617919921875\"},\"dragged\":true,\"continuousMs\":406}",
+      "evidence": "{\"pass\":true,\"before\":{\"viewBox\":\"120 0 320 304\",\"nodes\":4,\"edges\":6},\"zoomIn\":{\"viewBox\":\"148.8 42.120000000000005 262.4 383.76\",\"nodes\":7,\"edges\":10},\"zoomOut\":{\"viewBox\":\"125.18400000000003 7.581600000000009 309.63199999999995 452.8368\",\"nodes\":7,\"edges\":10},\"resetForWheel\":{\"viewBox\":\"120 0 320 468\",\"nodes\":7,\"edges\":10},\"wheel\":{\"viewBox\":\"156.0619135253906 52.763769726562515 247.80800000000002 362.4192\",\"nodes\":7,\"edges\":10},\"pan\":{\"viewBox\":\"132.70583435479682 43.415727892809365 247.80800000000002 362.4192\",\"nodes\":7,\"edges\":10},\"fit\":{\"viewBox\":\"120 0 392.615966796875 468\",\"nodes\":7,\"edges\":10},\"focus\":{\"viewBox\":\"312.615966796875 5.351829528808594 240 180\",\"nodes\":7,\"edges\":10},\"reset\":{\"viewBox\":\"120 0 320 468\",\"nodes\":7,\"edges\":10},\"circleBefore\":{\"cx\":null,\"x\":\"272\"},\"circleAfter\":{\"cx\":null,\"x\":\"344.615966796875\"},\"dragged\":true,\"continuousMs\":423}",
       "repro": "Open /organizations/{slug}/insights/collaboration, wheel over the SVG canvas, and compare the SVG viewBox before/after."
     },
     {
       "id": 6,
       "name": "Evidence drill-down",
       "status": "PASS",
-      "evidence": "drawer contains Effect evidence × collaboration.effect.dependency_release { \"before\": { \"downstream_task_id\": \"task-70d980da\", \"upstream_task_status\": \"running\" }, \"after\": { \"downstream_task_id\": \"task-70d980da\", ",
+      "evidence": "drawer contains Effect evidence × collaboration.effect.complete { \"before\": { \"task_status\": \"running\" }, \"after\": { \"task_status\": \"completed\" } } pm.audit_recorded 9/5/2026, 3:26:33 AM user:user-7754d3f0 { \"actor",
       "repro": ""
     },
     {
       "id": 7,
       "name": "LOD/cluster/truncation prompt",
       "status": "PASS",
-      "evidence": "api_lod=cluster; clusters=1; api_truncated=true; ui_lod_notice=1; ui_load_more=0; ui_show_full=1; explicit_lod_text=true",
+      "evidence": "api_lod=cluster; clusters=2; api_truncated=true; ui_lod_notice=1; ui_load_more=0; ui_show_full=1; explicit_lod_text=true",
       "repro": "Seed a >100-node organization graph, verify the real API reports lod=cluster/truncated, then open the UI and look for load-more or truncation guidance."
     },
     {
       "id": 8,
       "name": "Real-scale first interactive and continuous interactions",
       "status": "PASS",
-      "evidence": "{\"first_graph_interactive_ms\":1,\"continuous_interaction_ms\":406}",
+      "evidence": "{\"first_graph_interactive_ms\":1,\"continuous_interaction_ms\":423}",
       "repro": ""
     },
     {
@@ -93,12 +226,79 @@
       "id": 10,
       "name": "Project_id API scoping and fail-closed errors",
       "status": "PASS",
-      "evidence": "{\"slug\":\"org-b1ad2b7d\",\"projectID\":\"project-9814482c\",\"foreignProjectID\":\"project-36eff442\",\"valid\":{\"status\":200,\"nodes\":120,\"edges\":256,\"effects\":2},\"badProject\":{\"status\":404,\"body\":\"{\\\"error\\\":\\\"not_found\\\",\\\"message\\\":\\\"project not found in this organization\\\"}\\n\"},\"badCursor\":{\"status\":400,\"body\":\"{\\\"error\\\":\\\"invalid_cursor\\\",\\\"message\\\":\\\"collaboration insight: invalid cursor\\\"}\\n\"},\"unauth\":{\"status\":401,\"body\":\"{\\\"error\\\":\\\"unauthenticated\\\",\\\"message\\\":\\\"no session cookie\\\"}\\n\"},\"foreignProjectInOwnerOrg\":{\"status\":404,\"nodes\":null,\"edges\":null,\"effects\":null,\"body\":\"{\\\"error\\\":\\\"not_found\\\",\\\"message\\\":\\\"project not found in this organization\\\"}\\n\"}}",
+      "evidence": "{\"slug\":\"org-e6824511\",\"projectID\":\"project-1a8227f5\",\"foreignProjectID\":\"project-802a018c\",\"valid\":{\"status\":200,\"nodes\":120,\"edges\":256,\"effects\":2},\"badProject\":{\"status\":404,\"body\":\"{\\\"error\\\":\\\"not_found\\\",\\\"message\\\":\\\"project not found in this organization\\\"}\\n\"},\"badCursor\":{\"status\":400,\"body\":\"{\\\"error\\\":\\\"invalid_cursor\\\",\\\"message\\\":\\\"collaboration insight: invalid cursor\\\"}\\n\"},\"unauth\":{\"status\":401,\"body\":\"{\\\"error\\\":\\\"unauthenticated\\\",\\\"message\\\":\\\"no session cookie\\\"}\\n\"},\"foreignProjectInOwnerOrg\":{\"status\":404,\"nodes\":null,\"edges\":null,\"effects\":null,\"body\":\"{\\\"error\\\":\\\"not_found\\\",\\\"message\\\":\\\"project not found in this organization\\\"}\\n\"}}",
       "repro": "Call the production HTTP API with valid project_id, foreign project_id, no auth, malformed project_id, and malformed cursor; none may produce HTTP 503."
     }
   ],
   "performance": {
     "first_graph_interactive_ms": 1,
-    "continuous_interaction_ms": 406
-  }
+    "continuous_interaction_ms": 423
+  },
+  "evidence_paths": {
+    "report": "docs/acceptance/t2181-fresh-main-combined/REPORT.md",
+    "screenshots": "docs/acceptance/t2181-fresh-main-combined/evidence/*.png",
+    "recording": "docs/acceptance/t2181-fresh-main-combined/evidence/page@*.webm",
+    "har": "docs/acceptance/t2181-fresh-main-combined/evidence/network.har",
+    "api": [
+      "docs/acceptance/t2181-fresh-main-combined/evidence/api-org-graph.json",
+      "docs/acceptance/t2181-fresh-main-combined/evidence/api-lod-cluster.json",
+      "docs/acceptance/t2181-fresh-main-combined/evidence/api-project-filter-probes.json",
+      "docs/acceptance/t2181-fresh-main-combined/evidence/api-evidence.json"
+    ],
+    "logs": [
+      "docs/acceptance/t2181-fresh-main-combined/evidence/server.log",
+      "evidence/t2181/*.log",
+      "evidence/t2181/core_diff.patch",
+      "evidence/t2181/api_summary.json"
+    ]
+  },
+  "diff_files": [
+    "A\tdocs/acceptance/t2181-fresh-main-combined/INTEGRATION.md",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/REPORT.md",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/01-authenticated-projects.png",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/02-organization-graph.png",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/03-direct-refresh.png",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/04-filtered-project.png",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/05-agent-focus.png",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/06-evidence-drawer.png",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/api-evidence.json",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/api-lod-cluster.json",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/api-org-graph.json",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/api-project-filter-probes.json",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/console.json",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/interaction-after-reset.png",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/network.har",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/network.json",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/page@44b7cd8f14d20b8fa5e15245fbf00367.webm",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/server.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/evidence/verdict.json",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/delivery-preflight-before-push.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/e2e-pnpm-install.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/git-source-records.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/go-focused-tests.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/go-related-tests.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/isolated-smoke.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/make-build.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/pre-combination-gap.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/web-build.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/web-focused-vitest.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/web-lint-candidate.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/web-lint-main.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/web-pnpm-install.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/raw/web-typecheck.log",
+    "A\tdocs/acceptance/t2181-fresh-main-combined/run-collaboration-graph-acceptance.mjs",
+    "M\tinternal/observability/collaborationeffect/graph_sqlite.go",
+    "M\tinternal/observability/collaborationeffect/query_test.go",
+    "A\tinternal/webconsole/api/handlers_collaboration_insight_test.go",
+    "M\tweb/src/App.test.tsx",
+    "M\tweb/src/AppLayout.insightnav.test.tsx",
+    "M\tweb/src/AppLayout.mobilenav.test.tsx",
+    "M\tweb/src/AppLayout.tsx",
+    "M\tweb/src/api/insights.ts",
+    "M\tweb/src/i18n/locales/en/insights.json",
+    "M\tweb/src/i18n/locales/zh/insights.json",
+    "M\tweb/src/pages/InsightCollaboration.test.tsx",
+    "M\tweb/src/pages/InsightCollaboration.tsx",
+    "M\tweb/src/shell/nav/InsightSecondaryNav.test.tsx"
+  ]
 }

@@ -1,0 +1,3 @@
+HEAD=6074ea621f178889bcfca5adca8cf27c3ad174da
+COMMAND: CANDIDATE_SHA=6074ea621f178889bcfca5adca8cf27c3ad174da node docs/acceptance/t2181-fresh-main-combined/run-collaboration-graph-acceptance.mjs
+ISOLATED_ACCEPTANCE_EXIT_CODE=0
