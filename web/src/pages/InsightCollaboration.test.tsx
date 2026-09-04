@@ -152,6 +152,11 @@ describe('Collaboration Insight', () => {
     expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
     expect(screen.getByText('Agent With A Very...')).toBeVisible();
     expect(screen.getByText(longLabel)).toBeInTheDocument();
+    screen.getByRole('button', { name: longLabel }).focus();
+    await user.keyboard('{Enter}');
+    expect(svg.getAttribute('viewBox')).not.toBe(originalViewBox);
+    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
     await user.click(within(screen.getByLabelText('Keyboard-accessible graph edges')).getByRole('button', { name: /Assign/ }));
     await waitFor(() => expect(screen.getByTestId('collaboration-evidence-drawer')).toBeVisible());
     expect(document.querySelector('g[opacity="0.16"]')).toBeTruthy();

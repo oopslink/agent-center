@@ -302,8 +302,9 @@ function CollaborationGraph({ nodes, edges, selected, onSelect, onClearSelection
   const reset = useCallback(() => {
     setFocusedNodeId(null);
     onClearSelection();
-    setViewport(graphBounds);
-  }, [graphBounds, onClearSelection]);
+    setDragPositions({});
+    setViewport(graphViewBox([...baseNodeMap.values()]));
+  }, [baseNodeMap, onClearSelection]);
   const zoom = useCallback((factor: number, center = { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 }) => {
     setViewport((current) => zoomViewBox(current, factor, center));
   }, [viewport]);
@@ -338,7 +339,7 @@ function CollaborationGraph({ nodes, edges, selected, onSelect, onClearSelection
       aria-label={t('insight.collaboration.graph')}
       data-testid="collaboration-graph-svg"
       onWheel={onWheel}
-      onPointerDown={(event) => { panRef.current = { x: event.clientX, y: event.clientY, viewport }; event.currentTarget.setPointerCapture(event.pointerId); }}
+      onPointerDown={(event) => { panRef.current = { x: event.clientX, y: event.clientY, viewport }; event.currentTarget.setPointerCapture?.(event.pointerId); }}
       onPointerMove={(event) => {
         const drag = dragRef.current;
         if (drag) {
@@ -367,13 +368,13 @@ function CollaborationGraph({ nodes, edges, selected, onSelect, onClearSelection
         }
         dragRef.current = null;
         panRef.current = null;
-        if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+        if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId);
       }}
       onPointerLeave={() => { panRef.current = null; dragRef.current = null; }}
     >
       <defs><linearGradient id="collaboration-mixed"><stop offset="0%" stopColor="#16803c"/><stop offset="50%" stopColor="#16803c"/><stop offset="50%" stopColor="#c0362c"/><stop offset="100%" stopColor="#c0362c"/></linearGradient></defs>
       {edges.map((edge) => { const a = nodeMap.get(edge.source); const b = nodeMap.get(edge.target); if (!a || !b) return null; const structural = !edge.effect_id && edge.evidence_count === 0; const active = !hasNoiseReduction || context.edges.has(edge.id); const selectedEdge = selectedEffectIds.size > 0 && edgeHasAnyEffect(edge, selectedEffectIds); return <g key={edge.id} opacity={active ? 1 : 0.16}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={selectedEdge ? edge.magnitude + 3 : structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} /><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="fill-text-muted text-[11px]">{active ? <>{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</> : null}</text></g>; })}
-      {[...nodeMap.values()].map((node) => { const active = !hasNoiseReduction || context.nodes.has(node.id); const focused = focusedNodeId === node.id; return <g key={node.id} role="button" tabIndex={0} aria-label={node.label} className="cursor-pointer outline-none" opacity={active ? 1 : 0.18} onPointerDown={(event) => { event.stopPropagation(); const point = toSvgPoint(event); dragRef.current = { id: node.id, pointer: point, origin: { x: node.x, y: node.y }, moved: false }; svgRef.current?.setPointerCapture(event.pointerId); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocusedNodeId(node.id); setViewport(focusViewBox(node)); } }}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" className="fill-bg-primary stroke-brand" strokeWidth={focused ? 4 : 2} /> : <rect x={node.x-54} y={node.y-22} width="108" height="44" rx="5" className="fill-bg-primary stroke-text-muted" strokeWidth={focused ? 4 : 2} />}<text x={node.x} y={node.y+4} textAnchor="middle" className="pointer-events-none fill-text-primary text-[11px]">{truncateLabel(node.label)}</text><text x={node.x} y={node.y+18} textAnchor="middle" className="pointer-events-none fill-text-muted text-[8px]">{node.kind}</text></g>; })}
+      {[...nodeMap.values()].map((node) => { const active = !hasNoiseReduction || context.nodes.has(node.id); const focused = focusedNodeId === node.id; return <g key={node.id} role="button" tabIndex={0} aria-label={node.label} className="cursor-pointer outline-none" opacity={active ? 1 : 0.18} onPointerDown={(event) => { event.stopPropagation(); const point = toSvgPoint(event); dragRef.current = { id: node.id, pointer: point, origin: { x: node.x, y: node.y }, moved: false }; svgRef.current?.setPointerCapture?.(event.pointerId); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocusedNodeId(node.id); setViewport(focusViewBox(node)); } }}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" className="fill-bg-primary stroke-brand" strokeWidth={focused ? 4 : 2} /> : <rect x={node.x-54} y={node.y-22} width="108" height="44" rx="5" className="fill-bg-primary stroke-text-muted" strokeWidth={focused ? 4 : 2} />}<text x={node.x} y={node.y+4} textAnchor="middle" className="pointer-events-none fill-text-primary text-[11px]">{truncateLabel(node.label)}</text><text x={node.x} y={node.y+18} textAnchor="middle" className="pointer-events-none fill-text-muted text-[8px]">{node.kind}</text></g>; })}
     </svg>
     <div className="grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{edges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = edge.effect_scopes?.length ? edge.effect_scopes : edge.effect_ids?.length ? edge.effect_ids.map((id) => ({ effect_id: id, project_id: '' })) : edge.effect_id ? [{ effect_id: edge.effect_id, project_id: '' }] : []; const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
   </section>;
