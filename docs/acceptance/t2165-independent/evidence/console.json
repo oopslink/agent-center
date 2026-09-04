@@ -1,0 +1,181 @@
+{
+  "consoleEvents": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+      "location": {
+        "url": "http://127.0.0.1:53951/api/orgs/org-e4d95ceb/insights/collaboration-effects?limit=100&project_id=project-71c415a5",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    },
+    {
+      "type": "error",
+      "text": "Unable to preventDefault inside passive event listener invocation.",
+      "location": {
+        "url": "http://127.0.0.1:53951/assets/index-Cuo7yQs4.js",
+        "line": 48,
+        "column": 0,
+        "lineNumber": 48,
+        "columnNumber": 0
+      }
+    }
+  ],
+  "pageErrors": []
+}
