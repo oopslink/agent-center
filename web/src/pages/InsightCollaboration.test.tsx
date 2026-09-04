@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
@@ -113,6 +113,86 @@ describe('Collaboration Insight', () => {
     expect(search.get('project_id')).toBe('P1');
     expect(search.get('task_id')).toBe('T2');
     expect(search.get('agent_ref')).toBe('agent:a0');
+  });
+
+  it('supports graph viewport controls, truncated labels and selected-neighborhood dimming', async () => {
+    const longLabel = 'Agent With A Very Long Display Name';
+    server.use(
+      http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
+        graph: {
+          nodes: [
+            { id: 'agent:long', kind: 'agent', label: longLabel },
+            { id: 'task:T1', kind: 'task', label: 'Task One', task_id: 'T1' },
+            { id: 'agent:other', kind: 'agent', label: 'Other Agent' },
+            { id: 'task:T2', kind: 'task', label: 'Other Task', task_id: 'T2' },
+          ],
+          edges: [
+            { ...effects[0], id: 'selected-edge', effect_id: 'selected-effect', effect_ids: ['selected-effect'], source: 'agent:long', target: 'task:T1', interaction_count: 1, evidence_count: 1 },
+            { ...effects[1], id: 'dimmed-edge', effect_id: 'dimmed-effect', effect_ids: ['dimmed-effect'], source: 'agent:other', target: 'task:T2', interaction_count: 1, evidence_count: 1 },
+          ],
+        },
+        effects: [
+          { ...effects[0], effect_id: 'selected-effect', id: 'selected-effect', source: 'agent:long', source_agent_ref: 'agent:long' },
+          { ...effects[1], effect_id: 'dimmed-effect', id: 'dimmed-effect', source: 'agent:other', source_agent_ref: 'agent:other', target_task_id: 'T2' },
+        ],
+        summary: {},
+        next_cursor: '',
+        graph_version: 'gv-readable',
+      })),
+      http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', ({ params }) => HttpResponse.json({ effect_id: params.id, evidence: [] })),
+    );
+    const user = userEvent.setup();
+    renderAt('/organizations/acme/insights/collaboration');
+    expect(await screen.findByText('Filter / locate')).toBeVisible();
+    const svg = await screen.findByTestId('collaboration-graph-svg');
+    Object.defineProperty(svg, 'getBoundingClientRect', { configurable: true, value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 720, bottom: 360, width: 720, height: 360, toJSON: () => ({}) }) });
+    const originalViewBox = svg.getAttribute('viewBox');
+    fireEvent.wheel(svg, { deltaY: -100, clientX: 360, clientY: 180 });
+    expect(svg.getAttribute('viewBox')).not.toBe(originalViewBox);
+    await user.click(screen.getByRole('button', { name: 'Fit' }));
+    expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
+    fireEvent.pointerDown(svg, { pointerId: 1, clientX: 360, clientY: 180 });
+    fireEvent.pointerMove(svg, { pointerId: 1, clientX: 400, clientY: 200 });
+    fireEvent.pointerUp(svg, { pointerId: 1, clientX: 400, clientY: 200 });
+    expect(svg.getAttribute('viewBox')).not.toBe(originalViewBox);
+    await user.click(screen.getByRole('button', { name: 'Fit' }));
+    expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
+    const longNode = screen.getByRole('button', { name: longLabel });
+    const originalX = longNode.querySelector('circle')?.getAttribute('cx');
+    fireEvent.pointerDown(longNode, { pointerId: 2, clientX: 65, clientY: 70 });
+    fireEvent.pointerMove(svg, { pointerId: 2, clientX: 125, clientY: 110 });
+    fireEvent.pointerUp(svg, { pointerId: 2, clientX: 125, clientY: 110 });
+    expect(longNode.querySelector('circle')?.getAttribute('cx')).not.toBe(originalX);
+    await user.click(screen.getByRole('button', { name: 'Zoom in' }));
+    expect(svg.getAttribute('viewBox')).not.toBe(originalViewBox);
+    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
+    expect(screen.getByText('Agent With A Very...')).toBeVisible();
+    expect(screen.getByText(longLabel)).toBeInTheDocument();
+    screen.getByRole('button', { name: longLabel }).focus();
+    await user.keyboard('{Enter}');
+    expect(svg.getAttribute('viewBox')).not.toBe(originalViewBox);
+    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
+    await user.click(within(screen.getByLabelText('Keyboard-accessible graph edges')).getByRole('button', { name: /Assign/ }));
+    await waitFor(() => expect(screen.getByTestId('collaboration-evidence-drawer')).toBeVisible());
+    expect(document.querySelector('g[opacity="0.16"]')).toBeTruthy();
+    expect(document.querySelector('g[opacity="0.18"]')).toBeTruthy();
+  });
+
+  it('clears all URL filters and restores the organization graph', async () => {
+    let requested = '';
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { requested = request.url; return HttpResponse.json({ ...graph, next_cursor: '' }); }));
+    const user = userEvent.setup();
+    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1&polarity=mixed&relation_type=assign');
+    await screen.findByTestId('collaboration-graph');
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+    await waitFor(() => {
+      const search = new URL(requested).searchParams;
+      expect([...search.keys()]).toEqual(['limit']);
+    });
+    expect(screen.getByLabelText('Polarity')).toHaveValue('');
+    expect(screen.getByLabelText('Relationship')).toHaveValue('');
   });
 
   it('loads the organization graph without a project filter and shows empty, permission and server states', async () => {
