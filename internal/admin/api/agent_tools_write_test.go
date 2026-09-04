@@ -950,6 +950,110 @@ func TestDiscardTask_NonMemberNoWorkItem_403(t *testing.T) {
 	}
 }
 
+// --- retry_failed_task -------------------------------------------------------
+
+func (f *writeToolsFixture) seedStandaloneRunningTask(t *testing.T) string {
+	t.Helper()
+	ctx := context.Background()
+	owner := pm.IdentityRef("user:owner")
+	pid, err := f.pmSvc.CreateProject(ctx, pmservice.CreateProjectCommand{OrganizationID: atTestOrg, Name: "Standalone", CreatedBy: owner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tid, err := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "standalone", CreatedBy: owner})
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.AssignTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1), owner); err != nil {
+		t.Fatal(err)
+	}
+	f.drain(t)
+	if err := f.pmSvc.StartTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	return string(tid)
+}
+
+func TestRetryFailedTask_StandaloneFailed_OKAndIdempotentOpen(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedStandaloneRunningTask(t)
+	if err := f.pmSvc.FailTask(context.Background(), pm.TaskID(tid), "executor failed", pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/retry_failed_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %v", status, body)
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskOpen {
+		t.Fatalf("task status = %s, want open", got)
+	}
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/retry_failed_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusOK {
+		t.Fatalf("open idempotent retry status = %d, want 200; body = %v", status, body)
+	}
+}
+
+func TestRetryFailedTask_RejectsPlanBoundFailed(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	if err := f.pmSvc.FailTask(context.Background(), pm.TaskID(tid), "pool task failed", pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatal(err)
+	}
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/retry_failed_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusConflict || body["error"] != "task_retry_plan_bound" {
+		t.Fatalf("status=%d error=%v, want 409 task_retry_plan_bound body=%v", status, body["error"], body)
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskFailed {
+		t.Fatalf("task status = %s, want failed", got)
+	}
+}
+
+func TestRetryFailedTask_RejectsCompletedDiscardedRunning(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		prep func(*testing.T, *writeToolsFixture, string)
+		want pm.TaskStatus
+	}{
+		{name: "running", prep: func(*testing.T, *writeToolsFixture, string) {}, want: pm.TaskRunning},
+		{name: "completed", prep: func(t *testing.T, f *writeToolsFixture, tid string) {
+			if err := f.pmSvc.CompleteTask(context.Background(), pm.TaskID(tid), pm.IdentityRef("agent:"+atAgent1)); err != nil {
+				t.Fatal(err)
+			}
+		}, want: pm.TaskCompleted},
+		{name: "discarded", prep: func(t *testing.T, f *writeToolsFixture, tid string) {
+			if err := f.pmSvc.DiscardTaskWithReason(context.Background(), pm.TaskID(tid), pm.IdentityRef("agent:"+atAgent1), "not needed"); err != nil {
+				t.Fatal(err)
+			}
+		}, want: pm.TaskDiscarded},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newWriteToolsFixture(t)
+			f.addWorkerToken(t, "acat_w1", atWorker1)
+			tid := f.seedStandaloneRunningTask(t)
+			tc.prep(t, f, tid)
+			srv := f.server(t)
+			status, body := postBearer(t, srv.URL, "/admin/agent-tools/retry_failed_task", "acat_w1",
+				map[string]any{"agent_id": atAgent1, "task_id": tid})
+			if status != http.StatusConflict || body["error"] != "task_retry_not_applicable" {
+				t.Fatalf("status=%d error=%v, want 409 task_retry_not_applicable body=%v", status, body["error"], body)
+			}
+			if got := f.taskStatus(t, tid); got != tc.want {
+				t.Fatalf("task status = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
 // F4: post_message (task target) with parent_message_id threads the agent's reply IN the
 // thread (parent=root) instead of at conversation top-level. This is the center
 // half of the @agent-in-thread fix: the agent passes the thread root the wake brief

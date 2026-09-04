@@ -89,6 +89,15 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrTaskParked):
 		writeError(w, http.StatusConflict, "task_parked", err.Error())
 
+	case errors.Is(err, pm.ErrTaskRetryPlanBound):
+		writeError(w, http.StatusConflict, "task_retry_plan_bound", err.Error())
+
+	case errors.Is(err, pm.ErrTaskRetryNotApplicable):
+		writeError(w, http.StatusConflict, "task_retry_not_applicable", err.Error())
+
+	case errors.Is(err, pm.ErrTaskReopenRetired):
+		writeError(w, http.StatusConflict, "task_reopen_retired", err.Error())
+
 	case errors.Is(err, pm.ErrTaskNoValidDelivery):
 		var nd *pm.TaskNoValidDeliveryError
 		if errors.As(err, &nd) {

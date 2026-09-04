@@ -845,6 +845,44 @@ func (s *Server) resetTaskHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "open"})
 }
 
+// --- retry_failed_task -------------------------------------------------------
+
+type retryFailedTaskReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+}
+
+// retryFailedTaskHandler is the explicit retry path for a standalone failed task:
+// failed→open, with failed/block/lease/current-delivery state cleared. It never
+// reopens plan-bound failures or completed/discarded/running work.
+func (s *Server) retryFailedTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req retryFailedTaskReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
+		return
+	}
+	if !s.requireAgentTaskWrite(w, r, d, a, req.TaskID) {
+		return
+	}
+	if err := d.PMService.RetryFailedTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "open"})
+}
+
 // --- rerun_failed_node (v2.9.1 P0 recovery, plan-aware) ----------------------
 
 type rerunFailedNodeReq struct {

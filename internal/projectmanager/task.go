@@ -9,7 +9,8 @@ import (
 // TaskStatus enum + state machine. ADR-0055 makes terminal facts immutable:
 //
 //	open → running → completed
-//	open/running → failed/discarded (terminal)
+//	open/running → failed/discarded
+//	failed → open is reserved for explicit standalone retry (plan_id == "")
 //
 // Migration 0120 converts legacy `reopened` rows to open. `reopened` is not a
 // valid persisted or writable Task status anymore.
@@ -76,8 +77,9 @@ func (s TaskStatus) CanTransitionTo(to TaskStatus) bool {
 }
 
 // IsTerminal reports whether the task has reached a concluded state: work is done
-// (completed), failed, or abandoned (discarded). Terminal tasks never become active again.
-// The active / non-terminal set is exactly {open, running}.
+// (completed), failed, or abandoned (discarded). Terminal tasks never become active again
+// except the explicitly-gated standalone failed retry path. The active / non-terminal set
+// is exactly {open, running}.
 // v2.7 #107 Phase-2 (proj-B): the observability default task-query set is the
 // non-terminal set.
 //
@@ -218,6 +220,7 @@ const (
 	TaskActionLeaseNudged TaskAction = "lease_nudge"
 	TaskActionCompleted   TaskAction = "completed"
 	TaskActionFailed      TaskAction = "failed"
+	TaskActionRetried     TaskAction = "retried"
 	// TaskActionReset (T862) records a tier-3 recovery RESET: a confirmed-dead running
 	// task whose lease has ALSO lapsed is returned to open with the assignee cleared so
 	// the pool re-dispatches it to a FRESH executor. Distinct from lease_expired (which
@@ -291,8 +294,7 @@ type Task struct {
 	// metadata edits like rename/assign/tags).
 	statusChangedAt time.Time
 	// completedAt is the authoritative completion timestamp (T570 follow-up). Set
-	// to `at` when the task transitions INTO completed; CLEARED (zero) on any
-	// transition OUT of completed (e.g. reopen). Unlike statusChangedAt it tracks
+	// to `at` when the task transitions INTO completed. Unlike statusChangedAt it tracks
 	// "when did this last complete" specifically — zero means not currently
 	// completed. Persisted (migration 0088) so it survives reload + later edits.
 	completedAt time.Time
@@ -656,6 +658,11 @@ func (t *Task) Delivery() *Delivery { return t.delivery }
 // SetDelivery records the last executor's terminal git status (report_delivery
 // agent-tool). Latest-wins: a terminal report overwrites any prior one.
 func (t *Task) SetDelivery(d *Delivery) { t.delivery = d }
+
+// ClearDelivery drops the current-attempt delivery pointer. Historical delivery evidence
+// remains in append-only execution/delivery records; this prevents a retried task from
+// completing against stale delivery from the failed attempt.
+func (t *Task) ClearDelivery() { t.delivery = nil }
 
 // FruitlessReopens exposes the durable no-progress reopen tally (issue-f30b7e7b).
 func (t *Task) FruitlessReopens() int { return t.fruitlessReopens }
@@ -1332,6 +1339,40 @@ func (t *Task) Discard(at time.Time) error {
 	}
 	t.blockedReason = ""
 	t.failedReason = ""
+	return nil
+}
+
+// RetryFailed returns a standalone failed task to open for a fresh attempt. It is the
+// only sanctioned terminal-to-active task path: plan-bound failures are remediated by plan
+// evolution, and completed/discarded facts remain permanent.
+func (t *Task) RetryFailed(actor IdentityRef, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+	if t.planID != "" {
+		return ErrTaskRetryPlanBound
+	}
+	if t.status == TaskOpen {
+		return nil
+	}
+	if t.status != TaskFailed {
+		return ErrTaskRetryNotApplicable
+	}
+	t.status = TaskOpen
+	t.statusChangedAt = at.UTC()
+	t.blockedReason = ""
+	t.blockedReasonType = ""
+	t.blockedComment = ""
+	t.failedReason = ""
+	t.executionLeaseExpiresAt = nil
+	t.completedBy = ""
+	t.completedAt = time.Time{}
+	t.delivery = nil
+	t.appendLog(TaskActionRetried, actor, t.assignee, "standalone failed task retried", at)
+	t.touch(at)
 	return nil
 }
 

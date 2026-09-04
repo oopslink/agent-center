@@ -111,8 +111,8 @@ func pmPlanNodeMap(n pm.PlanNodeView, l planNodeLookup) map[string]any {
 		node["superseded_reason"] = n.SupersededReason
 	}
 	// T570 (+ follow-up): a completed task carries its authoritative completion
-	// time (task.CompletedAt, set on →completed and cleared on reopen). Emitted
-	// only when present — a never-completed / reopened task has no completed_at.
+	// time (task.CompletedAt, set on →completed). Emitted
+	// only when present — a never-completed task has no completed_at.
 	if at := l.completedAtOf[n.TaskID]; at != "" {
 		node["completed_at"] = at
 	}
@@ -130,7 +130,7 @@ type planNodeLookup struct {
 	archivedAtOf map[pm.TaskID]string
 	orgRefOf     map[pm.TaskID]string
 	// T570 (+ follow-up): the task's authoritative completion time
-	// (task.CompletedAt) — set on →completed, cleared on reopen. Surfaced as
+	// (task.CompletedAt) — set on →completed. Surfaced as
 	// completed_at so the task list shows WHEN a DONE node finished. Empty when the
 	// task is not currently completed.
 	completedAtOf map[pm.TaskID]string

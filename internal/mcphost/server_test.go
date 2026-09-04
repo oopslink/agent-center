@@ -158,6 +158,8 @@ var wantTools = []string{
 	"claim_task",
 	// v2.14.0 I14/F5 §五/§2.5: renew the running task's execution lease
 	"heartbeat",
+	// Explicit retry for standalone failed tasks; plan-bound failures remain immutable.
+	"retry_failed_task",
 	// v2.8.1 #278 PR4b dual-stream: the agent's unread messages (DM + @mention) + mark-seen
 	"get_my_unread", "mark_seen",
 	// browse a conversation's chat history (DM/channel/task/issue/plan)

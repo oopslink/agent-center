@@ -12,6 +12,7 @@
 //   - assign_task / reassign_task : {task_id, assignee}
 //   - subscribe / unsubscribe     : {task_id, identity?}  (defaults to self)
 //   - fail_task                   : {task_id, reason}
+//   - retry_failed_task           : {task_id}
 //   - heartbeat                   : {task_id}
 //   - complete_task               : {task_id, summary?}
 //   - discard_task                : {task_id, reason}
@@ -547,6 +548,22 @@ func makeFailTask(cfg Config) mcp.ToolHandlerFor[failTaskArgs, any] {
 			"reason":   args.Reason,
 		}
 		return callAdmin(ctx, cfg, "fail_task", body)
+	}
+}
+
+// --- retry_failed_task -------------------------------------------------------
+
+type retryFailedTaskArgs struct {
+	TaskID string `json:"task_id" jsonschema:"the standalone failed task to retry"`
+}
+
+func makeRetryFailedTask(cfg Config) mcp.ToolHandlerFor[retryFailedTaskArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args retryFailedTaskArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, "retry_failed_task", body)
 	}
 }
 

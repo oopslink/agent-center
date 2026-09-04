@@ -67,6 +67,10 @@ func mapPMError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "task_description_frozen", err.Error())
 	case errors.Is(err, pm.ErrTaskReopenRetired):
 		writeError(w, http.StatusConflict, "task_reopen_retired", err.Error())
+	case errors.Is(err, pm.ErrTaskRetryPlanBound):
+		writeError(w, http.StatusConflict, "task_retry_plan_bound", err.Error())
+	case errors.Is(err, pm.ErrTaskRetryNotApplicable):
+		writeError(w, http.StatusConflict, "task_retry_not_applicable", err.Error())
 	case errors.Is(err, pm.ErrIllegalTransition), errors.Is(err, pm.ErrInvalidStatus),
 		errors.Is(err, pm.ErrBlockReasonRequired),
 		errors.Is(err, pm.ErrCrossProject), errors.Is(err, pm.ErrEmptyProjectScope),
@@ -132,8 +136,8 @@ func pmTaskMap(t *pm.Task) map[string]any {
 		// in the domain; the FE (useCreatorLabel) resolves it to a human name, else a
 		// clean handle. Without it the project Tasks tab Creator column shows "—".
 		"creator_ref": string(t.CreatedBy()),
-		// T570 follow-up: authoritative completion time — set on →completed, cleared
-		// on reopen. "" when not currently completed.
+		// T570 follow-up: authoritative completion time — set on →completed and
+		// empty when not currently completed.
 		"completed_at": rfc3339OrEmpty(t.CompletedAt()),
 		// v2.9 P3 Stage B: orthogonal archived state (independent of status) — the
 		// archive FE renders an "已归档" badge + read-only affordance off these.
@@ -1199,6 +1203,11 @@ func (s *Server) pmReopenTaskHandler(w http.ResponseWriter, r *http.Request) {
 	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.ReopenTask(r.Context(), id, c) })
 }
 
+func (s *Server) pmRetryFailedTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.RetryFailedTask(r.Context(), id, c) })
+}
+
 func (s *Server) pmSubscribeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		IdentityID string `json:"identity_id"`
@@ -1214,8 +1223,8 @@ func (s *Server) pmSubscribeTaskHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 // pmUnsubscribeTaskHandler removes a MANUAL subscriber row — the only way to
-// evict someone retained on the task Conversation (OQ13: unassign/reassign/
-// reopen keep the offboarded assignee as a sticky subscriber; explicit
+// evict someone retained on the task Conversation (OQ13: unassign/reassign keep
+// the offboarded assignee as a sticky subscriber; explicit
 // unsubscribe is the eviction path). Creator / current assignee are role-derived
 // so this is a no-op for them until the role is dropped.
 func (s *Server) pmUnsubscribeTaskHandler(w http.ResponseWriter, r *http.Request) {

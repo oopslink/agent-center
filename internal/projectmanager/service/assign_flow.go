@@ -911,10 +911,11 @@ func (s *Service) UnassignTask(ctx context.Context, taskID pm.TaskID, actor pm.I
 	})
 }
 
-// ReopenTask is a compatibility guard for retired transports. ADR-0055 makes
-// completed/discarded Task facts permanent; follow-up work is represented by a
-// new Task (or a remediation Stage), never by rewriting this Task in place.
-func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+// RetryFailedTask returns only a standalone failed task to open for a fresh attempt.
+// Plan-bound failed work must evolve through the Plan DAG/remediation path; completed,
+// discarded, and running facts are not rewritten.
+func (s *Service) RetryFailedTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	now := s.clock.Now()
 	return s.runInTx(ctx, func(txCtx context.Context) error {
 		t, err := s.tasks.FindByID(txCtx, taskID)
 		if err != nil {
@@ -926,8 +927,31 @@ func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.Ide
 		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
-		return pm.ErrTaskReopenRetired
+		prevStatus := t.Status()
+		if err := t.RetryFailed(actor, now); err != nil {
+			return err
+		}
+		if prevStatus == t.Status() {
+			return nil
+		}
+		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		if err := s.flushActionLogs(txCtx, t); err != nil {
+			return err
+		}
+		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, "retry failed standalone task"); err != nil {
+			return err
+		}
+		s.auditTaskStatusChange(txCtx, t, prevStatus, actor)
+		return nil
 	})
+}
+
+// ReopenTask is a compatibility alias for older Web/API callers. It now has the
+// same narrow contract as RetryFailedTask and rejects every non-standalone-failed case.
+func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
+	return s.RetryFailedTask(ctx, taskID, actor)
 }
 
 // taskStateOp is the shared "load → gate → mutate → persist → emit
@@ -979,7 +1003,7 @@ func (s *Service) taskStateOp(ctx context.Context, taskID pm.TaskID, actor pm.Id
 			}
 		}
 		// audit §5: record the status transition (shared闸 for Discard/SetStatus/
-		// Complete/Reopen/Reset — every taskStateOp caller). No-op when status didn't move.
+		// Complete/Reset — every taskStateOp caller). No-op when status didn't move.
 		s.auditTaskStatusChange(txCtx, t, prevStatus, actor)
 		if t.PlanID() != "" && s.plans != nil {
 			p, perr := s.plans.FindByID(txCtx, t.PlanID())

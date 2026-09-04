@@ -235,13 +235,128 @@ func TestReopenTask_RetiredAndLeavesCompletionImmutable(t *testing.T) {
 	if err := svc.CompleteTask(ctx, tid, "user:a"); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.ReopenTask(ctx, tid, "user:a"); err != pm.ErrTaskReopenRetired {
-		t.Fatalf("ReopenTask = %v want ErrTaskReopenRetired", err)
+	if err := svc.ReopenTask(ctx, tid, "user:a"); err != pm.ErrTaskRetryNotApplicable {
+		t.Fatalf("ReopenTask = %v want ErrTaskRetryNotApplicable", err)
 	}
 	tk, _ := svc.tasks.FindByID(ctx, tid)
 	if tk.Status() != pm.TaskCompleted || tk.Assignee() != "user:a" || tk.CompletedBy() != "user:a" {
 		t.Fatalf("retired reopen mutated completion, got %s / %q / %q",
 			tk.Status(), tk.Assignee(), tk.CompletedBy())
+	}
+}
+
+func TestRetryFailedTask_StandaloneFailedReopensWithHistory(t *testing.T) {
+	svc, ctx := taskActionLogReadSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
+	if err := svc.AssignTask(ctx, tid, "agent:old", "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.StartTask(ctx, tid, "agent:old"); err != nil {
+		t.Fatal(err)
+	}
+	tk, _ := svc.tasks.FindByID(ctx, tid)
+	tk.SetDelivery(&pm.Delivery{Source: "executor", ExecutorID: "exec-old", Pushed: true, Probed: true, BaseKnown: true, AheadOfBase: 1, Branch: "old", HeadSHA: "abc"})
+	if err := svc.tasks.Update(ctx, tk); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.FailTask(ctx, tid, "old executor failed", "agent:old"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := svc.RetryFailedTask(ctx, tid, "user:a"); err != nil {
+		t.Fatalf("RetryFailedTask: %v", err)
+	}
+	got, _ := svc.GetTask(ctx, tid)
+	if got.Status() != pm.TaskOpen || got.FailedReason() != "" || got.ExecutionLeaseExpiresAt() != nil || got.Delivery() != nil {
+		t.Fatalf("retry result wrong: status=%s failed=%q lease=%v delivery=%v",
+			got.Status(), got.FailedReason(), got.ExecutionLeaseExpiresAt(), got.Delivery())
+	}
+	logs, total, err := svc.ListTaskActionLogs(ctx, tid, 0, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	seen := map[pm.TaskAction]bool{}
+	for _, log := range logs {
+		seen[log.Action] = true
+	}
+	if total != 3 || !seen[pm.TaskActionFailed] || !seen[pm.TaskActionRetried] {
+		t.Fatalf("retry must preserve failed log and append retried log: total=%d logs=%+v", total, logs)
+	}
+	if err := svc.AssignTask(ctx, tid, "agent:new", "user:a"); err != nil {
+		t.Fatalf("assign after retry: %v", err)
+	}
+	if err := svc.StartTask(ctx, tid, "agent:new"); err != nil {
+		t.Fatalf("start after retry: %v", err)
+	}
+	afterStart, _ := svc.GetTask(ctx, tid)
+	if afterStart.Status() != pm.TaskRunning || afterStart.Assignee() != "agent:new" {
+		t.Fatalf("start after retry result wrong: %s/%q", afterStart.Status(), afterStart.Assignee())
+	}
+}
+
+func TestRetryFailedTask_RejectsPlanBoundAndNonFailed(t *testing.T) {
+	svc, ctx := taskActionLogReadSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+
+	planBound, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "plan-bound", CreatedBy: "user:a"})
+	if err := svc.AssignTask(ctx, planBound, "agent:c", "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.StartTask(ctx, planBound, "agent:c"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.FailTask(ctx, planBound, "failed in plan", "agent:c"); err != nil {
+		t.Fatal(err)
+	}
+	tk, _ := svc.tasks.FindByID(ctx, planBound)
+	if err := tk.SetPlan("PL1", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.tasks.Update(ctx, tk); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RetryFailedTask(ctx, planBound, "user:a"); err != pm.ErrTaskRetryPlanBound {
+		t.Fatalf("plan-bound failed retry = %v want ErrTaskRetryPlanBound", err)
+	}
+
+	open, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "open", CreatedBy: "user:a"})
+	if err := svc.RetryFailedTask(ctx, open, "user:a"); err != nil {
+		t.Fatalf("standalone open retry should be idempotent: %v", err)
+	}
+	planOpen, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "plan-open", CreatedBy: "user:a"})
+	tk, _ = svc.tasks.FindByID(ctx, planOpen)
+	if err := tk.SetPlan("PL2", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.tasks.Update(ctx, tk); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.RetryFailedTask(ctx, planOpen, "user:a"); err != pm.ErrTaskRetryPlanBound {
+		t.Fatalf("plan-bound open retry = %v want ErrTaskRetryPlanBound", err)
+	}
+	for _, status := range []pm.TaskStatus{pm.TaskRunning, pm.TaskCompleted, pm.TaskDiscarded} {
+		tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: string(status), CreatedBy: "user:a"})
+		assignee := pm.IdentityRef("agent:" + string(status))
+		if err := svc.AssignTask(ctx, tid, assignee, "user:a"); err != nil {
+			t.Fatal(err)
+		}
+		if err := svc.StartTask(ctx, tid, assignee); err != nil {
+			t.Fatal(err)
+		}
+		switch status {
+		case pm.TaskCompleted:
+			if err := svc.CompleteTask(ctx, tid, assignee); err != nil {
+				t.Fatal(err)
+			}
+		case pm.TaskDiscarded:
+			if err := svc.DiscardTaskWithReason(ctx, tid, "user:a", "not needed"); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := svc.RetryFailedTask(ctx, tid, "user:a"); err != pm.ErrTaskRetryNotApplicable {
+			t.Fatalf("RetryFailedTask(%s) = %v want ErrTaskRetryNotApplicable", status, err)
+		}
 	}
 }
 
@@ -345,8 +460,8 @@ func TestOffboardedAssignee_RetainedAsSubscriber(t *testing.T) {
 	if err := svc.CompleteTask(ctx, tid, "user:b"); err != nil {
 		t.Fatal(err)
 	}
-	if err := svc.ReopenTask(ctx, tid, "user:a"); err != pm.ErrTaskReopenRetired {
-		t.Fatalf("ReopenTask = %v want ErrTaskReopenRetired", err)
+	if err := svc.ReopenTask(ctx, tid, "user:a"); err != pm.ErrTaskRetryNotApplicable {
+		t.Fatalf("ReopenTask = %v want ErrTaskRetryNotApplicable", err)
 	}
 	drain()
 	if !hasParticipant(tid, "agent:AG3") {

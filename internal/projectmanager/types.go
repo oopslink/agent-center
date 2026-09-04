@@ -225,8 +225,10 @@ var (
 	ErrTaskNotClaimable = errors.New("projectmanager: task is not claimable from the assignment pool")
 	// ErrTaskAlreadyClaimed — a concurrent claim won the race (the task already has
 	// an assignee). Idempotent-readable, not a hard failure (T83 §3.3).
-	ErrTaskAlreadyClaimed = errors.New("projectmanager: task already claimed by another agent")
-	ErrTaskReopenRetired  = errors.New("projectmanager: reopening terminal tasks is retired; create a follow-up task or remediation stage")
+	ErrTaskAlreadyClaimed     = errors.New("projectmanager: task already claimed by another agent")
+	ErrTaskReopenRetired      = errors.New("projectmanager: reopening terminal tasks is retired; create a follow-up task or remediation stage")
+	ErrTaskRetryPlanBound     = errors.New("projectmanager: failed task retry is only allowed for standalone tasks (plan_id must be empty)")
+	ErrTaskRetryNotApplicable = errors.New("projectmanager: failed task retry is only applicable to standalone failed tasks")
 	// ErrPoolClaimLimitReached — the agent already holds the max concurrent claimed
 	// pool tasks (T83 §3.6, default N=3). Does not affect structured-plan nodes.
 	ErrPoolClaimLimitReached = errors.New("projectmanager: pool claim limit reached")

@@ -232,7 +232,7 @@ Each is a noun your users will learn, backed by a DDD aggregate / value object /
 
 | Concept | One-line definition |
 |---|---|
-| **Task** | A unit of work you (or Supervisor) created; status-driven lifecycle (open → running → completed / discarded, reopenable), assignable & claimable |
+| **Task** | A unit of work you (or Supervisor) created; status-driven lifecycle (open → running → completed / failed / discarded), assignable & claimable; only standalone failed tasks can be explicitly retried back to open |
 | **Issue** | A topic to discuss ("should we use X or Y?"); the conclusion can spawn 0, 1, or N Tasks |
 | **Conversation** | A message thread attached to a Task / Issue / Channel / DM — the product spine |
 | **Worker** | A machine running agents (local or remote); one machine can host multiple workers (v2.4) |

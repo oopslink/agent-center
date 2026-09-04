@@ -11,6 +11,7 @@ import {
   useCompleteTask,
   useCreateTask,
   useFailTask,
+  useRetryFailedTask,
   useStartTask,
   useTask,
   useTasksList,
@@ -215,5 +216,33 @@ describe('tasks hooks', () => {
     });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(received).toMatchObject({ reason: 'waiting' });
+  });
+
+  it('useRetryFailedTask POSTs to the explicit retry route', async () => {
+    let called = false;
+    server.use(
+      http.post('/api/projects/proj-a/tasks/TS-1/retry_failed', () => {
+        called = true;
+        return HttpResponse.json({
+          id: 'TS-1',
+          project_id: 'proj-a',
+          title: 'x',
+          description: '',
+          status: 'open',
+          version: 3,
+          created_at: 'x',
+          updated_at: 'x',
+        });
+      }),
+    );
+    const { result } = renderHook(() => useRetryFailedTask('proj-a', 'TS-1'), {
+      wrapper: makeWrapper(),
+    });
+    act(() => {
+      result.current.mutate();
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(called).toBe(true);
+    expect(result.current.data?.status).toBe('open');
   });
 });
