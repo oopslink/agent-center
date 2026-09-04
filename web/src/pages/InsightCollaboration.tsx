@@ -47,7 +47,7 @@ export default function InsightCollaboration(): React.ReactElement {
   return (
     <section className="space-y-4" data-testid="page-InsightCollaboration">
       <header><h1 className="text-xl font-semibold text-text-primary">{t('insight.collaboration.title')}</h1><p className="mt-1 text-sm text-text-muted">{t('insight.collaboration.subtitle')}</p></header>
-      <CollaborationFiltersBar params={params} update={update} t={t} />
+      <CollaborationFiltersBar params={params} update={update} clearAll={() => { setParams(new URLSearchParams()); setSelected(null); }} t={t} />
       {query.isLoading ? <State id="collaboration-loading" title={t('insight.collaboration.loading')} /> : null}
       {query.isError ? <CollaborationError error={query.error} t={t} /> : null}
       {query.data ? <>
@@ -75,7 +75,7 @@ function filtersFromParams(params: URLSearchParams): CollaborationFilters {
 }
 
 type Translator = ReturnType<typeof useTranslation>['t'];
-function CollaborationFiltersBar({ params, update, t }: { params: URLSearchParams; update: (key: string, value: string, clear?: string[]) => void; t: Translator }) {
+function CollaborationFiltersBar({ params, update, clearAll, t }: { params: URLSearchParams; update: (key: string, value: string, clear?: string[]) => void; clearAll: () => void; t: Translator }) {
   const projectId = params.get('project_id') ?? '';
   const planId = params.get('plan_id') ?? '';
   const projects = useProjects();
@@ -110,7 +110,7 @@ function CollaborationFiltersBar({ params, update, t }: { params: URLSearchParam
     ['until', t('insight.collaboration.filters.until'), 'datetime-local'],
   ];
   return <form aria-label={t('insight.collaboration.filters.label')} className="grid gap-3 rounded-lg border border-border bg-bg-surface p-4 md:grid-cols-4" onSubmit={(e) => e.preventDefault()}>
-    <h2 className="text-sm font-semibold text-text-primary md:col-span-4">{t('insight.collaboration.filters.label')}</h2>
+    <div className="flex items-center justify-between gap-3 md:col-span-4"><h2 className="text-sm font-semibold text-text-primary">{t('insight.collaboration.filters.label')}</h2><button type="button" onClick={clearAll} className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle">{t('insight.collaboration.filters.clearAll')}</button></div>
     <EntityFilter
       name="project_id"
       label={t('insight.collaboration.filters.project')}
@@ -310,8 +310,16 @@ function CollaborationGraph({ nodes, edges, selected, onSelect, onClearSelection
   }, [viewport]);
   const toSvgPoint = useCallback((event: { clientX: number; clientY: number }) => {
     const svg = svgRef.current;
-    const matrix = svg?.getScreenCTM();
-    if (!svg || !matrix) return { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 };
+    const matrix = typeof svg?.getScreenCTM === 'function' ? svg.getScreenCTM() : null;
+    if (!svg) return { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 };
+    if (!matrix) {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) return {
+        x: viewport.x + ((event.clientX - rect.left) / rect.width) * viewport.width,
+        y: viewport.y + ((event.clientY - rect.top) / rect.height) * viewport.height,
+      };
+      return { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 };
+    }
     const point = svg.createSVGPoint();
     point.x = event.clientX;
     point.y = event.clientY;
