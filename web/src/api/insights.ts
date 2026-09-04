@@ -195,7 +195,7 @@ export interface InsightExecutionDetail {
 export type CollaborationRelation = 'assign' | 'reassign' | 'complete' | 'block' | 'unblock' | 'dependency_release' | 'review_accept' | 'review_reject';
 export type CollaborationPolarity = 'positive' | 'negative' | 'neutral' | 'mixed';
 
-export type CollaborationNodeKind = 'agent' | 'project' | 'plan' | 'stage' | 'task';
+export type CollaborationNodeKind = 'agent' | 'project' | 'plan' | 'stage' | 'task' | 'cluster';
 export interface CollaborationNode {
   id: string; kind: CollaborationNodeKind; label: string; project_id?: string; plan_id?: string;
   stage_id?: string; task_id?: string; status?: string;
@@ -213,17 +213,18 @@ export interface CollaborationEffect extends CollaborationEdge {
   before_state: Record<string, unknown>; after_state: Record<string, unknown>; explanation_key: string;
 }
 export interface CollaborationGraphResponse {
-  graph: { nodes: CollaborationNode[]; edges: CollaborationEdge[] };
+  graph: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; lod: 'full' | 'cluster'; clusters: CollaborationNode[]; truncated: boolean };
   effects: CollaborationEffect[];
   summary: { positive_count: number; negative_count: number; neutral_count: number; mixed_count: number; affected_task_count: number };
   next_cursor: string;
   graph_version: string;
+  truncated: boolean;
 }
 export interface CollaborationEvidenceEvent { event_id: string; event_type: string; occurred_at: string; actor_ref: string; refs: Record<string, string>; payload: Record<string, unknown> }
 export interface CollaborationEvidenceResponse { effect_id: string; evidence: CollaborationEvidenceEvent[] }
 export interface CollaborationFilters {
   project_id: string; plan_id?: string; task_id?: string; agent_ref?: string; relation_type?: CollaborationRelation; polarity?: CollaborationPolarity;
-  since?: string; until?: string; cursor?: string; graph_version?: string; limit?: number;
+  since?: string; until?: string; cursor?: string; graph_version?: string; lod?: 'full' | 'cluster'; max_nodes?: number; limit?: number;
 }
 
 export type InsightV2HealthStatus = 'healthy' | 'elevated' | 'degraded' | 'unknown';
@@ -762,7 +763,7 @@ function normalizeExecutionRow(value: unknown): InsightExecutionRow {
 
 function normalizeCollaborationNode(value: unknown): CollaborationNode {
   const source = isRecord(value) ? value : {};
-  const kind = (['agent', 'project', 'plan', 'stage', 'task'].includes(String(source.kind)) ? source.kind : 'task') as CollaborationNodeKind;
+  const kind = (['agent', 'project', 'plan', 'stage', 'task', 'cluster'].includes(String(source.kind)) ? source.kind : 'task') as CollaborationNodeKind;
   const id = stringOrEmpty(source.id) || (kind === 'agent' ? 'agent:unknown' : 'task:unknown');
   return {
     id,
@@ -849,6 +850,9 @@ function normalizeCollaborationGraphResponse(value: unknown): CollaborationGraph
     graph: {
       nodes: arrayOrEmpty(graph.nodes as unknown[] | null | undefined).map(normalizeCollaborationNode),
       edges: arrayOrEmpty(graph.edges as unknown[] | null | undefined).map(normalizeCollaborationEdge),
+      lod: graph.lod === 'cluster' ? 'cluster' : 'full',
+      clusters: arrayOrEmpty(graph.clusters as unknown[] | null | undefined).map(normalizeCollaborationNode),
+      truncated: booleanOrFalse(graph.truncated),
     },
     effects,
     summary: {
@@ -860,6 +864,7 @@ function normalizeCollaborationGraphResponse(value: unknown): CollaborationGraph
     },
     next_cursor: stringOrEmpty(source.next_cursor),
     graph_version: stringOrEmpty(source.graph_version),
+    truncated: booleanOrFalse(source.truncated),
   };
 }
 
@@ -1020,7 +1025,7 @@ export function useInsightAgent(agentRef: string | undefined) {
 
 function collaborationParams(filters: CollaborationFilters): string {
   const params = new URLSearchParams({ limit: String(Math.min(filters.limit ?? 100, 500)) });
-  for (const key of ['project_id', 'plan_id', 'task_id', 'agent_ref', 'relation_type', 'polarity', 'since', 'until', 'cursor', 'graph_version'] as const) {
+  for (const key of ['project_id', 'plan_id', 'task_id', 'agent_ref', 'relation_type', 'polarity', 'since', 'until', 'cursor', 'graph_version', 'lod', 'max_nodes'] as const) {
     const value = filters[key];
     if (value) params.set(key, String(value));
   }

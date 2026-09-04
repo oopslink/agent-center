@@ -1,0 +1,3689 @@
+{
+  "graph": {
+    "nodes": [
+      {
+        "id": "agent:agent-b6e8247f",
+        "kind": "agent",
+        "label": "agent:agent-b6e8247f"
+      },
+      {
+        "id": "agent:agent-d910ab49",
+        "kind": "agent",
+        "label": "agent:agent-d910ab49"
+      },
+      {
+        "id": "plan:plan-c7705000",
+        "kind": "plan",
+        "label": "Alpha delivery plan",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "status": "running"
+      },
+      {
+        "id": "project:project-e9b69876",
+        "kind": "project",
+        "label": "Alpha Collaboration Graph",
+        "project_id": "project-e9b69876"
+      },
+      {
+        "id": "system/unknown",
+        "kind": "agent",
+        "label": "system/unknown"
+      },
+      {
+        "id": "task:task-02908e8a",
+        "kind": "task",
+        "label": "task-02908e8a",
+        "project_id": "project-e9b69876",
+        "task_id": "task-02908e8a"
+      },
+      {
+        "id": "task:task-047c770a",
+        "kind": "task",
+        "label": "Graph task 045",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-047c770a",
+        "status": "open"
+      },
+      {
+        "id": "task:task-077737df",
+        "kind": "task",
+        "label": "Graph task 028",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-077737df",
+        "status": "open"
+      },
+      {
+        "id": "task:task-0e0a395f",
+        "kind": "task",
+        "label": "Graph task 079",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-0e0a395f",
+        "status": "open"
+      },
+      {
+        "id": "task:task-0ebad23f",
+        "kind": "task",
+        "label": "Graph task 047",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-0ebad23f",
+        "status": "open"
+      },
+      {
+        "id": "task:task-10eab331",
+        "kind": "task",
+        "label": "Graph task 075",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-10eab331",
+        "status": "open"
+      },
+      {
+        "id": "task:task-18e57c3a",
+        "kind": "task",
+        "label": "Graph task 039",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-18e57c3a",
+        "status": "open"
+      },
+      {
+        "id": "task:task-20280bc5",
+        "kind": "task",
+        "label": "Graph task 021",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-20280bc5",
+        "status": "open"
+      },
+      {
+        "id": "task:task-22d91035",
+        "kind": "task",
+        "label": "Graph task 090",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-22d91035",
+        "status": "open"
+      },
+      {
+        "id": "task:task-2427343c",
+        "kind": "task",
+        "label": "Graph task 053",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-2427343c",
+        "status": "open"
+      },
+      {
+        "id": "task:task-2431fa6d",
+        "kind": "task",
+        "label": "Graph task 005",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-2431fa6d",
+        "status": "open"
+      },
+      {
+        "id": "task:task-25f3d3f3",
+        "kind": "task",
+        "label": "Graph task 015",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-25f3d3f3",
+        "status": "open"
+      },
+      {
+        "id": "task:task-29a58e83",
+        "kind": "task",
+        "label": "Graph task 018",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-29a58e83",
+        "status": "open"
+      },
+      {
+        "id": "task:task-29c59337",
+        "kind": "task",
+        "label": "Graph task 103",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-29c59337",
+        "status": "open"
+      },
+      {
+        "id": "task:task-2a6dc766",
+        "kind": "task",
+        "label": "Graph task 035",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-2a6dc766",
+        "status": "open"
+      },
+      {
+        "id": "task:task-2aa6733e",
+        "kind": "task",
+        "label": "task-2aa6733e",
+        "project_id": "project-e9b69876",
+        "task_id": "task-2aa6733e"
+      },
+      {
+        "id": "task:task-2c37080e",
+        "kind": "task",
+        "label": "Graph task 034",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-2c37080e",
+        "status": "open"
+      },
+      {
+        "id": "task:task-2cfe37d5",
+        "kind": "task",
+        "label": "Graph task 024",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-2cfe37d5",
+        "status": "open"
+      },
+      {
+        "id": "task:task-2ee9965a",
+        "kind": "task",
+        "label": "Graph task 009",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-2ee9965a",
+        "status": "open"
+      },
+      {
+        "id": "task:task-2f9a08a3",
+        "kind": "task",
+        "label": "Graph task 010",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-2f9a08a3",
+        "status": "open"
+      },
+      {
+        "id": "task:task-312ee20f",
+        "kind": "task",
+        "label": "Graph task 027",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-312ee20f",
+        "status": "open"
+      },
+      {
+        "id": "task:task-317c78cf",
+        "kind": "task",
+        "label": "Graph task 036",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-317c78cf",
+        "status": "open"
+      },
+      {
+        "id": "task:task-32142dca",
+        "kind": "task",
+        "label": "Graph task 072",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-32142dca",
+        "status": "open"
+      },
+      {
+        "id": "task:task-32d4b199",
+        "kind": "task",
+        "label": "Graph task 076",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-32d4b199",
+        "status": "open"
+      },
+      {
+        "id": "task:task-3887a5ca",
+        "kind": "task",
+        "label": "Graph task 109",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-3887a5ca",
+        "status": "open"
+      },
+      {
+        "id": "task:task-3950f4a1",
+        "kind": "task",
+        "label": "Graph task 102",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-3950f4a1",
+        "status": "open"
+      },
+      {
+        "id": "task:task-3989e7fd",
+        "kind": "task",
+        "label": "Graph task 087",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-3989e7fd",
+        "status": "open"
+      },
+      {
+        "id": "task:task-3a4447e9",
+        "kind": "task",
+        "label": "Graph task 096",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-3a4447e9",
+        "status": "open"
+      },
+      {
+        "id": "task:task-3a47f6d4",
+        "kind": "task",
+        "label": "Graph task 108",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-3a47f6d4",
+        "status": "open"
+      },
+      {
+        "id": "task:task-3e32a5fa",
+        "kind": "task",
+        "label": "Graph task 069",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-3e32a5fa",
+        "status": "open"
+      },
+      {
+        "id": "task:task-409348c1",
+        "kind": "task",
+        "label": "Graph task 098",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-409348c1",
+        "status": "open"
+      },
+      {
+        "id": "task:task-414704c0",
+        "kind": "task",
+        "label": "Graph task 008",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-414704c0",
+        "status": "open"
+      },
+      {
+        "id": "task:task-43da092d",
+        "kind": "task",
+        "label": "Graph task 063",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-43da092d",
+        "status": "open"
+      },
+      {
+        "id": "task:task-44b7b797",
+        "kind": "task",
+        "label": "Graph task 023",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-44b7b797",
+        "status": "open"
+      },
+      {
+        "id": "task:task-45cd7495",
+        "kind": "task",
+        "label": "Graph task 097",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-45cd7495",
+        "status": "open"
+      },
+      {
+        "id": "task:task-47cb2b51",
+        "kind": "task",
+        "label": "Graph task 056",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-47cb2b51",
+        "status": "open"
+      },
+      {
+        "id": "task:task-49c06c78",
+        "kind": "task",
+        "label": "Graph task 100",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-49c06c78",
+        "status": "open"
+      },
+      {
+        "id": "task:task-4acb00d4",
+        "kind": "task",
+        "label": "Graph task 107",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-4acb00d4",
+        "status": "open"
+      },
+      {
+        "id": "task:task-4d63da64",
+        "kind": "task",
+        "label": "Graph task 019",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-4d63da64",
+        "status": "open"
+      },
+      {
+        "id": "task:task-4e6922c8",
+        "kind": "task",
+        "label": "Graph task 089",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-4e6922c8",
+        "status": "open"
+      },
+      {
+        "id": "task:task-56a6a773",
+        "kind": "task",
+        "label": "Graph task 110",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-56a6a773",
+        "status": "open"
+      },
+      {
+        "id": "task:task-57bc48ee",
+        "kind": "task",
+        "label": "Graph task 099",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-57bc48ee",
+        "status": "open"
+      },
+      {
+        "id": "task:task-5800f890",
+        "kind": "task",
+        "label": "Graph task 033",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-5800f890",
+        "status": "open"
+      },
+      {
+        "id": "task:task-5a7bdf57",
+        "kind": "task",
+        "label": "Graph task 111",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-5a7bdf57",
+        "status": "open"
+      },
+      {
+        "id": "task:task-5db886ac",
+        "kind": "task",
+        "label": "Graph task 037",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-5db886ac",
+        "status": "open"
+      },
+      {
+        "id": "task:task-603b017d",
+        "kind": "task",
+        "label": "Graph task 088",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-603b017d",
+        "status": "open"
+      },
+      {
+        "id": "task:task-66bbfe65",
+        "kind": "task",
+        "label": "Graph task 030",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-66bbfe65",
+        "status": "open"
+      },
+      {
+        "id": "task:task-6821b8b0",
+        "kind": "task",
+        "label": "Graph task 049",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-6821b8b0",
+        "status": "open"
+      },
+      {
+        "id": "task:task-6e727885",
+        "kind": "task",
+        "label": "Graph task 065",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-6e727885",
+        "status": "open"
+      },
+      {
+        "id": "task:task-6f3b66c6",
+        "kind": "task",
+        "label": "Graph task 086",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-6f3b66c6",
+        "status": "open"
+      },
+      {
+        "id": "task:task-6fea6aa1",
+        "kind": "task",
+        "label": "Graph task 043",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-6fea6aa1",
+        "status": "open"
+      },
+      {
+        "id": "task:task-7060d7ff",
+        "kind": "task",
+        "label": "Graph task 105",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-7060d7ff",
+        "status": "open"
+      },
+      {
+        "id": "task:task-7177e6ae",
+        "kind": "task",
+        "label": "Graph task 094",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-7177e6ae",
+        "status": "open"
+      },
+      {
+        "id": "task:task-7564c77b",
+        "kind": "task",
+        "label": "Graph task 073",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-7564c77b",
+        "status": "open"
+      },
+      {
+        "id": "task:task-76b41a97",
+        "kind": "task",
+        "label": "Graph task 061",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-76b41a97",
+        "status": "open"
+      },
+      {
+        "id": "task:task-76f2b7ee",
+        "kind": "task",
+        "label": "Graph task 016",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-76f2b7ee",
+        "status": "open"
+      },
+      {
+        "id": "task:task-7bad4522",
+        "kind": "task",
+        "label": "Graph task 059",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-7bad4522",
+        "status": "open"
+      },
+      {
+        "id": "task:task-878df004",
+        "kind": "task",
+        "label": "Graph task 025",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-878df004",
+        "status": "open"
+      },
+      {
+        "id": "task:task-881d5598",
+        "kind": "task",
+        "label": "Graph task 083",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-881d5598",
+        "status": "open"
+      },
+      {
+        "id": "task:task-8874a695",
+        "kind": "task",
+        "label": "Graph task 044",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-8874a695",
+        "status": "open"
+      },
+      {
+        "id": "task:task-89d92e50",
+        "kind": "task",
+        "label": "Graph task 074",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-89d92e50",
+        "status": "open"
+      },
+      {
+        "id": "task:task-8dcb268d",
+        "kind": "task",
+        "label": "Graph task 054",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-8dcb268d",
+        "status": "open"
+      },
+      {
+        "id": "task:task-93580364",
+        "kind": "task",
+        "label": "Graph task 040",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-93580364",
+        "status": "open"
+      },
+      {
+        "id": "task:task-95661385",
+        "kind": "task",
+        "label": "Graph task 003",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-95661385",
+        "status": "open"
+      },
+      {
+        "id": "task:task-9b90368d",
+        "kind": "task",
+        "label": "Graph task 084",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-9b90368d",
+        "status": "open"
+      },
+      {
+        "id": "task:task-9cfb726a",
+        "kind": "task",
+        "label": "Graph task 048",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-9cfb726a",
+        "status": "open"
+      },
+      {
+        "id": "task:task-9f63534c",
+        "kind": "task",
+        "label": "Graph task 091",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-9f63534c",
+        "status": "open"
+      },
+      {
+        "id": "task:task-9fc10fdf",
+        "kind": "task",
+        "label": "Graph task 064",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-9fc10fdf",
+        "status": "open"
+      },
+      {
+        "id": "task:task-a0cc0d8a",
+        "kind": "task",
+        "label": "Graph task 104",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-a0cc0d8a",
+        "status": "open"
+      },
+      {
+        "id": "task:task-a5827161",
+        "kind": "task",
+        "label": "Graph task 081",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-a5827161",
+        "status": "open"
+      },
+      {
+        "id": "task:task-a6235c73",
+        "kind": "task",
+        "label": "Graph task 007",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-a6235c73",
+        "status": "open"
+      },
+      {
+        "id": "task:task-a7170508",
+        "kind": "task",
+        "label": "Graph task 068",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-a7170508",
+        "status": "open"
+      },
+      {
+        "id": "task:task-a7d4da9f",
+        "kind": "task",
+        "label": "Graph task 017",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-a7d4da9f",
+        "status": "open"
+      },
+      {
+        "id": "task:task-aecd7807",
+        "kind": "task",
+        "label": "Graph task 057",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-aecd7807",
+        "status": "open"
+      },
+      {
+        "id": "task:task-aeeca46e",
+        "kind": "task",
+        "label": "Graph task 060",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-aeeca46e",
+        "status": "open"
+      },
+      {
+        "id": "task:task-b20e1c1f",
+        "kind": "task",
+        "label": "Graph task 106",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-b20e1c1f",
+        "status": "open"
+      },
+      {
+        "id": "task:task-b488e80f",
+        "kind": "task",
+        "label": "Graph task 095",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-b488e80f",
+        "status": "open"
+      },
+      {
+        "id": "task:task-b6b1bbb8",
+        "kind": "task",
+        "label": "Graph task 014",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-b6b1bbb8",
+        "status": "open"
+      },
+      {
+        "id": "task:task-b8bd29cf",
+        "kind": "task",
+        "label": "Graph task 020",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-b8bd29cf",
+        "status": "open"
+      },
+      {
+        "id": "task:task-ba18ba4f",
+        "kind": "task",
+        "label": "Graph task 041",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-ba18ba4f",
+        "status": "open"
+      },
+      {
+        "id": "task:task-bcd8a730",
+        "kind": "task",
+        "label": "Graph task 026",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-bcd8a730",
+        "status": "open"
+      },
+      {
+        "id": "task:task-bd054601",
+        "kind": "task",
+        "label": "Graph task 038",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-bd054601",
+        "status": "open"
+      },
+      {
+        "id": "task:task-c479d4b4",
+        "kind": "task",
+        "label": "Graph task 101",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-c479d4b4",
+        "status": "open"
+      },
+      {
+        "id": "task:task-c5511e3c",
+        "kind": "task",
+        "label": "Graph task 058",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-c5511e3c",
+        "status": "open"
+      },
+      {
+        "id": "task:task-cf641021",
+        "kind": "task",
+        "label": "Graph task 092",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-cf641021",
+        "status": "open"
+      },
+      {
+        "id": "task:task-d1d75ea6",
+        "kind": "task",
+        "label": "Graph task 029",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-d1d75ea6",
+        "status": "open"
+      },
+      {
+        "id": "task:task-d3d7e418",
+        "kind": "task",
+        "label": "Graph task 012",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-d3d7e418",
+        "status": "open"
+      },
+      {
+        "id": "task:task-d3eefecc",
+        "kind": "task",
+        "label": "Graph task 071",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-d3eefecc",
+        "status": "open"
+      },
+      {
+        "id": "task:task-d5a36d6e",
+        "kind": "task",
+        "label": "Graph task 046",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-d5a36d6e",
+        "status": "open"
+      },
+      {
+        "id": "task:task-d69c0ac1",
+        "kind": "task",
+        "label": "Graph task 082",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-d69c0ac1",
+        "status": "open"
+      },
+      {
+        "id": "task:task-d7a63d07",
+        "kind": "task",
+        "label": "Graph task 093",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-d7a63d07",
+        "status": "open"
+      },
+      {
+        "id": "task:task-d861e209",
+        "kind": "task",
+        "label": "Graph task 013",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-d861e209",
+        "status": "open"
+      },
+      {
+        "id": "task:task-d893a304",
+        "kind": "task",
+        "label": "Graph task 042",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-d893a304",
+        "status": "open"
+      },
+      {
+        "id": "task:task-dbb5ebc8",
+        "kind": "task",
+        "label": "Graph task 022",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-dbb5ebc8",
+        "status": "open"
+      },
+      {
+        "id": "task:task-dcdea89f",
+        "kind": "task",
+        "label": "Graph task 085",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-dcdea89f",
+        "status": "open"
+      },
+      {
+        "id": "task:task-dedd5fd2",
+        "kind": "task",
+        "label": "Graph task 051",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-dedd5fd2",
+        "status": "open"
+      },
+      {
+        "id": "task:task-e03e98a0",
+        "kind": "task",
+        "label": "Graph task 032",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-e03e98a0",
+        "status": "open"
+      },
+      {
+        "id": "task:task-e1d1a750",
+        "kind": "task",
+        "label": "Graph task 067",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-e1d1a750",
+        "status": "open"
+      },
+      {
+        "id": "task:task-e5d58d5f",
+        "kind": "task",
+        "label": "Graph task 070",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-e5d58d5f",
+        "status": "open"
+      },
+      {
+        "id": "task:task-e6806315",
+        "kind": "task",
+        "label": "Graph task 112",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-e6806315",
+        "status": "open"
+      },
+      {
+        "id": "task:task-e8ca9008",
+        "kind": "task",
+        "label": "Graph task 080",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-e8ca9008",
+        "status": "open"
+      },
+      {
+        "id": "task:task-e98d740c",
+        "kind": "task",
+        "label": "Graph task 052",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-e98d740c",
+        "status": "open"
+      },
+      {
+        "id": "task:task-eab58108",
+        "kind": "task",
+        "label": "Graph task 031",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-eab58108",
+        "status": "open"
+      },
+      {
+        "id": "task:task-eeebcd80",
+        "kind": "task",
+        "label": "Graph task 066",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-eeebcd80",
+        "status": "open"
+      },
+      {
+        "id": "task:task-f09fbe8f",
+        "kind": "task",
+        "label": "Graph task 062",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-f09fbe8f",
+        "status": "open"
+      },
+      {
+        "id": "task:task-f20196ea",
+        "kind": "task",
+        "label": "Graph task 004",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-f20196ea",
+        "status": "open"
+      },
+      {
+        "id": "task:task-f523dc26",
+        "kind": "task",
+        "label": "Graph task 011",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-f523dc26",
+        "status": "open"
+      },
+      {
+        "id": "task:task-f6e85ace",
+        "kind": "task",
+        "label": "Graph task 078",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-f6e85ace",
+        "status": "open"
+      },
+      {
+        "id": "task:task-f874e524",
+        "kind": "task",
+        "label": "Graph task 077",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-f874e524",
+        "status": "open"
+      },
+      {
+        "id": "task:task-f8a95c93",
+        "kind": "task",
+        "label": "Graph task 055",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-f8a95c93",
+        "status": "open"
+      },
+      {
+        "id": "task:task-fd2d302c",
+        "kind": "task",
+        "label": "Graph task 006",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-fd2d302c",
+        "status": "open"
+      },
+      {
+        "id": "task:task-fd39564a",
+        "kind": "task",
+        "label": "Graph task 050",
+        "project_id": "project-e9b69876",
+        "plan_id": "plan-c7705000",
+        "task_id": "task-fd39564a",
+        "status": "open"
+      }
+    ],
+    "edges": [
+      {
+        "id": "cge_a2182f5cf77e65ff5413c9f3",
+        "source": "project:project-e9b69876",
+        "target": "plan:plan-c7705000",
+        "relation_type": "project_plan",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_c9523bd2170ecfc7bde4af74",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-02908e8a",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_7c596bc877f299cdc0f787c1",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-02908e8a",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_2f0d2097155969705a462453",
+        "source": "agent:agent-b6e8247f",
+        "target": "plan:plan-c7705000",
+        "relation_type": "agent_plan",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_f350518e130aedcc15adb8a0",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-047c770a",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e5ccd72bc1b66272245a285b",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-047c770a",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_ba2630f3f0f3e8ec459d2d56",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-077737df",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_8bdfbd8a52aa993339c478f9",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-077737df",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_499ddb6068eac3dc498dabf0",
+        "source": "agent:agent-d910ab49",
+        "target": "plan:plan-c7705000",
+        "relation_type": "agent_plan",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_3d29e12d319f053f6bab3109",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-0e0a395f",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_b2517739932590a64e4e344c",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-0e0a395f",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_d69c99c324d76c36c9b0b758",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-0ebad23f",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_799569b11a0522a843ea2c85",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-0ebad23f",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_8bb99cd1e1e39732f7893301",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-10eab331",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_c5f0163d07c912b912285f4a",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-10eab331",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_2ed4478d863e6319226b6864",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-18e57c3a",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_3e08b68e8a7c0ab9d072066f",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-18e57c3a",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_345a8b02202b3769ecf6f2ac",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-20280bc5",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_75d00143362c88761e2645f2",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-20280bc5",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_3e9b4e62bba34a9edfdf6057",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-22d91035",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_18e144dc5d6c940e8fa8178a",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-22d91035",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_6f10dd35c46b109b963b8433",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-2427343c",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_822fdcf2f83e15d3e5a53549",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-2427343c",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_7a7f5690cebbdadb74593316",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-2431fa6d",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_1c8e921034112417efe1b82f",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-2431fa6d",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_bd04a5701d77bba6df007faf",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-25f3d3f3",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_c501ff4bb986d54aa32b60bd",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-25f3d3f3",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_79172bac57013bcdfec91a1c",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-29a58e83",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_06b6afa52cd8bb081c9b22f1",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-29a58e83",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_78ce2effc4820e2b8b201ed5",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-29c59337",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e31e00208333adebd6ca7862",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-29c59337",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_70287ad109d4ef8558d24cc8",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-2a6dc766",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_f16bde451fd6c0ebf5d54c93",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-2a6dc766",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_feb1e8b80cf1479efdf2c0c3",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-2aa6733e",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_f34b5d9cdad10d47e5735ac9",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-2aa6733e",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_1a0777d10e6c05a847b08020",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-2c37080e",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_8aecec692a7f641cd67f0c32",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-2c37080e",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_dec7a705abd276ffd127444e",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-2cfe37d5",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_b849e5f4d5012388b3ed204d",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-2cfe37d5",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_1a33e505c67e67bea852a6c7",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-2ee9965a",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_116386130731a3b84b1f9198",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-2ee9965a",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_72f34acf849044074cc72964",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-2f9a08a3",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_ef0abcb5d7d75c14cd4e5dc5",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-2f9a08a3",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_f58164d2c8e5ea929bafc80c",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-312ee20f",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_a45fd9d71d9af10ca0905cd0",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-312ee20f",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_4dd3334bd50681f6038f5e17",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-317c78cf",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_4975698a62fa0fc86482afea",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-317c78cf",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_62328f16eab712a6565f4499",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-32142dca",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e41a1ff62f55128ad4fee545",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-32142dca",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_02b016e34790bc9f47a60d5e",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-32d4b199",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e0dfff98676171df0d7836f1",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-32d4b199",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_28c34d1545303c87f09bab41",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-3887a5ca",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_dca57f0044c3bc1a9c095ad1",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-3887a5ca",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9119d9d0c449c60d542279ad",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-3950f4a1",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_22d6d932508460c04b87b103",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-3950f4a1",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_0afe981ef67b4642b822db22",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-3989e7fd",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_482ef08adb88ee29bc5a3eed",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-3989e7fd",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_d089e2c94ac1b3dc3c924799",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-3a4447e9",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_5f32b1235a23fbaf69153da4",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-3a4447e9",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_a1a33648a99e14725bd9eeb3",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-3a47f6d4",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_fff58a4b5eb91b4f1eb840d7",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-3a47f6d4",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_0ddee5d4f1320b1812cdc987",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-3e32a5fa",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e7cc85da113a65b39dd30200",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-3e32a5fa",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_0525a2003b975b2721535682",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-409348c1",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_f0c4de3a84efb4d013dd943d",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-409348c1",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_d68f99131fcfade7b548c0bf",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-414704c0",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_bc721fe541b4087d66c32a57",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-414704c0",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_69019703c3e9076add4412c1",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-43da092d",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_6c0acf3fb1e9d2c59c37dc45",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-43da092d",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_48464ee5c4db12bfeb63bdcf",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-44b7b797",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_b4900336e67af40d6200369b",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-44b7b797",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_8abdc40e68fe430e6aedab38",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-45cd7495",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_bbf9464f221a8f04f5d92344",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-45cd7495",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9def6afaf95551e70fb7113e",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-47cb2b51",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_78668fd99bc11de2f8f02353",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-47cb2b51",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_fa503f787e07dc554a0dbe72",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-49c06c78",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_c7800de00ef0c4b5eb93dc96",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-49c06c78",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_81d429ff708ce5b756c44a01",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-4acb00d4",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_792accb350a40981842e5791",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-4acb00d4",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_7402398b37cbb90528796aaa",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-4d63da64",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_6622bb33c7c761612262f7f3",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-4d63da64",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_4b34bd0d05ed4f71b8afea03",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-4e6922c8",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_c2bc91cc883da7b4dde297a0",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-4e6922c8",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_43619517922e7075e9b302d2",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-56a6a773",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_b441452ce28aacc76118cbb4",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-56a6a773",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_52479f3d7b54c174e9ab000b",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-57bc48ee",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e24f4e493b7becb0e65bd7b3",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-57bc48ee",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_92c37654db31d4e8930d841e",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-5800f890",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_52b5c6879f973e402ec6d6f2",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-5800f890",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_c42bedd0cfd2e3a2580c3976",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-5a7bdf57",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_ec704b1994853746e5e5343b",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-5a7bdf57",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_882226c0d1306cd436cb9df8",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-5db886ac",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_77d2c5b1c9594b348f6e220b",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-5db886ac",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_4bae5b8901af0c0b67b77362",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-603b017d",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_efbf87c2c2a3ab9363ea6355",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-603b017d",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_ae0ed5e0ca7bcbd2a4179719",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-66bbfe65",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_45109ced504882622ea536a5",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-66bbfe65",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_4106876bff7a4f3b9bdc791d",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-6821b8b0",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_44e85128f8e88e74bc8041da",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-6821b8b0",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_911ebc825a5020692c53e913",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-6e727885",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_ab64f3953cd377e704ec2e32",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-6e727885",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_174ddd5a1657a40ff63dbfeb",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-6f3b66c6",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_f7379edbac303df8e0d03f4f",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-6f3b66c6",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9bc7ceffe3caf9d93f7d31af",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-6fea6aa1",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_c354d3941813d0877e52ef8c",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-6fea6aa1",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_bdb7e048f248605b7ecb6818",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-7060d7ff",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_d95b4ab17dfd33c9f95eb124",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-7060d7ff",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_b98762694129c37e553d1994",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-7177e6ae",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_31a955574d507053b94a8a12",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-7177e6ae",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_15b77a24122bbd1871f849ed",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-7564c77b",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_0a9683f2242a0c1bcbf6c7d5",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-7564c77b",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_10d82b91f8ab97065d8266c1",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-76b41a97",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_111899bf4b31a192d0c3bd94",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-76b41a97",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_567829e404049c1ac2548971",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-76f2b7ee",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9d1b725473451d09f4d15c14",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-76f2b7ee",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_f50902935f36693db1852fac",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-7bad4522",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_3d588442c75ff8cdf101c612",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-7bad4522",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_41c8406f7e4e362db5279e2b",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-878df004",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_71d9f588c48693304f95d7b2",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-878df004",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_a814222cb42d82d82ac340ac",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-881d5598",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_d11fec5fc2c8bb112537d7ee",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-881d5598",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_c12f3cf3dd319b25f859cbfb",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-8874a695",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9c4e1d455d219cf12f1c2e19",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-8874a695",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_8a749628add3ddde40b1de09",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-89d92e50",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_5e588ee8a65f900f6d569bad",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-89d92e50",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e9ad27437f9f807cd27db47a",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-8dcb268d",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_8bc1d9903cc9c9af1c21f114",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-8dcb268d",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_76dca7e805d93861887e5f51",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-93580364",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_a8b4dc525504c8b7a70c51fd",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-93580364",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_025f815e01ed12d7a20a2cea",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-95661385",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_c1059e9e175e90ac7d1eed61",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-95661385",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_d3f62f89ff3ef3dea2d1b660",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-9b90368d",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e641af8890848769e3ea5926",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-9b90368d",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_25d5aa994bf8fc61840159d3",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-9cfb726a",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_16e5d5693c903c8ad9bc83ef",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-9cfb726a",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_31871a94100bdd08ba36026b",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-9f63534c",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e9e4cc96020a06a205f2337b",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-9f63534c",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_808c58b59ebb953b56cac65d",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-9fc10fdf",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_70bc6866d9a9bb89b715b658",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-9fc10fdf",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e00500572f7f9caa1a99f8ff",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-a0cc0d8a",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_84c13e790c5430fcc8794494",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-a0cc0d8a",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e8f4b32dd89013ce32a7ae63",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-a5827161",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_105a1a73c60563df02c68758",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-a5827161",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_82f2e99abe2c0255a5bc95f5",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-a6235c73",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_c5f1ad2e8d185ae337f198fc",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-a6235c73",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_f3604d172aa76f9a0eb95164",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-a7170508",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_2ab4f03645462df10190a8f9",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-a7170508",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_62a64f22349053021c08ef3f",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-a7d4da9f",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_b309a3928038ebefb8146912",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-a7d4da9f",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_fce29aec6e52bd8123cd392a",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-aecd7807",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9188c07af479b9011b9a55a9",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-aecd7807",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_51b0421f4b1e31efeaee495b",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-aeeca46e",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_fe0045d6e46f1b1f47411a7a",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-aeeca46e",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_90960e5573b27e8895399d6e",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-b20e1c1f",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9f96fa2487df8b1c34ff7f2f",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-b20e1c1f",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_f26bb97ef8db481a0e732ab8",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-b488e80f",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_42550f68e817d5be84106ac8",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-b488e80f",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_bd0680e4d56577b911dafd5e",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-b6b1bbb8",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_d5924d768c299154d2c123a7",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-b6b1bbb8",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_0a6bdd17092bb5e9d4d9e049",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-b8bd29cf",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_7c19297e01a679de00504c6f",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-b8bd29cf",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_750292676dddf9199d981f60",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-ba18ba4f",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_d14a7c7837f63ec7a2539fda",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-ba18ba4f",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_aeadb7fab815669466dae8bf",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-bcd8a730",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_058d2f48b06ca39cfd81735d",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-bcd8a730",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_fddfa8a7a6875fe065b27b30",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-bd054601",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_5006430bb78047af5aeccf1b",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-bd054601",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9dbea16b6737530e44ca54e9",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-c479d4b4",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_6ff638c77772026dc3eba33e",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-c479d4b4",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_23f6e1e9b7d026eecf082752",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-c5511e3c",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_75cfe6c7b8cfdadfc9e820a1",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-c5511e3c",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_77a665e6783cc7412286347f",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-cf641021",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_7bde320aa94e12a8ba6cbc3d",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-cf641021",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_0e04cc04f5164e757be6eeea",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-d1d75ea6",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_69dc0471bb0e7f0ad608cdf2",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-d1d75ea6",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e44e5f7f23853ad33b99bc4f",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-d3d7e418",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_0f7fef73bbaa52b06137c205",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-d3d7e418",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_f116fa787bdfc0f9a3798441",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-d3eefecc",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9f30885a927670f61c6b9d2a",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-d3eefecc",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_d0e503c35d84c81afb17ccfa",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-d5a36d6e",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_663da9dc9b3bb5ecbf875182",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-d5a36d6e",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_25668c7060ff1c6f0a97a241",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-d69c0ac1",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_681d658299705c94474d5e76",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-d69c0ac1",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_fdbcad9290ecd2b1c25e0e63",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-d7a63d07",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_71385072f4f6c309b9e81ca7",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-d7a63d07",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_880a6472daa4ab762fbf7311",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-d861e209",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_797bdcf8cc34f95343919895",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-d861e209",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_8e308d7e5a63f6c3c5152f33",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-d893a304",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_00f7932ba526ff1c34af2dee",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-d893a304",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_7f8e273a5a2ab623d116b724",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-dbb5ebc8",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_75dfe35d86b4d8f5d6e26149",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-dbb5ebc8",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_87516c3328934ebddc620fdc",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-dcdea89f",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_31ba2314d49ba818c107e343",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-dcdea89f",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_7aacfcb62f7568f331b290b5",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-dedd5fd2",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_b35d0d463a2387fea02714d5",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-dedd5fd2",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_625f4336e210306cb8d4edfa",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-e03e98a0",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_cbfe557df2d93dae88cccb7d",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-e03e98a0",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_f35aadea23962063e37135de",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-e1d1a750",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_2b6f7c016f1040283c43abef",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-e1d1a750",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_44f87f6b2e95d2ed408f662e",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-e5d58d5f",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_7181ffdeba134de687944353",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-e5d58d5f",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_b0e219a9f565ceb8c354017b",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-e6806315",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e1ab3741108aeddcfa46e5df",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-e6806315",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9d51560c220aeb619f83f63a",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-e8ca9008",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_92a7926a017e91cd37f82d7f",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-e8ca9008",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9906589f0c65af956fa6ecc3",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-e98d740c",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e6b186a0b8f25eb3862bedb9",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-e98d740c",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_21651877fea6060c1e7e1c48",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-eab58108",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_b6dc109e59668b92a667dbd6",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-eab58108",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_2847b474553c0f05903ad314",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-eeebcd80",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_d2d7e5147d0f64f0b59b01c4",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-eeebcd80",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_378aab9ef0b1bfcada78b119",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-f09fbe8f",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_5267c82d790263fdd82f2920",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-f09fbe8f",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_d3bd470fbecca9096b78f0ae",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-f20196ea",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_650789d65225a4685ed88ee2",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-f20196ea",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e9dd2cabaf50ba813a3de2a2",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-f523dc26",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9d14136c2eda4f7cb38ab4c8",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-f523dc26",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_3e0082b47ae997d90ca7ecb9",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-f6e85ace",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_6dd81de31022d73c364103ea",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-f6e85ace",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_f23172869bac35a8898c6bed",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-f874e524",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_49c0596a4d63dde3b895427d",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-f874e524",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e73a2a7bb9e8012f937c122e",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-f8a95c93",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_ef8813de0478634aec6a5012",
+        "source": "agent:agent-b6e8247f",
+        "target": "task:task-f8a95c93",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_b6654ca8a2e6b95fc9b61265",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-fd2d302c",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_ec66e1e1f6df339826cbe9cf",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-fd2d302c",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_edd2395dc6c3d5f9f0163dff",
+        "source": "plan:plan-c7705000",
+        "target": "task:task-fd39564a",
+        "relation_type": "plan_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_c78178d4a207a2e0be3ccd46",
+        "source": "agent:agent-d910ab49",
+        "target": "task:task-fd39564a",
+        "relation_type": "agent_task",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_da3643f22393ffdc74cbe2cd",
+        "source": "task:task-2aa6733e",
+        "target": "task:task-02908e8a",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_6960b09f3ba7e71bc27de167",
+        "source": "task:task-f20196ea",
+        "target": "task:task-2431fa6d",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_30a3c220a7759549e46a7910",
+        "source": "task:task-b6b1bbb8",
+        "target": "task:task-25f3d3f3",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_18091623721122d76b4ac56e",
+        "source": "task:task-a7d4da9f",
+        "target": "task:task-29a58e83",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_0c167454b88453afb96bea63",
+        "source": "task:task-414704c0",
+        "target": "task:task-2ee9965a",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_1760ffe688995b68f5c51a14",
+        "source": "task:task-2ee9965a",
+        "target": "task:task-2f9a08a3",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_37777bf1ad3b849ba164eb6d",
+        "source": "task:task-a6235c73",
+        "target": "task:task-414704c0",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_135ee0566980816ee96d1e44",
+        "source": "task:task-29a58e83",
+        "target": "task:task-4d63da64",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_6379289394d01dfb375b6fa5",
+        "source": "task:task-25f3d3f3",
+        "target": "task:task-76f2b7ee",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_e8a84a69a4574d4347ad8521",
+        "source": "task:task-02908e8a",
+        "target": "task:task-95661385",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_56f71fd2001e06c320c8d039",
+        "source": "task:task-fd2d302c",
+        "target": "task:task-a6235c73",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_0b021a8260cfe33aca681598",
+        "source": "task:task-76f2b7ee",
+        "target": "task:task-a7d4da9f",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_d5073e617a65c37f2b9b37c9",
+        "source": "task:task-d861e209",
+        "target": "task:task-b6b1bbb8",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_cebd7968d376dfb2f6746a8a",
+        "source": "task:task-4d63da64",
+        "target": "task:task-b8bd29cf",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_61278b0f7ee4e7626799f043",
+        "source": "task:task-f523dc26",
+        "target": "task:task-d3d7e418",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_4ffcc4cdc41e00930b6e78fa",
+        "source": "task:task-d3d7e418",
+        "target": "task:task-d861e209",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_c86be2cb2d8c614af31e478f",
+        "source": "task:task-95661385",
+        "target": "task:task-f20196ea",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_5de0c95bf6b386db8b0f4ef8",
+        "source": "task:task-2f9a08a3",
+        "target": "task:task-f523dc26",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_9acc1e95db40fa60303fd6d9",
+        "source": "task:task-2431fa6d",
+        "target": "task:task-fd2d302c",
+        "relation_type": "task_dependency",
+        "polarity": "neutral",
+        "magnitude": 1,
+        "interaction_count": 0,
+        "evidence_count": 0
+      },
+      {
+        "id": "cge_ccabbd7ad340ae0edf44e37f",
+        "source": "agent:agent-b6e8247f",
+        "target": "agent:agent-b6e8247f",
+        "relation_type": "reassign",
+        "polarity": "mixed",
+        "magnitude": 2,
+        "effect_id": "ce_a04b80a5525dc5bea066278aa55743b7",
+        "effect_scopes": [
+          {
+            "effect_id": "ce_a04b80a5525dc5bea066278aa55743b7",
+            "project_id": "project-e9b69876"
+          }
+        ],
+        "interaction_count": 1,
+        "first_occurred_at": "2026-09-04T18:19:23.465142Z",
+        "last_occurred_at": "2026-09-04T18:19:23.465142Z",
+        "evidence_count": 1
+      },
+      {
+        "id": "cge_e0e0c0ee3d3fafa7163ab165",
+        "source": "agent:agent-d910ab49",
+        "target": "agent:agent-d910ab49",
+        "relation_type": "reassign",
+        "polarity": "mixed",
+        "magnitude": 2,
+        "effect_id": "ce_b5f046cae74b2e7f0f4fa023308c8398",
+        "effect_scopes": [
+          {
+            "effect_id": "ce_b5f046cae74b2e7f0f4fa023308c8398",
+            "project_id": "project-e9b69876"
+          }
+        ],
+        "interaction_count": 1,
+        "first_occurred_at": "2026-09-04T18:19:23.463528Z",
+        "last_occurred_at": "2026-09-04T18:19:23.463528Z",
+        "evidence_count": 1
+      },
+      {
+        "id": "cge_91418b05edb209b02db72574",
+        "source": "system/unknown",
+        "target": "task:task-02908e8a",
+        "relation_type": "dependency_release",
+        "polarity": "positive",
+        "magnitude": 3,
+        "effect_id": "ce_735d61be666d722116a7d656d0650515",
+        "effect_scopes": [
+          {
+            "effect_id": "ce_735d61be666d722116a7d656d0650515",
+            "project_id": "project-e9b69876"
+          }
+        ],
+        "interaction_count": 1,
+        "first_occurred_at": "2026-09-04T18:19:23.586777Z",
+        "last_occurred_at": "2026-09-04T18:19:23.586777Z",
+        "evidence_count": 2
+      },
+      {
+        "id": "cge_cad794bcd2b325726ab3f770",
+        "source": "system/unknown",
+        "target": "task:task-2aa6733e",
+        "relation_type": "complete",
+        "polarity": "positive",
+        "magnitude": 2,
+        "effect_id": "ce_2510813f40d42e32a9d03a17ee24fbcb",
+        "effect_scopes": [
+          {
+            "effect_id": "ce_2510813f40d42e32a9d03a17ee24fbcb",
+            "project_id": "project-e9b69876"
+          }
+        ],
+        "interaction_count": 1,
+        "first_occurred_at": "2026-09-04T18:19:23.586777Z",
+        "last_occurred_at": "2026-09-04T18:19:23.586777Z",
+        "evidence_count": 1
+      }
+    ],
+    "lod": "full",
+    "truncated": false
+  },
+  "effects": [
+    {
+      "effect_id": "ce_b5f046cae74b2e7f0f4fa023308c8398",
+      "project_id": "project-e9b69876",
+      "target_task_id": "task-2aa6733e",
+      "source_agent_ref": "agent:agent-d910ab49",
+      "target_agent_ref": "agent:agent-d910ab49",
+      "relation_type": "reassign",
+      "polarity": "mixed",
+      "magnitude": 2,
+      "confidence": "high",
+      "occurred_at": "2026-09-04T18:19:23.463528Z",
+      "rule_version": "collaboration-effect.mvp.v1",
+      "evidence_event_ids": [
+        "01M1PTB5E7R2SPZZ8S045SFK87"
+      ],
+      "before_state": {
+        "assignee": "agent:agent-b6e8247f"
+      },
+      "after_state": {
+        "assignee": "agent:agent-d910ab49"
+      },
+      "explanation_key": "collaboration.effect.reassign"
+    },
+    {
+      "effect_id": "ce_a04b80a5525dc5bea066278aa55743b7",
+      "project_id": "project-e9b69876",
+      "target_task_id": "task-02908e8a",
+      "source_agent_ref": "agent:agent-b6e8247f",
+      "target_agent_ref": "agent:agent-b6e8247f",
+      "relation_type": "reassign",
+      "polarity": "mixed",
+      "magnitude": 2,
+      "confidence": "high",
+      "occurred_at": "2026-09-04T18:19:23.465142Z",
+      "rule_version": "collaboration-effect.mvp.v1",
+      "evidence_event_ids": [
+        "01M1PTB5E9ZGJ2DMVXDD8M2NG2"
+      ],
+      "before_state": {
+        "assignee": "agent:agent-d910ab49"
+      },
+      "after_state": {
+        "assignee": "agent:agent-b6e8247f"
+      },
+      "explanation_key": "collaboration.effect.reassign"
+    },
+    {
+      "effect_id": "ce_2510813f40d42e32a9d03a17ee24fbcb",
+      "project_id": "project-e9b69876",
+      "target_task_id": "task-2aa6733e",
+      "source_agent_ref": "system/unknown",
+      "target_agent_ref": "",
+      "relation_type": "complete",
+      "polarity": "positive",
+      "magnitude": 2,
+      "confidence": "high",
+      "occurred_at": "2026-09-04T18:19:23.586777Z",
+      "rule_version": "collaboration-effect.mvp.v1",
+      "evidence_event_ids": [
+        "01M1PTB5J2VHYQBAQYKB4WDSVH"
+      ],
+      "before_state": {
+        "task_status": "running"
+      },
+      "after_state": {
+        "task_status": "completed"
+      },
+      "explanation_key": "collaboration.effect.complete"
+    },
+    {
+      "effect_id": "ce_735d61be666d722116a7d656d0650515",
+      "project_id": "project-e9b69876",
+      "target_task_id": "task-02908e8a",
+      "source_agent_ref": "system/unknown",
+      "target_agent_ref": "",
+      "relation_type": "dependency_release",
+      "polarity": "positive",
+      "magnitude": 3,
+      "confidence": "high",
+      "occurred_at": "2026-09-04T18:19:23.586777Z",
+      "rule_version": "collaboration-effect.mvp.v1",
+      "evidence_event_ids": [
+        "01M1PTB504VZAAWE42XETQDDA2",
+        "01M1PTB5J2VHYQBAQYKB4WDSVH"
+      ],
+      "before_state": {
+        "downstream_task_id": "task-02908e8a",
+        "upstream_task_status": "running"
+      },
+      "after_state": {
+        "downstream_task_id": "task-02908e8a",
+        "released": true,
+        "upstream_task_status": "completed"
+      },
+      "explanation_key": "collaboration.effect.dependency_release"
+    }
+  ],
+  "summary": {
+    "positive_count": 2,
+    "negative_count": 0,
+    "neutral_count": 0,
+    "mixed_count": 2,
+    "affected_task_count": 2
+  },
+  "as_of": "2026-09-04T18:19:24.61157Z",
+  "rule_version": "collaboration-effect.mvp.v1",
+  "graph_version": "cgv_aa3f0bdecaa2762b209eb27e",
+  "truncated": false,
+  "next_cursor": ""
+}

@@ -24,6 +24,7 @@ describe('InsightSecondaryNav', () => {
     expect(screen.getByTestId('insight-nav-overview')).toHaveAttribute('href', '/organizations/acme/insights/overview');
     expect(screen.getByTestId('insight-nav-agents')).toHaveAttribute('href', '/organizations/acme/insights/agents');
     expect(screen.getByTestId('insight-nav-projects')).toHaveAttribute('href', '/organizations/acme/insights/projects');
+    expect(screen.getByTestId('insight-nav-collaboration')).toHaveAttribute('href', '/organizations/acme/insights/collaboration');
     expect(screen.getByTestId('insight-nav-executions')).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h');
     expect(screen.getByRole('link', { name: 'Overview' }).className).toContain('bg-brand-hover');
   });
@@ -43,6 +44,7 @@ describe('InsightSecondaryNav', () => {
     expect(screen.getByRole('link', { name: '概览' })).toHaveAttribute('href', '/organizations/acme/insights/overview');
     expect(screen.getByRole('link', { name: '智能体' })).toHaveAttribute('href', '/organizations/acme/insights/agents');
     expect(screen.getByRole('link', { name: '项目' }).className).toContain('bg-brand-hover');
+    expect(screen.getByRole('link', { name: '协作作用力' })).toHaveAttribute('href', '/organizations/acme/insights/collaboration');
     expect(screen.getByRole('link', { name: 'Task executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h');
   });
 });
