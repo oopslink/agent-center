@@ -1,0 +1,31 @@
+ docs/acceptance/t2165-independent/REPORT.md        |   57 +
+ .../evidence/01-authenticated-projects.png         |  Bin 0 -> 50654 bytes
+ .../evidence/02-organization-graph.png             |  Bin 0 -> 125809 bytes
+ .../evidence/03-direct-refresh.png                 |  Bin 0 -> 126457 bytes
+ .../evidence/04-filtered-project.png               |  Bin 0 -> 126654 bytes
+ .../t2165-independent/evidence/05-agent-focus.png  |  Bin 0 -> 127049 bytes
+ .../evidence/06-evidence-drawer.png                |  Bin 0 -> 131946 bytes
+ .../t2165-independent/evidence/api-evidence.json   |   34 +
+ .../evidence/api-lod-cluster.json                  | 2700 ++++++++++++++
+ .../t2165-independent/evidence/api-org-graph.json  | 3689 ++++++++++++++++++++
+ .../t2165-independent/evidence/console.json        |   16 +
+ .../evidence/go-focused-tests.log                  |    2 +
+ .../evidence/interaction-after-reset.png           |  Bin 0 -> 127049 bytes
+ .../t2165-independent/evidence/make-build.log      |  202 ++
+ .../t2165-independent/evidence/network.har         |    1 +
+ .../t2165-independent/evidence/network.json        |  362 ++
+ .../page@6e4b5f53f78273d61ab52058ec8aa2c7.webm     |  Bin 0 -> 426790 bytes
+ .../t2165-independent/evidence/server.log          |  100 +
+ .../t2165-independent/evidence/verdict.json        |   97 +
+ .../run-collaboration-graph-acceptance.mjs         |  478 +++
+ web/src/App.test.tsx                               |    1 +
+ web/src/AppLayout.insightnav.test.tsx              |    5 +
+ web/src/AppLayout.mobilenav.test.tsx               |    2 +
+ web/src/AppLayout.tsx                              |    3 +-
+ web/src/api/insights.ts                            |   15 +-
+ web/src/i18n/locales/en/insights.json              |    3 +-
+ web/src/i18n/locales/zh/insights.json              |    3 +-
+ web/src/pages/InsightCollaboration.test.tsx        |   53 +-
+ web/src/pages/InsightCollaboration.tsx             |  139 +-
+ web/src/shell/nav/InsightSecondaryNav.test.tsx     |    2 +
+ 30 files changed, 7939 insertions(+), 25 deletions(-)

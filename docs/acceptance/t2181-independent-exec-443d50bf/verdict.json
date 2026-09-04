@@ -1,0 +1,141 @@
+{
+  "schema": "agent-center.acceptance.verdict/v1",
+  "task": "T2181",
+  "candidate_ref": "ac-exec/task-340201c6/exec-7a7d087b",
+  "candidate_sha": "6074ea621f178889bcfca5adca8cf27c3ad174da",
+  "merge_base_origin_main": "ddfb87d47e8253fb2e4f22d014f497301fa4b7ec",
+  "product_verdict": "PASS",
+  "verdict_reason": "All product hard gates were independently run against an isolated production-like instance and passed. Candidate lint failure is not newly introduced because origin/main fails the same lint rule at the same file and line.",
+  "task_input_package": {
+    "status": "MISMATCH_RECORDED",
+    "read": [
+      "task-input/v1/README.md",
+      "task-input/v1/manifest.json",
+      "task-input/v1/checkpoint.md"
+    ],
+    "note": "The materialized task-input package describes stale T1850/T1850 replay metadata, not this T2181 acceptance task. The fixed candidate/base supplied in the user task contract were used as authoritative inputs."
+  },
+  "git_graph": {
+    "status": "PASS",
+    "evidence": "raw/provenance.log",
+    "observed": {
+      "head": "6074ea621f178889bcfca5adca8cf27c3ad174da",
+      "parent": "ddfb87d47e8253fb2e4f22d014f497301fa4b7ec",
+      "origin_main": "ddfb87d47e8253fb2e4f22d014f497301fa4b7ec",
+      "remote_candidate": "6074ea621f178889bcfca5adca8cf27c3ad174da"
+    }
+  },
+  "coverage_matrix": [
+    {
+      "requirement": "T2176 formal navigation and direct URL refresh",
+      "status": "PASS",
+      "candidate_files": [
+        "web/src/AppLayout.tsx",
+        "web/src/shell/nav/InsightSecondaryNav.test.tsx",
+        "web/src/AppLayout.insightnav.test.tsx",
+        "web/src/AppLayout.mobilenav.test.tsx"
+      ],
+      "behavior_evidence": [
+        "evidence/01-authenticated-projects.png",
+        "evidence/03-direct-refresh.png",
+        "raw/source-feature-grep.log"
+      ]
+    },
+    {
+      "requirement": "T2176 real wheel zoom, pan, drag, fit/reset, focus/restore",
+      "status": "PASS",
+      "candidate_files": [
+        "web/src/pages/InsightCollaboration.tsx",
+        "web/src/pages/InsightCollaboration.test.tsx"
+      ],
+      "behavior_evidence": [
+        "evidence/interaction-after-reset.png",
+        "evidence/verdict.json",
+        "evidence/page@dbfb32f2ba608a1102ec052b707cd0c3.webm"
+      ]
+    },
+    {
+      "requirement": "T2176 LOD/cluster/truncated feedback and large graph readability",
+      "status": "PASS",
+      "candidate_files": [
+        "internal/observability/collaborationeffect/graph_sqlite.go",
+        "internal/observability/collaborationeffect/query_test.go",
+        "web/src/api/insights.ts",
+        "web/src/pages/InsightCollaboration.tsx"
+      ],
+      "behavior_evidence": [
+        "evidence/api-lod-cluster.json",
+        "evidence/02-organization-graph.png",
+        "raw/api-graph-summary.json"
+      ]
+    },
+    {
+      "requirement": "T2179 project_id 503 fix, scoping, clear-to-org graph, and fail-closed errors",
+      "status": "PASS",
+      "candidate_files": [
+        "internal/observability/collaborationeffect/graph_sqlite.go",
+        "internal/webconsole/api/handlers_collaboration_insight_test.go",
+        "web/src/api/insights.ts",
+        "web/src/pages/InsightCollaboration.tsx"
+      ],
+      "behavior_evidence": [
+        "evidence/api-project-filter-probes.json",
+        "evidence/04-filtered-project.png",
+        "evidence/verdict.json"
+      ]
+    }
+  ],
+  "isolated_instance": {
+    "status": "PASS",
+    "evidence": [
+      "evidence/verdict.json",
+      "evidence/server.log",
+      "evidence/network.har",
+      "evidence/network.json",
+      "evidence/console.json"
+    ],
+    "build_identity": "agent-center ac-exec/task-86616b05/exec-443d50bf-6074ea62 (commit 6074ea62)",
+    "build_identity_evidence": "raw/agent-center-version-command.log",
+    "data_provenance": "Fresh isolated instance; data seeded through authenticated production HTTP endpoints only; no dev server, MSW, or mock service was used.",
+    "api_graph_summary": {
+      "nodes": 120,
+      "edges": 256,
+      "effects_returned_in_first_page": 2,
+      "required_min_nodes": 117,
+      "required_min_edges": 250
+    }
+  },
+  "hard_gates": [
+    { "id": 1, "name": "Authenticated formal navigation and direct URL refresh", "status": "PASS", "evidence": ["evidence/01-authenticated-projects.png", "evidence/03-direct-refresh.png", "evidence/network.json", "evidence/console.json"] },
+    { "id": 2, "name": "No-query non-empty organization graph", "status": "PASS", "evidence": ["evidence/02-organization-graph.png", "evidence/api-org-graph.json"] },
+    { "id": 3, "name": "Agent-Agent, Agent-Task, Agent-Plan, Plan-Task same screen", "status": "PASS", "evidence": ["evidence/verdict.json", "raw/api-graph-summary.json"] },
+    { "id": 4, "name": "project_id API/UI 200, clear restores org graph, no 503, fail closed errors", "status": "PASS", "evidence": ["evidence/api-project-filter-probes.json", "evidence/04-filtered-project.png"] },
+    { "id": 5, "name": "Buttons and real wheel zoom, pan, drag, fit/reset, focus/restore", "status": "PASS", "evidence": ["evidence/verdict.json", "evidence/interaction-after-reset.png", "evidence/page@dbfb32f2ba608a1102ec052b707cd0c3.webm"] },
+    { "id": 6, "name": "Evidence drill-down", "status": "PASS", "evidence": ["evidence/api-evidence.json", "evidence/06-evidence-drawer.png"] },
+    { "id": 7, "name": "LOD/cluster/truncated prompt and actions", "status": "PASS", "evidence": ["evidence/api-lod-cluster.json", "evidence/verdict.json"] },
+    { "id": 8, "name": "117+/250+ readable first screen and interaction performance", "status": "PASS", "evidence": ["raw/api-graph-summary.json", "evidence/02-organization-graph.png", "evidence/verdict.json"] },
+    { "id": 9, "name": "Contrast, labels, and overlap readability", "status": "PASS", "evidence": ["evidence/02-organization-graph.png", "evidence/verdict.json"] }
+  ],
+  "quality_gates": [
+    { "name": "pnpm --dir web install --frozen-lockfile", "status": "PASS", "exit_code": 0, "evidence": "raw/web-pnpm-install.log" },
+    { "name": "go test ./internal/observability/collaborationeffect ./internal/webconsole/api", "status": "PASS", "exit_code": 0, "evidence": "raw/go-focused-tests.log" },
+    { "name": "pnpm --dir web test focused graph/nav tests", "status": "PASS", "exit_code": 0, "evidence": "raw/web-focused-vitest.log" },
+    { "name": "pnpm --dir web run typecheck", "status": "PASS", "exit_code": 0, "evidence": "raw/web-typecheck.log" },
+    { "name": "pnpm --dir web lint", "status": "FAIL_EXISTING_ON_MAIN", "exit_code": 1, "evidence": "raw/web-lint.log" },
+    { "name": "make build", "status": "PASS", "exit_code": 0, "evidence": "raw/make-build.log" },
+    { "name": "make lint on candidate", "status": "FAIL_EXISTING_ON_MAIN", "exit_code": 2, "evidence": "raw/make-lint-candidate.log" },
+    { "name": "make lint on fresh origin/main", "status": "FAIL_BASELINE", "exit_code": 2, "evidence": "raw/make-lint-origin-main.log" },
+    { "name": "isolated production-like UI/API acceptance", "status": "PASS", "exit_code": 0, "evidence": "raw/isolated-acceptance-run.log" }
+  ],
+  "raw_evidence": [
+    "raw/provenance.log",
+    "raw/predecessor-shas.log",
+    "raw/candidate-diff-stat.log",
+    "raw/candidate-diff-files.log",
+    "raw/t2176-diff-stat.log",
+    "raw/t2179-diff-stat.log",
+    "raw/source-feature-grep.log",
+    "raw/api-graph-summary.json",
+    "behavior-report-from-script.md"
+  ]
+}

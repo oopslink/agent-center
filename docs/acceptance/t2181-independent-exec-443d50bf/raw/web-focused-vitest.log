@@ -1,0 +1,55 @@
+
+> agent-center-web@0.1.0 test /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-443d50bf/web
+> vitest run src/pages/InsightCollaboration.test.tsx src/AppLayout.insightnav.test.tsx src/AppLayout.mobilenav.test.tsx src/App.test.tsx src/shell/nav/InsightSecondaryNav.test.tsx
+
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-443d50bf/web
+
+(node:98218) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:98216) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:98217) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:98219) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:98215) Warning: `--localstorage-file` was provided without a valid path
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ src/shell/nav/InsightSecondaryNav.test.tsx (3 tests) 63ms
+ ✓ src/AppLayout.insightnav.test.tsx (2 tests) 188ms
+ ✓ src/AppLayout.mobilenav.test.tsx (7 tests) 497ms
+ ✓ src/pages/InsightCollaboration.test.tsx (12 tests) 823ms
+stderr | src/App.test.tsx > App shell + route tree > renders DMs / nested IssueDetail / nested TaskDetail / Agents / AgentDetail / Projects / ProjectDetail / Access / Secrets / Fleet / Settings
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/orgs/test/insights/v2/agents?window=24h
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+stderr | src/App.test.tsx > App shell + route tree > renders DMs / nested IssueDetail / nested TaskDetail / Agents / AgentDetail / Projects / ProjectDetail / Access / Secrets / Fleet / Settings
+[MSW] Error: intercepted a request without a matching request handler:
+
+  • GET /api/orgs/test/insights/v2/projects?window=24h
+
+If you still wish to intercept this unhandled request, please create a request handler for it.
+Read more: https://mswjs.io/docs/http/intercepting-requests
+
+ ✓ src/App.test.tsx (26 tests) 14687ms
+   ✓ App shell + route tree > redirects the org index to the Workspace module (Projects), no Overview/Home 315ms
+   ✓ App shell + route tree > renders ChannelDetail for /organizations/test/channels/:name 519ms
+   ✓ App shell + route tree > renders DMs / nested IssueDetail / nested TaskDetail / Agents / AgentDetail / Projects / ProjectDetail / Access / Secrets / Fleet / Settings 6660ms
+   ✓ App shell + route tree > reaches the Plan list + Plan detail via the project detail page (not direct-URL-only) 424ms
+   ✓ App shell + route tree > rail module icons point at the canonical org-scoped module defaults 342ms
+   ✓ App shell + route tree > redirects legacy Access and standalone Team Roles URLs to canonical pages 449ms
+   ✓ App shell + route tree > shows exactly two Access links with one active page at a time 413ms
+   ✓ App shell + route tree > each module col② links point at the canonical org-scoped routes 1103ms
+   ✓ App shell + route tree > organization-settings/agents renders the canonical Agents page 362ms
+   ✓ App shell + route tree > redirects retired AI Runtime and Model Catalog URLs to the canonical AI Runtime page 346ms
+   ✓ App shell + route tree > ⌘1 / ⌘2 jump to the Workspace / Conversations module defaults (org-scoped) 331ms
+
+ Test Files  5 passed (5)
+      Tests  50 passed (50)
+   Start at  05:02:19
+   Duration  16.06s (transform 1.26s, setup 2.09s, collect 1.17s, tests 16.26s, environment 1.50s, prepare 269ms)
+

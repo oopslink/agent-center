@@ -1,0 +1,24 @@
+ .../t2178-collaboration-project-filter/REPORT.md   |  41 +++++
+ .../raw/delivery-preflight.log                     |  16 ++
+ .../raw/green-focused-go-api.log                   |  22 +++
+ .../raw/make-build.log                             | 204 +++++++++++++++++++++
+ .../raw/red-project-filter-503.log                 |  11 ++
+ .../raw/web-build.log                              | 191 +++++++++++++++++++
+ .../raw/web-focused-eslint.log                     |   2 +
+ .../raw/web-focused-vitest.log                     |  53 ++++++
+ .../raw/web-lint.log                               |  13 ++
+ .../raw/web-typecheck.log                          |   6 +
+ .../collaborationeffect/graph_sqlite.go            |  16 +-
+ .../collaborationeffect/query_test.go              |  48 +++++
+ .../api/handlers_collaboration_insight_test.go     | 162 ++++++++++++++++
+ web/src/App.test.tsx                               |   1 +
+ web/src/AppLayout.insightnav.test.tsx              |   5 +
+ web/src/AppLayout.mobilenav.test.tsx               |   2 +
+ web/src/AppLayout.tsx                              |   3 +-
+ web/src/api/insights.ts                            |  15 +-
+ web/src/i18n/locales/en/insights.json              |   3 +-
+ web/src/i18n/locales/zh/insights.json              |   3 +-
+ web/src/pages/InsightCollaboration.test.tsx        |  53 +++++-
+ web/src/pages/InsightCollaboration.tsx             | 139 ++++++++++++--
+ web/src/shell/nav/InsightSecondaryNav.test.tsx     |   2 +
+ 23 files changed, 980 insertions(+), 31 deletions(-)

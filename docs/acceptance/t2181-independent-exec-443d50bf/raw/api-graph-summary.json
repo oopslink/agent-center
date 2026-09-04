@@ -1,0 +1,21 @@
+{
+  "nodes": 120,
+  "edges": 256,
+  "effects": 2,
+  "kinds": {
+    "agent": 2,
+    "plan": 1,
+    "project": 1,
+    "task": 116
+  },
+  "relations": {
+    "project_plan": 1,
+    "plan_task": 116,
+    "agent_task": 116,
+    "agent_plan": 2,
+    "task_dependency": 19,
+    "reassign": 2
+  },
+  "truncated": false,
+  "lod": "full"
+}

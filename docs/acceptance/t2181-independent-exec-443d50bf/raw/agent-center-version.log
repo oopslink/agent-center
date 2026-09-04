@@ -1,0 +1,32 @@
+agent-center — agent-center — single binary, multi-mode CLI (Phase 1)
+
+Usage:
+  agent-center <command> [subcommand ...] [--flag ...]
+  agent-center help [<command-or-topic>]
+  agent-center --help | -h | --version
+
+Help & info:
+  help                   Show usage. `help <command>` for a subtree, `help <topic>` for an indexed topic.
+  version                Print build info
+
+Runtime:
+  bootstrap              Runtime install validations
+  server                 Run the center daemon (Phase 1 minimal: migrate + idle)
+  worker                 Worker daemon commands.
+
+Admin:
+  admin                  Internal / ops commands.
+  install                Install or upgrade agent-center (center or worker) on this machine
+  list-local-centers     List all agent-center deployments installed on this machine (v2.7.1 #211 multi-instance)
+  list-local-workers     List all worker deployments installed on this machine, prod + test (v2.8 #170)
+  list-test-instances    List test sandboxes installed under ~/.agent-center-test (v2.8 #255)
+  migrate                Database migration commands (up / v1-to-v2)
+  uninstall              Remove agent-center (center or worker) from this machine
+  upgrade                Upgrade an existing agent-center install (center or worker) to the current binary's version
+
+Topics:
+  format                 Output format conventions (`--format=table|json|text`)
+  identity               Identity refs and the user/agent/system kinds
+  exit-codes             Exit code conventions
+
+Run `agent-center help <command>` or `agent-center help <topic>` for details.

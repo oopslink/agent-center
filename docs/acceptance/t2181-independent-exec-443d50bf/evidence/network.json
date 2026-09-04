@@ -1,0 +1,362 @@
+[
+  {
+    "url": "http://127.0.0.1:65154/signin",
+    "status": 200,
+    "method": "GET",
+    "type": "document"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/index-JBs96hhN.css",
+    "status": 200,
+    "method": "GET",
+    "type": "stylesheet"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/index-C2XIfLUc.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/Signin-CEL3FmEA.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/fonts/plus-jakarta-sans-latin.woff2",
+    "status": 200,
+    "method": "GET",
+    "type": "font"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/auth/signin",
+    "status": 200,
+    "method": "POST",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/",
+    "status": 200,
+    "method": "GET",
+    "type": "document"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/index-JBs96hhN.css",
+    "status": 200,
+    "method": "GET",
+    "type": "stylesheet"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/index-C2XIfLUc.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/fonts/plus-jakarta-sans-latin.woff2",
+    "status": 200,
+    "method": "GET",
+    "type": "font"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/conversations?kind=channel",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/conversations?kind=dm",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/fonts/ibm-plex-mono-400-latin.woff2",
+    "status": 200,
+    "method": "GET",
+    "type": "font"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/auth/me",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/members",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/unread-conversations",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/attention",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/EmptyState-DQ58vqgd.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/EntityRef-CEeZi4DZ.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/Projects-C6y9XQkd.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/permissions/effective?subject_ref=user%3Auser-f77d64e8&resource_kind=org&resource_id=organization-5c4a3920",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/sse?user_id=user%3Auser-f77d64e8",
+    "status": 200,
+    "method": "GET",
+    "type": "eventsource"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/projects",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/useInfiniteQuery-2PotFpsD.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/insights-D4gRF7DH.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/tasks-DoSnpHTy.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/orgWorkItems-N2d4IJRa.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/InsightCollaboration-DrvIrnTQ.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/EntitySelect-DM-_UHBn.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/plans-DppepXZn.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/insights/collaboration-effects?limit=100&lod=cluster&max_nodes=90",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/organizations/org-dea95ad1/insights/collaboration",
+    "status": 200,
+    "method": "GET",
+    "type": "document"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/index-JBs96hhN.css",
+    "status": 200,
+    "method": "GET",
+    "type": "stylesheet"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/index-C2XIfLUc.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/fonts/plus-jakarta-sans-latin.woff2",
+    "status": 200,
+    "method": "GET",
+    "type": "font"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/useInfiniteQuery-2PotFpsD.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/insights-D4gRF7DH.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/orgWorkItems-N2d4IJRa.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/tasks-DoSnpHTy.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/InsightCollaboration-DrvIrnTQ.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/EntitySelect-DM-_UHBn.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/assets/plans-DppepXZn.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/conversations?kind=dm",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/fonts/ibm-plex-mono-400-latin.woff2",
+    "status": 200,
+    "method": "GET",
+    "type": "font"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/members",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/auth/me",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/conversations?kind=channel",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/unread-conversations",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/sse?user_id=user%3Auser-f77d64e8",
+    "status": 200,
+    "method": "GET",
+    "type": "eventsource"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/permissions/effective?subject_ref=user%3Auser-f77d64e8&resource_kind=org&resource_id=organization-5c4a3920",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/insights/collaboration-effects?limit=100&lod=cluster&max_nodes=90",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/projects",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/attention",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/projects/project-108157c6/members",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/insights/collaboration-effects?limit=100&project_id=project-108157c6",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/projects/project-108157c6/plans",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/projects/project-108157c6/tasks?status=all&sort=updated&dir=desc&page_size=500",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:65154/api/orgs/org-dea95ad1/insights/collaboration-effects/ce_15b221d0d42eb5d60baf8a277b13b910/evidence?project_id=project-108157c6",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  }
+]

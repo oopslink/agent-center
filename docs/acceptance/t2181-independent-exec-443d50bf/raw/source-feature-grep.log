@@ -1,0 +1,283 @@
+web/src/shell/nav/InsightSecondaryNav.test.tsx:27:    expect(screen.getByTestId('insight-nav-collaboration')).toHaveAttribute('href', '/organizations/acme/insights/collaboration');
+web/src/shell/nav/InsightSecondaryNav.test.tsx:47:    expect(screen.getByRole('link', { name: '协作作用力' })).toHaveAttribute('href', '/organizations/acme/insights/collaboration');
+internal/webconsole/api/handlers_collaboration_insight_test.go:13:	"github.com/oopslink/agent-center/internal/observability/collaborationeffect"
+internal/webconsole/api/handlers_collaboration_insight_test.go:19:type collaborationHTTPExecContext interface {
+internal/webconsole/api/handlers_collaboration_insight_test.go:27:	effects, err := collaborationeffect.NewSQLiteRepository(db)
+internal/webconsole/api/handlers_collaboration_insight_test.go:35:	graphs, err := collaborationeffect.NewSQLiteGraphReader(db)
+internal/webconsole/api/handlers_collaboration_insight_test.go:39:	deps.CollaborationInsight, err = collaborationeffect.NewQueryServiceWithGraph(effects, events, graphs)
+internal/webconsole/api/handlers_collaboration_insight_test.go:70:	projectResp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?limit=100&project_id="+string(projectA), sess)
+internal/webconsole/api/handlers_collaboration_insight_test.go:75:	var projectBody collaborationeffect.QueryResult
+internal/webconsole/api/handlers_collaboration_insight_test.go:82:	t.Logf("project query params: limit=100 project_id=%s; status=%d effects=%d nodes=%d graph_version=%s", projectA, projectResp.StatusCode, len(projectBody.Effects), len(projectBody.Graph.Nodes), projectBody.GraphVersion)
+internal/webconsole/api/handlers_collaboration_insight_test.go:89:	orgResp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?limit=100", sess)
+internal/webconsole/api/handlers_collaboration_insight_test.go:94:	var orgBody collaborationeffect.QueryResult
+internal/webconsole/api/handlers_collaboration_insight_test.go:103:	cursorResp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?limit=100&cursor=not-opaque", sess)
+internal/webconsole/api/handlers_collaboration_insight_test.go:110:	missingProjectResp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?limit=100&project_id=project-missing", sess)
+internal/webconsole/api/handlers_collaboration_insight_test.go:115:	t.Logf("missing project query params: limit=100 project_id=project-missing; status=%d", missingProjectResp.StatusCode)
+internal/webconsole/api/handlers_collaboration_insight_test.go:118:	noauthResp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?limit=100&project_id=project-noauth", sess)
+internal/webconsole/api/handlers_collaboration_insight_test.go:123:	t.Logf("unauthorized project query params: limit=100 project_id=project-noauth; status=%d", noauthResp.StatusCode)
+internal/webconsole/api/handlers_collaboration_insight_test.go:124:	crossOrgResp := orgScopedGet(t, s.URL+"/api/insights/collaboration-effects?limit=100&project_id=project-other", sess)
+internal/webconsole/api/handlers_collaboration_insight_test.go:129:	t.Logf("cross-org project query params: limit=100 project_id=project-other; status=%d", crossOrgResp.StatusCode)
+internal/webconsole/api/handlers_collaboration_insight_test.go:132:func seedCollaborationHTTPProject(t *testing.T, ctx context.Context, db collaborationHTTPExecContext, repo *collaborationeffect.SQLiteRepository, orgID, projectID, taskID, assignee, effectID string, at time.Time) {
+internal/webconsole/api/handlers_collaboration_insight_test.go:138:	if _, err := db.ExecContext(ctx, `INSERT OR IGNORE INTO pm_tasks (id, project_id, title, description, status, assignee, created_by, created_at, updated_at) VALUES (?, ?, ?, '', 'running', ?, 'user:test', ?, ?)`, taskID, projectID, taskID, assignee, ts, ts); err != nil {
+internal/webconsole/api/handlers_collaboration_insight_test.go:141:	effect := collaborationeffect.Effect{
+internal/webconsole/api/handlers_collaboration_insight_test.go:143:		RelationType: collaborationeffect.RelationComplete, Polarity: collaborationeffect.PolarityPositive,
+internal/webconsole/api/handlers_collaboration_insight_test.go:144:		Magnitude: 2, Confidence: "high", OccurredAt: at, RuleVersion: collaborationeffect.RuleVersionV1,
+internal/webconsole/api/handlers_collaboration_insight_test.go:148:		ExplanationKey:   "collaboration.effect.complete",
+internal/webconsole/api/handlers_collaboration_insight_test.go:150:	if err := repo.Apply(ctx, collaborationeffect.Fact{EventID: effectID, OccurredAt: at}, collaborationeffect.RuleVersionV1, []collaborationeffect.Effect{effect}, nil, nil); err != nil {
+internal/observability/collaborationeffect/graph_sqlite.go:1:package collaborationeffect
+internal/observability/collaborationeffect/graph_sqlite.go:49:		return nil, errors.New("collaboration insight graph: nil db")
+internal/observability/collaborationeffect/graph_sqlite.go:56:		return graphScope{}, fmt.Errorf("%w: organization_id or project_id required", ErrInvalidQuery)
+internal/observability/collaborationeffect/graph_sqlite.go:74:	q.WriteString(`SELECT ce.effect_id,ce.project_id,ce.target_task_id,ce.source_agent_ref,ce.target_agent_ref,ce.relation_type,ce.polarity,ce.magnitude,ce.confidence,ce.occurred_at,ce.rule_version,ce.evidence_event_ids,ce.before_state,ce.after_state,ce.explanation_key
+internal/observability/collaborationeffect/graph_sqlite.go:75:FROM collaboration_effects ce
+internal/observability/collaborationeffect/graph_sqlite.go:76:JOIN pm_projects pr ON pr.id=ce.project_id
+internal/observability/collaborationeffect/graph_sqlite.go:85:		add(" AND ce.project_id=?", f.ProjectID)
+internal/observability/collaborationeffect/graph_sqlite.go:171:	qPlans := `SELECT pl.id, pl.project_id, pl.name, pl.status
+internal/observability/collaborationeffect/graph_sqlite.go:172:FROM pm_plans pl JOIN pm_projects pr ON pr.id=pl.project_id ` + planWhere
+internal/observability/collaborationeffect/graph_sqlite.go:178:	qPlans += " ORDER BY pl.project_id, pl.id"
+internal/observability/collaborationeffect/graph_sqlite.go:200:	qTasks := `SELECT t.id, t.project_id, COALESCE(t.plan_id,''), COALESCE(t.stage_id,''), t.title, t.status, COALESCE(t.assignee,'')
+internal/observability/collaborationeffect/graph_sqlite.go:201:FROM pm_tasks t JOIN pm_projects pr ON pr.id=t.project_id ` + taskWhere
+internal/observability/collaborationeffect/graph_sqlite.go:218:	qTasks += " ORDER BY t.project_id, t.plan_id, t.stage_id, t.id"
+internal/observability/collaborationeffect/graph_sqlite.go:241:JOIN pm_projects pr ON pr.id=pl.project_id `+planWhere+filterClause("st.id", f.StageID)+filterClause("pl.id", f.PlanID)+`
+internal/observability/collaborationeffect/graph_sqlite.go:264:JOIN pm_projects pr ON pr.id=pl.project_id `+planWhere+filterClause("d.plan_id", f.PlanID)+`
+internal/observability/collaborationeffect/graph_sqlite.go:329:	var at, evidence, before, after string
+internal/observability/collaborationeffect/graph_sqlite.go:330:	if err := scan(&e.EffectID, &e.ProjectID, &e.TargetTaskID, &e.SourceAgentRef, &e.TargetAgentRef, &e.RelationType, &e.Polarity, &e.Magnitude, &e.Confidence, &at, &e.RuleVersion, &evidence, &before, &after, &e.ExplanationKey); err != nil {
+internal/observability/collaborationeffect/graph_sqlite.go:334:	_ = json.Unmarshal([]byte(evidence), &e.EvidenceEventIDs)
+web/src/pages/InsightCollaboration.tsx:40:    next.set('lod', 'full');
+web/src/pages/InsightCollaboration.tsx:57:      <header><h1 className="text-xl font-semibold text-text-primary">{t('insight.collaboration.title')}</h1><p className="mt-1 text-sm text-text-muted">{t('insight.collaboration.subtitle')}</p></header>
+web/src/pages/InsightCollaboration.tsx:59:      {query.isLoading ? <State id="collaboration-loading" title={t('insight.collaboration.loading')} /> : null}
+web/src/pages/InsightCollaboration.tsx:64:        {view.edges.length === 0 ? <State id="collaboration-empty" title={t('insight.collaboration.empty')} body={t('insight.collaboration.emptyBody')} /> :
+web/src/pages/InsightCollaboration.tsx:66:        {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="rounded border border-border px-3 py-2 text-sm" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
+web/src/pages/InsightCollaboration.tsx:77:  const hasDetailFilter = Boolean(params.get('project_id') || params.get('plan_id') || params.get('task_id') || params.get('agent_ref') || params.get('relation_type') || params.get('polarity'));
+web/src/pages/InsightCollaboration.tsx:78:  const lod = params.get('lod') === 'full' ? 'full' : params.get('lod') === 'cluster' ? 'cluster' : hasDetailFilter ? undefined : 'cluster';
+web/src/pages/InsightCollaboration.tsx:81:    project_id: params.get('project_id') ?? '', plan_id: params.get('plan_id') ?? undefined, task_id: params.get('task_id') ?? undefined,
+web/src/pages/InsightCollaboration.tsx:86:    lod, max_nodes: Number.isFinite(maxNodes) && maxNodes > 0 ? maxNodes : lod === 'cluster' ? 90 : undefined, limit: 100,
+web/src/pages/InsightCollaboration.tsx:92:  const projectId = params.get('project_id') ?? '';
+web/src/pages/InsightCollaboration.tsx:122:    ['since', t('insight.collaboration.filters.since'), 'datetime-local'],
+web/src/pages/InsightCollaboration.tsx:123:    ['until', t('insight.collaboration.filters.until'), 'datetime-local'],
+web/src/pages/InsightCollaboration.tsx:125:  return <form aria-label={t('insight.collaboration.filters.label')} className="grid gap-3 rounded-lg border border-border bg-bg-surface p-4 md:grid-cols-4" onSubmit={(e) => e.preventDefault()}>
+web/src/pages/InsightCollaboration.tsx:126:    <div className="flex items-center justify-between gap-3 md:col-span-4"><h2 className="text-sm font-semibold text-text-primary">{t('insight.collaboration.filters.label')}</h2><button type="button" onClick={clearAll} className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle">{t('insight.collaboration.filters.clearAll')}</button></div>
+web/src/pages/InsightCollaboration.tsx:128:      name="project_id"
+web/src/pages/InsightCollaboration.tsx:129:      label={t('insight.collaboration.filters.project')}
+web/src/pages/InsightCollaboration.tsx:133:      placeholder={projects.isLoading ? t('insight.collaboration.filters.loadingProjects') : t('insight.collaboration.filters.chooseProject')}
+web/src/pages/InsightCollaboration.tsx:134:      searchPlaceholder={t('insight.collaboration.filters.searchProjects')}
+web/src/pages/InsightCollaboration.tsx:135:      emptyLabel={t('insight.collaboration.filters.noProjects')}
+web/src/pages/InsightCollaboration.tsx:140:      label={t('insight.collaboration.filters.plan')}
+web/src/pages/InsightCollaboration.tsx:144:      placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyPlan')}
+web/src/pages/InsightCollaboration.tsx:145:      searchPlaceholder={t('insight.collaboration.filters.searchPlans')}
+web/src/pages/InsightCollaboration.tsx:146:      emptyLabel={t('insight.collaboration.filters.noPlans')}
+web/src/pages/InsightCollaboration.tsx:151:      label={t('insight.collaboration.filters.task')}
+web/src/pages/InsightCollaboration.tsx:155:      placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : tasks.isLoading ? t('insight.collaboration.filters.loadingTasks') : t('insight.collaboration.filters.chooseTask')}
+web/src/pages/InsightCollaboration.tsx:156:      searchPlaceholder={t('insight.collaboration.filters.searchTasks')}
+web/src/pages/InsightCollaboration.tsx:157:      emptyLabel={t('insight.collaboration.filters.noTasks')}
+web/src/pages/InsightCollaboration.tsx:162:      label={t('insight.collaboration.filters.agent')}
+web/src/pages/InsightCollaboration.tsx:166:      placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyAgent')}
+web/src/pages/InsightCollaboration.tsx:167:      searchPlaceholder={t('insight.collaboration.filters.searchAgents')}
+web/src/pages/InsightCollaboration.tsx:168:      emptyLabel={t('insight.collaboration.filters.noAgents')}
+web/src/pages/InsightCollaboration.tsx:172:    <SelectFilter name="relation_type" label={t('insight.collaboration.filters.relation')} values={RELATIONS} value={params.get('relation_type') ?? ''} update={update} t={t} />
+web/src/pages/InsightCollaboration.tsx:173:    <SelectFilter name="polarity" label={t('insight.collaboration.filters.polarity')} values={POLARITIES} value={params.get('polarity') ?? ''} update={update} t={t} />
+web/src/pages/InsightCollaboration.tsx:178:  return <label className="text-xs text-text-muted">{label}<div className="mt-1 flex gap-2"><div className="min-w-0 flex-1"><EntitySelect testId={`collaboration-${name}`} ariaLabel={label} value={value} options={options} onChange={(next) => update(name, next)} disabled={disabled} placeholder={placeholder} searchPlaceholder={searchPlaceholder} emptyLabel={emptyLabel} /></div>{value ? <button type="button" onClick={() => update(name, '')} className="shrink-0 rounded border border-border px-2 text-sm text-text-muted hover:bg-bg-subtle" aria-label={`Clear ${label}`}>×</button> : null}</div></label>;
+web/src/pages/InsightCollaboration.tsx:182:  return <label className="text-xs text-text-muted">{label}<select aria-label={label} value={value} onChange={(e) => update(name, e.target.value)} className="mt-1 w-full rounded border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary"><option value="">{t('insight.collaboration.filters.all')}</option>{values.map((item) => <option key={item} value={item}>{labelFor(t, item)}</option>)}</select></label>;
+web/src/pages/InsightCollaboration.tsx:200:  return <section aria-label={t('insight.collaboration.summary')} className="grid grid-cols-2 gap-2 md:grid-cols-5">{(['positive', 'negative', 'neutral', 'mixed'] as const).map((key) => <div key={key} className="rounded border border-border bg-bg-surface p-3"><span className="text-xs text-text-muted">{labelFor(t, key)}</span><strong className="block text-lg">{summary[`${key}_count`]}</strong></div>)}<div className="rounded border border-border bg-bg-surface p-3"><span className="text-xs text-text-muted">{t('insight.collaboration.affectedTasks')}</span><strong className="block text-lg">{summary.affected_task_count}</strong></div></section>;
+web/src/pages/InsightCollaboration.tsx:212:type CollaborationGraphView = { nodes: CollaborationNode[]; edges: CollaborationEdge[]; clusters: CollaborationNode[]; lod: 'full' | 'cluster'; truncated: boolean };
+web/src/pages/InsightCollaboration.tsx:215:  const evidenceIdsByEdge = new Map<string, Set<string>>();
+web/src/pages/InsightCollaboration.tsx:222:      const ids = evidenceIdsByEdge.get(key) ?? new Set<string>();
+web/src/pages/InsightCollaboration.tsx:223:      effect.evidence_event_ids.forEach((id) => ids.add(id));
+web/src/pages/InsightCollaboration.tsx:224:      evidenceIdsByEdge.set(key, ids);
+web/src/pages/InsightCollaboration.tsx:229:      scopes.set(effect.effect_id, { effect_id: effect.effect_id, project_id: effect.project_id });
+web/src/pages/InsightCollaboration.tsx:240:      mergedEdges.set(key, { ...edge, effect_ids: effectIds, effect_scopes: effectScopes, evidence_count: evidenceIdsByEdge.get(key)?.size ?? edge.evidence_count });
+web/src/pages/InsightCollaboration.tsx:249:      evidence_count: evidenceIdsByEdge.get(key)?.size ?? current.evidence_count + edge.evidence_count,
+web/src/pages/InsightCollaboration.tsx:264:    clusters: dedupeBy(pages.flatMap((page) => page.graph.clusters), (node) => node.id),
+web/src/pages/InsightCollaboration.tsx:265:    lod: pages.some((page) => page.graph.lod === 'cluster') ? 'cluster' : 'full',
+web/src/pages/InsightCollaboration.tsx:266:    truncated: pages.some((page) => page.truncated || page.graph.truncated),
+web/src/pages/InsightCollaboration.tsx:286:  if (edge.effect_id && !scopes.has(edge.effect_id)) scopes.set(edge.effect_id, { effect_id: edge.effect_id, project_id: '' });
+web/src/pages/InsightCollaboration.tsx:287:  const sorted = [...scopes.values()].sort((a, b) => a.effect_id.localeCompare(b.effect_id) || a.project_id.localeCompare(b.project_id));
+web/src/pages/InsightCollaboration.tsx:304:  const clustered = view.lod === 'cluster' || view.clusters.length > 0;
+web/src/pages/InsightCollaboration.tsx:305:  if (!clustered && !view.truncated) return null;
+web/src/pages/InsightCollaboration.tsx:307:    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-bg-surface p-3 text-sm" data-testid="collaboration-lod-notice">
+web/src/pages/InsightCollaboration.tsx:309:        <strong className="text-text-primary">{clustered ? t('insight.collaboration.lod.clusteredTitle') : t('insight.collaboration.lod.truncatedTitle')}</strong>
+web/src/pages/InsightCollaboration.tsx:310:        <p className="mt-1 text-text-muted">{t('insight.collaboration.lod.body', { nodes: view.nodes.length, edges: view.edges.length })}</p>
+web/src/pages/InsightCollaboration.tsx:313:        {canLoadMore ? <button type="button" disabled={loadingMore} onClick={onLoadMore} className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" data-testid="collaboration-lod-load-more">{loadingMore ? t('insight.collaboration.loadingMore') : t('insight.collaboration.lod.continueLoading')}</button> : null}
+web/src/pages/InsightCollaboration.tsx:314:        {clustered ? <button type="button" onClick={onShowFull} className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" data-testid="collaboration-show-full-graph">{t('insight.collaboration.lod.showFull')}</button> : null}
+web/src/pages/InsightCollaboration.tsx:321:  const { nodes, edges, clusteredOverview } = useMemo(() => readableGraph(view, t), [view, t]);
+web/src/pages/InsightCollaboration.tsx:324:  const baseNodeMap = useMemo(() => new Map(nodes.map((node) => { const i = laneIndex.get(node.kind) ?? 0; laneIndex.set(node.kind, i + 1); const lane = node.kind === 'cluster' ? 360 : lanes[node.kind]; return [node.id, { ...node, x: lane, y: 70 + i * 82 }]; })), [nodes]);
+web/src/pages/InsightCollaboration.tsx:335:  const selectedKey = selected?.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0') ?? '';
+web/src/pages/InsightCollaboration.tsx:375:    svg.addEventListener('wheel', handler, { passive: false });
+web/src/pages/InsightCollaboration.tsx:376:    window.addEventListener('wheel', handler, { passive: false });
+web/src/pages/InsightCollaboration.tsx:378:      svg.removeEventListener('wheel', handler);
+web/src/pages/InsightCollaboration.tsx:379:      window.removeEventListener('wheel', handler);
+web/src/pages/InsightCollaboration.tsx:382:  return <section className="rounded-lg border border-border bg-bg-surface p-4" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
+web/src/pages/InsightCollaboration.tsx:384:      <div className="flex flex-wrap gap-3 text-xs text-text-muted"><span>━━ {t('insight.collaboration.legend.relationship')}</span><span>┄┄ {t('insight.collaboration.legend.effect')}</span><span>+/− {t('insight.collaboration.legend.mixed')}</span></div>
+web/src/pages/InsightCollaboration.tsx:385:      <div className="flex items-center gap-1" aria-label={t('insight.collaboration.viewport.controls')}>
+web/src/pages/InsightCollaboration.tsx:386:        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(0.82)} aria-label={t('insight.collaboration.viewport.zoomIn')}>+</button>
+web/src/pages/InsightCollaboration.tsx:387:        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(1.18)} aria-label={t('insight.collaboration.viewport.zoomOut')}>-</button>
+web/src/pages/InsightCollaboration.tsx:388:        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={fit}>{t('insight.collaboration.viewport.fit')}</button>
+web/src/pages/InsightCollaboration.tsx:389:        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={reset}>{t('insight.collaboration.viewport.reset')}</button>
+web/src/pages/InsightCollaboration.tsx:394:      viewBox={`${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`}
+web/src/pages/InsightCollaboration.tsx:397:      aria-label={t('insight.collaboration.graph')}
+web/src/pages/InsightCollaboration.tsx:398:      data-testid="collaboration-graph-svg"
+web/src/pages/InsightCollaboration.tsx:437:      <defs><linearGradient id="collaboration-mixed"><stop offset="0%" stopColor="#16803c"/><stop offset="50%" stopColor="#16803c"/><stop offset="50%" stopColor="#c0362c"/><stop offset="100%" stopColor="#c0362c"/></linearGradient></defs>
+web/src/pages/InsightCollaboration.tsx:438:      {clusteredOverview ? <text x={viewport.x + 12} y={viewport.y + 24} className="fill-text-muted text-[12px]">{t('insight.collaboration.lod.overviewBadge')}</text> : null}
+web/src/pages/InsightCollaboration.tsx:439:      {edges.map((edge) => { const a = nodeMap.get(edge.source); const b = nodeMap.get(edge.target); if (!a || !b) return null; const structural = !edge.effect_id && edge.evidence_count === 0; const active = !hasNoiseReduction || context.edges.has(edge.id); const selectedEdge = selectedEffectIds.size > 0 && edgeHasAnyEffect(edge, selectedEffectIds); return <g key={edge.id} opacity={active ? 1 : 0.16}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={selectedEdge ? edge.magnitude + 3 : structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} /><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="fill-text-muted text-[11px]">{active ? <>{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</> : null}</text></g>; })}
+web/src/pages/InsightCollaboration.tsx:440:      {[...nodeMap.values()].map((node) => { const active = !hasNoiseReduction || context.nodes.has(node.id); const focused = focusedNodeId === node.id; const wide = node.kind === 'cluster'; return <g key={node.id} role="button" tabIndex={0} aria-label={node.label} className="cursor-pointer outline-none" opacity={active ? 1 : 0.18} onPointerDown={(event) => { event.stopPropagation(); lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; const point = toSvgPoint(event); dragRef.current = { id: node.id, pointer: point, origin: { x: node.x, y: node.y }, moved: false }; svgRef.current?.setPointerCapture?.(event.pointerId); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocusedNodeId(node.id); setViewport(focusViewBox(node)); } }}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" fill="var(--color-bg-elevated)" stroke="var(--color-brand)" strokeWidth={focused ? 4 : 2} /> : <rect x={node.x-(wide ? 88 : 54)} y={node.y-24} width={wide ? 176 : 108} height="48" rx="5" fill="var(--color-bg-elevated)" stroke="var(--color-text-muted)" strokeWidth={focused ? 4 : 2} />}<text x={node.x} y={node.y+3} textAnchor="middle" fill="var(--color-text-primary)" className="pointer-events-none text-[11px]">{truncateLabel(node.label, wide ? 28 : 18)}</text><text x={node.x} y={node.y+18} textAnchor="middle" fill="var(--color-text-muted)" className="pointer-events-none text-[8px]">{node.kind}</text></g>; })}
+web/src/pages/InsightCollaboration.tsx:442:    <div className="grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{edges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = edge.effect_scopes?.length ? edge.effect_scopes : edge.effect_ids?.length ? edge.effect_ids.map((id) => ({ effect_id: id, project_id: '' })) : edge.effect_id ? [{ effect_id: edge.effect_id, project_id: '' }] : []; const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
+web/src/pages/InsightCollaboration.tsx:446:function readableGraph(view: CollaborationGraphView, t: Translator): CollaborationGraphView & { clusteredOverview: boolean } {
+web/src/pages/InsightCollaboration.tsx:447:  const shouldCluster = view.lod === 'cluster' || view.truncated || view.nodes.length > 90 || view.edges.length > 180;
+web/src/pages/InsightCollaboration.tsx:448:  if (!shouldCluster) return { ...view, clusteredOverview: false };
+web/src/pages/InsightCollaboration.tsx:453:    if (node.project_id) return `${node.project_id} ${labelFor(t, node.kind)}`;
+web/src/pages/InsightCollaboration.tsx:457:    const groupID = node.kind === 'project' ? node.id : node.project_id ? `cluster:${node.project_id}:${node.kind}` : `cluster:global:${node.kind}`;
+web/src/pages/InsightCollaboration.tsx:464:      groups.set(groupID, { id: groupID, kind: node.kind === 'project' ? 'project' : 'cluster', label: `${labelForGroup(node)} (1)`, project_id: node.project_id, count: 1 });
+web/src/pages/InsightCollaboration.tsx:475:      groupedEdges.set(key, { ...edge, id: `cluster:${edge.id}`, source, target, clustered: true });
+web/src/pages/InsightCollaboration.tsx:479:    current.evidence_count += edge.evidence_count;
+web/src/pages/InsightCollaboration.tsx:484:  return { ...view, nodes: [...groups.values()].map(({ count, ...node }) => node), edges: [...groupedEdges.values()], clusteredOverview: true };
+web/src/pages/InsightCollaboration.tsx:493:  const out = [...new Map(scopes.filter((scope) => scope.effect_id).map((scope) => [`${scope.effect_id}\0${scope.project_id}`, scope])).values()]
+web/src/pages/InsightCollaboration.tsx:494:    .sort((a, b) => a.effect_id.localeCompare(b.effect_id) || a.project_id.localeCompare(b.project_id));
+web/src/pages/InsightCollaboration.tsx:546:function Timeline({ effects, onSelect, t }: { effects: { effect_id: string; project_id: string; occurred_at: string; relation_type: string; polarity: string; source_agent_ref: string; target_task_id: string }[]; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
+web/src/pages/InsightCollaboration.tsx:548:  return <section className="rounded-lg border border-border bg-bg-surface p-4" data-testid="collaboration-timeline"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2><ol className="mt-3 border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol></section>;
+web/src/pages/InsightCollaboration.tsx:551:function EvidenceDrawer({ effect, effectIds, onClose, t }: { effect: Pick<CollaborationEffect, 'project_id' | 'explanation_key' | 'before_state' | 'after_state'> | null; effectIds: CollaborationEffectScope[]; onClose: () => void; t: Translator }) {
+web/src/pages/InsightCollaboration.tsx:552:  const query = useCollaborationEvidenceBundle(effectIds, effect?.project_id);
+web/src/pages/InsightCollaboration.tsx:553:  return <aside role="dialog" aria-modal="true" aria-labelledby="evidence-title" className="fixed inset-y-0 right-0 z-50 w-full max-w-lg overflow-y-auto border-l border-border bg-bg-primary p-5 shadow-xl" data-testid="collaboration-evidence-drawer"><div className="flex items-center justify-between"><h2 id="evidence-title" className="text-lg font-semibold">{t('insight.collaboration.evidence.title')}</h2><button type="button" onClick={onClose} aria-label={t('insight.collaboration.evidence.close')} className="rounded border border-border px-3 py-1">×</button></div>{effect ? <div className="mt-4 text-sm"><p>{t(effect.explanation_key, { defaultValue: effect.explanation_key })}</p><pre className="mt-2 overflow-auto rounded bg-bg-subtle p-2">{JSON.stringify({ before: effect.before_state, after: effect.after_state }, null, 2)}</pre></div> : null}{query.isLoading ? <p className="mt-4">{t('insight.collaboration.evidence.loading')}</p> : null}{query.isError ? <p role="alert" className="mt-4 text-danger">{t('insight.collaboration.evidence.failed')}</p> : null}<ol className="mt-4 space-y-3">{query.data?.evidence.map((event) => <li key={event.event_id} className="rounded border border-border p-3 text-sm"><strong>{event.event_type}</strong><time className="block text-xs text-text-muted">{new Date(event.occurred_at).toLocaleString()}</time><p>{event.actor_ref}</p><pre className="mt-2 overflow-auto text-xs">{JSON.stringify(event.payload, null, 2)}</pre></li>)}</ol></aside>;
+web/src/pages/InsightCollaboration.tsx:556:function CollaborationError({ error, t }: { error: unknown; t: Translator }) { const forbidden = error instanceof ApiError && (error.status === 401 || error.status === 403); return <State id={forbidden ? 'collaboration-forbidden' : 'collaboration-error'} title={forbidden ? t('insight.collaboration.forbidden') : t('insight.collaboration.failed')} body={error instanceof Error ? error.message : undefined} danger />; }
+web/src/pages/InsightCollaboration.tsx:558:function labelFor(t: Translator, value: string): string { return t(`insight.collaboration.values.${value}`, { defaultValue: value.replaceAll('_', ' ') }); }
+web/src/AppLayout.tsx:32:import { SECONDARY_NAV_REGISTRY, type ShellModuleId } from '@/shell/secondaryNav';
+web/src/AppLayout.tsx:37:// AppLayout v5 — v2.10.0 [T1] three-column module rail + per-module secondary
+web/src/AppLayout.tsx:38:// nav + on-demand context panel (col④). Desktop: col①(rail) | col②(secondary nav)
+web/src/AppLayout.tsx:131:    defaultPath: 'insights/collaboration',
+web/src/AppLayout.tsx:226:        { to: p('insights/collaboration'), label: 'Collaboration effects', Icon: InsightIcon },
+web/src/AppLayout.tsx:451:                alertCount > 0 ? 'text-danger hover:bg-danger/10' : 'text-text-secondary hover:bg-bg-subtle',
+web/src/AppLayout.tsx:469:              className="inline-flex h-8 w-8 items-center justify-center rounded text-text-secondary hover:bg-bg-subtle"
+web/src/AppLayout.tsx:471:              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-bg-subtle text-xs font-medium text-text-secondary">
+web/src/AppLayout.tsx:579:              className="relative inline-flex h-8 w-8 items-center justify-center rounded-full bg-bg-elevated text-xs font-medium text-text-secondary hover:bg-bg-subtle"
+web/src/AppLayout.tsx:632:            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4" aria-hidden="true">
+web/src/AppLayout.tsx:760:              <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-bg-subtle text-xs font-medium text-text-secondary">
+web/src/AppLayout.tsx:798:// SecondaryNavColumn (col②) — per-module secondary nav
+web/src/AppLayout.tsx:815:  // Detect org-settings route to show its dedicated secondary nav.
+web/src/AppLayout.tsx:857:          'absolute -right-3 top-4 z-10 inline-flex h-6 w-6 items-center justify-center rounded-full border border-border-base bg-bg-elevated text-text-secondary shadow-sm hover:bg-bg-subtle hover:text-text-primary focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-accent motion-safe:transition-all',
+web/src/AppLayout.tsx:955:                    className="flex w-full items-center justify-between rounded px-1 pb-1 text-[0.6875rem] font-semibold uppercase tracking-wider text-text-muted hover:text-text-secondary"
+web/src/AppLayout.tsx:1027:                                      isActive ? 'bg-brand-hover text-white' : 'text-text-secondary hover:bg-bg-subtle hover:text-text-primary',
+web/src/AppLayout.tsx:1349:            <button type="button" onClick={onClose} className="rounded px-4 py-1.5 text-sm text-text-secondary hover:bg-bg-subtle">Cancel</button>
+web/src/AppLayout.tsx:1374:      <button type="button" data-testid="theme-toggle" aria-label={theme === 'dark' ? t('theme.switchToLight') : t('theme.switchToDark')} title={t('theme.toggleTitle')} onClick={() => onSetTheme(next)} className="inline-flex h-9 w-full items-center justify-center rounded-md text-text-secondary hover:bg-bg-subtle motion-safe:transition-colors">
+web/src/AppLayout.tsx:1384:          <button key={opt.value} type="button" role="radio" aria-checked={selected} aria-label={opt.label} data-testid={`theme-segment-${opt.value}`} tabIndex={selected ? 0 : -1} onClick={() => onSetTheme(opt.value)} className={['flex flex-1 items-center justify-center gap-1.5 rounded px-2 py-1 text-xs font-medium motion-safe:transition-colors', selected ? 'bg-brand-hover text-white shadow-sm' : 'text-text-secondary hover:text-text-primary'].join(' ')}>
+web/src/AppLayout.tsx:1399:    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+web/src/AppLayout.tsx:1405:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="10" cy="10" r="3" /><path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" strokeLinecap="round" /></svg>);
+web/src/AppLayout.tsx:1408:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M16.5 12a6.5 6.5 0 1 1-8.5-8.5 5.5 5.5 0 0 0 8.5 8.5z" strokeLinejoin="round" /></svg>);
+web/src/AppLayout.tsx:1411:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3l1.5 2h6.5A1.5 1.5 0 0 1 17 8.5v6A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-8z" strokeLinejoin="round" /></svg>);
+web/src/AppLayout.tsx:1414:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /><circle cx="10" cy="10" r="1.5" fill="currentColor" stroke="none" /></svg>);
+web/src/AppLayout.tsx:1417:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4 6h6M4 10h6M4 14h4" strokeLinecap="round" /><path d="M13 6.5l1.5 1.5 2.5-3" strokeLinecap="round" strokeLinejoin="round" /></svg>);
+web/src/AppLayout.tsx:1420:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="1.5" /><path d="M7 8h6M7 12h4" strokeLinecap="round" /></svg>);
+web/src/AppLayout.tsx:1423:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M8 3 6.5 17M13.5 3 12 17M3.5 7h13M3 13h13" strokeLinecap="round" /></svg>);
+web/src/AppLayout.tsx:1427:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="6" cy="5" r="1.8" /><circle cx="6" cy="15" r="1.8" /><circle cx="14" cy="7" r="1.8" /><path d="M6 6.8v6.4M6 11a6 6 0 0 1 6-3" strokeLinecap="round" /></svg>);
+web/src/AppLayout.tsx:1430:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4 5h12a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5h-5l-3 3v-3H4A1.5 1.5 0 0 1 2.5 12.5v-6A1.5 1.5 0 0 1 4 5z" strokeLinejoin="round" /></svg>);
+web/src/AppLayout.tsx:1433:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="2.5" y="6" width="6" height="8" rx="1" /><rect x="11.5" y="6" width="6" height="8" rx="1" /><path d="M5.5 9.5h0.01M14.5 9.5h0.01" strokeLinecap="round" /></svg>);
+web/src/AppLayout.tsx:1436:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="10" cy="10" r="2.5" /><path d="M10 3v2M10 15v2M3 10h2M15 10h2M5.05 5.05l1.4 1.4M13.55 13.55l1.4 1.4M5.05 14.95l1.4-1.4M13.55 6.45l1.4-1.4" strokeLinecap="round" /></svg>);
+web/src/AppLayout.tsx:1439:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4 5.5h12M4 10h12M4 14.5h12" strokeLinecap="round" /><circle cx="6.5" cy="5.5" r="1" fill="currentColor" stroke="none" /><circle cx="10" cy="10" r="1" fill="currentColor" stroke="none" /><circle cx="13.5" cy="14.5" r="1" fill="currentColor" stroke="none" /></svg>);
+web/src/AppLayout.tsx:1442:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M3.5 8.5 8.5 3.5a1.5 1.5 0 0 1 2.1 0l5.9 5.9a1.5 1.5 0 0 1 0 2.1l-5 5a1.5 1.5 0 0 1-2.1 0L3.5 10.6V8.5z" strokeLinejoin="round" /><circle cx="7" cy="7" r="1.2" /></svg>);
+web/src/AppLayout.tsx:1445:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="7.5" y="2.5" width="5" height="4" rx="1" /><rect x="2.5" y="12.5" width="5" height="4" rx="1" /><rect x="12.5" y="12.5" width="5" height="4" rx="1" /><path d="M10 6.5v2.5M5 12.5v-1.5h10v1.5" strokeLinecap="round" /></svg>);
+web/src/AppLayout.tsx:1448:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="4" y="8.5" width="12" height="8" rx="1.5" /><path d="M7 8.5V6a3 3 0 0 1 6 0v2.5" strokeLinecap="round" /><path d="M10 12v1.8" strokeLinecap="round" /></svg>);
+web/src/AppLayout.tsx:1451:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M3.5 15.5h13" strokeLinecap="round" /><rect x="4.5" y="9" width="2.5" height="4.5" rx=".6" /><rect x="8.75" y="5.5" width="2.5" height="8" rx=".6" /><rect x="13" y="7.5" width="2.5" height="6" rx=".6" /></svg>);
+web/src/AppLayout.tsx:1454:  return (<svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M4.5 6h11M8 6V4.5h4V6M7 8.5l.5 7h5l.5-7" strokeLinecap="round" strokeLinejoin="round" /></svg>);
+web/src/AppLayout.tsx:1457:  return (<svg viewBox="0 0 20 20" fill="none" className="h-3.5 w-3.5 stroke-current" strokeWidth="1.5" aria-hidden="true"><rect x="3" y="10" width="5" height="7" rx="1" /><rect x="7.5" y="3" width="5" height="14" rx="1" /><rect x="12" y="7" width="5" height="10" rx="1" /></svg>);
+web/src/AppLayout.tsx:1460:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5" /><path d="M12.5 12.5 17 17" strokeLinecap="round" /></svg>);
+web/src/AppLayout.tsx:1463:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M12.5 6.5V4.5A1.5 1.5 0 0 0 11 3H5A1.5 1.5 0 0 0 3.5 4.5v11A1.5 1.5 0 0 0 5 17h6a1.5 1.5 0 0 0 1.5-1.5v-2" strokeLinecap="round" /><path d="M9 10h8M15 7.5l2.5 2.5-2.5 2.5" strokeLinecap="round" strokeLinejoin="round" /></svg>);
+web/src/AppLayout.tsx:1466:  return (<svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M10 2.5V1M10 2.5C7 2.5 4.5 5 4.5 8c0 3.5-1.5 5-2 5.5h15c-.5-.5-2-2-2-5.5 0-3-2.5-5.5-5.5-5.5z" strokeLinecap="round" strokeLinejoin="round" /><path d="M8 15.5a2 2 0 0 0 4 0" strokeLinecap="round" /></svg>);
+web/src/AppLayout.tsx:1472:  return (<svg viewBox="0 0 20 20" fill="none" className="h-5 w-5 stroke-current" strokeWidth="1.5" aria-hidden="true"><path d="M10 3.3 17.2 16H2.8z" strokeLinejoin="round" /><path d="M10 8.5v3.2" strokeLinecap="round" /><circle cx="10" cy="13.9" r="0.6" className="fill-current stroke-none" /></svg>);
+web/src/api/insights.ts:77:  project_id: string;
+web/src/api/insights.ts:113:  project_id: string;
+web/src/api/insights.ts:127:  project_id: string;
+web/src/api/insights.ts:160:  project_id: string | null;
+web/src/api/insights.ts:198:export type CollaborationNodeKind = 'agent' | 'project' | 'plan' | 'stage' | 'task' | 'cluster';
+web/src/api/insights.ts:200:  id: string; kind: CollaborationNodeKind; label: string; project_id?: string; plan_id?: string;
+web/src/api/insights.ts:205:  magnitude: 1 | 2 | 3; effect_id?: string; effect_ids?: string[]; effect_scopes?: CollaborationEffectScope[]; interaction_count: number; evidence_count: number;
+web/src/api/insights.ts:206:  first_occurred_at?: string; last_occurred_at?: string; clustered?: boolean;
+web/src/api/insights.ts:208:export interface CollaborationEffectScope { effect_id: string; project_id: string }
+web/src/api/insights.ts:211:  project_id: string; target_task_id: string; source_agent_ref: string; target_agent_ref: string;
+web/src/api/insights.ts:212:  confidence: string; occurred_at: string; rule_version: string; evidence_event_ids: string[];
+web/src/api/insights.ts:216:  graph: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; lod: 'full' | 'cluster'; clusters: CollaborationNode[]; truncated: boolean };
+web/src/api/insights.ts:221:  truncated: boolean;
+web/src/api/insights.ts:224:export interface CollaborationEvidenceResponse { effect_id: string; evidence: CollaborationEvidenceEvent[] }
+web/src/api/insights.ts:226:  project_id: string; plan_id?: string; task_id?: string; agent_ref?: string; relation_type?: CollaborationRelation; polarity?: CollaborationPolarity;
+web/src/api/insights.ts:227:  since?: string; until?: string; cursor?: string; graph_version?: string; lod?: 'full' | 'cluster'; max_nodes?: number; limit?: number;
+web/src/api/insights.ts:235:  evidence: Record<string, unknown>[];
+web/src/api/insights.ts:289:  project_id: string;
+web/src/api/insights.ts:294:  project_id: string;
+web/src/api/insights.ts:322:  evidence: Record<string, unknown>[];
+web/src/api/insights.ts:332:  project_id: string;
+web/src/api/insights.ts:339:  project_id?: string;
+web/src/api/insights.ts:488:    project_id: stringOrEmpty(source.project_id) || 'unknown',
+web/src/api/insights.ts:532:  const projectId = stringOrEmpty(source.project_id) || 'unknown';
+web/src/api/insights.ts:534:    project_id: projectId,
+web/src/api/insights.ts:554:  const projectId = stringOrEmpty(source.project_id) || 'unknown';
+web/src/api/insights.ts:556:    project_id: projectId,
+web/src/api/insights.ts:578:    evidence: recordArrayOrEmpty(source.evidence),
+web/src/api/insights.ts:673:    project_id: stringOrEmpty(source.project_id),
+web/src/api/insights.ts:684:    project_id: stringOrEmpty(source.project_id),
+web/src/api/insights.ts:715:    evidence: recordArrayOrEmpty(source.evidence),
+web/src/api/insights.ts:729:    project_id: stringOrEmpty(source.project_id),
+web/src/api/insights.ts:745:    project_id: stringOrNull(source.project_id),
+web/src/api/insights.ts:766:  const kind = (['agent', 'project', 'plan', 'stage', 'task', 'cluster'].includes(String(source.kind)) ? source.kind : 'task') as CollaborationNodeKind;
+web/src/api/insights.ts:772:    project_id: stringOrEmpty(source.project_id) || undefined,
+web/src/api/insights.ts:811:    evidence_count: numberOrZero(source.evidence_count),
+web/src/api/insights.ts:814:    clustered: booleanOrFalse(source.clustered),
+web/src/api/insights.ts:820:  return { effect_id: stringOrEmpty(source.effect_id), project_id: stringOrEmpty(source.project_id) };
+web/src/api/insights.ts:830:    project_id: stringOrEmpty(source.project_id),
+web/src/api/insights.ts:837:    evidence_event_ids: Array.isArray(source.evidence_event_ids) ? source.evidence_event_ids.filter((item): item is string => typeof item === 'string') : [],
+web/src/api/insights.ts:853:      lod: graph.lod === 'cluster' ? 'cluster' : 'full',
+web/src/api/insights.ts:854:      clusters: arrayOrEmpty(graph.clusters as unknown[] | null | undefined).map(normalizeCollaborationNode),
+web/src/api/insights.ts:855:      truncated: booleanOrFalse(graph.truncated),
+web/src/api/insights.ts:867:    truncated: booleanOrFalse(source.truncated),
+web/src/api/insights.ts:887:    evidence: arrayOrEmpty(source.evidence as unknown[] | null | undefined).map(normalizeCollaborationEvidenceEvent),
+web/src/api/insights.ts:935:  if (filters.project_id) params.set('project_id', filters.project_id);
+web/src/api/insights.ts:1026:function collaborationParams(filters: CollaborationFilters): string {
+web/src/api/insights.ts:1028:  for (const key of ['project_id', 'plan_id', 'task_id', 'agent_ref', 'relation_type', 'polarity', 'since', 'until', 'cursor', 'graph_version', 'lod', 'max_nodes'] as const) {
+web/src/api/insights.ts:1037:    queryKey: qk.collaborationEffects(filters),
+web/src/api/insights.ts:1038:    queryFn: async () => normalizeCollaborationGraphResponse(await api.get<unknown>(`/insights/collaboration-effects?${collaborationParams(filters)}`)),
+web/src/api/insights.ts:1049:    queryKey: [...qk.collaborationEffects(baseFilters), 'infinite'],
+web/src/api/insights.ts:1051:      `/insights/collaboration-effects?${collaborationParams({ ...baseFilters, cursor: pageParam || undefined })}`,
+web/src/api/insights.ts:1061:    queryKey: [...qk.collaborationEvidence(effectId ?? ''), projectId ?? ''],
+web/src/api/insights.ts:1062:    queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(effectId ?? '')}/evidence${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`)),
+web/src/api/insights.ts:1071:      queryKey: [...qk.collaborationEvidence(scope.effect_id), scope.project_id],
+web/src/api/insights.ts:1072:      queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(scope.effect_id)}/evidence${scope.project_id ? `?project_id=${encodeURIComponent(scope.project_id)}` : ''}`)),
+web/src/api/insights.ts:1076:  const evidence = dedupeEvidenceEvents(queries.flatMap((query) => query.data?.evidence ?? []));
+web/src/api/insights.ts:1079:    data: { effect_id: uniqueEffectScopes.map((scope) => scope.effect_id).join(','), evidence },
+web/src/api/insights.ts:1088:    const scope = typeof item === 'string' ? { effect_id: item, project_id: fallbackProjectId ?? '' } : item;
+web/src/api/insights.ts:1090:    const scoped = { ...scope, project_id: scope.project_id || fallbackProjectId || '' };
+web/src/api/insights.ts:1091:    const key = `${scoped.effect_id}\0${scoped.project_id}`;
+web/src/api/insights.ts:1094:  return [...byKey.values()].sort((a, b) => a.effect_id.localeCompare(b.effect_id) || a.project_id.localeCompare(b.project_id));
+internal/webconsole/api/handlers_collaboration_insight.go:11:	"github.com/oopslink/agent-center/internal/observability/collaborationeffect"
+internal/webconsole/api/handlers_collaboration_insight.go:18:		writeError(w, http.StatusNotImplemented, "collaboration_insight_not_wired", "")
+internal/webconsole/api/handlers_collaboration_insight.go:36:func parseEffectFilter(r *http.Request) (collaborationeffect.Filter, error) {
+internal/webconsole/api/handlers_collaboration_insight.go:38:	f := collaborationeffect.Filter{ProjectID: strings.TrimSpace(q.Get("project_id")), PlanID: strings.TrimSpace(q.Get("plan_id")), TaskID: strings.TrimSpace(q.Get("task_id")), StageID: strings.TrimSpace(q.Get("stage_id")), AgentRef: strings.TrimSpace(q.Get("agent_ref")), RelationType: collaborationeffect.RelationType(strings.TrimSpace(q.Get("relation_type"))), Polarity: collaborationeffect.Polarity(strings.TrimSpace(q.Get("polarity"))), Cursor: strings.TrimSpace(q.Get("cursor")), LOD: strings.TrimSpace(q.Get("lod")), GraphVersion: strings.TrimSpace(q.Get("graph_version"))}
+internal/webconsole/api/handlers_collaboration_insight.go:41:		if err != nil || n < 1 || n > collaborationeffect.MaxQueryLimit {
+internal/webconsole/api/handlers_collaboration_insight.go:42:			return f, collaborationeffect.ErrInvalidQuery
+internal/webconsole/api/handlers_collaboration_insight.go:49:			return f, collaborationeffect.ErrInvalidQuery
+internal/webconsole/api/handlers_collaboration_insight.go:57:				return f, collaborationeffect.ErrInvalidQuery
+internal/webconsole/api/handlers_collaboration_insight.go:62:	validRel := map[collaborationeffect.RelationType]bool{"": true, collaborationeffect.RelationAssign: true, collaborationeffect.RelationReassign: true, collaborationeffect.RelationBlock: true, collaborationeffect.RelationUnblock: true, collaborationeffect.RelationComplete: true, collaborationeffect.RelationDependencyRelease: true, collaborationeffect.RelationReviewAccept: true, collaborationeffect.RelationReviewReject: true}
+internal/webconsole/api/handlers_collaboration_insight.go:63:	validPol := map[collaborationeffect.Polarity]bool{"": true, collaborationeffect.PolarityPositive: true, collaborationeffect.PolarityNegative: true, collaborationeffect.PolarityNeutral: true, collaborationeffect.PolarityMixed: true}
+internal/webconsole/api/handlers_collaboration_insight.go:65:		return f, collaborationeffect.ErrInvalidQuery
+internal/webconsole/api/handlers_collaboration_insight.go:70:func (s *Server) requireCollaborationScope(w http.ResponseWriter, r *http.Request, f *collaborationeffect.Filter) (HandlerDeps, bool) {
+internal/webconsole/api/handlers_collaboration_insight.go:73:		writeError(w, http.StatusNotImplemented, "collaboration_insight_not_wired", "")
+internal/webconsole/api/handlers_collaboration_insight.go:106:func (s *Server) collaborationEffectsHandler(w http.ResponseWriter, r *http.Request) {
+internal/webconsole/api/handlers_collaboration_insight.go:109:		writeError(w, http.StatusBadRequest, "invalid_query", "invalid collaboration effect query")
+internal/webconsole/api/handlers_collaboration_insight.go:117:	if errors.Is(err, collaborationeffect.ErrInvalidCursor) {
+internal/webconsole/api/handlers_collaboration_insight.go:128:func (s *Server) collaborationEffectEvidenceHandler(w http.ResponseWriter, r *http.Request) {
+internal/webconsole/api/handlers_collaboration_insight.go:129:	projectID := strings.TrimSpace(r.URL.Query().Get("project_id"))
+internal/webconsole/api/handlers_collaboration_insight.go:131:		writeError(w, http.StatusBadRequest, "invalid_query", "project_id is required")
+internal/webconsole/api/handlers_collaboration_insight.go:139:	if errors.Is(err, collaborationeffect.ErrEffectNotFound) {
+internal/observability/collaborationeffect/query_test.go:1:package collaborationeffect
+internal/observability/collaborationeffect/query_test.go:43:	effects := []Effect{{EffectID: "ce_01", ProjectID: "P1", TargetTaskID: "T1", SourceAgentRef: "agent:a", RelationType: RelationComplete, Polarity: PolarityPositive, Magnitude: 2, OccurredAt: at, RuleVersion: RuleVersionV1, EvidenceEventIDs: []string{eventID}, BeforeState: map[string]any{"task_status": "running"}, AfterState: map[string]any{"task_status": "completed"}, ExplanationKey: "collaboration.effect.complete"}, {EffectID: "ce_02", ProjectID: "P1", TargetTaskID: "T2", SourceAgentRef: "agent:b", RelationType: RelationBlock, Polarity: PolarityNegative, Magnitude: 2, OccurredAt: at, RuleVersion: RuleVersionV1}}
+internal/observability/collaborationeffect/query_test.go:65:		t.Fatalf("bad evidence: %+v", detail)
+internal/observability/collaborationeffect/query_test.go:126:	for _, want := range []string{"project_plan", "plan_task", "plan_stage", "stage_task", "agent_task", "agent_plan", "task_dependency"} {
+internal/observability/collaborationeffect/query_test.go:206:		t.Fatalf("duplicate evidence not deduped on semantic edge: %+v", gammaComplete)
+internal/observability/collaborationeffect/query_test.go:208:	clustered, err := svc.Query(ctx, Filter{OrganizationID: "org-g", LOD: "cluster", MaxNodes: 7, Limit: 10})
+internal/observability/collaborationeffect/query_test.go:212:	if clustered.Graph.LOD != "cluster" || len(clustered.Graph.Clusters) == 0 || !clustered.Graph.Truncated || !clustered.Truncated {
+internal/observability/collaborationeffect/query_test.go:213:		t.Fatalf("LOD/truncated missing: %+v", clustered.Graph)
+internal/observability/collaborationeffect/query_test.go:244:		{`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, created_by, created_at, updated_at) VALUES (?, ?, ?, '', 'running', ?, 'user:test', ?, ?)`, []any{"T1", "P1", "Task 1", "agent:alpha", formatTime(base), formatTime(base)}},
+internal/observability/collaborationeffect/query_test.go:245:		{`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, created_by, created_at, updated_at) VALUES (?, ?, ?, '', 'running', ?, 'user:test', ?, ?)`, []any{"T2", "P2", "Task 2", "agent:alpha", formatTime(base), formatTime(base)}},
+internal/observability/collaborationeffect/query_test.go:266:		t.Fatalf("agent-agent edge not aggregated with deduped evidence: %+v", edge)
+internal/observability/collaborationeffect/query_test.go:339:		{`INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, created_at, updated_at) VALUES (?, ?, ?, '', 'running', 'user:test', ?, ?)`, []any{"plan-a", "proj-a", "Plan A", ts(0), ts(0)}},
+internal/observability/collaborationeffect/query_test.go:340:		{`INSERT INTO pm_plans (id, project_id, name, description, status, creator_ref, created_at, updated_at) VALUES (?, ?, ?, '', 'running', 'user:test', ?, ?)`, []any{"plan-b", "proj-b", "Plan B", ts(0), ts(0)}},
+internal/observability/collaborationeffect/query_test.go:343:		{`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, plan_id, stage_id, created_by, created_at, updated_at) VALUES (?, ?, ?, '', 'running', ?, ?, ?, 'user:test', ?, ?)`, []any{"task-a1", "proj-a", "Task A1", "agent:alpha", "plan-a", "stage-a", ts(0), ts(0)}},
+internal/observability/collaborationeffect/query_test.go:344:		{`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, plan_id, stage_id, created_by, created_at, updated_at) VALUES (?, ?, ?, '', 'running', ?, ?, ?, 'user:test', ?, ?)`, []any{"task-a2", "proj-a", "Task A2", "agent:beta", "plan-a", "stage-a", ts(0), ts(0)}},
+internal/observability/collaborationeffect/query_test.go:345:		{`INSERT INTO pm_tasks (id, project_id, title, description, status, assignee, plan_id, stage_id, created_by, created_at, updated_at) VALUES (?, ?, ?, '', 'running', ?, ?, ?, 'user:test', ?, ?)`, []any{"task-b1", "proj-b", "Task B1", "agent:alpha", "plan-b", "stage-b", ts(0), ts(0)}},
+internal/observability/collaborationeffect/query_test.go:370:		evidenceIDs := []string{eventID}
+internal/observability/collaborationeffect/query_test.go:372:			evidenceIDs = append([]string(nil), reuseEventID...)
+internal/observability/collaborationeffect/query_test.go:374:		e := Effect{EffectID: id, ProjectID: "proj-a", TargetTaskID: task, SourceAgentRef: source, TargetAgentRef: target, RelationType: rel, Polarity: pol, Magnitude: 2, Confidence: "high", OccurredAt: at, RuleVersion: RuleVersionV1, EvidenceEventIDs: evidenceIDs, BeforeState: map[string]any{"task_status": "running"}, AfterState: map[string]any{"task_status": "completed"}, ExplanationKey: "collaboration.effect." + string(rel)}
