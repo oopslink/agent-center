@@ -161,6 +161,14 @@ window.__MCP_TOOLS__ = {
               "required": false
             },
             {
+              "name": "executor_id",
+              "required": false
+            },
+            {
+              "name": "head_sha",
+              "required": false
+            },
+            {
               "name": "outcome",
               "required": false
             },

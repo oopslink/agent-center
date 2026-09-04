@@ -119,6 +119,8 @@ type fakeClient struct {
 	snap     concurrency.AgentSnapshot
 	snapErr  error
 	snapWait time.Duration
+	execSnap concurrency.ExecutionStateSnapshot
+	execErr  error
 }
 
 func (c *fakeClient) Deliver(_ context.Context, cmd agentcontrol.Command) error {
@@ -148,6 +150,11 @@ func (c *fakeClient) SnapshotConcurrency(ctx context.Context) (concurrency.Agent
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.snap, c.snapErr
+}
+func (c *fakeClient) SnapshotExecutionState(context.Context) (concurrency.ExecutionStateSnapshot, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.execSnap, c.execErr
 }
 
 func newTestController(t *testing.T, l agentlauncher.AgentLauncher) *Controller {

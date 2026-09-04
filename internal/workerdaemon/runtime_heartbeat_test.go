@@ -18,9 +18,20 @@ type fakeHBClient struct {
 	hbN      int
 	hbCh     chan struct{}
 	lastSnap map[string]concurrency.AgentSnapshot
+	mirrors  map[string]concurrency.ExecutionStateSnapshot
 }
 
 func (f *fakeHBClient) Enroll(ctx context.Context, workerID string, caps []string) error {
+	return nil
+}
+
+func (f *fakeHBClient) ReportExecutionMirror(ctx context.Context, workerID, agentID string, snap concurrency.ExecutionStateSnapshot) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.mirrors == nil {
+		f.mirrors = map[string]concurrency.ExecutionStateSnapshot{}
+	}
+	f.mirrors[agentID] = snap
 	return nil
 }
 
@@ -78,11 +89,15 @@ func TestRuntime_HeartbeatsImmediatelyOnStart(t *testing.T) {
 // snapHandler is a CommandHandler that also reports a fixed concurrency snapshot.
 type snapHandler struct {
 	snaps map[string]concurrency.AgentSnapshot
+	exec  map[string]concurrency.ExecutionStateSnapshot
 }
 
 func (snapHandler) Handle(_ context.Context, _ ControlCommand) error { return nil }
 func (h snapHandler) SnapshotConcurrency() map[string]concurrency.AgentSnapshot {
 	return h.snaps
+}
+func (h snapHandler) SnapshotExecutionState(context.Context) map[string]concurrency.ExecutionStateSnapshot {
+	return h.exec
 }
 
 // v2.19.0: the heartbeat cadence is ADAPTIVE — with a live executor it beats at the
@@ -92,6 +107,8 @@ func TestRuntime_AdaptiveHeartbeat_FastWhenActive(t *testing.T) {
 	fc := &fakeHBClient{hbCh: make(chan struct{}, 1)}
 	handler := snapHandler{snaps: map[string]concurrency.AgentSnapshot{
 		"a1": {Active: 1, Executors: []concurrency.ExecutorSnapshot{{ExecutorID: "e1", State: concurrency.StateRunning}}},
+	}, exec: map[string]concurrency.ExecutionStateSnapshot{
+		"a1": {AgentID: "a1", ActiveTasks: []concurrency.ExecutionTaskRow{{TaskID: "t1", ExecutionMode: concurrency.ExecutionModeExecutor, ExecutorID: "e1"}}},
 	}}
 	rt := NewRuntime(RuntimeConfig{
 		WorkerID:             "w-adaptive",
@@ -111,6 +128,7 @@ func TestRuntime_AdaptiveHeartbeat_FastWhenActive(t *testing.T) {
 	fc.mu.Lock()
 	n := fc.hbN
 	lastSnap := fc.lastSnap
+	mirrors := fc.mirrors
 	fc.mu.Unlock()
 
 	// Fast cadence (20ms) over ~250ms → many beats; idle (1h) would give ~1.
@@ -120,6 +138,9 @@ func TestRuntime_AdaptiveHeartbeat_FastWhenActive(t *testing.T) {
 	// The snapshot rode the heartbeat.
 	if lastSnap == nil || lastSnap["a1"].Active != 1 {
 		t.Errorf("heartbeat should carry the agent snapshot, got %+v", lastSnap)
+	}
+	if mirrors == nil || mirrors["a1"].ActiveTasks[0].TaskID != "t1" {
+		t.Errorf("heartbeat should report execution mirror after liveness, got %+v", mirrors)
 	}
 }
 

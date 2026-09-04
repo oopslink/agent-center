@@ -293,6 +293,18 @@ func (c *AdminClient) Heartbeat(ctx context.Context, workerID string, capabiliti
 	return c.doJSON(ctx, http.MethodPost, "/admin/workforce/worker/heartbeat", body, nil)
 }
 
+func (c *AdminClient) ReportExecutionMirror(ctx context.Context, workerID, agentID string, snap concurrency.ExecutionStateSnapshot) error {
+	if strings.TrimSpace(agentID) == "" {
+		return errors.New("adminclient: agent_id required")
+	}
+	body := map[string]any{
+		"agent_id":  agentID,
+		"worker_id": workerID,
+		"snapshot":  snap,
+	}
+	return c.doJSON(ctx, http.MethodPost, "/admin/agent-tools/report_execution_mirror", body, nil)
+}
+
 // ResolveSecret POSTs to /admin/secret/user-secret/resolve and returns
 // the plaintext bytes. Caller must wipe the returned slice after use
 // per ADR-0026 § 5 (plaintext never lingers).

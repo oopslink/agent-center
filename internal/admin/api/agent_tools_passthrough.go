@@ -366,6 +366,9 @@ func (s *Server) getTaskHandler(w http.ResponseWriter, r *http.Request) {
 			m["delivery_non_delivery_reasons"] = delivery.InvalidReasons()
 		}
 	}
+	if mirror, merr := executionMirrorForAgentTask(r.Context(), d.DB, string(a.ID()), taskID); merr == nil && mirror != nil {
+		m["execution_mirror"] = executionMirrorMap(mirror)
+	}
 	// ADR-0047 §-1: expose the derived `claimable` on the single-task read too.
 	if claimable, cerr := d.PMService.TaskClaimableByID(r.Context(), t.ID()); cerr == nil {
 		m["claimable"] = claimable

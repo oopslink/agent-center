@@ -359,6 +359,15 @@ func (h controllerHandler) SnapshotConcurrency() map[string]concurrency.AgentSna
 	return h.ctrl.SnapshotConcurrency(ctx)
 }
 
+func (h controllerHandler) SnapshotExecutionState(ctx context.Context) map[string]concurrency.ExecutionStateSnapshot {
+	if h.ctrl == nil {
+		return nil
+	}
+	reqCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	return h.ctrl.SnapshotExecutionState(reqCtx)
+}
+
 func isStopDesiredLifecycle(lc string) bool {
 	switch strings.ToLower(strings.TrimSpace(lc)) {
 	case "stopping", "resetting", "stopped":

@@ -35,6 +35,7 @@ type controlClient interface {
 	// re-adopting it.
 	Probe(ctx context.Context) (string, error)
 	SnapshotConcurrency(ctx context.Context) (concurrency.AgentSnapshot, error)
+	SnapshotExecutionState(ctx context.Context) (concurrency.ExecutionStateSnapshot, error)
 }
 
 // clientFactory builds a control client for an agent's socket (seam for tests;
@@ -323,6 +324,32 @@ func (c *Controller) SnapshotConcurrency(ctx context.Context) map[string]concurr
 			snap, err := c.clientFor(id).SnapshotConcurrency(reqCtx)
 			if err != nil {
 				c.log("workercontroller: concurrency snapshot agent=%s: %v", id, err)
+				return
+			}
+			outMu.Lock()
+			out[id] = snap
+			outMu.Unlock()
+		}()
+	}
+	wg.Wait()
+	return out
+}
+
+func (c *Controller) SnapshotExecutionState(ctx context.Context) map[string]concurrency.ExecutionStateSnapshot {
+	ids := c.Running()
+	out := make(map[string]concurrency.ExecutionStateSnapshot, len(ids))
+	var outMu sync.Mutex
+	var wg sync.WaitGroup
+	for _, id := range ids {
+		id := id
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			reqCtx, cancel := context.WithTimeout(ctx, snapshotPerAgentTimeout)
+			defer cancel()
+			snap, err := c.clientFor(id).SnapshotExecutionState(reqCtx)
+			if err != nil {
+				c.log("workercontroller: execution state snapshot agent=%s: %v", id, err)
 				return
 			}
 			outMu.Lock()

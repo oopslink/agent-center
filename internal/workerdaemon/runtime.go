@@ -30,11 +30,19 @@ type CenterClient interface {
 	Heartbeat(ctx context.Context, workerID string, capabilities []string, snapshots map[string]concurrency.AgentSnapshot) error
 }
 
+type executionMirrorReporter interface {
+	ReportExecutionMirror(ctx context.Context, workerID, agentID string, snap concurrency.ExecutionStateSnapshot) error
+}
+
 // concurrencySnapshotter is the ControlHandler capability the runtime uses to gather
 // the per-agent live executor view for the heartbeat (v2.19.0). The production
 // AgentController implements it; a handler that doesn't is simply skipped.
 type concurrencySnapshotter interface {
 	SnapshotConcurrency() map[string]concurrency.AgentSnapshot
+}
+
+type executionStateSnapshotter interface {
+	SnapshotExecutionState(ctx context.Context) map[string]concurrency.ExecutionStateSnapshot
 }
 
 // RuntimeConfig parameterises the daemon loop.
@@ -189,7 +197,9 @@ func (r *Runtime) beat(ctx context.Context) time.Duration {
 	snaps := r.gatherSnapshots()
 	if err := r.client.Heartbeat(ctx, r.cfg.WorkerID, r.cfg.Capabilities, snaps); err != nil {
 		r.log("heartbeat: %v", err)
+		return r.cfg.HeartbeatEvery
 	}
+	r.reportExecutionMirrors(ctx)
 	if anyActiveExecutor(snaps) {
 		return r.cfg.ActiveHeartbeatEvery
 	}
@@ -203,6 +213,22 @@ func (r *Runtime) gatherSnapshots() map[string]concurrency.AgentSnapshot {
 		return s.SnapshotConcurrency()
 	}
 	return nil
+}
+
+func (r *Runtime) reportExecutionMirrors(ctx context.Context) {
+	reporter, ok := r.client.(executionMirrorReporter)
+	if !ok {
+		return
+	}
+	snapper, ok := r.cfg.ControlHandler.(executionStateSnapshotter)
+	if !ok {
+		return
+	}
+	for agentID, snap := range snapper.SnapshotExecutionState(ctx) {
+		if err := reporter.ReportExecutionMirror(ctx, r.cfg.WorkerID, agentID, snap); err != nil {
+			r.log("execution mirror agent=%s: %v", agentID, err)
+		}
+	}
 }
 
 // anyActiveExecutor reports whether any agent currently has ≥1 live executor.

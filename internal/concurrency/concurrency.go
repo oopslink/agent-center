@@ -137,6 +137,8 @@ type ExecutionTaskRow struct {
 	ExecutorID         string              `json:"executor_id,omitempty"`
 	ExecutorState      string              `json:"executor_state"`
 	DeliveryState      string              `json:"delivery_state"`
+	Branch             string              `json:"branch,omitempty"`
+	HeadSHA            string              `json:"head_sha,omitempty"`
 	Worktree           string              `json:"worktree,omitempty"`
 	RequiredNextAction string              `json:"required_next_action"`
 	Evidence           []ExecutionEvidence `json:"evidence,omitempty"`
@@ -168,6 +170,8 @@ type ExecutorStateRow struct {
 	Model           string              `json:"model,omitempty"`
 	Worktree        string              `json:"worktree,omitempty"`
 	DeliveryState   string              `json:"delivery_state,omitempty"`
+	Branch          string              `json:"branch,omitempty"`
+	HeadSHA         string              `json:"head_sha,omitempty"`
 	ReasonCodes     []string            `json:"reason_codes,omitempty"`
 	RequiredAction  string              `json:"required_action,omitempty"`
 	Evidence        []ExecutionEvidence `json:"evidence,omitempty"`

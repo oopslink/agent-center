@@ -698,6 +698,23 @@ export type TaskStatus =
 // failures use failed_reason instead of blocked_reason/status=blocked.
 export type BlockReasonType = 'input_required' | 'obstacle' | '';
 
+export interface TaskExecutionMirror {
+  agent_id: string;
+  task_id: string;
+  worker_id: string;
+  execution_mode: string;
+  executor_id?: string;
+  executor_state?: string;
+  delivery_state?: string;
+  required_next_action?: string;
+  branch?: string;
+  head_sha?: string;
+  worktree?: string;
+  observed_at?: string;
+  updated_at?: string;
+  row?: Record<string, unknown>;
+}
+
 export interface Task {
   id: string;
   project_id: string;
@@ -748,6 +765,10 @@ export interface Task {
   // this task to be auto-assigned (strict subset gate). Empty = no requirement.
   // The DTO always emits an array ([] when none); optional for legacy payloads.
   required_capabilities?: string[];
+  // Runtime-owned execution mirror written to center for audit/UI/protection.
+  // Executor liveness truth remains in agent runtime; this is the last observed
+  // read model for this assigned task.
+  execution_mirror?: TaskExecutionMirror;
   // v2.13.0 I18/F2: cycle-node git metadata. Present only for scaffolded nodes
   // (branch/base set) — pmTaskMap omits them for an ordinary backlog task.
   branch?: string;

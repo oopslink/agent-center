@@ -686,9 +686,11 @@ func makeResumePausedNode(cfg Config) mcp.ToolHandlerFor[resumePausedNodeArgs, a
 // --- complete_task -----------------------------------------------------------
 
 type completeTaskArgs struct {
-	TaskID  string `json:"task_id" jsonschema:"the task to complete"`
-	Summary string `json:"summary,omitempty" jsonschema:"optional completion summary posted to the task"`
-	Outcome string `json:"outcome,omitempty" jsonschema:"for a control-flow DECISION node only: the outcome label (e.g. 'pass' or 'reject') that routes its conditional/loopback edges; omit for an ordinary task"`
+	TaskID     string `json:"task_id" jsonschema:"the task to complete"`
+	Summary    string `json:"summary,omitempty" jsonschema:"optional completion summary posted to the task"`
+	ExecutorID string `json:"executor_id,omitempty" jsonschema:"executor_id from list_my_execution_state; required when center has a runtime execution mirror for this task"`
+	HeadSHA    string `json:"head_sha,omitempty" jsonschema:"head_sha from list_my_execution_state; required when the runtime execution mirror has a delivery SHA"`
+	Outcome    string `json:"outcome,omitempty" jsonschema:"for a control-flow DECISION node only: the outcome label (e.g. 'pass' or 'reject') that routes its conditional/loopback edges; omit for an ordinary task"`
 	// T468 structured review verdict (Review nodes only).
 	ReviewVerdict  string                    `json:"review_verdict,omitempty" jsonschema:"for a REVIEW node only: your structured verdict 'pass' or 'reject'. Record it when completing a Review node so the downstream Decision auto-decides (a non-blocking nit should still be 'pass' with review_blocking=false). Omit for non-review tasks"`
 	ReviewBlocking bool                      `json:"review_blocking,omitempty" jsonschema:"with review_verdict: true if your objection BLOCKS (forces the decision to reject even on a 'pass' verdict); false for a non-blocking nit"`
@@ -698,9 +700,11 @@ type completeTaskArgs struct {
 }
 
 type completeTaskDeliveryArgs struct {
-	Summary string                 `json:"summary,omitempty" jsonschema:"completion summary posted to the task"`
-	Outcome string                 `json:"outcome,omitempty" jsonschema:"for a control-flow DECISION node only: the outcome label (e.g. 'pass' or 'reject')"`
-	Review  completeTaskReviewArgs `json:"review,omitempty" jsonschema:"for a REVIEW node only: structured review verdict"`
+	Summary    string                 `json:"summary,omitempty" jsonschema:"completion summary posted to the task"`
+	Outcome    string                 `json:"outcome,omitempty" jsonschema:"for a control-flow DECISION node only: the outcome label (e.g. 'pass' or 'reject')"`
+	ExecutorID string                 `json:"executor_id,omitempty" jsonschema:"executor_id from list_my_execution_state"`
+	HeadSHA    string                 `json:"head_sha,omitempty" jsonschema:"head_sha from list_my_execution_state"`
+	Review     completeTaskReviewArgs `json:"review,omitempty" jsonschema:"for a REVIEW node only: structured review verdict"`
 }
 
 type completeTaskReviewArgs struct {
@@ -716,6 +720,8 @@ func makeCompleteTask(cfg Config) mcp.ToolHandlerFor[completeTaskArgs, any] {
 			"agent_id":        cfg.AgentID,
 			"task_id":         args.TaskID,
 			"summary":         args.Summary,
+			"executor_id":     args.ExecutorID,
+			"head_sha":        args.HeadSHA,
 			"outcome":         args.Outcome,
 			"review_verdict":  args.ReviewVerdict,
 			"review_blocking": args.ReviewBlocking,

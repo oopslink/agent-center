@@ -404,6 +404,7 @@ func (s *Server) routes() {
 	// report_delivery (issue-f30b7e7b): worker-initiated per-executor terminal git
 	// status ingest — not LLM-facing. Feeds the writeback auto-block (B②) + audit.
 	s.mux.HandleFunc("POST /admin/agent-tools/report_delivery", s.reportDeliveryHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/report_execution_mirror", s.reportExecutionMirrorHandler)
 	// report_manual_recovery_delivery: agent-facing narrow MCP wrapper for registering
 	// an already-pushed manual_recovery delivery. It reuses report_delivery's ingest path
 	// but forces source=manual_recovery and does not perform git commit/push.

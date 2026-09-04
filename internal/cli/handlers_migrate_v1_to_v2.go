@@ -188,8 +188,8 @@ func MigrateV1ToV2Command() *Command {
 // subscriptions; 0152 adds immutable ProjectManager delivery subjects and
 // acceptance ledger; 0153 adds terminal task failed lifecycle storage; 0154 clears
 // stale execution leases from terminal tasks; 0155 normalizes empty task leases;
-// 0157 adds the replayable Observability collaboration-effect projection.
-const targetSchemaVersion = 157
+// 0158 adds center-side runtime execution mirrors for UI/audit/complete guards.
+const targetSchemaVersion = 158
 
 func runMigrateV1ToV2(
 	ctx context.Context,

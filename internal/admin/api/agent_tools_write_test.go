@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
 	"github.com/oopslink/agent-center/internal/agent"
@@ -15,6 +16,7 @@ import (
 	"github.com/oopslink/agent-center/internal/clock"
 	coderepservice "github.com/oopslink/agent-center/internal/coderepo/service"
 	coderepsql "github.com/oopslink/agent-center/internal/coderepo/sqlite"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	convsql "github.com/oopslink/agent-center/internal/conversation/sqlite"
@@ -704,6 +706,68 @@ func TestCompleteTask_NoSummary_OK(t *testing.T) {
 	}
 	if got := f.taskStatus(t, tid); got != pm.TaskCompleted {
 		t.Fatalf("task status = %s, want completed", got)
+	}
+}
+
+func TestExecutionMirror_GetTaskAndCompleteGuard(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/report_execution_mirror", "acat_w1", map[string]any{
+		"agent_id":  atAgent1,
+		"worker_id": atWorker1,
+		"snapshot": map[string]any{
+			"agent_id":   atAgent1,
+			"updated_at": atNow.Format(time.RFC3339Nano),
+			"active_tasks": []map[string]any{{
+				"task_id":              tid,
+				"execution_mode":       concurrency.ExecutionModeExecutor,
+				"executor_id":          "exec-1",
+				"executor_state":       concurrency.ExecutorStateTerminal,
+				"delivery_state":       concurrency.DeliveryStateValid,
+				"required_next_action": concurrency.NextActionJudgeExecutor,
+				"branch":               "feat/x",
+				"head_sha":             "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			}},
+		},
+	})
+	if status != http.StatusOK {
+		t.Fatalf("report mirror status = %d, body = %v", status, body)
+	}
+
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/get_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusOK {
+		t.Fatalf("get_task status = %d, body = %v", status, body)
+	}
+	mirror, _ := body["execution_mirror"].(map[string]any)
+	if mirror["executor_id"] != "exec-1" || mirror["head_sha"] != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" {
+		t.Fatalf("execution_mirror = %#v, want exec/head", mirror)
+	}
+
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "summary": "done"})
+	if status != http.StatusConflict || body["error"] != "execution_mirror_required" {
+		t.Fatalf("complete without mirror refs status=%d body=%v, want 409 execution_mirror_required", status, body)
+	}
+
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "summary": "done", "executor_id": "exec-1", "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"})
+	if status != http.StatusConflict || body["error"] != "execution_mirror_mismatch" {
+		t.Fatalf("complete with wrong head status=%d body=%v, want 409 execution_mirror_mismatch", status, body)
+	}
+
+	if err := f.pmSvc.RecordDelivery(context.Background(), pm.TaskID(tid), pm.IdentityRef("agent:"+atAgent1), &pm.Delivery{
+		Probed: true, Pushed: true, Branch: "feat/x", HeadSHA: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", BaseKnown: true, AheadOfBase: 1, ExecutorID: "exec-1",
+	}); err != nil {
+		t.Fatalf("record valid delivery: %v", err)
+	}
+	status, body = postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid, "summary": "done", "executor_id": "exec-1", "head_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"})
+	if status != http.StatusOK {
+		t.Fatalf("complete with matching mirror status=%d body=%v, want 200", status, body)
 	}
 }
 

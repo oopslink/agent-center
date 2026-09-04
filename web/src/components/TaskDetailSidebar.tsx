@@ -259,6 +259,39 @@ export function TaskDetailSidebar({
           </div>
         )}
 
+        {tk.execution_mirror && (
+          <div data-testid="task-sidebar-execution-mirror">
+            <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">{t('task.sidebar.executionMirror')}</p>
+            <div className="space-y-2 rounded border border-border-base bg-bg-subtle p-2">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="rounded bg-bg-elevated px-1.5 py-0.5 font-mono text-text-secondary" data-testid="task-execution-mode">
+                  {tk.execution_mirror.execution_mode || t('task.sidebar.executionUnknown')}
+                </span>
+                {tk.execution_mirror.executor_state && (
+                  <span className="rounded bg-bg-elevated px-1.5 py-0.5 text-text-secondary" data-testid="task-executor-state">
+                    {tk.execution_mirror.executor_state}
+                  </span>
+                )}
+                {tk.execution_mirror.required_next_action && (
+                  <span className="rounded bg-status-amber-bg px-1.5 py-0.5 font-medium text-status-amber-fg" data-testid="task-execution-next-action">
+                    {tk.execution_mirror.required_next_action}
+                  </span>
+                )}
+              </div>
+              <MirrorField label={t('task.sidebar.executor')} value={tk.execution_mirror.executor_id} testId="task-executor-id" mono />
+              <MirrorField label={t('task.sidebar.delivery')} value={tk.execution_mirror.delivery_state} testId="task-delivery-state" />
+              <MirrorField label={t('task.sidebar.branch')} value={tk.execution_mirror.branch} testId="task-execution-branch" mono />
+              <MirrorField label={t('task.sidebar.headSha')} value={shortSHA(tk.execution_mirror.head_sha)} title={tk.execution_mirror.head_sha} testId="task-execution-head-sha" mono />
+              <MirrorField label={t('task.sidebar.worktree')} value={tk.execution_mirror.worktree} testId="task-execution-worktree" mono truncate />
+              <MirrorField
+                label={t('task.sidebar.observed')}
+                value={tk.execution_mirror.observed_at ? formatLocalTime(tk.execution_mirror.observed_at) : ''}
+                testId="task-execution-observed"
+              />
+            </div>
+          </div>
+        )}
+
         <div>
           <p className="mb-0.5 text-xs uppercase tracking-wide text-text-muted">{t('task.sidebar.taskId')}</p>
           {/* #192 chrome rule: id-as-content → a clean handle pill (tail), full id on hover. */}
@@ -287,5 +320,39 @@ export function TaskDetailSidebar({
           history rendered as a human-readable timeline, after the read-only block. */}
       <ObjectAuditTimeline objectType="task" projectId={tk.project_id} objectId={tk.id} />
     </aside>
+  );
+}
+
+function shortSHA(sha?: string): string {
+  return sha ? sha.slice(0, 12) : '';
+}
+
+function MirrorField({
+  label,
+  value,
+  title,
+  testId,
+  mono,
+  truncate,
+}: {
+  label: string;
+  value?: string;
+  title?: string;
+  testId: string;
+  mono?: boolean;
+  truncate?: boolean;
+}): React.ReactElement | null {
+  if (!value) return null;
+  return (
+    <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2 text-xs">
+      <span className="text-text-muted">{label}</span>
+      <span
+        className={`${mono ? 'font-mono' : ''} ${truncate ? 'truncate' : 'break-words'} text-text-secondary`}
+        data-testid={testId}
+        title={title || value}
+      >
+        {value}
+      </span>
+    </div>
   );
 }

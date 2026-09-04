@@ -160,4 +160,52 @@ describe('TaskDetailSidebar — owning plan link (T106)', () => {
     );
     expect(screen.queryByTestId('task-sidebar-derived-issue')).not.toBeInTheDocument();
   });
+
+  it('shows the runtime execution mirror when center has a reported task-executor mapping', () => {
+    renderQC(
+      <MemoryRouter>
+        <TaskDetailSidebar
+          task={makeTask({
+            status: 'running',
+            execution_mirror: {
+              agent_id: 'agent-a',
+              task_id: 'task-01KT8DXYZ789',
+              worker_id: 'worker-a',
+              execution_mode: 'executor',
+              executor_id: 'exec-abcdef123456',
+              executor_state: 'terminal',
+              delivery_state: 'valid',
+              required_next_action: 'judge_executor',
+              branch: 'feature/mirror',
+              head_sha: '0123456789abcdef0123456789abcdef01234567',
+              worktree: '/tmp/agent-center/exec-abcdef123456',
+              observed_at: '2026-09-04T12:30:00Z',
+            },
+          })}
+          projectName="Project A"
+          onEdit={() => {}}
+          editable
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId('task-sidebar-execution-mirror')).toHaveTextContent('Execution mirror');
+    expect(screen.getByTestId('task-execution-mode')).toHaveTextContent('executor');
+    expect(screen.getByTestId('task-executor-state')).toHaveTextContent('terminal');
+    expect(screen.getByTestId('task-execution-next-action')).toHaveTextContent('judge_executor');
+    expect(screen.getByTestId('task-executor-id')).toHaveTextContent('exec-abcdef123456');
+    expect(screen.getByTestId('task-delivery-state')).toHaveTextContent('valid');
+    expect(screen.getByTestId('task-execution-branch')).toHaveTextContent('feature/mirror');
+    expect(screen.getByTestId('task-execution-head-sha')).toHaveTextContent('0123456789ab');
+    expect(screen.getByTestId('task-execution-worktree')).toHaveTextContent('/tmp/agent-center/exec-abcdef123456');
+    expect(screen.getByTestId('task-execution-observed')).toBeInTheDocument();
+  });
+
+  it('hides the execution mirror block when no mirror has been reported', () => {
+    renderQC(
+      <MemoryRouter>
+        <TaskDetailSidebar task={makeTask()} projectName="Project A" onEdit={() => {}} editable />
+      </MemoryRouter>,
+    );
+    expect(screen.queryByTestId('task-sidebar-execution-mirror')).not.toBeInTheDocument();
+  });
 });

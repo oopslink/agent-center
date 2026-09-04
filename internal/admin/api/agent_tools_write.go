@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/conversation"
 	convservice "github.com/oopslink/agent-center/internal/conversation/service"
 	"github.com/oopslink/agent-center/internal/files"
@@ -982,9 +983,11 @@ func writeResumePausedNodeError(w http.ResponseWriter, err error) {
 // --- complete_task -----------------------------------------------------------
 
 type completeTaskReq struct {
-	AgentID string `json:"agent_id"`
-	TaskID  string `json:"task_id"`
-	Summary string `json:"summary"`
+	AgentID    string `json:"agent_id"`
+	TaskID     string `json:"task_id"`
+	Summary    string `json:"summary"`
+	ExecutorID string `json:"executor_id"`
+	HeadSHA    string `json:"head_sha"`
 	// Outcome (v2.13.0 I18/B1): for a DECISION node, the outcome label (e.g.
 	// "pass"/"reject") that routes its conditional/loopback out-edges. Empty for an
 	// ordinary task complete (no routing).
@@ -1007,6 +1010,8 @@ type completeTaskReq struct {
 type completeTaskDeliveryReq struct {
 	Summary        string                         `json:"summary"`
 	Outcome        string                         `json:"outcome"`
+	ExecutorID     string                         `json:"executor_id"`
+	HeadSHA        string                         `json:"head_sha"`
 	Review         completeTaskReviewReq          `json:"review"`
 	IdempotencyKey string                         `json:"idempotency_key"`
 	Remediation    *pm.RemediationProposalPayload `json:"remediation,omitempty"`
@@ -1049,6 +1054,8 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 	reviewSHA := req.ReviewSHA
 	idempotencyKey := strings.TrimSpace(req.IdempotencyKey)
 	remediation := req.Remediation
+	executorID := strings.TrimSpace(req.ExecutorID)
+	headSHA := strings.TrimSpace(req.HeadSHA)
 	if req.Delivery != nil {
 		if strings.TrimSpace(req.Delivery.Summary) != "" {
 			deliverySummary = req.Delivery.Summary
@@ -1065,6 +1072,12 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		if strings.TrimSpace(req.Delivery.IdempotencyKey) != "" {
 			idempotencyKey = strings.TrimSpace(req.Delivery.IdempotencyKey)
 		}
+		if strings.TrimSpace(req.Delivery.ExecutorID) != "" {
+			executorID = strings.TrimSpace(req.Delivery.ExecutorID)
+		}
+		if strings.TrimSpace(req.Delivery.HeadSHA) != "" {
+			headSHA = strings.TrimSpace(req.Delivery.HeadSHA)
+		}
 		if req.Delivery.Remediation != nil {
 			remediation = req.Delivery.Remediation
 		}
@@ -1078,6 +1091,9 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.requireAgentTaskSelf(w, r, d, a, req.TaskID, "task.complete.self") {
+		return
+	}
+	if !s.requireExecutionMirrorMatch(w, r, d, string(a.ID()), req.TaskID, executorID, headSHA) {
 		return
 	}
 	// T810 ⑤: B3 auto-decision was deleted (the gate was removed in v2.28.0 → it always
@@ -1235,6 +1251,60 @@ func (s *Server) completeTaskHandler(w http.ResponseWriter, r *http.Request) {
 		_ = d.PMService.NotifyDecisionDeferred(r.Context(), pm.TaskID(req.TaskID))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "completed"})
+}
+
+func (s *Server) requireExecutionMirrorMatch(w http.ResponseWriter, r *http.Request, d HandlerDeps, agentID, taskID, executorID, headSHA string) bool {
+	row, err := executionMirrorForAgentTask(r.Context(), d.DB, agentID, taskID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "execution_mirror_read_failed", err.Error())
+		return false
+	}
+	if row == nil || row.ExecutionMode != concurrency.ExecutionModeExecutor || strings.TrimSpace(row.ExecutorID) == "" {
+		return true
+	}
+	if strings.TrimSpace(executorID) == "" {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":                "execution_mirror_required",
+			"message":              "complete_task must include executor_id for the latest runtime execution mirror",
+			"required_executor_id": row.ExecutorID,
+			"required_head_sha":    row.HeadSHA,
+			"execution_mirror":     executionMirrorMap(row),
+		})
+		return false
+	}
+	if executorID != row.ExecutorID {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":                "execution_mirror_mismatch",
+			"message":              "complete_task executor_id does not match the latest runtime execution mirror",
+			"required_executor_id": row.ExecutorID,
+			"got_executor_id":      executorID,
+			"required_head_sha":    row.HeadSHA,
+			"execution_mirror":     executionMirrorMap(row),
+		})
+		return false
+	}
+	if strings.TrimSpace(row.HeadSHA) != "" && strings.TrimSpace(headSHA) == "" {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":                "execution_mirror_required",
+			"message":              "complete_task must include head_sha for the latest runtime execution mirror",
+			"required_executor_id": row.ExecutorID,
+			"required_head_sha":    row.HeadSHA,
+			"execution_mirror":     executionMirrorMap(row),
+		})
+		return false
+	}
+	if strings.TrimSpace(row.HeadSHA) != "" && !strings.EqualFold(strings.TrimSpace(headSHA), strings.TrimSpace(row.HeadSHA)) {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"error":                "execution_mirror_mismatch",
+			"message":              "complete_task head_sha does not match the latest runtime execution mirror",
+			"required_executor_id": row.ExecutorID,
+			"required_head_sha":    row.HeadSHA,
+			"got_head_sha":         headSHA,
+			"execution_mirror":     executionMirrorMap(row),
+		})
+		return false
+	}
+	return true
 }
 
 // --- discard_task (T119) -----------------------------------------------------

@@ -111,6 +111,8 @@ func (r *LocalRuntime) SnapshotExecutionState(ctx context.Context) (concurrency.
 			row.ExecutorID = live.ExecutorID
 			row.ExecutorState = taskExecutorState(live.State)
 			row.DeliveryState = coalesceDelivery(live.DeliveryState, concurrency.DeliveryStateUnknown)
+			row.Branch = live.Branch
+			row.HeadSHA = live.HeadSHA
 			row.Worktree = live.Worktree
 			row.Evidence = append(row.Evidence, live.Evidence...)
 			switch row.ExecutorState {
@@ -131,6 +133,8 @@ func (r *LocalRuntime) SnapshotExecutionState(ctx context.Context) (concurrency.
 			row.ExecutorID = terminal.ExecutorID
 			row.ExecutorState = concurrency.ExecutorStateTerminal
 			row.DeliveryState = coalesceDelivery(terminal.DeliveryState, concurrency.DeliveryStateUnknown)
+			row.Branch = terminal.Branch
+			row.HeadSHA = terminal.HeadSHA
 			row.Worktree = terminal.Worktree
 			row.Evidence = append(row.Evidence, terminal.Evidence...)
 			row.RequiredNextAction = concurrency.NextActionJudgeExecutor
@@ -322,6 +326,8 @@ func enrichExecutorRowFromFiles(fx *executor.FileExchange, row *concurrency.Exec
 				continue
 			}
 			row.Worktree = ref.Git.Worktree
+			row.Branch = ref.Git.Branch
+			row.HeadSHA = ref.Git.HeadSHA
 			if row.DeliveryState == "" {
 				row.DeliveryState = deliveryStateFromGit(ref.Git)
 			}
@@ -361,6 +367,8 @@ func finalizedExecutorsByTask(fx *executor.FileExchange) map[string]concurrency.
 		}
 		if ref.Git != nil {
 			row.Worktree = ref.Git.Worktree
+			row.Branch = ref.Git.Branch
+			row.HeadSHA = ref.Git.HeadSHA
 			row.DeliveryState = deliveryStateFromGit(ref.Git)
 		}
 		if st, err := fx.ReadStatus(ref.ExecutorID); err == nil && st.Error != nil {
