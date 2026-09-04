@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/oopslink/agent-center/internal/agenttools"
 )
 
 func TestForkExecutorTool_StatesAdmissionContract(t *testing.T) {
@@ -611,6 +612,27 @@ func TestTierTools_DefaultIsLeanCore(t *testing.T) {
 	wantCount := len(AgentFacingToolNames) - len(secondaryToolNames()) + 1
 	if len(got) != wantCount {
 		t.Errorf("tiered default tool count = %d, want %d (core + search_tools)", len(got), wantCount)
+	}
+}
+
+func TestTierTools_DefaultMatchesSharedProfileCoreCatalog(t *testing.T) {
+	cs := connect(t, Config{AgentID: "agent-1", Admin: &fakeAdmin{}, Files: &fakeFileMover{}, TierTools: true})
+	res, err := cs.ListTools(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("list tools: %v", err)
+	}
+	got := map[string]bool{}
+	for _, tool := range res.Tools {
+		got[tool.Name] = true
+	}
+	for _, name := range agenttools.CoreToolNames() {
+		if !got[name] {
+			t.Fatalf("fresh tiered ListTools missing shared profile core tool %q", name)
+		}
+		delete(got, name)
+	}
+	if !got["search_tools"] || len(got) != 1 {
+		t.Fatalf("fresh tiered ListTools has tools outside shared core catalog plus search_tools: %v", keys2asBool(got))
 	}
 }
 

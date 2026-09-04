@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/oopslink/agent-center/internal/agenttools"
 	"github.com/oopslink/agent-center/internal/conversation"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
@@ -41,12 +42,11 @@ var projectMemberCapabilities = []string{
 	"create_issue", "update_issue", "close_issue", "reopen_issue",
 }
 
-// orgAgentCapabilities are the org-scoped actions available to any agent
-// regardless of project membership (self-discovery + own-work reads + replying
-// in conversations it participates in).
-var orgAgentCapabilities = []string{
-	"list_my_tasks", "fork_executor", "get_team_rule_index", "get_team_rule", "get_team_rules", "get_my_profile", "find_org_agent", "post_message", "list_messages", "list_files",
-	"propose_team_memory_change", "list_team_memory_proposals", "get_team_memory_proposal", "review_team_memory_proposal",
+// orgAgentCapabilities returns the directly advertised core MCP tools available
+// in a fresh runtime. Keep this derived from the same catalog mcphost.NewServer
+// uses so get_my_profile cannot drift from actual callable core tools.
+func orgAgentCapabilities() []string {
+	return agenttools.CoreToolNames()
 }
 
 // getMyProfileReq is the body for POST /admin/agent-tools/get_my_profile.
@@ -99,7 +99,7 @@ func (s *Server) getMyProfileHandler(w http.ResponseWriter, r *http.Request) {
 		"org_id":          orgID,
 		"org_name":        orgName,
 		"my_projects":     myProjects,
-		"my_capabilities": orgAgentCapabilities,
+		"my_capabilities": orgAgentCapabilities(),
 	})
 }
 

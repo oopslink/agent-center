@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/agent"
+	"github.com/oopslink/agent-center/internal/agenttools"
 	"github.com/oopslink/agent-center/internal/identity"
 	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
@@ -112,9 +113,18 @@ func TestGetMyProfile_Shape_Degraded(t *testing.T) {
 			found[name] = true
 		}
 	}
-	for _, want := range []string{"get_my_profile", "fork_executor"} {
+	for _, want := range []string{"list_my_tasks", "get_task", "start_task", "post_message", "get_my_profile", "fork_executor"} {
 		if !found[want] {
 			t.Fatalf("my_capabilities should list %s, got %v", want, caps)
+		}
+	}
+	wantCaps := agenttools.CoreToolNames()
+	if len(caps) != len(wantCaps) {
+		t.Fatalf("my_capabilities count = %d, want %d; got %v", len(caps), len(wantCaps), caps)
+	}
+	for i, want := range wantCaps {
+		if got, _ := caps[i].(string); got != want {
+			t.Fatalf("my_capabilities[%d] = %q, want shared core catalog %q; got %v", i, got, want, caps)
 		}
 	}
 }
@@ -214,5 +224,76 @@ func TestGetMyProfile_Populated(t *testing.T) {
 	}
 	if body["agent_ref"] != "agent:"+ag3Member {
 		t.Fatalf("agent_ref=%v, want agent:%s", body["agent_ref"], ag3Member)
+	}
+}
+
+func TestRunnableAssigneeProfileInventoryAndDirectTaskTools_E2E(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	f.addWorkerToken(t, "acat_w2", atWorker2)
+	tid := f.seedOpenAssignedPoolTask(t)
+	srv := f.server(t)
+
+	status, profile := postBearer(t, srv.URL, "/admin/agent-tools/get_my_profile", "acat_w1",
+		map[string]any{"agent_id": atAgent1})
+	if status != http.StatusOK {
+		t.Fatalf("fresh get_my_profile status=%d body=%v", status, profile)
+	}
+	caps, _ := profile["my_capabilities"].([]any)
+	found := map[string]bool{}
+	for _, c := range caps {
+		name, _ := c.(string)
+		found[name] = true
+	}
+	for _, want := range []string{"list_my_tasks", "get_task", "start_task"} {
+		if !found[want] {
+			t.Fatalf("fresh profile missing runnable-task core tool %q; caps=%v", want, caps)
+		}
+	}
+
+	status, listBody := postBearer(t, srv.URL, "/admin/agent-tools/list_my_tasks", "acat_w1",
+		map[string]any{"agent_id": atAgent1})
+	if status != http.StatusOK {
+		t.Fatalf("list_my_tasks status=%d body=%v", status, listBody)
+	}
+	tasks, _ := listBody["tasks"].([]any)
+	if len(tasks) != 1 {
+		t.Fatalf("list_my_tasks tasks=%v, want exactly the runnable assignment", listBody["tasks"])
+	}
+	row := tasks[0].(map[string]any)
+	if row["task_id"] != tid || row["status"] != string(pm.TaskOpen) {
+		t.Fatalf("list_my_tasks row=%v, want task_id=%s status=open", row, tid)
+	}
+
+	status, taskBody := postBearer(t, srv.URL, "/admin/agent-tools/get_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusOK {
+		t.Fatalf("direct get_task status=%d body=%v", status, taskBody)
+	}
+	if taskBody["id"] != tid {
+		t.Fatalf("get_task id=%v, want %s; body=%v", taskBody["id"], tid, taskBody)
+	}
+
+	status, startBody := postBearer(t, srv.URL, "/admin/agent-tools/start_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusOK {
+		t.Fatalf("direct start_task status=%d body=%v", status, startBody)
+	}
+	if startBody["status"] != string(pm.TaskRunning) {
+		t.Fatalf("start_task status=%v, want running; body=%v", startBody["status"], startBody)
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskRunning {
+		t.Fatalf("authoritative task status after start_task = %s, want running", got)
+	}
+
+	status, denied := postBearer(t, srv.URL, "/admin/agent-tools/get_task", "acat_w2",
+		map[string]any{"agent_id": atAgent2, "task_id": tid})
+	if status != http.StatusForbidden {
+		t.Fatalf("non-member get_task status=%d, want 403; body=%v", status, denied)
+	}
+	status, denied = postBearer(t, srv.URL, "/admin/agent-tools/start_task", "acat_w2",
+		map[string]any{"agent_id": atAgent2, "task_id": tid})
+	if status != http.StatusForbidden {
+		t.Fatalf("non-assignee start_task status=%d, want 403; body=%v", status, denied)
 	}
 }
