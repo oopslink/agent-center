@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "base": "http://127.0.0.1:54926",
+  "project": "project-d058de8f",
+  "orgSlug": "org-0bb48a3c",
+  "results": [
+    {
+      "label": "project",
+      "url": "http://127.0.0.1:54926/organizations/org-0bb48a3c/insights/collaboration?project_id=project-d058de8f",
+      "title": "agent-center",
+      "graphText": "━━ assignment relationship\n┄┄ state-changing effect\n+/− mixed positive / negative\n+\n-\nFit\nReset\nproject task\nagent task\nComplete · Positive\nProject Scope A\nproject\nsystem/unknown\nagent\ntask-a17fed0f\ntask\nuser:user-d39f4921\nagent\nComplete · Positive · strength 2 · 1 effects · evidence 1 · 9/5/2026, 3:03:35 AM"
+    },
+    {
+      "label": "org",
+      "url": "http://127.0.0.1:54926/organizations/org-0bb48a3c/insights/collaboration",
+      "title": "agent-center",
+      "graphText": "━━ assignment relationship\n┄┄ state-changing effect\n+/− mixed positive / negative\n+\n-\nFit\nReset\nClustered overview\nproject task\nagent task\nComplete · Positive\nProject Scope A (...\nproject\nAgents (2)\ncluster\nproject-d058de8f Tasks (1)\ncluster\nComplete · Positive · strength 2 · 1 effects · evidence 1 · 9/5/2026, 3:03:35 AM"
+    }
+  ]
+}

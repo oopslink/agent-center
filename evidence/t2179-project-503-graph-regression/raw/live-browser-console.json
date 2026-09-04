@@ -1,0 +1,10 @@
+[
+  {
+    "type": "capture-error",
+    "text": "Error: page.waitForSelector: Unexpected token \"=\" while parsing css selector \"[data-testid=\"collaboration-graph\"], text=Collaboration effects\". Did you mean to CSS.escape it?\nCall log:\n\u001b[2m  - waiting for [data-testid=\"collaboration-graph\"], text=Collaboration effects to be visible\u001b[22m\n"
+  },
+  {
+    "type": "capture-error",
+    "text": "Error: page.waitForSelector: Unexpected token \"=\" while parsing css selector \"[data-testid=\"collaboration-graph\"], text=Collaboration effects\". Did you mean to CSS.escape it?\nCall log:\n\u001b[2m  - waiting for [data-testid=\"collaboration-graph\"], text=Collaboration effects to be visible\u001b[22m\n"
+  }
+]

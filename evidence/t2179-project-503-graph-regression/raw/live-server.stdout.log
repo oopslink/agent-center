@@ -1,0 +1,3 @@
+[server] admin token bootstrap: wrote /tmp/ac-t2179-live-3RUxrO/bootstrap_token (scope=* owner=system:bootstrap)
+agent-center server: db=/tmp/ac-t2179-live-3RUxrO/agent-center.db web=127.0.0.1:54926 admin=/tmp/ac-t2179-live-3RUxrO/admin.sock (escalator running)
+signal interrupt received; shutting down

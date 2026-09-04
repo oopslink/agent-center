@@ -1,0 +1,25 @@
+
+ RUN  v2.1.9 /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-e5ab89de/web
+
+ ✓ src/shell/nav/InsightSecondaryNav.test.tsx (3 tests) 49ms
+ ✓ src/AppLayout.insightnav.test.tsx (2 tests) 204ms
+ ✓ src/AppLayout.mobilenav.test.tsx (7 tests) 483ms
+ ✓ src/pages/InsightCollaboration.test.tsx (12 tests) 806ms
+ ✓ src/App.test.tsx (26 tests) 14687ms
+   ✓ App shell + route tree > redirects the org index to the Workspace module (Projects), no Overview/Home 301ms
+   ✓ App shell + route tree > renders ChannelDetail for /organizations/test/channels/:name 507ms
+   ✓ App shell + route tree > renders DMs / nested IssueDetail / nested TaskDetail / Agents / AgentDetail / Projects / ProjectDetail / Access / Secrets / Fleet / Settings 6822ms
+   ✓ App shell + route tree > reaches the Plan list + Plan detail via the project detail page (not direct-URL-only) 411ms
+   ✓ App shell + route tree > rail module icons point at the canonical org-scoped module defaults 357ms
+   ✓ App shell + route tree > redirects legacy Access and standalone Team Roles URLs to canonical pages 436ms
+   ✓ App shell + route tree > shows exactly two Access links with one active page at a time 404ms
+   ✓ App shell + route tree > each module col② links point at the canonical org-scoped routes 1074ms
+   ✓ App shell + route tree > organization-settings/agents renders the canonical Agents page 386ms
+   ✓ App shell + route tree > redirects retired AI Runtime and Model Catalog URLs to the canonical AI Runtime page 336ms
+   ✓ App shell + route tree > ⌘1 / ⌘2 jump to the Workspace / Conversations module defaults (org-scoped) 326ms
+
+ Test Files  5 passed (5)
+      Tests  50 passed (50)
+   Start at  02:57:52
+   Duration  15.97s (transform 1.01s, setup 1.95s, collect 890ms, tests 16.23s, environment 1.40s, prepare 227ms)
+

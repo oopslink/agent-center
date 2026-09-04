@@ -1,0 +1,143 @@
+{
+  "product_verdict": "REJECT",
+  "task": "T2179 project_id 503 fix and complete Graph regression independent acceptance",
+  "candidate": {
+    "declared_ref": "refs/heads/ac-exec/task-e33f78f1/exec-4a7e2515",
+    "declared_sha": "94945e8fb91b7e217e71ad393127a6232aa3f37e",
+    "remote_readback_sha": "94945e8fb91b7e217e71ad393127a6232aa3f37e",
+    "tested_sha": "94945e8fb91b7e217e71ad393127a6232aa3f37e",
+    "origin_main_sha_at_acceptance": "ddfb87d47e8253fb2e4f22d014f497301fa4b7ec",
+    "merge_base_with_origin_main": "ddfb87d47e8253fb2e4f22d014f497301fa4b7ec",
+    "parent_chain": "single commit ahead of origin/main",
+    "same_sha_aliases_observed": [
+      "ac-exec/t2178-collab-project-filter",
+      "origin-push/ac-exec/t2178-collab-project-filter"
+    ]
+  },
+  "hard_gates": [
+    {
+      "gate": "candidate ref exact SHA/readback",
+      "result": "PASS",
+      "evidence": ["evidence/t2179-project-503-graph-regression/raw/provenance.log"]
+    },
+    {
+      "gate": "latest origin/main and merge-base verified",
+      "result": "PASS",
+      "evidence": ["evidence/t2179-project-503-graph-regression/raw/provenance.log"]
+    },
+    {
+      "gate": "candidate contains T2176 by ancestry",
+      "result": "FAIL",
+      "reason": "git merge-base --is-ancestor origin/ac-exec/t2176-graph-blockers HEAD exited 1; merge-base was origin/main, not T2176.",
+      "evidence": ["evidence/t2179-project-503-graph-regression/raw/provenance.log"]
+    },
+    {
+      "gate": "task-input package matches T2179",
+      "result": "FAIL",
+      "reason": "task-input/v1/README.md and manifest.json describe stale T1850 metadata and no attachments, not T2179.",
+      "evidence": ["task-input/v1/README.md", "task-input/v1/manifest.json"]
+    },
+    {
+      "gate": "production-like isolated instance provenance",
+      "result": "PASS",
+      "details": {
+        "binary": "./bin/agent-center built from tested SHA",
+        "server": "127.0.0.1:54926",
+        "grpc": "127.0.0.1:54927",
+        "database": "/tmp/ac-t2179-live-3RUxrO/agent-center.db",
+        "runtime_identity": "AGENT_CENTER_INVOCATION_ID empty",
+        "session_cookie_namespace": "ac_session on 127.0.0.1:54926",
+        "data_provenance": "public signup/project/task APIs and collaboration-effects API; no production, dev server, MSW, or mock server"
+      },
+      "evidence": ["evidence/t2179-project-503-graph-regression/raw/live-instance-provenance.log"]
+    },
+    {
+      "gate": "legal org/project project_id collaboration-effects API returns 200 scoped to project",
+      "result": "PASS",
+      "reason": "Live public API generated a real completion effect; project_id request returned HTTP 200 with only project-d058de8f graph/effect data.",
+      "evidence": [
+        "evidence/t2179-project-503-graph-regression/raw/live-effects-project-final.headers",
+        "evidence/t2179-project-503-graph-regression/raw/live-effects-project-final.body"
+      ]
+    },
+    {
+      "gate": "clear project filter restores org-level graph",
+      "result": "PASS",
+      "evidence": [
+        "evidence/t2179-project-503-graph-regression/raw/live-effects-org.headers",
+        "evidence/t2179-project-503-graph-regression/raw/live-effects-org.body",
+        "evidence/t2179-project-503-graph-regression/screenshots/live-collaboration-org.png"
+      ]
+    },
+    {
+      "gate": "cross-org/unauthorized project fails closed",
+      "result": "PASS",
+      "reason": "Cross-org project_id query returned 404; focused httptest also covered same-org unauthorized project returning 403.",
+      "evidence": [
+        "evidence/t2179-project-503-graph-regression/raw/live-cross-org-project.headers",
+        "evidence/t2179-project-503-graph-regression/raw/live-cross-org-project.body",
+        "evidence/t2179-project-503-graph-regression/raw/focused-go-api.log"
+      ]
+    },
+    {
+      "gate": "invalid project/cursor stable non-503 semantic errors",
+      "result": "PASS",
+      "evidence": [
+        "evidence/t2179-project-503-graph-regression/raw/live-effects-invalid-cursor.headers",
+        "evidence/t2179-project-503-graph-regression/raw/live-effects-invalid-cursor.body",
+        "evidence/t2179-project-503-graph-regression/raw/live-effects-missing-project.headers",
+        "evidence/t2179-project-503-graph-regression/raw/live-effects-missing-project.body"
+      ]
+    },
+    {
+      "gate": "HAR, server, console, network, request/response raw evidence",
+      "result": "PASS",
+      "evidence": [
+        "evidence/t2179-project-503-graph-regression/har/live-browser-corrected.har",
+        "evidence/t2179-project-503-graph-regression/raw/live-browser-network-corrected.json",
+        "evidence/t2179-project-503-graph-regression/raw/live-browser-console-corrected.json",
+        "evidence/t2179-project-503-graph-regression/raw/live-server.stdout.log",
+        "evidence/t2179-project-503-graph-regression/raw/live-server.stderr.log"
+      ]
+    },
+    {
+      "gate": "complete Graph regression: all required edge families and 117+ nodes/250+ edges live readability/performance",
+      "result": "FAIL",
+      "reason": "Focused Web tests cover interactions and synthetic graph behavior, but the live isolated run used one public project/task/effect and did not exercise Agent-Agent, Agent-Plan, Plan-Task, LOD at 117+ nodes/250+ edges, or full live performance at scale.",
+      "evidence": [
+        "evidence/t2179-project-503-graph-regression/raw/focused-web-vitest.log",
+        "evidence/t2179-project-503-graph-regression/raw/live-browser-summary-corrected.json"
+      ]
+    },
+    {
+      "gate": "Go tests",
+      "result": "PASS",
+      "evidence": [
+        "evidence/t2179-project-503-graph-regression/raw/focused-go-api.log",
+        "evidence/t2179-project-503-graph-regression/raw/go-related-packages.log",
+        "evidence/t2179-project-503-graph-regression/raw/go-test-all.log"
+      ]
+    },
+    {
+      "gate": "Web typecheck",
+      "result": "PASS",
+      "evidence": ["evidence/t2179-project-503-graph-regression/raw/web-typecheck.log"]
+    },
+    {
+      "gate": "Web lint",
+      "result": "FAIL",
+      "reason": "pnpm --dir web lint fails at web/src/components/WorkItemFilterBar.tsx:352 no-restricted-syntax checkbox UX rule.",
+      "evidence": ["evidence/t2179-project-503-graph-regression/raw/web-lint.log"]
+    },
+    {
+      "gate": "Web/build",
+      "result": "PASS",
+      "evidence": [
+        "evidence/t2179-project-503-graph-regression/raw/web-build.log",
+        "evidence/t2179-project-503-graph-regression/raw/make-build.log"
+      ]
+    }
+  ],
+  "summary": "The specific project_id 503 regression is fixed in focused and live isolated checks, but the candidate cannot be accepted because required hard gates fail or remain incomplete.",
+  "report_consistency": "This verdict is authoritative and intentionally rejects despite partial green evidence."
+}

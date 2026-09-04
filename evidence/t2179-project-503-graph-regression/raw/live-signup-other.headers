@@ -1,0 +1,6 @@
+HTTP/1.1 201 Created
+Content-Type: application/json
+Set-Cookie: ac_session=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLWE2YTY1NTBkIiwiZXhwIjoxNzg5MTUzNDMwLCJpYXQiOjE3ODg1NDg2MzAsImp0aSI6ImZhNWM5YTEwMTg1NDcxNmY3OWIxNWZlMmQ4Nzc3NTU0In0.8lLLCkiUSETMVqNipndi4MtTiu9OE3qlJh9-S7pZums; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax
+Date: Fri, 04 Sep 2026 19:03:50 GMT
+Content-Length: 138
+

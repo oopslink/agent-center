@@ -1,0 +1,9 @@
+tmpdir=/tmp/ac-t2179-live-3RUxrO
+db=/tmp/ac-t2179-live-3RUxrO/agent-center.db
+config=/tmp/ac-t2179-live-3RUxrO/config.yaml
+web_port=54926
+grpc_port=54927
+build_sha=94945e8fb91b7e217e71ad393127a6232aa3f37e
+runtime_identity=AGENT_CENTER_INVOCATION_ID empty; isolated temp config
+session_cookie_namespace=ac_session default on 127.0.0.1:54926
+data_provenance=created through public signup/project/task APIs where available; no production/dev/MSW

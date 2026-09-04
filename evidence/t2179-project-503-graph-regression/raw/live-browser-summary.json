@@ -1,0 +1,10 @@
+{
+  "ok": false,
+  "base": "http://127.0.0.1:54926",
+  "project": "project-d058de8f",
+  "orgSlug": "org-0bb48a3c",
+  "urls": [
+    "http://127.0.0.1:54926/organizations/org-0bb48a3c/insights/collaboration?project_id=project-d058de8f",
+    "http://127.0.0.1:54926/organizations/org-0bb48a3c/insights/collaboration"
+  ]
+}

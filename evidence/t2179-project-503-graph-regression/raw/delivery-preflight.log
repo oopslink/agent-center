@@ -1,0 +1,13 @@
+preflight_at=2026-09-04T19:06:38Z
+branch=ac-exec/task-40ece853/exec-e5ab89de
+head=639547e52164b7809983f825c11b6456f80d7896
+checkpoint_base=1ba42c24ac613d23bcfa5a0c14ae1ca121032bed
+head_ahead_checkpoint_base_exit=0
+origin_main=ddfb87d47e8253fb2e4f22d014f497301fa4b7ec
+head_ahead_origin_main_exit=0
+unique_verdict_count=1
+verdict_product=REJECT
+worktree_status_before_log_write follows
+?? evidence/t2179-project-503-graph-regression/raw/delivery-preflight.log
+remote_before=639547e52164b7809983f825c11b6456f80d7896	refs/heads/ac-exec/task-40ece853/exec-e5ab89de
+evidence_tests_summary=focused go PASS; related go PASS; go test ./... PASS; focused web vitest PASS; web typecheck PASS; web build/make build PASS; web lint FAIL recorded in verdict

@@ -1,0 +1,14 @@
+=== RUN   TestQueryServiceOrgGraphProjectFilterScopesStructure
+--- PASS: TestQueryServiceOrgGraphProjectFilterScopesStructure (0.17s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/observability/collaborationeffect	0.763s
+=== RUN   TestCollaborationEffectsHTTPProjectScopeAndFailures
+    handlers_collaboration_insight_test.go:82: project query params: limit=100 project_id=project-cc2dd307; status=200 effects=1 nodes=3 graph_version=cgv_892da77db157742fda8380f6
+    handlers_collaboration_insight_test.go:101: organization query params: limit=100; status=200 effects=2 nodes=6 graph_version=cgv_d10207091f7ba4f7d6ac3134
+    handlers_collaboration_insight_test.go:108: invalid cursor query params: limit=100 cursor=not-opaque; status=400
+    handlers_collaboration_insight_test.go:115: missing project query params: limit=100 project_id=project-missing; status=404
+    handlers_collaboration_insight_test.go:123: unauthorized project query params: limit=100 project_id=project-noauth; status=403
+    handlers_collaboration_insight_test.go:129: cross-org project query params: limit=100 project_id=project-other; status=404
+--- PASS: TestCollaborationEffectsHTTPProjectScopeAndFailures (0.12s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	0.819s

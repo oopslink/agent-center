@@ -1,0 +1,296 @@
+[
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/conversations?kind=channel",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/conversations?kind=dm",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/members",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/auth/me",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/unread-conversations",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/attention",
+    "postData": null
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs",
+    "body": "[{\"created_at\":\"2026-09-04T19:02:41Z\",\"description\":\"\",\"disabled\":false,\"id\":\"organization-dbfda7d7\",\"name\":\"T2179 Acceptance Org\",\"role\":\"owner\",\"slug\":\"org-0bb48a3c\"}]\n"
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/projects",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/projects/project-d058de8f/plans",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/projects/project-d058de8f/tasks?status=all&sort=updated&dir=desc&page_size=500",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/projects/project-d058de8f/members",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/insights/collaboration-effects?limit=100&project_id=project-d058de8f",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/permissions/effective?subject_ref=user%3Auser-d39f4921&resource_kind=org&resource_id=organization-dbfda7d7",
+    "postData": null
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/conversations?kind=channel",
+    "body": "[]\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/conversations?kind=dm",
+    "body": "[]\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/unread-conversations",
+    "body": "[]\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/auth/me",
+    "body": "{\"display_name\":\"t2179-acceptance\",\"identity_id\":\"user-d39f4921\",\"kind\":\"user\"}\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/members",
+    "body": "[{\"created_at\":\"2026-09-04T19:02:41.150066Z\",\"display_name\":\"t2179-acceptance\",\"email\":\"t2179-acceptance@example.test\",\"id\":\"mem-7371e1c8\",\"identity_id\":\"user-d39f4921\",\"joined_at\":\"2026-09-04T19:02:41Z\",\"kind\":\"user\",\"last_session_at\":\"2026-09-04T19:02:41.178045Z\",\"organization_id\":\"organization-dbfda7d7\",\"role\":\"owner\",\"status\":\"joined\"}]\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/attention",
+    "body": "{\"items\":[]}\n"
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/sse?user_id=user%3Auser-d39f4921",
+    "postData": null
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/projects",
+    "body": "{\"projects\":[{\"created_at\":\"2026-09-04T19:02:50.089717Z\",\"created_by\":\"user:user-d39f4921\",\"description\":\"T2179 live acceptance project A\",\"id\":\"project-d058de8f\",\"issue_count\":0,\"name\":\"Project Scope A\",\"organization_id\":\"organization-dbfda7d7\",\"plan_count\":0,\"repo_count\":0,\"status\":\"active\",\"task_count\":1,\"updated_at\":\"2026-09-04T19:02:50.089717Z\",\"version\":1}]}\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/projects/project-d058de8f/plans",
+    "body": "{\"plans\":[]}\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/permissions/effective?subject_ref=user%3Auser-d39f4921&resource_kind=org&resource_id=organization-dbfda7d7",
+    "body": "{\"subject_ref\":\"user:user-d39f4921\",\"resource\":{\"kind\":\"org\",\"id\":\"organization-dbfda7d7\",\"org_id\":\"organization-dbfda7d7\"},\"permissions\":[{\"key\":\"ai_runtime.catalog.export\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"ai_runtime.catalog.manage\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"ai_runtime.catalog.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"coderepo.workspace.manage\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"coderepo.workspace.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.analytics.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.invitation.manage\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.lifecycle.manage\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.member.create.agent\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.member.create.human\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.member.disable\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.member.list\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.member.role.manage\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.settings.manage\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.work_items.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"team.create\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"template.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"template.write\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true}]}\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/projects/project-d058de8f/members",
+    "body": "{\"members\":[{\"added_by\":\"user:user-d39f4921\",\"created_at\":\"2026-09-04T19:02:50.089717Z\",\"id\":\"01M1PWTPZ9DTRYYZ3BYVNTBPFR\",\"identity_id\":\"user:user-d39f4921\",\"project_id\":\"project-d058de8f\",\"role\":\"owner\"}]}\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/projects/project-d058de8f/tasks?status=all&sort=updated&dir=desc&page_size=500",
+    "body": "{\"tasks\":[{\"archived\":false,\"archived_at\":\"\",\"archived_by\":\"\",\"assignee\":\"user:user-d39f4921\",\"blocked_reason\":\"\",\"blocked_reason_type\":\"\",\"completed_at\":\"\",\"completed_by\":\"user:user-d39f4921\",\"created_at\":\"2026-09-04T19:03:12.831811Z\",\"creator_ref\":\"user:user-d39f4921\",\"derived_from_issue\":\"\",\"description\":\"created via public API\",\"failed_reason\":\"\",\"id\":\"task-a17fed0f\",\"org_ref\":\"T1\",\"project_id\":\"project-d058de8f\",\"required_capabilities\":[],\"run_duration_seconds\":107,\"started_at\":\"2026-09-04T19:03:35.465387Z\",\"status\":\"completed\",\"status_changed_at\":\"2026-09-04T19:03:35.471575Z\",\"tags\":[],\"title\":\"Live scoped task\",\"updated_at\":\"2026-09-04T19:03:35.471575Z\",\"version\":5}],\"total\":1}\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/insights/collaboration-effects?limit=100&project_id=project-d058de8f",
+    "body": "{\"graph\":{\"nodes\":[{\"id\":\"project:project-d058de8f\",\"kind\":\"project\",\"label\":\"Project Scope A\",\"project_id\":\"project-d058de8f\"},{\"id\":\"system/unknown\",\"kind\":\"agent\",\"label\":\"system/unknown\"},{\"id\":\"task:task-a17fed0f\",\"kind\":\"task\",\"label\":\"task-a17fed0f\",\"project_id\":\"project-d058de8f\",\"task_id\":\"task-a17fed0f\"},{\"id\":\"user:user-d39f4921\",\"kind\":\"agent\",\"label\":\"user:user-d39f4921\"}],\"edges\":[{\"id\":\"cge_83e6376ca71f151d8c729e01\",\"source\":\"project:project-d058de8f\",\"target\":\"task:task-a17fed0f\",\"relation_type\":\"project_task\",\"polarity\":\"neutral\",\"magnitude\":1,\"interaction_count\":0,\"evidence_count\":0},{\"id\":\"cge_772d9c000c6d95ffd1307459\",\"source\":\"user:user-d39f4921\",\"target\":\"task:task-a17fed0f\",\"relation_type\":\"agent_task\",\"polarity\":\"neutral\",\"magnitude\":1,\"interaction_count\":0,\"evidence_count\":0},{\"id\":\"cge_d4c35e66a2d99f763ae097f5\",\"source\":\"system/unknown\",\"target\":\"task:task-a17fed0f\",\"relation_type\":\"complete\",\"polarity\":\"positive\",\"magnitude\":2,\"effect_id\":\"ce_c600cabc1a9ecccfb713280290cfc0b2\",\"effect_scopes\":[{\"effect_id\":\"ce_c600cabc1a9ecccfb713280290cfc0b2\",\"project_id\":\"project-d058de8f\"}],\"interaction_count\":1,\"first_occurred_at\":\"2026-09-04T19:03:35.471713Z\",\"last_occurred_at\":\"2026-09-04T19:03:35.471713Z\",\"evidence_count\":1}],\"lod\":\"full\",\"truncated\":false},\"effects\":[{\"effect_id\":\"ce_c600cabc1a9ecccfb713280290cfc0b2\",\"project_id\":\"project-d058de8f\",\"target_task_id\":\"task-a17fed0f\",\"source_agent_ref\":\"system/unknown\",\"target_agent_ref\":\"\",\"relation_type\":\"complete\",\"polarity\":\"positive\",\"magnitude\":2,\"confidence\":\"high\",\"occurred_at\":\"2026-09-04T19:03:35.471713Z\",\"rule_version\":\"collaboration-effect.mvp.v1\",\"evidence_event_ids\":[\"01M1PWW39FKJK990CTE0MFT4ZY\"],\"before_state\":{\"task_status\":\"running\"},\"after_state\":{\"task_status\":\"completed\"},\"explanation_key\":\"collaboration.effect.complete\"}],\"summary\":{\"positive_count\":1,\"negative_count\":0,\"neutral_count\":0,\"mixed_count\":0,\"affected_task_count\":1},\"as_of\":\"2026-09-04T19:05:23.221399Z\",\"rule_version\":\"collaboration-effect.mvp.v1\",\"graph_version\":\"cgv_11719da95708d166a56944cc\",\"truncated\":false,\"next_cursor\":\"\"}\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/sse?user_id=user%3Auser-d39f4921",
+    "body": ""
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/conversations?kind=channel",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/conversations?kind=dm",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/members",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/auth/me",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/unread-conversations",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/attention",
+    "postData": null
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs",
+    "body": "[{\"created_at\":\"2026-09-04T19:02:41Z\",\"description\":\"\",\"disabled\":false,\"id\":\"organization-dbfda7d7\",\"name\":\"T2179 Acceptance Org\",\"role\":\"owner\",\"slug\":\"org-0bb48a3c\"}]\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/conversations?kind=channel",
+    "body": "[]\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/conversations?kind=dm",
+    "body": "[]\n"
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/projects",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/insights/collaboration-effects?limit=100&lod=cluster&max_nodes=90",
+    "postData": null
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/permissions/effective?subject_ref=user%3Auser-d39f4921&resource_kind=org&resource_id=organization-dbfda7d7",
+    "postData": null
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/auth/me",
+    "body": "{\"display_name\":\"t2179-acceptance\",\"identity_id\":\"user-d39f4921\",\"kind\":\"user\"}\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/members",
+    "body": "[{\"created_at\":\"2026-09-04T19:02:41.150066Z\",\"display_name\":\"t2179-acceptance\",\"email\":\"t2179-acceptance@example.test\",\"id\":\"mem-7371e1c8\",\"identity_id\":\"user-d39f4921\",\"joined_at\":\"2026-09-04T19:02:41Z\",\"kind\":\"user\",\"last_session_at\":\"2026-09-04T19:02:41.178045Z\",\"organization_id\":\"organization-dbfda7d7\",\"role\":\"owner\",\"status\":\"joined\"}]\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/unread-conversations",
+    "body": "[]\n"
+  },
+  {
+    "type": "request",
+    "method": "GET",
+    "url": "http://127.0.0.1:54926/api/sse?user_id=user%3Auser-d39f4921",
+    "postData": null
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/attention",
+    "body": "{\"items\":[]}\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/projects",
+    "body": "{\"projects\":[{\"created_at\":\"2026-09-04T19:02:50.089717Z\",\"created_by\":\"user:user-d39f4921\",\"description\":\"T2179 live acceptance project A\",\"id\":\"project-d058de8f\",\"issue_count\":0,\"name\":\"Project Scope A\",\"organization_id\":\"organization-dbfda7d7\",\"plan_count\":0,\"repo_count\":0,\"status\":\"active\",\"task_count\":1,\"updated_at\":\"2026-09-04T19:02:50.089717Z\",\"version\":1}]}\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/insights/collaboration-effects?limit=100&lod=cluster&max_nodes=90",
+    "body": "{\"graph\":{\"nodes\":[{\"id\":\"project:project-d058de8f\",\"kind\":\"project\",\"label\":\"Project Scope A\",\"project_id\":\"project-d058de8f\"},{\"id\":\"system/unknown\",\"kind\":\"agent\",\"label\":\"system/unknown\"},{\"id\":\"task:task-a17fed0f\",\"kind\":\"task\",\"label\":\"task-a17fed0f\",\"project_id\":\"project-d058de8f\",\"task_id\":\"task-a17fed0f\"},{\"id\":\"user:user-d39f4921\",\"kind\":\"agent\",\"label\":\"user:user-d39f4921\"}],\"edges\":[{\"id\":\"cge_83e6376ca71f151d8c729e01\",\"source\":\"project:project-d058de8f\",\"target\":\"task:task-a17fed0f\",\"relation_type\":\"project_task\",\"polarity\":\"neutral\",\"magnitude\":1,\"interaction_count\":0,\"evidence_count\":0},{\"id\":\"cge_772d9c000c6d95ffd1307459\",\"source\":\"user:user-d39f4921\",\"target\":\"task:task-a17fed0f\",\"relation_type\":\"agent_task\",\"polarity\":\"neutral\",\"magnitude\":1,\"interaction_count\":0,\"evidence_count\":0},{\"id\":\"cge_d4c35e66a2d99f763ae097f5\",\"source\":\"system/unknown\",\"target\":\"task:task-a17fed0f\",\"relation_type\":\"complete\",\"polarity\":\"positive\",\"magnitude\":2,\"effect_id\":\"ce_c600cabc1a9ecccfb713280290cfc0b2\",\"effect_scopes\":[{\"effect_id\":\"ce_c600cabc1a9ecccfb713280290cfc0b2\",\"project_id\":\"project-d058de8f\"}],\"interaction_count\":1,\"first_occurred_at\":\"2026-09-04T19:03:35.471713Z\",\"last_occurred_at\":\"2026-09-04T19:03:35.471713Z\",\"evidence_count\":1}],\"lod\":\"cluster\",\"clusters\":[{\"id\":\"cluster:project:project-d058de8f\",\"kind\":\"cluster\",\"label\":\"project-d058de8f\",\"project_id\":\"project-d058de8f\"}],\"truncated\":false},\"effects\":[{\"effect_id\":\"ce_c600cabc1a9ecccfb713280290cfc0b2\",\"project_id\":\"project-d058de8f\",\"target_task_id\":\"task-a17fed0f\",\"source_agent_ref\":\"system/unknown\",\"target_agent_ref\":\"\",\"relation_type\":\"complete\",\"polarity\":\"positive\",\"magnitude\":2,\"confidence\":\"high\",\"occurred_at\":\"2026-09-04T19:03:35.471713Z\",\"rule_version\":\"collaboration-effect.mvp.v1\",\"evidence_event_ids\":[\"01M1PWW39FKJK990CTE0MFT4ZY\"],\"before_state\":{\"task_status\":\"running\"},\"after_state\":{\"task_status\":\"completed\"},\"explanation_key\":\"collaboration.effect.complete\"}],\"summary\":{\"positive_count\":1,\"negative_count\":0,\"neutral_count\":0,\"mixed_count\":0,\"affected_task_count\":1},\"as_of\":\"2026-09-04T19:05:23.341308Z\",\"rule_version\":\"collaboration-effect.mvp.v1\",\"graph_version\":\"cgv_11719da95708d166a56944cc\",\"truncated\":false,\"next_cursor\":\"\"}\n"
+  },
+  {
+    "type": "response",
+    "status": 200,
+    "url": "http://127.0.0.1:54926/api/orgs/org-0bb48a3c/permissions/effective?subject_ref=user%3Auser-d39f4921&resource_kind=org&resource_id=organization-dbfda7d7",
+    "body": "{\"subject_ref\":\"user:user-d39f4921\",\"resource\":{\"kind\":\"org\",\"id\":\"organization-dbfda7d7\",\"org_id\":\"organization-dbfda7d7\"},\"permissions\":[{\"key\":\"ai_runtime.catalog.export\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"ai_runtime.catalog.manage\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"ai_runtime.catalog.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"coderepo.workspace.manage\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"coderepo.workspace.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.analytics.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.invitation.manage\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.lifecycle.manage\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.member.create.agent\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.member.create.human\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.member.disable\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.member.list\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.member.role.manage\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.settings.manage\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"org.work_items.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"team.create\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"template.read\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true},{\"key\":\"template.write\",\"source\":\"org_role\",\"evidence_ref\":\"members:mem-7371e1c8\",\"delegatable\":true}]}\n"
+  }
+]
