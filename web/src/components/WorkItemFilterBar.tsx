@@ -345,19 +345,23 @@ export function WorkItemFilterBar({
           </select>
         </label>
         {kind === 'task' && onIncludeCompletedPlanFailuresChange && (
-          <label
+          <div
             className="inline-flex min-h-[1.75rem] items-center gap-1.5 rounded border border-border-base bg-bg-base px-2 text-xs text-text-secondary"
             title={t('filter.completedPlanFailures.title')}
           >
-            <input
-              type="checkbox"
+            <button
+              type="button"
+              role="switch"
+              aria-checked={includeCompletedPlanFailures}
+              aria-label={t('filter.completedPlanFailures.label')}
               data-testid="org-filter-completed-plan-failures"
-              checked={includeCompletedPlanFailures}
-              onChange={(e) => onIncludeCompletedPlanFailuresChange(e.target.checked)}
-              className="h-3.5 w-3.5 accent-brand"
-            />
+              onClick={() => onIncludeCompletedPlanFailuresChange(!includeCompletedPlanFailures)}
+              className={`relative h-4 w-7 rounded-full transition-colors ${includeCompletedPlanFailures ? 'bg-brand' : 'bg-bg-muted'}`}
+            >
+              <span className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-transform ${includeCompletedPlanFailures ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+            </button>
             <span>{t('filter.completedPlanFailures.label')}</span>
-          </label>
+          </div>
         )}
       </div>
       {/* Row 2 — DATE RANGE: two inline start→end pairs (Created / Updated), then
