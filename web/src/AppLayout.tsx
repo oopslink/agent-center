@@ -128,7 +128,7 @@ const MODULE_DEFS: ReadonlyArray<ModuleDef> = [
     id: 'insight',
     label: 'Insight',
     short: 'Insight',
-    defaultPath: 'insights/overview',
+    defaultPath: 'insights/collaboration',
     Icon: InsightIcon,
     pathPrefixes: ['insights'],
   },
@@ -223,6 +223,7 @@ function buildModuleNavSections(moduleId: ShellModuleId, base: string): Readonly
       return [{ label: 'Insight', items: [
         { to: p('insights/overview'), label: 'Overview', Icon: InsightIcon },
         { to: p('insights/agents'), label: 'Agents', Icon: InsightIcon },
+        { to: p('insights/collaboration'), label: 'Collaboration effects', Icon: InsightIcon },
         { to: p('insights/executions'), label: 'Task executions', Icon: TaskIcon },
         { to: p('insights/projects'), label: 'Projects', Icon: FolderIcon },
       ] }];

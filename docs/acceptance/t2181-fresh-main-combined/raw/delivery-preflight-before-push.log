@@ -1,0 +1,8 @@
+preflight_start=2026-09-04T19:16:18Z
+head=a20b8fd19e66f6e36a68e16e97a3dc9ba929f76f
+branch=ac-exec/task-340201c6/exec-7a7d087b
+latest_origin_push_main=ddfb87d47e8253fb2e4f22d014f497301fa4b7ec
+0	1
+main_ancestor_of_head_exit=0
+merge_tree_exit=0 tree=06fd35d34eea581636f9e57bdc99b214981c37f8
+?? docs/acceptance/t2181-fresh-main-combined/raw/delivery-preflight-before-push.log

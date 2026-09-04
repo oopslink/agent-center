@@ -81,6 +81,7 @@ describe('Mobile module nav sheet — col② reflowed into a bottom sheet', () =
     expect(within(desktopNav).getByRole('link', { name: '概览' })).toHaveAttribute('href', '/insights/overview');
     expect(within(desktopNav).getByRole('link', { name: '智能体' })).toHaveAttribute('href', '/insights/agents');
     expect(within(desktopNav).getByRole('link', { name: '项目' })).toHaveAttribute('href', '/insights/projects');
+    expect(within(desktopNav).getByRole('link', { name: '协作作用力' })).toHaveAttribute('href', '/insights/collaboration');
     expect(within(desktopNav).getByRole('link', { name: 'Task executions' })).toHaveAttribute('href', '/insights/executions?window=24h');
     expect(desktopNav).not.toHaveTextContent('Overview');
 
@@ -90,6 +91,7 @@ describe('Mobile module nav sheet — col② reflowed into a bottom sheet', () =
     expect(within(nav).getByRole('link', { name: '概览' })).toHaveAttribute('href', '/insights/overview');
     expect(within(nav).getByRole('link', { name: '智能体' })).toHaveAttribute('href', '/insights/agents');
     expect(within(nav).getByRole('link', { name: '项目' })).toHaveAttribute('href', '/insights/projects');
+    expect(within(nav).getByRole('link', { name: '协作作用力' })).toHaveAttribute('href', '/insights/collaboration');
     expect(within(nav).getByRole('link', { name: 'Task executions' })).toHaveAttribute('href', '/insights/executions?window=24h');
     fireEvent.click(within(nav).getByRole('link', { name: '智能体' }));
     await waitFor(() => expect(screen.queryByTestId('mobile-nav-sheet')).toBeNull());

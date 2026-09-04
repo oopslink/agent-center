@@ -23,11 +23,12 @@
       "loading": "正在加载协作作用力", "failed": "协作作用力加载失败", "forbidden": "你没有查看协作证据的权限",
       "empty": "没有协作作用", "emptyBody": "没有确定性作用符合当前筛选。", "truncated": "当前显示前 {{count}} 条边，请缩小筛选范围查看其余结果。", "loadMore": "加载更多", "loadingMore": "正在加载更多…",
       "summary": "作用摘要", "affectedTasks": "受影响任务", "graph": "协作作用力图", "edgeList": "可键盘操作的图边", "timeline": "作用时间线", "magnitude": "强度 {{value}}", "aggregatedEffects": "{{count}} 个作用",
+      "lod": { "clusteredTitle": "组织图已聚类", "truncatedTitle": "图结果已截断", "body": "当前以可读概览展示 {{nodes}} 个节点、{{edges}} 条边。可继续加载或缩小筛选查看细节。", "continueLoading": "继续加载", "showFull": "显示全图", "overviewBadge": "聚类概览" },
       "filters": { "label": "筛选/定位", "clearAll": "清除筛选", "project": "项目", "plan": "Plan", "task": "任务", "agent": "Agent", "since": "开始时间", "until": "结束时间", "relation": "关系", "polarity": "极性", "all": "全部", "chooseProject": "选择项目", "chooseTask": "任意任务", "chooseProjectFirst": "先选择项目", "anyPlan": "任意 Plan", "anyAgent": "任意 Agent", "loadingProjects": "正在加载项目", "loadingTasks": "正在加载任务", "searchProjects": "搜索项目", "searchPlans": "搜索 Plan", "searchTasks": "搜索任务", "searchAgents": "搜索 Agent", "noProjects": "没有项目", "noPlans": "没有 Plan", "noTasks": "没有任务", "noAgents": "没有 Agent" },
       "viewport": { "controls": "图视图控制", "zoomIn": "放大", "zoomOut": "缩小", "fit": "适配", "reset": "复位" },
       "legend": { "relationship": "指派关系", "effect": "状态变化作用", "mixed": "正负混合" },
       "evidence": { "title": "作用证据", "close": "关闭证据", "loading": "正在加载证据", "failed": "证据加载失败" },
-      "values": { "assign": "指派", "reassign": "重新指派", "complete": "完成", "block": "阻塞", "unblock": "解除阻塞", "dependency_release": "依赖释放", "review_accept": "评审通过", "review_reject": "评审拒绝", "contains_stage": "包含 Stage", "contains_task": "包含 Task", "positive": "正向", "negative": "反向", "neutral": "中性", "mixed": "混合" }
+      "values": { "assign": "指派", "reassign": "重新指派", "complete": "完成", "block": "阻塞", "unblock": "解除阻塞", "dependency_release": "依赖释放", "review_accept": "评审通过", "review_reject": "评审拒绝", "contains_stage": "包含 Stage", "contains_task": "包含 Task", "agent": "Agent", "project": "项目", "plan": "Plan", "stage": "Stage", "task": "Task", "cluster": "聚类", "positive": "正向", "negative": "反向", "neutral": "中性", "mixed": "混合" }
     },
     "executions": {
       "title": "任务执行记录",
