@@ -1,0 +1,42 @@
+cmd: git commit -m 'acceptance: record isolated executor abc evidence'
+[ac-exec/task-b3eb83d7/exec-f19e27f0 b6fa37b3] acceptance: record isolated executor abc evidence
+ 38 files changed, 1966 insertions(+)
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/REPORT.md
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/json/05-install-test-instance.jsonlog
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/json/07-install-test-instance-with-seed.jsonlog
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/json/09-list-test-instances.jsonlog
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/json/13-web-signin.http
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/json/14-ai-runtime-export.http
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/json/15-web-workers.http
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/json/16-ai-runtime-current.http
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/json/17-create-runtime-model.http
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/json/18-mint-org-worker2.http
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/json/26-health-before-restart.http
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/json/28-health-after-restart.http
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/json/30-list-test-instances-after-restart.jsonlog
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/proc/10-instance-files.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/proc/11-processes.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/proc/12-ports.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/proc/25-config-provenance.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/proc/27-kickstart-restart.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/proc/29-processes-after-restart.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/proc/prefix-worktree-path.txt
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/00-fetch-pin-sha.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/02-initial-worktree-status.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/03-make-build.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/04-preclean-test-instance.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/06-cleanup-failed-with-agent.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/08-access-pack-visible.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/19-install-worker2.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/20-green-targeted-tests.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/21-fix-parent-info.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/22-prefix-worktree-add.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/23-red-prefix-targeted-tests.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/24-existing-deployed-e2e.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/32-status-before-report.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/33-precommit-status.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/34-staged-status.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/refs/01-remote-refs-before.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/refs/31-remote-refs-after.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/verdict.json
+exit_code=0

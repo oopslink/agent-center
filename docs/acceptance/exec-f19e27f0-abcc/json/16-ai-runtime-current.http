@@ -1,0 +1,9 @@
+cmd: curl GET isolated ai-runtime current catalog
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Fri, 04 Sep 2026 10:43:25 GMT
+Content-Length: 636
+
+{"org_id":"organization-a9795a7e","revision":0,"clis":[{"id":"cli-claude-code-organization-a9795a7e","key":"claude-code","display_name":"Claude Code","executable":"claude","required_features":[],"parameter_schema":{"type":"object"},"enabled":true,"system":true,"created_at":"2026-09-04T10:43:07.106101Z","updated_at":"2026-09-04T10:43:07.106101Z"},{"id":"cli-codex-organization-a9795a7e","key":"codex","display_name":"Codex","executable":"codex","required_features":[],"parameter_schema":{"type":"object"},"enabled":true,"system":true,"created_at":"2026-09-04T10:43:07.106101Z","updated_at":"2026-09-04T10:43:07.106101Z"}],"models":[]}
+
+exit_code=0

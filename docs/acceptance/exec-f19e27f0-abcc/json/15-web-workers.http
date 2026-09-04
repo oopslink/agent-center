@@ -1,0 +1,9 @@
+cmd: curl GET isolated workers list via web?
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Fri, 04 Sep 2026 10:43:07 GMT
+Content-Length: 15
+
+{"workers":[]}
+
+exit_code=0

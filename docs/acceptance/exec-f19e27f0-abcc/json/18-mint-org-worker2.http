@@ -1,0 +1,9 @@
+cmd: curl POST mint org enroll token for isolated worker-2
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Fri, 04 Sep 2026 10:43:25 GMT
+Content-Length: 355
+
+{"id":"01M1P088YZ1DQ9BCQYJBW93WV4","token":"acat_CRBG0Bt7Co37mE-2-DItggzeq7s2-yeKY-JnmHexiAI","expires_at":"2026-09-04T11:13:25.791153Z","fingerprint":"sha256:10:CF:3B:AA:4C:B5:95:EA:5B:1A:5F:4B:7E:5B:D6:A7:B5:4C:F8:08:D2:B3:B5:DE:8A:16:22:D1:E9:51:9C:0D","bootstrap_host":"127.0.0.1:53761","worker_id":"worker-f528306d","worker_name":"abcc-f19e27f0-w2"}
+
+exit_code=0

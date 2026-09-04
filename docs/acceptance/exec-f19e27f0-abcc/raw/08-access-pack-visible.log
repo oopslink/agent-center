@@ -1,0 +1,30 @@
+cmd: ./bin/agent-center install test-instance --id abcc-f19e27f0 --workers 1 --with-seed --ready-timeout 60 --output json
+{
+  "id": "abcc-f19e27f0",
+  "prefix": "/Users/oopslink/.agent-center-test/abcc-f19e27f0",
+  "web_url": "http://127.0.0.1:53759",
+  "server_port": 53760,
+  "admin_port": 53761,
+  "admin_bootstrap_token": "acat_2mJcsXdZ9zpAd-dCTV7ycnh2giV2hb0cvIhANK36ysw",
+  "workers": [
+    {
+      "id": "test-abcc-f19e27f0-w1",
+      "prefix": "/Users/oopslink/.agent-center-test/abcc-f19e27f0/worker-1"
+    }
+  ],
+  "web_login": "seeded ✓ — sign in at web_url with the credentials in `signin`",
+  "entity_ids": "seeded ✓ — see `entity_refs` (org/project/channel)",
+  "workers_note": "workers are workforce-enrolled (token exchanged) + running, but NOT org-enrolled yet — control-connect 409s until a tenant org is seeded (--with-seed, #257)",
+  "signin": {
+    "org_slug": "org-dbeb7e27",
+    "display_name": "Owner abcc-f19e27f0",
+    "email": "owner@acme-abcc-f19e27f0.test",
+    "passcode": "SeedPass1!"
+  },
+  "entity_refs": {
+    "org_id": "organization-a9795a7e",
+    "project_id": "project-83bb27d0",
+    "channel_id": "channel-8bcb9507"
+  }
+}
+exit_code=0

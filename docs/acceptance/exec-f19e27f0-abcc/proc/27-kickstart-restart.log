@@ -1,0 +1,4 @@
+cmd: launchctl kickstart -k center and worker labels (isolated labels only)
+center_exit=0
+worker1_exit=0
+worker2_exit=0

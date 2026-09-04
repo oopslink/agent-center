@@ -1,0 +1,12 @@
+cmd: git show --no-patch --pretty=fuller f2a3bf2d
+commit f2a3bf2d81437892b7e320f0a5736e5d798dc3cf
+Author:     agent-center-dev5 <01KV83R3EK1F65X920A3Y3JS4E@agent-center>
+AuthorDate: Fri Sep 4 11:22:17 2026 +0800
+Commit:     agent-center-dev5 <01KV83R3EK1F65X920A3Y3JS4E@agent-center>
+CommitDate: Fri Sep 4 11:22:17 2026 +0800
+
+    fix executor delivery preflight convergence
+exit_code=0
+cmd: git rev-parse f2a3bf2d^
+1ba42c24ac613d23bcfa5a0c14ae1ca121032bed
+exit_code=0

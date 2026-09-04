@@ -1,0 +1,32 @@
+cmd: ./bin/agent-center list-test-instances --output json
+[
+  {
+    "id": "abcc-f19e27f0",
+    "prefix": "/Users/oopslink/.agent-center-test/abcc-f19e27f0",
+    "web_port": "53759",
+    "workers": 1,
+    "online": "yes"
+  },
+  {
+    "id": "i150main226b",
+    "prefix": "/Users/oopslink/.agent-center-test/i150main226b",
+    "web_port": "62992",
+    "workers": 1,
+    "online": "yes"
+  },
+  {
+    "id": "t2165",
+    "prefix": "/Users/oopslink/.agent-center-test/t2165",
+    "web_port": "57780",
+    "workers": 0,
+    "online": "yes"
+  },
+  {
+    "id": "t2165acc35d",
+    "prefix": "/Users/oopslink/.agent-center-test/t2165acc35d",
+    "web_port": "56944",
+    "workers": 1,
+    "online": "yes"
+  }
+]
+exit_code=0

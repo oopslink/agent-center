@@ -1,0 +1,5 @@
+cmd: ./bin/agent-center install test-instance --id abcc-f19e27f0 --workers 1 --with-agent --ready-timeout 60 --output json
+  $ launchctl bootout gui/501 /Users/oopslink/Library/LaunchAgents/com.agent-center.center.test-abcc-f19e27f0.plist
+  $ launchctl bootout gui/501 /Users/oopslink/Library/LaunchAgents/com.agent-center.worker.worker-f0783fbd.plist
+Error: test_instance_with_agent_failed: create agent: status 400: {"reason":"runtime_model_not_found","message":"runtime model was not found","details":{"model":"claude-opus-4-8"}}
+exit_code=1

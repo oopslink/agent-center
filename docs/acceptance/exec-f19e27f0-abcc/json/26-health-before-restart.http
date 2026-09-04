@@ -1,0 +1,9 @@
+cmd: curl health before restart
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Fri, 04 Sep 2026 10:45:57 GMT
+Content-Length: 73
+
+{"status":"ok","version":"ac-exec/task-b3eb83d7/exec-f19e27f0-b942af98"}
+
+exit_code=0

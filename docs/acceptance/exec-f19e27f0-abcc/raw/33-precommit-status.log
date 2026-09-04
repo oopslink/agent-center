@@ -1,0 +1,6 @@
+cmd: git diff -- docs/acceptance/exec-f19e27f0-abcc
+exit_code=0
+cmd: git status --short --branch
+## ac-exec/task-b3eb83d7/exec-f19e27f0
+?? docs/acceptance/exec-f19e27f0-abcc/
+exit_code=0

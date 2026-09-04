@@ -1,0 +1,9 @@
+cmd: curl POST create claude-opus-4-8 runtime model in isolated org
+HTTP/1.1 201 Created
+Content-Type: application/json
+Date: Fri, 04 Sep 2026 10:43:25 GMT
+Content-Length: 309
+
+{"entry":{"id":"01M1P088YKHBVZ0HHR6F9W9GCA","key":"claude-opus-4-8","model_key":"claude-opus-4-8","display_name":"Claude Opus 4.8","compatible_cli_keys":["claude-code"],"default_parameters":{},"enabled":true,"created_at":"2026-09-04T10:43:25.780239Z","updated_at":"2026-09-04T10:43:25.780239Z"},"revision":1}
+
+exit_code=0

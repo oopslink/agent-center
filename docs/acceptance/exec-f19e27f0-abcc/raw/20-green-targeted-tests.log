@@ -1,0 +1,58 @@
+cmd: go test ./internal/agentruntime/executor ./internal/admin/api ./internal/projectmanager/service ./internal/agentruntime/orchestrator -run TestMonitor_Finalize_(DirtyPushedHeadIsNonDeliveryWithPaths|EagerPush_PushedStaysSucceeded|EagerPush_UnexpectedLocalBranchPushesSafeExecutorRef|EagerPush_PushFailureDowngrades|ExactOriginMainStillRefused|RecordedWorkspace_PushesActualHeadToSafeRef)|TestReportDeliveryReq_DecodesAndMapsPushError|TestMapDomainError_TaskNonDeliveryIsExplicitConflict|TestStuckNode_UpdatedAtStale_ReopenedWithoutLeaseLapse|TestResetTask_LiveLeaseRejected|TestResetTask_OwnerConfirmedDeadBypassesLiveLease|TestEnvAgentLeaseHeartbeat_(RenewsRunningTask|FailedRevokes)|TestMonitor_Recover_FinalizesAndAdopts|TestMonitor_ReapFinalized_TTLAndCap|TestRunExecutor_FailureWritesErrorAndFailedStatus|TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery|TestValidCodeDelivery_RejectsProtectedBranch -count=1 -v
+=== RUN   TestMonitor_Finalize_DirtyPushedHeadIsNonDeliveryWithPaths
+--- PASS: TestMonitor_Finalize_DirtyPushedHeadIsNonDeliveryWithPaths (0.69s)
+=== RUN   TestMonitor_ReapFinalized_TTLAndCap
+--- PASS: TestMonitor_ReapFinalized_TTLAndCap (0.00s)
+=== RUN   TestMonitor_Recover_FinalizesAndAdopts
+--- PASS: TestMonitor_Recover_FinalizesAndAdopts (0.00s)
+=== RUN   TestMonitor_Finalize_EagerPush_PushedStaysSucceeded
+--- PASS: TestMonitor_Finalize_EagerPush_PushedStaysSucceeded (0.47s)
+=== RUN   TestMonitor_Finalize_RecordedWorkspace_PushesActualHeadToSafeRef
+--- PASS: TestMonitor_Finalize_RecordedWorkspace_PushesActualHeadToSafeRef (0.54s)
+=== RUN   TestMonitor_Finalize_ExactOriginMainStillRefused
+--- PASS: TestMonitor_Finalize_ExactOriginMainStillRefused (0.36s)
+=== RUN   TestMonitor_Finalize_EagerPush_UnexpectedLocalBranchPushesSafeExecutorRef
+--- PASS: TestMonitor_Finalize_EagerPush_UnexpectedLocalBranchPushesSafeExecutorRef (0.41s)
+=== RUN   TestMonitor_Finalize_EagerPush_PushFailureDowngrades
+--- PASS: TestMonitor_Finalize_EagerPush_PushFailureDowngrades (0.30s)
+=== RUN   TestRunExecutor_FailureWritesErrorAndFailedStatus
+--- PASS: TestRunExecutor_FailureWritesErrorAndFailedStatus (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/executor	3.251s
+=== RUN   TestReportDeliveryReq_DecodesAndMapsPushError
+--- PASS: TestReportDeliveryReq_DecodesAndMapsPushError (0.00s)
+=== RUN   TestEnvAgentLeaseHeartbeat_RenewsRunningTask
+--- PASS: TestEnvAgentLeaseHeartbeat_RenewsRunningTask (0.10s)
+=== RUN   TestEnvAgentLeaseHeartbeat_FailedRevokes
+--- PASS: TestEnvAgentLeaseHeartbeat_FailedRevokes (0.10s)
+=== RUN   TestMapDomainError_TaskNonDeliveryIsExplicitConflict
+--- PASS: TestMapDomainError_TaskNonDeliveryIsExplicitConflict (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/admin/api	1.668s
+=== RUN   TestResetTask_LiveLeaseRejected
+=== PAUSE TestResetTask_LiveLeaseRejected
+=== RUN   TestResetTask_OwnerConfirmedDeadBypassesLiveLease
+=== PAUSE TestResetTask_OwnerConfirmedDeadBypassesLiveLease
+=== RUN   TestStuckNode_UpdatedAtStale_ReopenedWithoutLeaseLapse
+=== PAUSE TestStuckNode_UpdatedAtStale_ReopenedWithoutLeaseLapse
+=== CONT  TestResetTask_LiveLeaseRejected
+=== CONT  TestStuckNode_UpdatedAtStale_ReopenedWithoutLeaseLapse
+=== CONT  TestResetTask_OwnerConfirmedDeadBypassesLiveLease
+--- PASS: TestResetTask_LiveLeaseRejected (0.13s)
+--- PASS: TestResetTask_OwnerConfirmedDeadBypassesLiveLease (0.13s)
+--- PASS: TestStuckNode_UpdatedAtStale_ReopenedWithoutLeaseLapse (0.13s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	0.945s
+=== RUN   TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery
+=== RUN   TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/not_a_git_workspace
+=== RUN   TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/commit_not_pushed
+=== RUN   TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/no_commit
+--- PASS: TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery (0.00s)
+    --- PASS: TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/not_a_git_workspace (0.00s)
+    --- PASS: TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/commit_not_pushed (0.00s)
+    --- PASS: TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/no_commit (0.00s)
+=== RUN   TestValidCodeDelivery_RejectsProtectedBranch
+--- PASS: TestValidCodeDelivery_RejectsProtectedBranch (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/orchestrator	0.375s
+exit_code=0

@@ -1,0 +1,10 @@
+cmd: curl signin isolated web API
+HTTP/1.1 200 OK
+Content-Type: application/json
+Set-Cookie: ac_session=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLWE5MzViMTUwIiwiZXhwIjoxNzg5MTIzMzg3LCJpYXQiOjE3ODg1MTg1ODcsImp0aSI6ImM3Y2NhYjI3NzdiZDNjNWQ4YTBkNmU5OWI2ZjAyZTk1In0.oCI7bQUF_uCemywyaGgj0zBYp36-CcVz6Cqq65IYhCk; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax
+Date: Fri, 04 Sep 2026 10:43:07 GMT
+Content-Length: 32
+
+{"identity_id":"user-a935b150"}
+
+exit_code=0

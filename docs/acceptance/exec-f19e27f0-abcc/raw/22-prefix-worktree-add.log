@@ -1,0 +1,4 @@
+cmd: git worktree add --detach /tmp/ac-abcc-pref2a-f19e27f0-vn2YFO f2a3bf2d^
+Preparing worktree (detached HEAD 1ba42c24)
+HEAD is now at 1ba42c24 fix(insights): scope aggregated edge evidence
+exit_code=0

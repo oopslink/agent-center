@@ -1,0 +1,76 @@
+{
+  "task": "isolated executor delivery A/B/C runtime acceptance continuation",
+  "executor": "exec-f19e27f0",
+  "verdict": "REJECT",
+  "pinned_origin_main": "226de72569b18913ccb09119922a6feed9ad174a",
+  "contains_required_fix": {
+    "commit": "f2a3bf2d",
+    "proved_by": "raw/00-fetch-pin-sha.log",
+    "result": true
+  },
+  "isolated_instance": {
+    "purpose": "test",
+    "id": "abcc-f19e27f0",
+    "prefix": "/Users/oopslink/.agent-center-test/abcc-f19e27f0",
+    "web_url": "http://127.0.0.1:53759",
+    "server_port": 53760,
+    "admin_port": 53761,
+    "center_config": "/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/etc/config.yaml",
+    "worker_configs": [
+      "/Users/oopslink/.agent-center-test/abcc-f19e27f0/worker-1/etc/config.yaml",
+      "/Users/oopslink/.agent-center-test/abcc-f19e27f0/worker-2/etc/config.yaml"
+    ],
+    "worker_ids": [
+      "test-abcc-f19e27f0-w1",
+      "worker-f528306d"
+    ],
+    "start_method": "agent-center install test-instance plus isolated launchd worker install",
+    "proved_by": [
+      "json/07-install-test-instance-with-seed.jsonlog",
+      "raw/19-install-worker2.log",
+      "proc/25-config-provenance.log",
+      "proc/27-kickstart-restart.log"
+    ]
+  },
+  "gates": {
+    "A_dirty_cleanup": {
+      "status": "REJECT",
+      "reason": "No real isolated executor dirty-repair/non-repair scenario was driven through delivery preflight. Only adjacent targeted Go tests were run.",
+      "evidence": [
+        "raw/20-green-targeted-tests.log"
+      ]
+    },
+    "B_safe_ref": {
+      "status": "REJECT",
+      "reason": "No real isolated executor ahead commit was pushed through a system executor ref with before/after protected-branch proof. Adjacent safe-ref tests passed, but no deployed scenario was completed.",
+      "evidence": [
+        "raw/20-green-targeted-tests.log",
+        "refs/01-remote-refs-before.log",
+        "refs/31-remote-refs-after.log"
+      ]
+    },
+    "C_stale_lease": {
+      "status": "REJECT",
+      "reason": "No terminal/stale/recovery_required executor state was manufactured across real reaper ticks and center/worker restarts. Existing deployed restart e2e is not this criterion.",
+      "evidence": [
+        "raw/24-existing-deployed-e2e.log",
+        "proc/27-kickstart-restart.log",
+        "json/28-health-after-restart.http"
+      ]
+    },
+    "negative_regression": {
+      "status": "REJECT",
+      "reason": "Normal clean push, implementation/test failure, quality-gate reject, and delivery non_delivery were not all driven as deployed isolated scenarios.",
+      "evidence": [
+        "raw/20-green-targeted-tests.log"
+      ]
+    },
+    "valid_red_end": {
+      "status": "REJECT",
+      "reason": "Running the selected tests at f2a3bf2d^ exited 0, so this is not an effective red endpoint.",
+      "evidence": [
+        "raw/23-red-prefix-targeted-tests.log"
+      ]
+    }
+  }
+}

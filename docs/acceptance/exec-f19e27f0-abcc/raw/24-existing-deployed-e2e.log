@@ -1,0 +1,25 @@
+cmd: AC_E2E_AGENT_CENTER_BIN=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f19e27f0/bin/agent-center go test ./tests/e2e -run 'TestForkExecutorDeployedBinary_AlreadyRunningTask|TestE2E_RestartRecovery_DeployLevel' -count=1 -v
+=== RUN   TestForkExecutorDeployedBinary_AlreadyRunningTask
+--- PASS: TestForkExecutorDeployedBinary_AlreadyRunningTask (6.84s)
+=== RUN   TestE2E_RestartRecovery_DeployLevel
+    restart_recovery_e2e_test.go:71: SANDBOX=/tmp/p46-restart-recovery-3958718923
+    restart_recovery_e2e_test.go:122: server up; bootstrap token len=48
+    restart_recovery_e2e_test.go:154: seeded org=organization-p46aa001 agent=agent-p46-0001(running,worker=w-p46) empty-dm=conv-p46-dm-0001 (no directed msg yet)
+    restart_recovery_e2e_test.go:190: org-enrolled worker w-p46 → org organization-p46aa001 (control-connect precondition)
+    restart_recovery_e2e_test.go:206: ASSERT-1 PASS: completed_turn=true persisted. session.instance(gen0)={"session_id":"5bff8e84-9fdc-5263-afc3-26b434667b6e","generation":1,"pid":45351,"prev_pid":0,"prev_crash_at":"0001-01-01T00:00:00Z","completed_turn":true}
+    restart_recovery_e2e_test.go:218: posted unanswered directed DM message msg-p46-0000000001 from user:tester
+    restart_recovery_e2e_test.go:233: ASSERT-2 PASS: worker SIGKILLed before the agent replied to the directed message
+    restart_recovery_e2e_test.go:287: ASSERT-3a PASS: agent-runtime AUTONOMOUSLY RELAUNCHED + RESUMED the supervisor session at boot
+    restart_recovery_e2e_test.go:301: ASSERT-3b PASS: relaunch RESUMED prior session (RESUME_FROM=5bff8e84-9fdc-5263-afc3-26b434667b6e; gen0 session=5bff8e84-9fdc-5263-afc3-26b434667b6e)
+    restart_recovery_e2e_test.go:321: ASSERT-3c PASS: the un-answered directed message was PROACTIVELY re-injected after restart
+    restart_recovery_e2e_test.go:324: 
+        ========== RESULT: PASSED ==========
+        completed_turn=true persisted: yes (gen0 session=5bff8e84-9fdc-5263-afc3-26b434667b6e)
+        worker SIGKILLed before reply:  yes
+        relaunch RESUMED prior session: yes (RESUME_FROM=5bff8e84-9fdc-5263-afc3-26b434667b6e)
+        directed msg re-injected:       yes (reply-nudge after restart)
+        ====================================
+--- PASS: TestE2E_RestartRecovery_DeployLevel (9.13s)
+PASS
+ok  	github.com/oopslink/agent-center/tests/e2e	16.624s
+exit_code=0

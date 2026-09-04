@@ -1,0 +1,9 @@
+cmd: curl GET isolated ai-runtime export
+HTTP/1.1 200 OK
+Content-Type: application/json
+Date: Fri, 04 Sep 2026 10:43:07 GMT
+Content-Length: 450
+
+{"strategy":"merge","document":{"schema_version":1,"kind":"agent-center-ai-runtime","exported_at":"2026-09-04T10:43:07.106589Z","runtime":{"clis":[{"key":"claude-code","display_name":"Claude Code","executable":"claude","required_features":null,"parameter_schema":{"type":"object"},"enabled":true},{"key":"codex","display_name":"Codex","executable":"codex","required_features":null,"parameter_schema":{"type":"object"},"enabled":true}],"models":[]}}}
+
+exit_code=0

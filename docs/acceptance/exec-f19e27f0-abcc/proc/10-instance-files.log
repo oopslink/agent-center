@@ -1,0 +1,19 @@
+cmd: find /Users/oopslink/.agent-center-test/abcc-f19e27f0 -maxdepth 4 -type f | sort
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/etc/config.yaml
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/logs/com.agent-center.center.test-abcc-f19e27f0.err.log
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/logs/com.agent-center.center.test-abcc-f19e27f0.out.log
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/var/admin-tls.crt
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/var/admin-tls.fingerprint
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/var/admin-tls.key
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/var/agent-center.db
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/var/agent-center.db-shm
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/var/agent-center.db-wal
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/var/bootstrap_token
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/var/insight.duckdb
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/var/insight.duckdb.wal
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/center/var/master.key
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/worker-1/etc/config.yaml
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/worker-1/logs/com.agent-center.worker.test-abcc-f19e27f0-w1.err.log
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/worker-1/logs/com.agent-center.worker.test-abcc-f19e27f0-w1.out.log
+/Users/oopslink/.agent-center-test/abcc-f19e27f0/worker-1/var/worker-token
+exit_code=0

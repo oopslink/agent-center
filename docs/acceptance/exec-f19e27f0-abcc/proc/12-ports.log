@@ -1,0 +1,3 @@
+cmd: lsof/listen filtered by agent-center binary and instance ports
+agent-cen 44154 oopslink   12u  IPv4 0x2f36ab467eb3b49f      0t0  TCP 127.0.0.1:53761 (LISTEN)
+exit_code=0

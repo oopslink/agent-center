@@ -1,0 +1,16 @@
+cmd: ./bin/agent-center install worker --prefix /Users/oopslink/.agent-center-test/abcc-f19e27f0/worker-2 --worker-id worker-f528306d --bootstrap tcp://127.0.0.1:53761 --server-fingerprint <recorded> --token <redacted> --service --force --user-mode
+agent-center install worker:
+  prefix:        /Users/oopslink/.agent-center-test/abcc-f19e27f0/worker-2
+  user-mode:     true
+  worker-id:     worker-f528306d
+  bootstrap:     tcp://127.0.0.1:53761
+  state:         fresh
+  waiting for daemon to connect...
+
+✓ AgentCenter worker ac-exec/task-b3eb83d7/exec-f19e27f0-b942af98 installed + connected
+  worker-id: worker-f528306d
+  bootstrap: tcp://127.0.0.1:53761
+  service:   com.agent-center.worker.worker-f528306d (launchd)
+  config:    /Users/oopslink/.agent-center-test/abcc-f19e27f0/worker-2/etc/config.yaml
+  Visible now in the Web Console Fleet view.
+exit_code=0
