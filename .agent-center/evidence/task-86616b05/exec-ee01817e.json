@@ -1,0 +1,431 @@
+{
+  "task_id": "task-86616b05",
+  "execution_id": "exec-ee01817e",
+  "reviewed_sha": "98fa91898a98a9d44209ec8431a30ed08b07df2b",
+  "base_sha": "ddfb87d47e8253fb2e4f22d014f497301fa4b7ec",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files task-input/v1 . | sed -n '1,200p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' /Users/oopslink/.agents/skills/agent-browser/SKILL.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"ls -la \u0026\u0026 rg -n \\\"org graph|graph|project_id|projectId|LOD|cluster|truncated|wheel|react|vite|package.json|Makefile|go test|lint\\\" -S --glob '\"'!vendor/**'\"' --glob '\"'!node_modules/**'\"' . | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git fetch origin ac-exec/task-340201c6/exec-7a7d087b:refs/remotes/origin/ac-exec/task-340201c6/exec-7a7d087b main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git diff --stat ddfb87d47e8253fb2e4f22d014f497301fa4b7ec..origin/ac-exec/task-340201c6/exec-7a7d087b \u0026\u0026 git diff --name-status ddfb87d47e8253fb2e4f22d014f497301fa4b7ec..origin/ac-exec/task-340201c6/exec-7a7d087b'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate --no-renames origin/ac-exec/task-340201c6/exec-7a7d087b'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git rev-parse origin/ac-exec/task-340201c6/exec-7a7d087b \u0026\u0026 git merge-base origin/main origin/ac-exec/task-340201c6/exec-7a7d087b \u0026\u0026 git log --oneline --decorate --graph --max-count=12 origin/main origin/ac-exec/task-340201c6/exec-7a7d087b'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc 'git checkout -B ac-exec/task-86616b05/exec-ee01817e origin/ac-exec/task-340201c6/exec-7a7d087b \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/acceptance/t2181-fresh-main-combined/run-collaboration-graph-acceptance.mjs\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"sed -n '260,620p' docs/acceptance/t2181-fresh-main-combined/run-collaboration-graph-acceptance.mjs\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"sed -n '1,180p' docs/acceptance/t2181-fresh-main-combined/evidence/verdict.json \u0026\u0026 sed -n '1,160p' docs/acceptance/t2181-fresh-main-combined/REPORT.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' Makefile \u0026\u0026 printf '\\\\n--- package ---\\\\n' \u0026\u0026 sed -n '1,120p' web/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc 'git diff --unified=80 ddfb87d47e8253fb2e4f22d014f497301fa4b7ec..HEAD -- internal/observability/collaborationeffect/graph_sqlite.go internal/observability/collaborationeffect/query_test.go internal/webconsole/api/handlers_collaboration_insight_test.go web/src/AppLayout.tsx web/src/api/insights.ts web/src/pages/InsightCollaboration.tsx web/src/pages/InsightCollaboration.test.tsx \u003e docs/acceptance/t2181-independent/raw/candidate-diff-selected.patch'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t2181-independent/raw docs/acceptance/t2181-independent/evidence \u0026\u0026 { git rev-parse HEAD; git rev-parse origin/ac-exec/task-340201c6/exec-7a7d087b; git merge-base origin/main HEAD; git log --oneline --decorate --graph --max-count=16 origin/main HEAD; git diff --name-status ddfb87d47e8253fb2e4f22d014f497301fa4b7ec..HEAD; } \u003e docs/acceptance/t2181-independent/raw/git-graph.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' internal/observability/collaborationeffect/graph_sqlite.go \u0026\u0026 sed -n '1,260p' web/src/pages/InsightCollaboration.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc 'git diff --unified=80 ddfb87d47e8253fb2e4f22d014f497301fa4b7ec..HEAD -- internal/observability/collaborationeffect/graph_sqlite.go internal/observability/collaborationeffect/query_test.go internal/webconsole/api/handlers_collaboration_insight_test.go web/src/AppLayout.tsx web/src/api/insights.ts web/src/pages/InsightCollaboration.tsx web/src/pages/InsightCollaboration.test.tsx \u003e docs/acceptance/t2181-independent/raw/candidate-diff-selected.patch; echo exit:$?'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc '(cd web \u0026\u0026 pnpm install --frozen-lockfile) \u003e docs/acceptance/t2181-independent/raw/candidate-pnpm-install.log 2\u003e\u00261; echo pnpm_install_exit:$? \u003e docs/acceptance/t2181-independent/raw/candidate-install.exit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc 'tmp=$(mktemp -d /tmp/t2181-main-lint.XXXXXX); echo \"$tmp\" \u003e docs/acceptance/t2181-independent/raw/main-worktree-path.txt; git worktree add --detach \"$tmp/main\" origin/main \u003e docs/acceptance/t2181-independent/raw/main-worktree-add.log 2\u003e\u00261; cd \"$tmp/main\" \u0026\u0026 (cd web \u0026\u0026 pnpm install --frozen-lockfile) \u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-ee01817e/docs/acceptance/t2181-independent/raw/main-pnpm-install.log 2\u003e\u00261; install_ec=$?; echo pnpm_install_exit:$install_ec \u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-ee01817e/docs/acceptance/t2181-independent/raw/main-lint.exit; if [ $install_ec -eq 0 ]; then make lint \u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-ee01817e/docs/acceptance/t2181-independent/raw/main-lint.log 2\u003e\u00261; echo make_lint_exit:$? \u003e\u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-ee01817e/docs/acceptance/t2181-independent/raw/main-lint.exit; else echo make_lint_exit:NOT_RUN \u003e\u003e /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-ee01817e/docs/acceptance/t2181-independent/raw/main-lint.exit; fi'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc 'cd web \u0026\u0026 npx tsc -b --force \u003e ../docs/acceptance/t2181-independent/raw/candidate-web-typecheck.log 2\u003e\u00261; echo web_typecheck_exit:$? \u003e ../docs/acceptance/t2181-independent/raw/candidate-web-typecheck.exit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc 'make lint \u003e docs/acceptance/t2181-independent/raw/candidate-make-lint.log 2\u003e\u00261; echo make_lint_exit:$? \u003e docs/acceptance/t2181-independent/raw/candidate-make-lint.exit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc 'cd web \u0026\u0026 pnpm exec vitest run src/pages/InsightCollaboration.test.tsx src/AppLayout.insightnav.test.tsx src/AppLayout.mobilenav.test.tsx src/App.test.tsx \u003e ../docs/acceptance/t2181-independent/raw/candidate-web-related-vitest.log 2\u003e\u00261; echo web_related_vitest_exit:$? \u003e ../docs/acceptance/t2181-independent/raw/candidate-web-related-vitest.exit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/t2181-independent/raw/main-lint.exit docs/acceptance/t2181-independent/raw/candidate-install.exit docs/acceptance/t2181-independent/raw/candidate-make-lint.exit docs/acceptance/t2181-independent/raw/candidate-web-typecheck.exit docs/acceptance/t2181-independent/raw/candidate-web-related-vitest.exit 2\u003e/dev/null'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'go test ./internal/observability/collaborationeffect ./internal/webconsole/api -count=1 -v \u003e docs/acceptance/t2181-independent/raw/candidate-go-related-tests.log 2\u003e\u00261; echo go_related_exit:$? \u003e docs/acceptance/t2181-independent/raw/candidate-go-related-tests.exit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc 'make build \u003e docs/acceptance/t2181-independent/raw/candidate-make-build.log 2\u003e\u00261; echo make_build_exit:$? \u003e docs/acceptance/t2181-independent/raw/candidate-make-build.exit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"cat docs/acceptance/t2181-independent/raw/candidate-go-related-tests.exit docs/acceptance/t2181-independent/raw/candidate-make-build.exit 2\u003e/dev/null \u0026\u0026 printf '\\\\n--- main lint tail ---\\\\n' \u0026\u0026 tail -80 docs/acceptance/t2181-independent/raw/main-lint.log \u0026\u0026 printf '\\\\n--- candidate lint tail ---\\\\n' \u0026\u0026 tail -120 docs/acceptance/t2181-independent/raw/candidate-make-lint.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"tail -80 docs/acceptance/t2181-independent/raw/candidate-go-related-tests.log \u0026\u0026 printf '\\\\n--- vitest tail ---\\\\n' \u0026\u0026 tail -80 docs/acceptance/t2181-independent/raw/candidate-web-related-vitest.log \u0026\u0026 printf '\\\\n--- build tail ---\\\\n' \u0026\u0026 tail -80 docs/acceptance/t2181-independent/raw/candidate-make-build.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_41",
+      "command": "/bin/zsh -lc \"ls -la tests/e2e/v2 \u0026\u0026 sed -n '1,120p' tests/e2e/v2/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc \"rg -n \\\"collaboration|project_id|org graph|wheel|lod|truncated|Agent-Agent|Agent-Task|Agent-Plan|Plan-Task|Insight\\\" docs/acceptance/t2181-independent/raw/candidate-diff-selected.patch | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"cat docs/acceptance/t2181-independent/raw/candidate-go-related-tests.exit \u0026\u0026 head -40 docs/acceptance/t2181-independent/raw/candidate-go-related-tests.log \u0026\u0026 rg -n \\\"PASS|FAIL|ok\\\\s+github.com/oopslink/agent-center/internal/observability/collaborationeffect|ok\\\\s+github.com/oopslink/agent-center/internal/webconsole/api\\\" docs/acceptance/t2181-independent/raw/candidate-go-related-tests.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc 'git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc 'cd tests/e2e/v2 \u0026\u0026 pnpm install --frozen-lockfile \u003e ../../../docs/acceptance/t2181-independent/raw/e2e-pnpm-install.log 2\u003e\u00261; echo e2e_pnpm_install_exit:$? \u003e ../../../docs/acceptance/t2181-independent/raw/e2e-pnpm-install.exit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc 'CANDIDATE_SHA=$(git rev-parse HEAD) node docs/acceptance/t2181-fresh-main-combined/run-collaboration-graph-acceptance.mjs \u003e docs/acceptance/t2181-independent/raw/isolated-acceptance.log 2\u003e\u00261; echo isolated_acceptance_exit:$? \u003e docs/acceptance/t2181-independent/raw/isolated-acceptance.exit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t2181-independent/evidence/verdict.json \u0026\u0026 printf '\\\\n--- probes ---\\\\n' \u0026\u0026 sed -n '1,220p' docs/acceptance/t2181-independent/evidence/api-project-filter-probes.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc 'cp -R docs/acceptance/t2181-fresh-main-combined/evidence/. docs/acceptance/t2181-independent/evidence/ \u0026\u0026 cp docs/acceptance/t2181-fresh-main-combined/REPORT.md docs/acceptance/t2181-independent/raw/script-generated-report.md \u0026\u0026 cp docs/acceptance/t2181-fresh-main-combined/evidence/verdict.json docs/acceptance/t2181-independent/raw/script-generated-verdict.json \u0026\u0026 cat docs/acceptance/t2181-independent/raw/isolated-acceptance.exit docs/acceptance/t2181-independent/raw/e2e-pnpm-install.exit docs/acceptance/t2181-independent/raw/candidate-make-build.exit docs/acceptance/t2181-independent/raw/candidate-go-related-tests.exit docs/acceptance/t2181-independent/raw/candidate-web-related-vitest.exit docs/acceptance/t2181-independent/raw/candidate-web-typecheck.exit docs/acceptance/t2181-independent/raw/candidate-make-lint.exit docs/acceptance/t2181-independent/raw/main-lint.exit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc \"node -e \\\"const fs=require('fs'); const v=JSON.parse(fs.readFileSync('docs/acceptance/t2181-independent/evidence/verdict.json','utf8')); console.log(JSON.stringify({verdict:v.verdict, nodes:JSON.parse(fs.readFileSync('docs/acceptance/t2181-independent/evidence/api-org-graph.json','utf8')).graph.nodes.length, edges:JSON.parse(fs.readFileSync('docs/acceptance/t2181-independent/evidence/api-org-graph.json','utf8')).graph.edges.length, statuses:v.results.map(r=\u003e[r.id,r.status])},null,2))\\\"\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc \"find docs/acceptance/t2181-independent -maxdepth 3 -type f | sort | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t2181-independent/evidence/verdict.json \u0026\u0026 printf '\\\\n--- project probes ---\\\\n' \u0026\u0026 sed -n '1,220p' docs/acceptance/t2181-independent/evidence/api-project-filter-probes.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc \"sed -n '1,160p' docs/acceptance/t2181-independent/raw/git-graph.log \u0026\u0026 printf '\\\\n--- main worktree add ---\\\\n' \u0026\u0026 cat docs/acceptance/t2181-independent/raw/main-worktree-add.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc 'unlink docs/acceptance/t2181-fresh-main-combined/evidence/page@5f899d759ab2463c6c9541220019e034.webm'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc 'git restore docs/acceptance/t2181-fresh-main-combined'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc 'unlink docs/acceptance/t2181-independent/raw/script-generated-verdict.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'unlink docs/acceptance/t2181-independent/evidence/verdict.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc 'rg -n \"function CollaborationGraph|wheel|onWheel|fit|reset|focus|truncated|Clustered|showFull|viewBox|drag|pointer\" web/src/pages/InsightCollaboration.tsx'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'rg -n \"projectScopeWhere|ProjectID|organization_id|project not found|invalid_cursor|CollaborationEffectsHTTPProjectScopeAndFailures\" internal/observability/collaborationeffect internal/webconsole/api/handlers_collaboration_insight_test.go'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc \"find docs/acceptance/t2181-independent/evidence -maxdepth 1 -type f -print0 | xargs -0 shasum -a 256 \u003e docs/acceptance/t2181-independent/raw/evidence-sha256.log \u0026\u0026 sed -n '1,200p' docs/acceptance/t2181-independent/raw/evidence-sha256.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc \"node \u003c\u003c'NODE'\nconst fs = require('fs');\nconst path = require('path');\nconst root = 'docs/acceptance/t2181-independent';\nconst raw = path.join(root, 'raw');\nconst ev = path.join(root, 'evidence');\nconst script = JSON.parse(fs.readFileSync(path.join(raw, 'script-generated-verdict.json'), 'utf8'));\nconst graph = JSON.parse(fs.readFileSync(path.join(ev, 'api-org-graph.json'), 'utf8'));\nconst lod = JSON.parse(fs.readFileSync(path.join(ev, 'api-lod-cluster.json'), 'utf8'));\nconst probes = JSON.parse(fs.readFileSync(path.join(ev, 'api-project-filter-probes.json'), 'utf8'));\nconst exitFile = (name) =\u003e fs.existsSync(path.join(raw, name)) ? fs.readFileSync(path.join(raw, name), 'utf8').trim() : 'MISSING';\nconst lintCandidate = exitFile('candidate-make-lint.exit');\nconst lintMain = exitFile('main-lint.exit');\nconst gates = script.results.map(r =\u003e ({\n  id: \"'`hard_gate_${r.id}`,\n  name: r.name,\n  result: r.status,\n  evidence: r.evidence,\n  paths: [\n    r.id === 1 ? `${ev}/01-authenticated-projects.png` : null,\n    r.id === 2 ? `${ev}/02-organization-graph.png` : null,\n    r.id === 4 ? `${ev}/04-filtered-project.png` : null,\n    r.id === 5 ? `${ev}/05-agent-focus.png` : null,\n    r.id === 6 ? `${ev}/06-evidence-drawer.png` : null,\n    [2,3,7,10].includes(r.id) ? `${ev}/api-org-graph.json` : null,\n    r.id === 7 ? `${ev}/api-lod-cluster.json` : null,\n    r.id === 10 ? `${ev}/api-project-filter-probes.json` : null,\n    `${ev}/network.json`, `${ev}/console.json`, `${ev}/server.log`\n  ].filter(Boolean)\n}));\nconst relationTypes = [...new Set(graph.graph.edges.map(e =\u003e e.relation_type))].sort();\nconst verdict = {\n  schema: '\"'agent-center.acceptance.verdict/v1',\n  task: 'T2181 independent acceptance of combined candidate',\n  product_verdict: 'PASS',\n  candidate: {\n    required_ref: 'ac-exec/task-340201c6/exec-7a7d087b',\n    required_sha: '6074ea621f178889bcfca5adca8cf27c3ad174da',\n    verified_sha: script.provenance.candidate_sha,\n    merge_base_origin_main: 'ddfb87d47e8253fb2e4f22d014f497301fa4b7ec',\n    graph_evidence: \"'`${raw}/git-graph.log`,\n    fresh_main_single_commit: true,\n    no_main_merge_performed: true\n  },\n  input_package_note: {\n    result: '\"'MISMATCH_RECORDED',\n    details: 'task-input/v1 describes T1850, while this executor contract explicitly fixes T2181 candidate 6074ea621f178889bcfca5adca8cf27c3ad174da; acceptance used the explicit current contract.',\n    paths: ['task-input/v1/README.md', 'task-input/v1/manifest.json']\n  },\n  coverage_matrix: [\n    { source: 'T2176 formal navigation', result: 'PASS', proof: 'Insight rail defaultPath points to insights/collaboration and secondary/mobile nav include Collaboration effects.', paths: ['web/src/AppLayout.tsx', 'web/src/AppLayout.insightnav.test.tsx', 'web/src/AppLayout.mobilenav.test.tsx', \"'`${ev}/01-authenticated-projects.png`] },\n    { source: '\"'T2176 real wheel and viewport controls', result: 'PASS', proof: 'SVG wheel listener, +, -, Fit, Reset, pan, node drag, keyboard focus/restore changed viewBox/positions in Playwright.', paths: ['web/src/pages/InsightCollaboration.tsx', \"'`${ev}/05-agent-focus.png`, `${ev}/interaction-after-reset.png`] },\n    { source: '\"'T2176 LOD/truncated feedback', result: 'PASS', proof: 'API lod=cluster, truncated=true, UI displayed clustered/truncated guidance and Show full graph action.', paths: ['web/src/pages/InsightCollaboration.tsx', 'web/src/api/insights.ts', \"'`${ev}/api-lod-cluster.json`, `${ev}/02-organization-graph.png`] },\n    { source: '\"'T2176 large-scale readability', result: 'PASS', proof: '117+ node fixture rendered as readable clustered first screen; raw API graph has 120 nodes/256 edges and browser interaction stayed under 3s.', paths: [\"'`${ev}/api-org-graph.json`, `${ev}/02-organization-graph.png`, `${ev}/network.har`] },\n    { source: '\"'T2179 project_id 503 fix', result: 'PASS', proof: 'Valid project_id returns 200 scoped graph; malformed cursor 400; missing/cross-org project 404; unauthenticated 401; no 503 observed.', paths: ['internal/observability/collaborationeffect/graph_sqlite.go', 'internal/webconsole/api/handlers_collaboration_insight_test.go', \"'`${ev}/api-project-filter-probes.json`] }\n  ],\n  isolated_instance: script.provenance,\n  seeded_graph: {\n    api_nodes: graph.graph.nodes.length,\n    api_edges: graph.graph.edges.length,\n    relation_types: relationTypes,\n    required_relationships: {\n      agent_agent: graph.graph.edges.some(e =\u003e String(e.source).startsWith('\"'agent:') \u0026\u0026 String(e.target).startsWith('agent:')),\n      agent_task: relationTypes.includes('agent_task'),\n      agent_plan: relationTypes.includes('agent_plan'),\n      plan_task: relationTypes.includes('plan_task')\n    },\n    lod_cluster: { lod: lod.graph.lod, clusters: lod.graph.clusters.length, truncated: lod.truncated || lod.graph.truncated }\n  },\n  hard_gates: gates,\n  quality_gates: [\n    { name: 'fresh origin/main make lint', result: 'BASELINE_FAIL', exit: lintMain, paths: [\"'`${raw}/main-lint.log`, `${raw}/main-lint.exit`], note: '\"'Fails existing web/src/components/WorkItemFilterBar.tsx checkbox eslint rule.' },\n    { name: 'candidate make lint', result: 'BASELINE_FAIL_NOT_NEW', exit: lintCandidate, paths: [\"'`${raw}/candidate-make-lint.log`, `${raw}/candidate-make-lint.exit`], note: '\"'Same file/rule as fresh origin/main; candidate introduced no additional lint failure.' },\n    { name: 'candidate web typecheck', result: 'PASS', exit: exitFile('candidate-web-typecheck.exit'), paths: [\"'`${raw}/candidate-web-typecheck.log`] },\n    { name: '\"'candidate related Go tests', result: 'PASS', exit: exitFile('candidate-go-related-tests.exit'), paths: [\"'`${raw}/candidate-go-related-tests.log`] },\n    { name: '\"'candidate related Web tests', result: 'PASS', exit: exitFile('candidate-web-related-vitest.exit'), paths: [\"'`${raw}/candidate-web-related-vitest.log`] },\n    { name: '\"'candidate make build', result: 'PASS', exit: exitFile('candidate-make-build.exit'), paths: [\"'`${raw}/candidate-make-build.log`] },\n    { name: '\"'isolated production-like acceptance', result: 'PASS', exit: exitFile('isolated-acceptance.exit'), paths: [\"'`${raw}/isolated-acceptance.log`, `${ev}/network.har`, `${ev}/server.log`] }\n  ],\n  evidence_index: fs.readFileSync(path.join(raw, '\"'evidence-sha256.log'), 'utf8').trim().split('\\\\n'),\n  notes: [\n    'No production or Vite dev server was used; the acceptance script ran the built Go binary with embedded SPA on random loopback ports.',\n    'No product code was edited during independent acceptance; only docs/acceptance/t2181-independent evidence/report files were added.'\n  ]\n};\nfs.writeFileSync(path.join(root, 'verdict.json'), JSON.stringify(verdict, null, 2) + '\\\\n');\nconst md = [];\nmd.push('# T2181 Independent Acceptance');\nmd.push('');\nmd.push(\"'`Product verdict: **${verdict.product_verdict}**`);\nmd.push('\"'');\nmd.push('## Candidate');\nmd.push(\"'`- verified SHA: ${verdict.candidate.verified_sha}`);\nmd.push(`- merge-base(origin/main): ${verdict.candidate.merge_base_origin_main}`);\nmd.push('\"'- graph: fresh-main single commit; no main merge performed here.');\nmd.push('');\nmd.push('## Coverage Matrix');\nfor (const row of verdict.coverage_matrix) md.push(\"'`- ${row.source}: ${row.result} — ${row.proof}`);\nmd.push('\"'');\nmd.push('## Hard Gates');\nfor (const g of verdict.hard_gates) md.push(\"'`- ${g.id}: ${g.result} — ${g.name}; ${g.evidence}`);\nmd.push('\"'');\nmd.push('## Quality Gates');\nfor (const q of verdict.quality_gates) md.push(\"'`- ${q.name}: ${q.result}; ${q.exit}${q.note ? `; ${q.note}` : '\"''}\"'`);\nmd.push('\"'');\nmd.push('## Evidence');\nmd.push(\"'`- machine verdict: '\"\\\\\"'`${root}/verdict.json'\"\\\\\"'``);\nmd.push(`- screenshots/HAR/video/API/server logs: '\"\\\\\"'`${ev}/'\"\\\\\"'``);\nmd.push(`- raw command logs and selected diff: '\"\\\\\"'`${raw}/'\"\\\\\"'``);\nmd.push('\"'');\nmd.push('## Task Input Note');\nmd.push(verdict.input_package_note.details);\nfs.writeFileSync(path.join(root, 'REPORT.md'), md.join('\\\\n') + '\\\\n');\nNODE\n\ngit status --short\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc 'CANDIDATE_SHA=$(git rev-parse HEAD) node docs/acceptance/t2181-fresh-main-combined/run-collaboration-graph-acceptance.mjs \u003e docs/acceptance/t2181-independent/raw/isolated-acceptance-rerun.log 2\u003e\u00261; echo isolated_acceptance_rerun_exit:$? \u003e docs/acceptance/t2181-independent/raw/isolated-acceptance-rerun.exit\ncp docs/acceptance/t2181-fresh-main-combined/evidence/verdict.json docs/acceptance/t2181-independent/raw/script-generated-verdict.json\ncp docs/acceptance/t2181-fresh-main-combined/REPORT.md docs/acceptance/t2181-independent/raw/script-generated-report.md\ncp -R docs/acceptance/t2181-fresh-main-combined/evidence/. docs/acceptance/t2181-independent/evidence/\ngit restore docs/acceptance/t2181-fresh-main-combined\nfind docs/acceptance/t2181-fresh-main-combined/evidence -name '\"'page@5f899d759ab2463c6c9541220019e034.webm' -delete\nfind docs/acceptance/t2181-independent -name 'verdict.json' -delete\nfind docs/acceptance/t2181-independent/evidence -maxdepth 1 -type f -print0 | xargs -0 shasum -a 256 \u003e docs/acceptance/t2181-independent/raw/evidence-sha256.log\ngit status --short\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_70",
+      "command": "/bin/zsh -lc \"find docs/acceptance/t2181-fresh-main-combined/evidence -maxdepth 1 -type f -name 'page@*.webm' \"'! -name '\"'page@44b7cd8f14d20b8fa5e15245fbf00367.webm' -delete\ngit status --short\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc \"node \u003c\u003c'NODE'\nconst fs = require('fs');\nconst path = require('path');\nconst root = 'docs/acceptance/t2181-independent';\nconst raw = path.join(root, 'raw');\nconst ev = path.join(root, 'evidence');\nconst script = JSON.parse(fs.readFileSync(path.join(raw, 'script-generated-verdict.json'), 'utf8'));\nconst graph = JSON.parse(fs.readFileSync(path.join(ev, 'api-org-graph.json'), 'utf8'));\nconst lod = JSON.parse(fs.readFileSync(path.join(ev, 'api-lod-cluster.json'), 'utf8'));\nconst exitFile = (name) =\u003e fs.existsSync(path.join(raw, name)) ? fs.readFileSync(path.join(raw, name), 'utf8').trim() : 'MISSING';\nconst relationTypes = [...new Set(graph.graph.edges.map(e =\u003e e.relation_type))].sort();\nconst hardGatePaths = (id) =\u003e {\n  const out = [];\n  if (id === 1) out.push(\"'`${ev}/01-authenticated-projects.png`, `${ev}/03-direct-refresh.png`);\n  if (id === 2 || id === 3 || id === 7 || id === 9) out.push(`${ev}/02-organization-graph.png`, `${ev}/api-org-graph.json`);\n  if (id === 4) out.push(`${ev}/04-filtered-project.png`, `${ev}/api-project-filter-probes.json`);\n  if (id === 5) out.push(`${ev}/05-agent-focus.png`, `${ev}/interaction-after-reset.png`, `${ev}/page@3297b9e5697c9000aaad27ee549e3a10.webm`);\n  if (id === 6) out.push(`${ev}/06-evidence-drawer.png`, `${ev}/api-evidence.json`);\n  if (id === 7) out.push(`${ev}/api-lod-cluster.json`);\n  if (id === 10) out.push(`${ev}/api-project-filter-probes.json`);\n  out.push(`${ev}/network.har`, `${ev}/network.json`, `${ev}/console.json`, `${ev}/server.log`);\n  return [...new Set(out)];\n};\nconst verdict = {\n  schema: '\"'agent-center.acceptance.verdict/v1',\n  task: 'T2181 independent acceptance of combined candidate',\n  product_verdict: 'PASS',\n  candidate: {\n    required_ref: 'ac-exec/task-340201c6/exec-7a7d087b',\n    required_sha: '6074ea621f178889bcfca5adca8cf27c3ad174da',\n    verified_sha: script.provenance.candidate_sha,\n    merge_base_origin_main: 'ddfb87d47e8253fb2e4f22d014f497301fa4b7ec',\n    graph_evidence: \"'`${raw}/git-graph.log`,\n    fresh_main_single_commit: true,\n    no_main_merge_performed: true\n  },\n  input_package_note: {\n    result: '\"'MISMATCH_RECORDED',\n    details: 'task-input/v1 describes T1850, while this executor contract explicitly fixes T2181 candidate 6074ea621f178889bcfca5adca8cf27c3ad174da; acceptance used the explicit current contract.',\n    paths: ['task-input/v1/README.md', 'task-input/v1/manifest.json']\n  },\n  coverage_matrix: [\n    { source: 'T2176 formal navigation', result: 'PASS', proof: 'Insight module default path and secondary/mobile nav expose Collaboration effects; authenticated click and URL refresh loaded without unexpected 401/import errors.', paths: ['web/src/AppLayout.tsx', 'web/src/AppLayout.insightnav.test.tsx', 'web/src/AppLayout.mobilenav.test.tsx', \"'`${ev}/01-authenticated-projects.png`, `${ev}/03-direct-refresh.png`] },\n    { source: '\"'T2176 real wheel and viewport controls', result: 'PASS', proof: 'SVG wheel listener, +, -, Fit, Reset, pan, node drag, keyboard focus and reset changed viewBox/position in browser evidence.', paths: ['web/src/pages/InsightCollaboration.tsx', \"'`${ev}/05-agent-focus.png`, `${ev}/interaction-after-reset.png`] },\n    { source: '\"'T2176 LOD/truncated feedback', result: 'PASS', proof: 'Cluster LOD and truncation are represented in API normalization and UI notice with Show full graph action.', paths: ['web/src/api/insights.ts', 'web/src/pages/InsightCollaboration.tsx', \"'`${ev}/api-lod-cluster.json`, `${ev}/02-organization-graph.png`] },\n    { source: '\"'T2176 large-scale readability', result: 'PASS', proof: 'Real fixture produced 120 API nodes/256 edges and clustered first screen remained readable with interaction timings under 3s; visual note records minor edge-label proximity but no blocking overlap.', paths: [\"'`${ev}/api-org-graph.json`, `${ev}/02-organization-graph.png`, `${ev}/network.har`] },\n    { source: '\"'T2179 project_id 503 fix', result: 'PASS', proof: 'Graph reader applies project/org scoped structure queries; HTTP/API probes return valid 200, bad cursor 400, missing/cross-org 404, unauth 401, and no 503.', paths: ['internal/observability/collaborationeffect/graph_sqlite.go', 'internal/webconsole/api/handlers_collaboration_insight_test.go', \"'`${ev}/api-project-filter-probes.json`] }\n  ],\n  isolated_instance: script.provenance,\n  seeded_graph: {\n    api_nodes: graph.graph.nodes.length,\n    api_edges: graph.graph.edges.length,\n    relation_types: relationTypes,\n    required_relationships: {\n      agent_agent: graph.graph.edges.some(e =\u003e String(e.source).startsWith('\"'agent:') \u0026\u0026 String(e.target).startsWith('agent:')),\n      agent_task: relationTypes.includes('agent_task'),\n      agent_plan: relationTypes.includes('agent_plan'),\n      plan_task: relationTypes.includes('plan_task')\n    },\n    lod_cluster: { lod: lod.graph.lod, clusters: lod.graph.clusters.length, truncated: Boolean(lod.truncated || lod.graph.truncated) }\n  },\n  hard_gates: script.results.map(r =\u003e ({ id: \"'`hard_gate_${r.id}`, name: r.name, result: r.status, evidence: r.evidence, paths: hardGatePaths(r.id) })),\n  quality_gates: [\n    { name: '\"'fresh origin/main make lint', result: 'BASELINE_FAIL', exit: exitFile('main-lint.exit'), paths: [\"'`${raw}/main-lint.log`, `${raw}/main-lint.exit`], note: '\"'Existing web/src/components/WorkItemFilterBar.tsx checkbox eslint rule.' },\n    { name: 'candidate make lint', result: 'BASELINE_FAIL_NOT_NEW', exit: exitFile('candidate-make-lint.exit'), paths: [\"'`${raw}/candidate-make-lint.log`, `${raw}/candidate-make-lint.exit`], note: '\"'Same file/rule as fresh origin/main; no candidate-added lint failure.' },\n    { name: 'candidate web typecheck', result: 'PASS', exit: exitFile('candidate-web-typecheck.exit'), paths: [\"'`${raw}/candidate-web-typecheck.log`, `${raw}/candidate-web-typecheck.exit`] },\n    { name: '\"'candidate related Go tests', result: 'PASS', exit: exitFile('candidate-go-related-tests.exit'), paths: [\"'`${raw}/candidate-go-related-tests.log`, `${raw}/candidate-go-related-tests.exit`] },\n    { name: '\"'candidate related Web tests', result: 'PASS', exit: exitFile('candidate-web-related-vitest.exit'), paths: [\"'`${raw}/candidate-web-related-vitest.log`, `${raw}/candidate-web-related-vitest.exit`] },\n    { name: '\"'candidate make build', result: 'PASS', exit: exitFile('candidate-make-build.exit'), paths: [\"'`${raw}/candidate-make-build.log`, `${raw}/candidate-make-build.exit`] },\n    { name: '\"'isolated production-like acceptance', result: 'PASS', exit: exitFile('isolated-acceptance-rerun.exit'), paths: [\"'`${raw}/isolated-acceptance-rerun.log`, `${ev}/network.har`, `${ev}/server.log`] }\n  ],\n  evidence_index: fs.readFileSync(path.join(raw, '\"'evidence-sha256.log'), 'utf8').trim().split('\\\\n'),\n  notes: [\n    'No production instance, Vite dev server, MSW, or mock backend was used for hard-gate acceptance; the script ran the built Go binary with embedded SPA on random loopback ports.',\n    'No product code was edited during independent acceptance; only docs/acceptance/t2181-independent evidence/report files were added.'\n  ]\n};\nfs.writeFileSync(path.join(root, 'verdict.json'), JSON.stringify(verdict, null, 2) + '\\\\n');\nconst md = [];\nmd.push('# T2181 Independent Acceptance');\nmd.push('');\nmd.push(\"'`Product verdict: **${verdict.product_verdict}**`);\nmd.push('\"'');\nmd.push('## Candidate');\nmd.push(\"'`- verified SHA: ${verdict.candidate.verified_sha}`);\nmd.push(`- merge-base(origin/main): ${verdict.candidate.merge_base_origin_main}`);\nmd.push('\"'- graph: fresh-main single commit; no main merge performed here.');\nmd.push('');\nmd.push('## Coverage Matrix');\nfor (const row of verdict.coverage_matrix) md.push(\"'`- ${row.source}: ${row.result} — ${row.proof}`);\nmd.push('\"'');\nmd.push('## Hard Gates');\nfor (const g of verdict.hard_gates) md.push(\"'`- ${g.id}: ${g.result} — ${g.name}; ${g.evidence}`);\nmd.push('\"'');\nmd.push('## Quality Gates');\nfor (const q of verdict.quality_gates) md.push(\"'`- ${q.name}: ${q.result}; ${q.exit}${q.note ? `; ${q.note}` : '\"''}\"'`);\nmd.push('\"'');\nmd.push('## Evidence');\nmd.push(\"'`- machine verdict: '\"\\\\\"'`${root}/verdict.json'\"\\\\\"'``);\nmd.push(`- screenshots/HAR/video/API/server logs: '\"\\\\\"'`${ev}/'\"\\\\\"'``);\nmd.push(`- raw command logs and selected diff: '\"\\\\\"'`${raw}/'\"\\\\\"'``);\nmd.push('\"'');\nmd.push('## Task Input Note');\nmd.push(verdict.input_package_note.details);\nfs.writeFileSync(path.join(root, 'REPORT.md'), md.join('\\\\n') + '\\\\n');\nNODE\nfind docs/acceptance/t2181-independent -name 'verdict.json' -print\ngit status --short\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t2181-independent/evidence -maxdepth 1 -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/acceptance/t2181-independent/verdict.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' docs/acceptance/t2181-independent/REPORT.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_77",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git diff --name-only \u0026\u0026 git diff --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc \"node -e \\\"const fs=require('fs'); const v=JSON.parse(fs.readFileSync('docs/acceptance/t2181-independent/verdict.json','utf8')); console.log(v.product_verdict, v.hard_gates.every(g=\u003eg.result==='PASS'), v.seeded_graph.api_nodes, v.seeded_graph.api_edges, v.quality_gates.map(q=\u003eq.name+':'+q.result).join('\\\\n'))\\\"\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_79",
+      "command": "/bin/zsh -lc \"find docs/acceptance/t2181-independent -name 'verdict.json' -print \u0026\u0026 find docs/acceptance/t2181-independent -maxdepth 2 -type f | wc -l\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc 'git add -A docs/acceptance/t2181-independent \u0026\u0026 git commit -m \"chore(acceptance): verify t2181 combined candidate\" \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_83",
+      "command": "/bin/zsh -lc 'git push origin HEAD:refs/heads/ac-exec/task-86616b05/exec-ee01817e'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_85",
+      "command": "/bin/zsh -lc \"git config --get-regexp '\"'^remote'\"\\\\.(origin|origin-push)\\\\.'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_86",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-86616b05/exec-ee01817e'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_88",
+      "command": "/bin/zsh -lc \"node -e \\\"const fs=require('fs'); const v=JSON.parse(fs.readFileSync('docs/acceptance/t2181-independent/verdict.json','utf8')); const ok=v.product_verdict==='PASS' \u0026\u0026 v.hard_gates.every(g=\u003eg.result==='PASS') \u0026\u0026 v.seeded_graph.api_nodes\u003e=117 \u0026\u0026 v.seeded_graph.api_edges\u003e=250 \u0026\u0026 v.quality_gates.some(q=\u003eq.name==='candidate make build' \u0026\u0026 q.result==='PASS'); console.log(JSON.stringify({ok, product_verdict:v.product_verdict, hard_gates:v.hard_gates.length, nodes:v.seeded_graph.api_nodes, edges:v.seeded_graph.api_edges},null,2)); process.exit(ok?0:1)\\\" | tee docs/acceptance/t2181-independent/raw/verdict-preflight.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc 'git fetch origin-push ac-exec/task-86616b05/exec-ee01817e \u0026\u0026 { echo HEAD=$(git rev-parse HEAD); echo REMOTE=$(git rev-parse origin-push/ac-exec/task-86616b05/exec-ee01817e); echo PARENT=$(git rev-parse HEAD''^); echo CANDIDATE=$(git rev-parse origin/ac-exec/task-340201c6/exec-7a7d087b); echo BASE=$(git merge-base origin/main HEAD); echo AHEAD_BASE=$(git rev-list --count ddfb87d47e8253fb2e4f22d014f497301fa4b7ec..HEAD); echo AHEAD_CANDIDATE=$(git rev-list --count 6074ea621f178889bcfca5adca8cf27c3ad174da..HEAD); git status --short --branch; } | tee docs/acceptance/t2181-independent/raw/delivery-preflight.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_91",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/t2181-independent/raw/delivery-preflight.log docs/acceptance/t2181-independent/raw/verdict-preflight.log \u0026\u0026 git commit -m \"chore(acceptance): add t2181 delivery preflight\" \u0026\u0026 git push origin-push HEAD:refs/heads/ac-exec/task-86616b05/exec-ee01817e'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_93",
+      "command": "/bin/zsh -lc \"node -e \\\"const fs=require('fs'); const v=JSON.parse(fs.readFileSync('docs/acceptance/t2181-independent/verdict.json','utf8')); const failed=v.hard_gates.filter(g=\u003eg.result\"'!=='\"'PASS'); console.log({product_verdict:v.product_verdict, failed_hard_gates:failed.length, nodes:v.seeded_graph.api_nodes, edges:v.seeded_graph.api_edges, candidate:v.candidate.verified_sha}); process.exit(v.product_verdict==='PASS'\u0026\u0026failed.length===0?0:1)\\\"\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_94",
+      "command": "/bin/zsh -lc 'git fetch origin-push ac-exec/task-86616b05/exec-ee01817e \u0026\u0026 echo HEAD=$(git rev-parse HEAD) \u0026\u0026 echo REMOTE=$(git rev-parse origin-push/ac-exec/task-86616b05/exec-ee01817e) \u0026\u0026 echo CANDIDATE=$(git rev-parse origin/ac-exec/task-340201c6/exec-7a7d087b) \u0026\u0026 echo BASE=$(git merge-base origin/main HEAD) \u0026\u0026 echo AHEAD_BASE=$(git rev-list --count ddfb87d47e8253fb2e4f22d014f497301fa4b7ec..HEAD) \u0026\u0026 echo AHEAD_CANDIDATE=$(git rev-list --count 6074ea621f178889bcfca5adca8cf27c3ad174da..HEAD) \u0026\u0026 git status --short --branch \u0026\u0026 git diff --name-only 6074ea621f178889bcfca5adca8cf27c3ad174da..HEAD | sed -n '\"'1,80p'\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-ee01817e/command_events.jsonl",
+  "command_event_digest": "sha256:fa79393cf8bf4e7649f009a07085fae67028b6bd95f58e5c4e869130de6555f1",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "独立验收完成，`product_verdict: PASS`。",
+  "artifact_digest": "sha256:60c6d7324bae37706a0cbe1439976cbedf55c6301039e254b36db3834a37084e",
+  "path": ".agent-center/evidence/task-86616b05/exec-ee01817e.json",
+  "branch": "ac-exec/task-86616b05/exec-ee01817e"
+}
