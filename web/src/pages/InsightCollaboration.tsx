@@ -53,7 +53,7 @@ export default function InsightCollaboration(): React.ReactElement {
       {query.data ? <>
         <Summary summary={summary} t={t} />
         {view.edges.length === 0 ? <State id="collaboration-empty" title={t('insight.collaboration.empty')} body={t('insight.collaboration.emptyBody')} /> :
-          <CollaborationGraph nodes={view.nodes} edges={view.edges} selected={selected} onSelect={setSelected} t={t} />}
+          <CollaborationGraph nodes={view.nodes} edges={view.edges} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} />}
         {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="rounded border border-border px-3 py-2 text-sm" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
         <Timeline effects={effects} onSelect={setSelected} t={t} />
       </> : null}
@@ -110,6 +110,7 @@ function CollaborationFiltersBar({ params, update, t }: { params: URLSearchParam
     ['until', t('insight.collaboration.filters.until'), 'datetime-local'],
   ];
   return <form aria-label={t('insight.collaboration.filters.label')} className="grid gap-3 rounded-lg border border-border bg-bg-surface p-4 md:grid-cols-4" onSubmit={(e) => e.preventDefault()}>
+    <h2 className="text-sm font-semibold text-text-primary md:col-span-4">{t('insight.collaboration.filters.label')}</h2>
     <EntityFilter
       name="project_id"
       label={t('insight.collaboration.filters.project')}
@@ -281,20 +282,32 @@ function maxDate(a?: string, b?: string): string | undefined {
   return a >= b ? a : b;
 }
 
-function CollaborationGraph({ nodes, edges, selected, onSelect, t }: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
+function CollaborationGraph({ nodes, edges, selected, onSelect, onClearSelection, t }: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; onClearSelection: () => void; t: Translator }) {
   const lanes = { agent: 65, project: 200, plan: 335, stage: 500, task: 660 };
   const laneIndex = new Map<string, number>();
   const baseNodeMap = useMemo(() => new Map(nodes.map((node) => { const i = laneIndex.get(node.kind) ?? 0; laneIndex.set(node.kind, i + 1); return [node.id, { ...node, x: lanes[node.kind], y: 70 + i * 68 }]; })), [nodes]);
-  const graphBounds = useMemo(() => graphViewBox([...baseNodeMap.values()]), [baseNodeMap]);
+  const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const nodeMap = useMemo(() => new Map([...baseNodeMap.values()].map((node) => [node.id, { ...node, ...(dragPositions[node.id] ?? {}) }])), [baseNodeMap, dragPositions]);
+  const graphBounds = useMemo(() => graphViewBox([...nodeMap.values()]), [nodeMap]);
   const [viewport, setViewport] = useState(graphBounds);
+  const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
   const panRef = useRef<{ x: number; y: number; viewport: GraphViewBox } | null>(null);
+  const dragRef = useRef<{ id: string; pointer: { x: number; y: number }; origin: { x: number; y: number }; moved: boolean } | null>(null);
   const selectedKey = selected?.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0') ?? '';
+  const selectedEffectIds = useMemo(() => new Set(selected?.map((scope) => scope.effect_id) ?? []), [selected]);
+  const context = useMemo(() => graphContext(edges, selectedEffectIds, focusedNodeId), [edges, focusedNodeId, selectedEffectIds]);
+  const hasNoiseReduction = selectedEffectIds.size > 0 || Boolean(focusedNodeId);
   const fit = useCallback(() => setViewport(graphBounds), [graphBounds]);
+  const reset = useCallback(() => {
+    setFocusedNodeId(null);
+    onClearSelection();
+    setViewport(graphBounds);
+  }, [graphBounds, onClearSelection]);
   const zoom = useCallback((factor: number, center = { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 }) => {
     setViewport((current) => zoomViewBox(current, factor, center));
   }, [viewport]);
-  const toSvgPoint = useCallback((event: React.PointerEvent<SVGSVGElement> | React.WheelEvent<SVGSVGElement>) => {
+  const toSvgPoint = useCallback((event: { clientX: number; clientY: number }) => {
     const svg = svgRef.current;
     const matrix = svg?.getScreenCTM();
     if (!svg || !matrix) return { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 };
@@ -314,7 +327,7 @@ function CollaborationGraph({ nodes, edges, selected, onSelect, t }: { nodes: Co
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(0.82)} aria-label={t('insight.collaboration.viewport.zoomIn')}>+</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(1.18)} aria-label={t('insight.collaboration.viewport.zoomOut')}>-</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={fit}>{t('insight.collaboration.viewport.fit')}</button>
-        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={fit}>{t('insight.collaboration.viewport.reset')}</button>
+        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={reset}>{t('insight.collaboration.viewport.reset')}</button>
       </div>
     </div>
     <svg
@@ -326,13 +339,41 @@ function CollaborationGraph({ nodes, edges, selected, onSelect, t }: { nodes: Co
       data-testid="collaboration-graph-svg"
       onWheel={onWheel}
       onPointerDown={(event) => { panRef.current = { x: event.clientX, y: event.clientY, viewport }; event.currentTarget.setPointerCapture(event.pointerId); }}
-      onPointerMove={(event) => { const pan = panRef.current; if (!pan) return; const rect = event.currentTarget.getBoundingClientRect(); const dx = ((event.clientX - pan.x) / rect.width) * pan.viewport.width; const dy = ((event.clientY - pan.y) / rect.height) * pan.viewport.height; setViewport({ ...pan.viewport, x: pan.viewport.x - dx, y: pan.viewport.y - dy }); }}
-      onPointerUp={(event) => { panRef.current = null; event.currentTarget.releasePointerCapture(event.pointerId); }}
-      onPointerLeave={() => { panRef.current = null; }}
+      onPointerMove={(event) => {
+        const drag = dragRef.current;
+        if (drag) {
+          const point = toSvgPoint(event);
+          const dx = point.x - drag.pointer.x;
+          const dy = point.y - drag.pointer.y;
+          drag.moved = drag.moved || Math.hypot(dx, dy) > 4;
+          setDragPositions((current) => ({ ...current, [drag.id]: { x: drag.origin.x + dx, y: drag.origin.y + dy } }));
+          return;
+        }
+        const pan = panRef.current;
+        if (!pan) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const dx = ((event.clientX - pan.x) / rect.width) * pan.viewport.width;
+        const dy = ((event.clientY - pan.y) / rect.height) * pan.viewport.height;
+        setViewport({ ...pan.viewport, x: pan.viewport.x - dx, y: pan.viewport.y - dy });
+      }}
+      onPointerUp={(event) => {
+        const drag = dragRef.current;
+        if (drag && !drag.moved) {
+          const node = nodeMap.get(drag.id);
+          if (node) {
+            setFocusedNodeId(node.id);
+            setViewport(focusViewBox(node));
+          }
+        }
+        dragRef.current = null;
+        panRef.current = null;
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+      }}
+      onPointerLeave={() => { panRef.current = null; dragRef.current = null; }}
     >
       <defs><linearGradient id="collaboration-mixed"><stop offset="0%" stopColor="#16803c"/><stop offset="50%" stopColor="#16803c"/><stop offset="50%" stopColor="#c0362c"/><stop offset="100%" stopColor="#c0362c"/></linearGradient></defs>
-      {edges.map((edge) => { const a = baseNodeMap.get(edge.source); const b = baseNodeMap.get(edge.target); if (!a || !b) return null; const structural = !edge.effect_id && edge.evidence_count === 0; return <g key={edge.id}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} /><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="fill-text-muted text-[11px]">{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</text></g>; })}
-      {[...baseNodeMap.values()].map((node) => <g key={node.id}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" className="fill-bg-primary stroke-brand" strokeWidth="2" /> : <rect x={node.x-54} y={node.y-22} width="108" height="44" rx="5" className="fill-bg-primary stroke-text-muted" strokeWidth="2" />}<text x={node.x} y={node.y+4} textAnchor="middle" className="fill-text-primary text-[11px]">{truncateLabel(node.label)}</text><text x={node.x} y={node.y+18} textAnchor="middle" className="fill-text-muted text-[8px]">{node.kind}</text></g>)}
+      {edges.map((edge) => { const a = nodeMap.get(edge.source); const b = nodeMap.get(edge.target); if (!a || !b) return null; const structural = !edge.effect_id && edge.evidence_count === 0; const active = !hasNoiseReduction || context.edges.has(edge.id); const selectedEdge = selectedEffectIds.size > 0 && edgeHasAnyEffect(edge, selectedEffectIds); return <g key={edge.id} opacity={active ? 1 : 0.16}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={selectedEdge ? edge.magnitude + 3 : structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} /><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="fill-text-muted text-[11px]">{active ? <>{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</> : null}</text></g>; })}
+      {[...nodeMap.values()].map((node) => { const active = !hasNoiseReduction || context.nodes.has(node.id); const focused = focusedNodeId === node.id; return <g key={node.id} role="button" tabIndex={0} aria-label={node.label} className="cursor-pointer outline-none" opacity={active ? 1 : 0.18} onPointerDown={(event) => { event.stopPropagation(); const point = toSvgPoint(event); dragRef.current = { id: node.id, pointer: point, origin: { x: node.x, y: node.y }, moved: false }; svgRef.current?.setPointerCapture(event.pointerId); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocusedNodeId(node.id); setViewport(focusViewBox(node)); } }}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" className="fill-bg-primary stroke-brand" strokeWidth={focused ? 4 : 2} /> : <rect x={node.x-54} y={node.y-22} width="108" height="44" rx="5" className="fill-bg-primary stroke-text-muted" strokeWidth={focused ? 4 : 2} />}<text x={node.x} y={node.y+4} textAnchor="middle" className="pointer-events-none fill-text-primary text-[11px]">{truncateLabel(node.label)}</text><text x={node.x} y={node.y+18} textAnchor="middle" className="pointer-events-none fill-text-muted text-[8px]">{node.kind}</text></g>; })}
     </svg>
     <div className="grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{edges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = edge.effect_scopes?.length ? edge.effect_scopes : edge.effect_ids?.length ? edge.effect_ids.map((id) => ({ effect_id: id, project_id: '' })) : edge.effect_id ? [{ effect_id: edge.effect_id, project_id: '' }] : []; const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
   </section>;
@@ -357,6 +398,29 @@ function zoomViewBox(box: GraphViewBox, factor: number, center: { x: number; y: 
   const x = center.x - ((center.x - box.x) / box.width) * width;
   const y = center.y - ((center.y - box.y) / box.height) * height;
   return { x, y, width, height };
+}
+
+function focusViewBox(node: { x: number; y: number }): GraphViewBox {
+  return { x: node.x - 120, y: node.y - 90, width: 240, height: 180 };
+}
+
+function graphContext(edges: CollaborationEdge[], selectedEffectIds: Set<string>, focusedNodeId: string | null): { nodes: Set<string>; edges: Set<string> } {
+  const context = { nodes: new Set<string>(), edges: new Set<string>() };
+  if (focusedNodeId) context.nodes.add(focusedNodeId);
+  for (const edge of edges) {
+    const selectedEdge = selectedEffectIds.size > 0 && edgeHasAnyEffect(edge, selectedEffectIds);
+    const focusedEdge = Boolean(focusedNodeId && (edge.source === focusedNodeId || edge.target === focusedNodeId));
+    if (!selectedEdge && !focusedEdge) continue;
+    context.edges.add(edge.id);
+    context.nodes.add(edge.source);
+    context.nodes.add(edge.target);
+  }
+  return context;
+}
+
+function edgeHasAnyEffect(edge: CollaborationEdge, effectIds: Set<string>): boolean {
+  if (edge.effect_id && effectIds.has(edge.effect_id)) return true;
+  return (edge.effect_ids ?? edge.effect_scopes?.map((scope) => scope.effect_id) ?? []).some((id) => effectIds.has(id));
 }
 
 function truncateLabel(label: string): string {

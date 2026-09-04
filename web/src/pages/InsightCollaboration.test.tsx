@@ -115,6 +115,49 @@ describe('Collaboration Insight', () => {
     expect(search.get('agent_ref')).toBe('agent:a0');
   });
 
+  it('supports graph viewport controls, truncated labels and selected-neighborhood dimming', async () => {
+    const longLabel = 'Agent With A Very Long Display Name';
+    server.use(
+      http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
+        graph: {
+          nodes: [
+            { id: 'agent:long', kind: 'agent', label: longLabel },
+            { id: 'task:T1', kind: 'task', label: 'Task One', task_id: 'T1' },
+            { id: 'agent:other', kind: 'agent', label: 'Other Agent' },
+            { id: 'task:T2', kind: 'task', label: 'Other Task', task_id: 'T2' },
+          ],
+          edges: [
+            { ...effects[0], id: 'selected-edge', effect_id: 'selected-effect', effect_ids: ['selected-effect'], source: 'agent:long', target: 'task:T1', interaction_count: 1, evidence_count: 1 },
+            { ...effects[1], id: 'dimmed-edge', effect_id: 'dimmed-effect', effect_ids: ['dimmed-effect'], source: 'agent:other', target: 'task:T2', interaction_count: 1, evidence_count: 1 },
+          ],
+        },
+        effects: [
+          { ...effects[0], effect_id: 'selected-effect', id: 'selected-effect', source: 'agent:long', source_agent_ref: 'agent:long' },
+          { ...effects[1], effect_id: 'dimmed-effect', id: 'dimmed-effect', source: 'agent:other', source_agent_ref: 'agent:other', target_task_id: 'T2' },
+        ],
+        summary: {},
+        next_cursor: '',
+        graph_version: 'gv-readable',
+      })),
+      http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', ({ params }) => HttpResponse.json({ effect_id: params.id, evidence: [] })),
+    );
+    const user = userEvent.setup();
+    renderAt('/organizations/acme/insights/collaboration');
+    expect(await screen.findByText('Filter / locate')).toBeVisible();
+    const svg = await screen.findByTestId('collaboration-graph-svg');
+    const originalViewBox = svg.getAttribute('viewBox');
+    await user.click(screen.getByRole('button', { name: 'Zoom in' }));
+    expect(svg.getAttribute('viewBox')).not.toBe(originalViewBox);
+    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
+    expect(screen.getByText('Agent With A Very...')).toBeVisible();
+    expect(screen.getByText(longLabel)).toBeInTheDocument();
+    await user.click(within(screen.getByLabelText('Keyboard-accessible graph edges')).getByRole('button', { name: /Assign/ }));
+    await waitFor(() => expect(screen.getByTestId('collaboration-evidence-drawer')).toBeVisible());
+    expect(document.querySelector('g[opacity="0.16"]')).toBeTruthy();
+    expect(document.querySelector('g[opacity="0.18"]')).toBeTruthy();
+  });
+
   it('loads the organization graph without a project filter and shows empty, permission and server states', async () => {
     let organizationRequest = '';
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { organizationRequest = request.url; return HttpResponse.json({ ...graph, next_cursor: '', graph_version: 'gv-org' }); }));
