@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
@@ -284,17 +284,83 @@ function maxDate(a?: string, b?: string): string | undefined {
 function CollaborationGraph({ nodes, edges, selected, onSelect, t }: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
   const lanes = { agent: 65, project: 200, plan: 335, stage: 500, task: 660 };
   const laneIndex = new Map<string, number>();
-  const nodeMap = useMemo(() => new Map(nodes.map((node) => { const i = laneIndex.get(node.kind) ?? 0; laneIndex.set(node.kind, i + 1); return [node.id, { ...node, x: lanes[node.kind], y: 70 + i * 68 }]; })), [nodes]);
+  const baseNodeMap = useMemo(() => new Map(nodes.map((node) => { const i = laneIndex.get(node.kind) ?? 0; laneIndex.set(node.kind, i + 1); return [node.id, { ...node, x: lanes[node.kind], y: 70 + i * 68 }]; })), [nodes]);
+  const graphBounds = useMemo(() => graphViewBox([...baseNodeMap.values()]), [baseNodeMap]);
+  const [viewport, setViewport] = useState(graphBounds);
+  const svgRef = useRef<SVGSVGElement | null>(null);
+  const panRef = useRef<{ x: number; y: number; viewport: GraphViewBox } | null>(null);
   const selectedKey = selected?.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0') ?? '';
+  const fit = useCallback(() => setViewport(graphBounds), [graphBounds]);
+  const zoom = useCallback((factor: number, center = { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 }) => {
+    setViewport((current) => zoomViewBox(current, factor, center));
+  }, [viewport]);
+  const toSvgPoint = useCallback((event: React.PointerEvent<SVGSVGElement> | React.WheelEvent<SVGSVGElement>) => {
+    const svg = svgRef.current;
+    const matrix = svg?.getScreenCTM();
+    if (!svg || !matrix) return { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 };
+    const point = svg.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    return point.matrixTransform(matrix.inverse());
+  }, [viewport]);
+  const onWheel = useCallback((event: React.WheelEvent<SVGSVGElement>) => {
+    event.preventDefault();
+    zoom(event.deltaY > 0 ? 1.12 : 0.88, toSvgPoint(event));
+  }, [toSvgPoint, zoom]);
   return <section className="rounded-lg border border-border bg-bg-surface p-4" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
-    <div className="mb-3 flex flex-wrap gap-3 text-xs text-text-muted"><span>━━ {t('insight.collaboration.legend.relationship')}</span><span>┄┄ {t('insight.collaboration.legend.effect')}</span><span>+/− {t('insight.collaboration.legend.mixed')}</span></div>
-    <svg viewBox={`0 0 720 ${Math.max(260, nodes.length * 64 + 30)}`} className="min-h-64 w-full" role="img" aria-label={t('insight.collaboration.graph')}>
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap gap-3 text-xs text-text-muted"><span>━━ {t('insight.collaboration.legend.relationship')}</span><span>┄┄ {t('insight.collaboration.legend.effect')}</span><span>+/− {t('insight.collaboration.legend.mixed')}</span></div>
+      <div className="flex items-center gap-1" aria-label={t('insight.collaboration.viewport.controls')}>
+        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(0.82)} aria-label={t('insight.collaboration.viewport.zoomIn')}>+</button>
+        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(1.18)} aria-label={t('insight.collaboration.viewport.zoomOut')}>-</button>
+        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={fit}>{t('insight.collaboration.viewport.fit')}</button>
+        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={fit}>{t('insight.collaboration.viewport.reset')}</button>
+      </div>
+    </div>
+    <svg
+      ref={svgRef}
+      viewBox={`${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`}
+      className="min-h-64 w-full touch-none cursor-grab rounded border border-border bg-bg-primary active:cursor-grabbing"
+      role="img"
+      aria-label={t('insight.collaboration.graph')}
+      data-testid="collaboration-graph-svg"
+      onWheel={onWheel}
+      onPointerDown={(event) => { panRef.current = { x: event.clientX, y: event.clientY, viewport }; event.currentTarget.setPointerCapture(event.pointerId); }}
+      onPointerMove={(event) => { const pan = panRef.current; if (!pan) return; const rect = event.currentTarget.getBoundingClientRect(); const dx = ((event.clientX - pan.x) / rect.width) * pan.viewport.width; const dy = ((event.clientY - pan.y) / rect.height) * pan.viewport.height; setViewport({ ...pan.viewport, x: pan.viewport.x - dx, y: pan.viewport.y - dy }); }}
+      onPointerUp={(event) => { panRef.current = null; event.currentTarget.releasePointerCapture(event.pointerId); }}
+      onPointerLeave={() => { panRef.current = null; }}
+    >
       <defs><linearGradient id="collaboration-mixed"><stop offset="0%" stopColor="#16803c"/><stop offset="50%" stopColor="#16803c"/><stop offset="50%" stopColor="#c0362c"/><stop offset="100%" stopColor="#c0362c"/></linearGradient></defs>
-      {edges.map((edge) => { const a = nodeMap.get(edge.source); const b = nodeMap.get(edge.target); if (!a || !b) return null; const structural = !edge.effect_id && edge.evidence_count === 0; return <g key={edge.id}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} /><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="fill-text-muted text-[11px]">{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</text></g>; })}
-      {[...nodeMap.values()].map((node) => <g key={node.id}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" className="fill-bg-primary stroke-brand" strokeWidth="2" /> : <rect x={node.x-54} y={node.y-22} width="108" height="44" rx="5" className="fill-bg-primary stroke-text-muted" strokeWidth="2" />}<text x={node.x} y={node.y+4} textAnchor="middle" className="fill-text-primary text-[11px]">{node.label.slice(0, 18)}</text><text x={node.x} y={node.y+18} textAnchor="middle" className="fill-text-muted text-[8px]">{node.kind}</text></g>)}
+      {edges.map((edge) => { const a = baseNodeMap.get(edge.source); const b = baseNodeMap.get(edge.target); if (!a || !b) return null; const structural = !edge.effect_id && edge.evidence_count === 0; return <g key={edge.id}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} /><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="fill-text-muted text-[11px]">{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</text></g>; })}
+      {[...baseNodeMap.values()].map((node) => <g key={node.id}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" className="fill-bg-primary stroke-brand" strokeWidth="2" /> : <rect x={node.x-54} y={node.y-22} width="108" height="44" rx="5" className="fill-bg-primary stroke-text-muted" strokeWidth="2" />}<text x={node.x} y={node.y+4} textAnchor="middle" className="fill-text-primary text-[11px]">{truncateLabel(node.label)}</text><text x={node.x} y={node.y+18} textAnchor="middle" className="fill-text-muted text-[8px]">{node.kind}</text></g>)}
     </svg>
     <div className="grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{edges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = edge.effect_scopes?.length ? edge.effect_scopes : edge.effect_ids?.length ? edge.effect_ids.map((id) => ({ effect_id: id, project_id: '' })) : edge.effect_id ? [{ effect_id: edge.effect_id, project_id: '' }] : []; const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
   </section>;
+}
+
+type GraphViewBox = { x: number; y: number; width: number; height: number };
+
+function graphViewBox(nodes: Array<{ x: number; y: number }>): GraphViewBox {
+  if (nodes.length === 0) return { x: 0, y: 0, width: 720, height: 260 };
+  const xs = nodes.map((node) => node.x);
+  const ys = nodes.map((node) => node.y);
+  const minX = Math.min(...xs) - 80;
+  const maxX = Math.max(...xs) + 80;
+  const minY = Math.min(...ys) - 70;
+  const maxY = Math.max(...ys) + 70;
+  return { x: minX, y: minY, width: Math.max(260, maxX - minX), height: Math.max(260, maxY - minY) };
+}
+
+function zoomViewBox(box: GraphViewBox, factor: number, center: { x: number; y: number }): GraphViewBox {
+  const width = Math.min(1400, Math.max(160, box.width * factor));
+  const height = Math.min(1400, Math.max(160, box.height * factor));
+  const x = center.x - ((center.x - box.x) / box.width) * width;
+  const y = center.y - ((center.y - box.y) / box.height) * height;
+  return { x, y, width, height };
+}
+
+function truncateLabel(label: string): string {
+  return label.length > 18 ? `${label.slice(0, 17)}...` : label;
 }
 
 function Timeline({ effects, onSelect, t }: { effects: { effect_id: string; project_id: string; occurred_at: string; relation_type: string; polarity: string; source_agent_ref: string; target_task_id: string }[]; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
