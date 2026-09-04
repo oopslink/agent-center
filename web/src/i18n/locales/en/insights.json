@@ -18,10 +18,11 @@
       "collaboration": "Collaboration effects"
     },
     "collaboration": {
-      "title": "Collaboration effects", "subtitle": "Task-scoped Agent → Task → Agent relationships and deterministic effects.",
-      "scopeRequired": "Choose a project and task", "scopeRequiredBody": "The graph is deliberately task-scoped and limited to one hop.",
+      "title": "Collaboration effects", "subtitle": "Project-level Agent → Task → Agent relationships and deterministic effects.",
+      "scopeRequired": "Choose a project", "scopeRequiredBody": "The graph loads project collaboration incrementally; task is an optional filter.",
       "loading": "Loading collaboration effects", "failed": "Collaboration effects failed", "forbidden": "You do not have permission to view collaboration evidence",
-      "empty": "No collaboration effects", "emptyBody": "No deterministic effects match these filters.", "truncated": "Showing the first {{count}} edges. Narrow the filters to inspect the rest.",
+      "empty": "No collaboration effects", "emptyBody": "No deterministic effects match these filters.", "truncated": "Showing {{count}} loaded effects. Load the next page or narrow filters.",
+      "loadingMore": "Loading more", "loadMore": "Load more", "lodStatus": "Rendered window: {{visibleNodes}}/{{totalNodes}} nodes and {{visibleEdges}}/{{totalEdges}} edges. Pan or zoom to inspect nearby graph regions.", "viewportControls": "Graph viewport controls", "panUp": "Pan up", "panDown": "Pan down", "zoomIn": "Zoom in", "zoomOut": "Zoom out", "edgeListLimited": "Showing {{count}} of {{total}} keyboard edges. Use filters or load focused evidence from the visible window.", "timelineLimited": "Showing latest {{count}} of {{total}} timeline entries.",
       "summary": "Effect summary", "affectedTasks": "Affected tasks", "graph": "Collaboration effect graph", "edgeList": "Keyboard-accessible graph edges", "timeline": "Effect timeline", "magnitude": "strength {{value}}",
       "filters": { "label": "Collaboration filters", "project": "Project", "task": "Task", "agent": "Agent", "since": "Since", "until": "Until", "relation": "Relationship", "polarity": "Polarity", "all": "All", "chooseProject": "Choose project", "chooseTask": "Choose task", "chooseProjectFirst": "Choose project first", "anyAgent": "Any agent", "loadingProjects": "Loading projects", "loadingTasks": "Loading tasks", "searchProjects": "Search projects", "searchTasks": "Search tasks", "searchAgents": "Search agents", "noProjects": "No projects", "noTasks": "No tasks", "noAgents": "No agents" },
       "legend": { "relationship": "assignment relationship", "effect": "state-changing effect", "mixed": "mixed positive / negative" },

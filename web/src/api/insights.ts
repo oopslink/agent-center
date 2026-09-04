@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
 
@@ -206,7 +206,7 @@ export interface CollaborationGraphResponse {
   graph: { nodes: CollaborationNode[]; edges: CollaborationEdge[] };
   effects: CollaborationEffect[];
   summary: { positive_count: number; negative_count: number; neutral_count: number; mixed_count: number; affected_task_count: number };
-  next_cursor: string;
+  next_cursor: string | null;
 }
 export interface CollaborationEvidenceEvent { event_id: string; event_type: string; occurred_at: string; actor_ref: string; refs: Record<string, string>; payload: Record<string, unknown> }
 export interface CollaborationEvidenceResponse { effect_id: string; evidence: CollaborationEvidenceEvent[] }
@@ -827,7 +827,7 @@ function normalizeCollaborationGraphResponse(value: unknown): CollaborationGraph
       mixed_count: numberOrZero(summary.mixed_count),
       affected_task_count: numberOrZero(summary.affected_task_count),
     },
-    next_cursor: stringOrEmpty(source.next_cursor),
+    next_cursor: stringOrNull(source.next_cursor),
   };
 }
 
@@ -1003,10 +1003,20 @@ export function useCollaborationEffects(filters: CollaborationFilters, enabled =
   });
 }
 
-export function useCollaborationEvidence(effectId: string | null) {
+export function useCollaborationEffectsPages(filters: CollaborationFilters, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: qk.collaborationEffects(filters),
+    queryFn: async ({ pageParam }) => normalizeCollaborationGraphResponse(await api.get<unknown>(`/insights/collaboration-effects?${collaborationParams({ ...filters, cursor: pageParam || undefined })}`)),
+    enabled: enabled && Boolean(filters.project_id),
+    initialPageParam: filters.cursor ?? '',
+    getNextPageParam: (lastPage) => lastPage.next_cursor || undefined,
+  });
+}
+
+export function useCollaborationEvidence(effectId: string | null, projectId?: string) {
   return useQuery({
-    queryKey: qk.collaborationEvidence(effectId ?? ''),
-    queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(effectId ?? '')}/evidence`)),
+    queryKey: qk.collaborationEvidence(`${projectId ?? ''}:${effectId ?? ''}`),
+    queryFn: async () => normalizeCollaborationEvidenceResponse(await api.get<unknown>(`/insights/collaboration-effects/${encodeURIComponent(effectId ?? '')}/evidence${projectId ? `?project_id=${encodeURIComponent(projectId)}` : ''}`)),
     enabled: Boolean(effectId),
   });
 }

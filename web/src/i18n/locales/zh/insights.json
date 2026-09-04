@@ -18,10 +18,11 @@
       "collaboration": "协作作用力"
     },
     "collaboration": {
-      "title": "协作作用力", "subtitle": "以任务为中心的 Agent → Task → Agent 关系与确定性作用。",
-      "scopeRequired": "请选择项目和任务", "scopeRequiredBody": "作用力图刻意限定为单任务、单跳范围。",
+      "title": "协作作用力", "subtitle": "项目级 Agent → Task → Agent 关系与确定性作用。",
+      "scopeRequired": "请选择项目", "scopeRequiredBody": "作用力图按项目增量加载；任务只是可选筛选。",
       "loading": "正在加载协作作用力", "failed": "协作作用力加载失败", "forbidden": "你没有查看协作证据的权限",
-      "empty": "没有协作作用", "emptyBody": "没有确定性作用符合当前筛选。", "truncated": "当前显示前 {{count}} 条边，请缩小筛选范围查看其余结果。",
+      "empty": "没有协作作用", "emptyBody": "没有确定性作用符合当前筛选。", "truncated": "已加载 {{count}} 条作用。可继续加载下一页，或缩小筛选范围。",
+      "loadingMore": "正在加载更多", "loadMore": "加载更多", "lodStatus": "渲染窗口：{{visibleNodes}}/{{totalNodes}} 个节点、{{visibleEdges}}/{{totalEdges}} 条边。可平移或缩放查看附近图区域。", "viewportControls": "图视口控制", "panUp": "向上平移", "panDown": "向下平移", "zoomIn": "放大", "zoomOut": "缩小", "edgeListLimited": "当前展示 {{count}} / {{total}} 条可键盘操作边。可使用筛选或从可见窗口查看证据。", "timelineLimited": "当前展示最新 {{count}} / {{total}} 条时间线。",
       "summary": "作用摘要", "affectedTasks": "受影响任务", "graph": "协作作用力图", "edgeList": "可键盘操作的图边", "timeline": "作用时间线", "magnitude": "强度 {{value}}",
       "filters": { "label": "协作筛选", "project": "项目", "task": "任务", "agent": "Agent", "since": "开始时间", "until": "结束时间", "relation": "关系", "polarity": "极性", "all": "全部", "chooseProject": "选择项目", "chooseTask": "选择任务", "chooseProjectFirst": "先选择项目", "anyAgent": "任意 Agent", "loadingProjects": "正在加载项目", "loadingTasks": "正在加载任务", "searchProjects": "搜索项目", "searchTasks": "搜索任务", "searchAgents": "搜索 Agent", "noProjects": "没有项目", "noTasks": "没有任务", "noAgents": "没有 Agent" },
       "legend": { "relationship": "指派关系", "effect": "状态变化作用", "mixed": "正负混合" },

@@ -22,6 +22,41 @@ const graph = {
   effects, summary: { positive_count: 3, negative_count: 1, neutral_count: 1, mixed_count: 1, affected_task_count: 1 }, next_cursor: 'next',
 };
 
+function largeGraph(count: number) {
+  const largeEffects = Array.from({ length: count }, (_, i) => ({
+    id: `ce-${String(i).padStart(4, '0')}`,
+    effect_id: `ce-${String(i).padStart(4, '0')}`,
+    source: `agent:a${i % 80}`,
+    target: `task:T${i % 80}`,
+    relation_type: relations[i % relations.length],
+    polarity: polarities[i % polarities.length],
+    magnitude: (i % 3 + 1) as 1 | 2 | 3,
+    project_id: 'P1',
+    target_task_id: `T${i % 80}`,
+    source_agent_ref: `agent:a${i % 80}`,
+    target_agent_ref: '',
+    confidence: 'high',
+    occurred_at: `2026-09-03T10:${String(i % 60).padStart(2, '0')}:00Z`,
+    rule_version: 'collaboration-effect.mvp.v1',
+    evidence_event_ids: [`evt-${i}`],
+    before_state: {},
+    after_state: {},
+    explanation_key: `collaboration.effect.${relations[i % relations.length]}`,
+  }));
+  return {
+    graph: {
+      nodes: [
+        ...Array.from({ length: 80 }, (_, i) => ({ id: `agent:a${i}`, kind: 'agent', label: `Agent ${i}` })),
+        ...Array.from({ length: 80 }, (_, i) => ({ id: `task:T${i}`, kind: 'task', label: `Task ${i}`, task_id: `T${i}` })),
+      ],
+      edges: largeEffects,
+    },
+    effects: largeEffects,
+    summary: { positive_count: 500, negative_count: 167, neutral_count: 167, mixed_count: 166, affected_task_count: 80 },
+    next_cursor: '',
+  };
+}
+
 function renderAt(path: string) {
   window.history.pushState({}, '', path);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -54,8 +89,8 @@ beforeEach(() => {
 describe('Collaboration Insight', () => {
   it('renders contract relations, accessible edges, summary, timeline and lazy evidence', async () => {
     server.use(
-      http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { const p = new URL(request.url).searchParams; expect(p.get('project_id')).toBe('P1'); expect(p.get('task_id')).toBe('T1'); expect(p.get('limit')).toBe('100'); return HttpResponse.json(graph); }),
-      http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', ({ params }) => HttpResponse.json({ effect_id: params.id, evidence: [{ event_id: 'evt-0', event_type: 'pm.task.assigned', occurred_at: '2026-09-03T10:00:00Z', actor_ref: 'agent:a0', refs: { project_id: 'P1', task_id: 'T1' }, payload: { assignee: 'agent:a0' } }] })),
+      http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { const p = new URL(request.url).searchParams; expect(p.get('project_id')).toBe('P1'); expect(p.get('task_id')).toBe('T1'); expect(p.get('limit')).toBe('200'); return HttpResponse.json(graph); }),
+      http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', ({ request, params }) => { expect(new URL(request.url).searchParams.get('project_id')).toBe('P1'); return HttpResponse.json({ effect_id: params.id, evidence: [{ event_id: 'evt-0', event_type: 'pm.task.assigned', occurred_at: '2026-09-03T10:00:00Z', actor_ref: 'agent:a0', refs: { project_id: 'P1', task_id: 'T1' }, payload: { assignee: 'agent:a0' } }] }); }),
     );
     const user = userEvent.setup();
     renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
@@ -68,6 +103,40 @@ describe('Collaboration Insight', () => {
     const drawer = await screen.findByTestId('collaboration-evidence-drawer');
     expect(await within(drawer).findByText('pm.task.assigned')).toBeVisible();
     expect(drawer).toHaveTextContent('agent:a0');
+  });
+
+  it('loads the organization graph by project with explicit cursor pagination', async () => {
+    const requests: string[] = [];
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
+      const url = new URL(request.url);
+      requests.push(url.search);
+      return HttpResponse.json(url.searchParams.get('cursor') === 'next'
+        ? { ...graph, graph: { nodes: graph.graph.nodes, edges: [effects[1]] }, effects: [effects[1]], next_cursor: '' }
+        : { ...graph, graph: { nodes: graph.graph.nodes, edges: [effects[0]] }, effects: [effects[0]], next_cursor: 'next' });
+    }));
+    const user = userEvent.setup();
+    renderAt('/organizations/acme/insights/collaboration?project_id=P1');
+    expect(await screen.findByTestId('collaboration-graph')).toBeVisible();
+    expect(new URLSearchParams(requests[0]).get('task_id')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Load more' }));
+    await waitFor(() => expect(requests.some((query) => new URLSearchParams(query).get('cursor') === 'next')).toBe(true));
+    expect(within(screen.getByLabelText('Keyboard-accessible graph edges')).getAllByRole('button')).toHaveLength(2);
+  });
+
+  it('keeps production-scale graph rendering under the LOD performance gate', async () => {
+    const large = largeGraph(1000);
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json(large)));
+    const started = performance.now();
+    renderAt('/organizations/acme/insights/collaboration?project_id=P1');
+    const graphEl = await screen.findByTestId('collaboration-graph');
+    const elapsed = performance.now() - started;
+    expect(elapsed).toBeLessThan(1000);
+    const renderedEdges = graphEl.querySelectorAll('line').length;
+    expect(renderedEdges).toBeGreaterThan(0);
+    expect(renderedEdges).toBeLessThanOrEqual(220);
+    expect(within(screen.getByLabelText('Keyboard-accessible graph edges')).getAllByRole('button')).toHaveLength(80);
+    expect(screen.getByTestId('collaboration-lod-status')).toHaveTextContent('/1000 edges');
+    expect(screen.getByTestId('collaboration-timeline')).toHaveTextContent('Showing latest 120 of 1000 timeline entries.');
   });
 
   it('persists filters in the URL and reloads the query', async () => {
