@@ -22,6 +22,35 @@ const graph = {
   effects, summary: { positive_count: 3, negative_count: 1, neutral_count: 1, mixed_count: 1, affected_task_count: 1 }, next_cursor: 'next',
 };
 
+function largeGraph(count: number) {
+  const largeEffects = Array.from({ length: count }, (_, i) => ({
+    ...effects[i % effects.length],
+    id: `ce-large-${i}`,
+    effect_id: `ce-large-${i}`,
+    source: `agent:a${i % 80}`,
+    source_agent_ref: `agent:a${i % 80}`,
+    target: `task:T${i}`,
+    target_task_id: `T${i}`,
+    interaction_count: 1,
+    evidence_count: 1,
+    evidence_event_ids: [`evt-large-${i}`],
+    occurred_at: `2026-09-${String(1 + (i % 3)).padStart(2, '0')}T10:${String(i % 60).padStart(2, '0')}:00Z`,
+  }));
+  return {
+    graph: {
+      nodes: [
+        ...Array.from({ length: 80 }, (_, i) => ({ id: `agent:a${i}`, kind: 'agent', label: `Agent ${i}` })),
+        ...Array.from({ length: count }, (_, i) => ({ id: `task:T${i}`, kind: 'task', label: `Task ${i}`, task_id: `T${i}` })),
+      ],
+      edges: largeEffects,
+    },
+    effects: largeEffects,
+    summary: { positive_count: 0, negative_count: 0, neutral_count: 0, mixed_count: 0, affected_task_count: count },
+    next_cursor: '',
+    graph_version: 'gv-large',
+  };
+}
+
 function renderAt(path: string) {
   window.history.pushState({}, '', path);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -62,7 +91,7 @@ beforeEach(() => {
 describe('Collaboration Insight', () => {
   it('renders contract relations, accessible edges, summary, timeline and lazy evidence', async () => {
     server.use(
-      http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { const p = new URL(request.url).searchParams; expect(p.get('project_id')).toBe('P1'); expect(p.get('task_id')).toBe('T1'); expect(p.get('limit')).toBe('100'); return HttpResponse.json(graph); }),
+      http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { const p = new URL(request.url).searchParams; expect(p.get('project_id')).toBe('P1'); expect(p.get('task_id')).toBe('T1'); expect(p.get('limit')).toBe('200'); return HttpResponse.json(graph); }),
       http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', ({ params, request }) => { expect(new URL(request.url).searchParams.get('project_id')).toBe('P1'); return HttpResponse.json({ effect_id: params.id, evidence: [{ event_id: 'evt-0', event_type: 'pm.task.assigned', occurred_at: '2026-09-03T10:00:00Z', actor_ref: 'agent:a0', refs: { project_id: 'P1', task_id: 'T1' }, payload: { assignee: 'agent:a0' } }] }); }),
     );
     const user = userEvent.setup();
@@ -76,6 +105,22 @@ describe('Collaboration Insight', () => {
     const drawer = await screen.findByTestId('collaboration-evidence-drawer');
     expect(await within(drawer).findByText('pm.task.assigned')).toBeVisible();
     expect(drawer).toHaveTextContent('agent:a0');
+  });
+
+  it('bounds production-scale graph DOM and reports every LOD truncation', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json(largeGraph(1000))));
+    const started = performance.now();
+    renderAt('/organizations/acme/insights/collaboration');
+    const graphEl = await screen.findByTestId('collaboration-graph');
+    const elapsed = performance.now() - started;
+    expect(elapsed).toBeLessThan(1000);
+    expect(graphEl.querySelectorAll('line').length).toBeGreaterThan(0);
+    expect(graphEl.querySelectorAll('line').length).toBeLessThanOrEqual(220);
+    expect(graphEl.querySelectorAll('g').length).toBeLessThanOrEqual(260);
+    expect(within(screen.getByLabelText('Keyboard-accessible graph edges')).getAllByRole('button')).toHaveLength(80);
+    expect(screen.getByTestId('collaboration-lod-status')).toHaveTextContent('/1000 edges');
+    expect(screen.getByTestId('collaboration-edge-list-limited')).toHaveTextContent('80 of 1000');
+    expect(screen.getByTestId('collaboration-timeline')).toHaveTextContent('Showing latest 120 of 1000 timeline entries.');
   });
 
   it('persists filters in the URL and reloads the query', async () => {
