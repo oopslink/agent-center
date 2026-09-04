@@ -62,10 +62,21 @@ func HandlerFromFS(spaFS fs.FS) http.Handler {
 		if urlPath == "" {
 			urlPath = "index.html"
 		}
-		// Assets fingerprinted by vite live under /assets/.
-		// Anything that exists in the FS as-is is served directly;
-		// everything else falls through to index.html so react-router
-		// can take over.
+		// Hashed Vite assets are real files, not SPA routes. A stale index or
+		// old runtime requesting a removed chunk must get a real 404 instead of
+		// index.html, otherwise browsers report a misleading module parse error.
+		if strings.HasPrefix(urlPath, "assets/") {
+			if _, err := fs.Stat(spaFS, urlPath); err != nil || isDir(spaFS, urlPath) {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+		// Anything else that exists in the FS is served directly; every
+		// missing non-asset path falls through to index.html so react-router can
+		// take over.
 		if _, err := fs.Stat(spaFS, urlPath); err != nil || isDir(spaFS, urlPath) {
 			serveIndex(w, r, spaFS)
 			return
