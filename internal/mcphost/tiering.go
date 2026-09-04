@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/oopslink/agent-center/internal/agenttools"
 )
 
 // Tool tiering (WS5, #issue-e346e5ec). The default per-agent tool set is the
@@ -21,131 +22,12 @@ import (
 //
 // secondaryTools is the source-of-truth DEFERRED manifest. Every agent-facing
 // tool NOT listed here is core. `summary` powers search_tools matching + listing.
-var secondaryTools = []struct{ name, summary string }{
-	// org discovery
-	{"find_org_agent", "find an agent in your organization by name"},
-	{"find_org_channel", "find a channel in your organization by name"},
-	// Issue read + management tools are CORE (kept OUT of this deferred
-	// manifest). Issue/task wakeups explicitly tell agents to call get_issue or
-	// close_issue; if those are hidden behind this server's search_tools, an outer
-	// harness that only indexes already-advertised tools can double-hide them.
-	// That leaves the agent with a system instruction naming close_issue but no
-	// callable schema. Keep the issue lifecycle directly discoverable.
-	// task link / assignment admin
-	{"update_task", "update a task's title or description card fields"},
-	{"reassign_task", "reassign a task to a different identity"},
-	{"set_task_issue", "(re)set or clear a task's derived_from_issue link"},
-	{"get_task_audit", "read a task's redacted lifecycle audit history"},
-	{"list_task_executions", "list executor runs linked to a task"},
-	{"get_task_execution", "inspect one executor run linked to a task"},
-	{"get_agent_runtime_effective_config", "compare desired and effective runtime configuration without secrets"},
-	// Runtime Control is Supervisor bootstrap-critical. Keep deploy/restart directly
-	// advertised so native MCP registries that index the startup ListTools response
-	// can call it without a prior mcp-host-local search_tools hop.
-	// reminders (T206 Cognition) are CORE — kept OUT of this deferred manifest
-	// (T252, issue-c438cde1). They were deferred, but that DOUBLE-hid them: in a
-	// harness whose own tool-search only surfaces tools the MCP server has already
-	// ADVERTISED, a tool deferred behind THIS server's search_tools is invisible to
-	// the harness search until search_tools is called first. So an agent told to
-	// "set a reminder" reached for the harness tool-search, found nothing (the
-	// reminder tools were not yet advertised), and fell back to ad-hoc
-	// ScheduleWakeup — exactly the I4 anti-pattern. Same reasoning as T247
-	// promoting download_file/upload_file: a capability an agent is GUIDED to call
-	// directly (I4 / follow-up T253 — "prefer reminder over ScheduleWakeup") must be
-	// directly discoverable, not gated behind a discovery hop. create/list/get/
-	// update are a tight family for the same proactive workflow, so all four are core.
-	// subscriptions
-	{"subscribe", "subscribe to a conversation or entity"},
-	{"unsubscribe", "unsubscribe from a conversation or entity"},
-	// plan node recovery
-	{"rerun_failed_node", "rerun a failed plan node"},
-	{"resume_paused_node", "resume a paused plan node"},
-	// tier-3 task recovery (T862): reset a task stranded running under a dead executor
-	{"reset_task", "reset a dead-executor task back to the pool for a fresh executor"},
-	{"report_manual_recovery_delivery", "register an already-pushed manual recovery delivery after task_non_delivery; MCP counterpart to recover-delivery without commit/push"},
-	// plan authoring / lifecycle
-	{"create_plan", "create a pending plan (a DAG of tasks)"},
-	{"edit_plan_topology", "atomically edit a pending plan's DAG (add/remove nodes+edges)"},
-	{"evolve_plan_generation", "commit an immutable generation diff for a running or paused plan; reopen a done plan first"},
-	{"add_task_to_plan", "add a backlog task as a node in a pending plan"},
-	{"remove_task_from_plan", "remove a task node from a pending plan"},
-	{"add_plan_dependency", "wire a plan edge: seq depends_on, or a conditional/loopback control-flow edge (Decision/cycle authoring)"},
-	{"remove_plan_dependency", "remove a depends_on edge between plan nodes"},
-	{"start_plan", "start a pending plan (the center dispatches ready nodes)"},
-	{"pause_plan", "pause new dispatch without rewriting history"},
-	{"resume_plan", "resume a paused plan from the same frontier"},
-	{"reopen_plan", "reopen a done plan to paused so a follow-up generation can be evolved"},
-	{"complete_plan", "complete a plan whose current effective nodes are all settled"},
-	{"discard_plan", "permanently abandon an active plan while preserving terminal history"},
-	{"get_plan", "read a plan and its nodes"},
-	{"list_plans", "list a project's plans"},
-	{"delete_plan", "delete a never-started pending plan"},
-	{"archive_plan", "archive a finished plan"},
-	// plan shared findings
-	{"record_finding", "record a shared finding on a plan"},
-	{"list_findings", "list a plan's shared findings"},
-	// orchestration engine graph tools were formerly DEFERRED here, but the DAG
-	// cycle-plan workflow is the mandatory orchestrator delivery path — so they are
-	// now CORE (kept OUT of this deferred manifest). A deferred tool is invisible to
-	// the HARNESS's own tool-search until this server advertises it via a
-	// search_tools call first (tools/list carries only non-deferred tools) — the
-	// SAME double-hidden I4 anti-pattern that promoted reminders + download_file to
-	// core. Keeping the graph tools deferred meant an orchestrator agent building a
-	// DAG could not discover create_graph / add_graph_node / … at all until it ran
-	// a lucky native search_tools query first (issue-74df441a, 2026-07). Promoting
-	// them to core makes the mandated DAG tools directly discoverable. A future
-	// per-role tiering (issue: agents have no role concept yet) could re-defer them
-	// for executor-only agents; for now they are core for every agent.
-	// files — T247 (issue-2dfd42a1): download_file + upload_file are CORE (kept
-	// OUT of this deferred manifest). An agent that receives an image/file
-	// attachment must be able to fetch it WITHOUT first discovering the tool via
-	// search_tools — the wake-message hint tells it to call download_file
-	// directly, and post_message attachments depend on upload_file. attach_file
-	// (rarer — re-scoping an existing blob) stays deferred.
-	{"attach_file", "attach an existing center file into a scope"},
-	// templates — legacy workflow template catalog; prefer Team Memory rules.
-	{"list_templates", "legacy/deprecated workflow templates; prefer get_team_rules"},
-	{"get_template", "legacy/deprecated workflow template content; prefer Team Memory rules"},
-	{"create_template", "legacy/deprecated workflow template creation; prefer Team Memory rules"},
-	{"update_template", "legacy/deprecated workflow template update; prefer Team Memory rules"},
-	{"delete_template", "legacy/deprecated workflow template delete; prefer Team Memory rules"},
-	// model catalog — org-level user-managed model catalog (issue-93dd8daa ①)
-	{"list_model_catalog_entry", "list the org's model catalog"},
-	{"create_model_catalog_entry", "add a model to the org catalog"},
-	{"update_model_catalog_entry", "update a model catalog entry"},
-	{"delete_model_catalog_entry", "delete a model catalog entry"},
-	{"import_model_catalog", "bulk import the model catalog from JSON (upsert|replace)"},
-	// team — Team BC management (Team Phase-1 wiring, design §4/§6/§7/§9). Low-
-	// frequency org/team administration, deferred like templates + model catalog.
-	{"create_team", "create a team with its template-declared roles"},
-	{"update_team", "update a team's name/description"},
-	{"delete_team", "delete a team"},
-	{"get_team", "read a team and its roles"},
-	{"list_teams", "list your organization's teams"},
-	{"propose_team_memory_change", "propose a controlled Team Memory change"},
-	{"list_team_memory_proposals", "list controlled Team Memory proposals"},
-	{"get_team_memory_proposal", "inspect a Team Memory proposal with target hash and diff"},
-	{"review_team_memory_proposal", "curator-only promote/reject for Team Memory proposals"},
-	{"add_member", "add an agent/human member to a team under a declared role"},
-	{"remove_member", "remove a member from a team"},
-	{"associate_project", "associate a project with a team"},
-	{"create_team_template", "author + validate a reusable team template"},
-	{"curate_team_template", "mark a team template curated after manual review (export gate)"},
-	{"export_team_template", "export a curated team template to a shareable JSON document (cross-org)"},
-	{"import_team_template", "import a team template from an exported JSON document into your org"},
-	{"instantiate_team", "instantiate a team template into your org (creates team + agents + memory; project-independent)"},
-	{"extract_from_team", "snapshot a live team into a draft template (roles + portable experiences, scrub highlights)"},
-	{"assign_roles", "resolve plan-node roles to concrete agents off a team's roster"},
-}
+var secondaryTools = agenttools.SecondaryTools
 
 // secondaryToolNames returns the deferred tool names (for RemoveTools on the
 // tiered default set).
 func secondaryToolNames() []string {
-	names := make([]string, len(secondaryTools))
-	for i, t := range secondaryTools {
-		names[i] = t.name
-	}
-	return names
+	return agenttools.SecondaryToolNames()
 }
 
 // searchToolsArgs is the (optional) query for search_tools.
@@ -176,10 +58,10 @@ func makeSearchTools(srv *mcp.Server, cfg Config) mcp.ToolHandlerFor[searchTools
 		matched := make([]loaded, 0)
 		unmatched := make([]string, 0)
 		for _, t := range secondaryTools {
-			if toolMatches(t.name, t.summary, terms) {
-				matched = append(matched, loaded{Name: t.name, Summary: t.summary})
+			if toolMatches(t.Name, t.Summary, terms) {
+				matched = append(matched, loaded{Name: t.Name, Summary: t.Summary})
 			} else {
-				unmatched = append(unmatched, t.name)
+				unmatched = append(unmatched, t.Name)
 			}
 		}
 		// Re-add the full surface (idempotent), then drop the non-matching

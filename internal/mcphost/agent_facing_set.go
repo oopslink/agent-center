@@ -1,5 +1,7 @@
 package mcphost
 
+import "github.com/oopslink/agent-center/internal/agenttools"
+
 // AgentFacingToolNames is the SOURCE-OF-TRUTH canonical set of MCP tool names the
 // per-agent catalog (NewServer) exposes to the agent LLM. It exists to anchor the
 // full-parity guard (TestAgentFacingToolParity): the guard asserts the live
@@ -16,125 +18,7 @@ package mcphost
 // AND this list (and FilesSeamTools below if it moves bytes via the FileMover seam
 // instead of the /admin/agent-tools/<name> proxy). The guard will tell you if you
 // miss one.
-var AgentFacingToolNames = []string{
-	"add_plan_dependency",
-	"add_task_to_plan",
-	"edit_plan_topology",     // pending-only batch DAG edit
-	"evolve_plan_generation", // immutable generation evolution for running/paused plans; reopen done plans first
-	"archive_plan",
-	"assign_task",
-	"attach_file",
-	"fail_task",
-	"heartbeat", // v2.14.0 I14/F5 §五/§2.5: renew the running task's execution lease
-	"complete_task",
-	"complete_plan",
-	"report_manual_recovery_delivery",
-	"discard_task",   // T119: terminal-discard a superseded / mis-created task
-	"set_task_issue", // T192: (re)set/clear a task's derived_from_issue after creation
-	// T206 Cognition reminders
-	"create_reminder",
-	"list_reminders",
-	"get_reminder",
-	"update_reminder",
-	"create_plan",
-	// 2026-07-03 plan-stage-model §6: Stage authoring + read.
-	"create_stage",
-	"get_stage",
-	"reset_task", // T862 tier-3 recovery: reset a dead-executor task back to the pool
-	"rerun_failed_node",
-	"resume_paused_node",
-	"create_task",
-	"update_task",
-	// v2.10.3 T170 — full agent issue management (create/update/close/reopen/
-	// comment/list/link-task). get_issue (relaxed to project-member scope) is
-	// already listed below.
-	"create_issue",
-	"update_issue",
-	"close_issue",
-	"reopen_issue",
-	// T200 WS4: post_issue_message merged into post_message (target type "issue").
-	"list_issues",
-	"list_tasks_of_issue",
-	// v2.18.4 BE-2 (issue-f980c8de) — workspace CodeRepo info tools.
-	"list_project_repos",
-	"get_repo_info",
-	"delete_plan",
-	"download_file",
-	"list_files",
-	"find_org_agent",
-	"find_org_channel",
-	"fork_executor",
-	"get_issue",
-	"get_team_rule_index",
-	"get_team_rule",
-	"get_team_rules",
-	"propose_team_memory_change",
-	"list_team_memory_proposals",
-	"get_team_memory_proposal",
-	"review_team_memory_proposal",
-	"get_my_profile",
-	"get_my_unread",
-	"list_my_tasks", // v2.14.0 I14/F5 §五/§13.A: the agent's runnable-task queue (replaces get_my_work)
-	"get_plan",
-	"get_task",
-	"get_task_audit",
-	"list_task_executions",
-	"get_task_execution",
-	"get_agent_runtime_effective_config",
-	"runtime_deploy_restart",
-	"runtime_deploy_status",
-	"list_findings",
-	"list_plans",
-	"list_tasks",
-	"mark_seen",
-	"list_messages", // browse a conversation's chat history (DM/channel/task/issue/plan)
-	// T200 WS4: post_message is the single post tool (target = conversation|task|issue);
-	// the former post_task_message / post_issue_message are gone.
-	"post_message",
-	"reassign_task",
-	"record_finding",
-	"remove_plan_dependency",
-	"claim_task",
-	"remove_task_from_plan",
-	"start_dm",
-	"start_plan",
-	"start_task",
-	"pause_plan",
-	"reopen_plan",
-	"resume_plan",
-	"discard_plan",
-	"subscribe",
-	"unsubscribe",
-	"upload_file",
-	"list_templates",
-	"get_template",
-	"create_template",
-	"update_template",
-	"delete_template",
-	"list_model_catalog_entry",
-	"create_model_catalog_entry",
-	"update_model_catalog_entry",
-	"delete_model_catalog_entry",
-	"import_model_catalog",
-	// Team BC (Team Phase-1 wiring, design §4/§6/§7/§9): CRUD + membership +
-	// project association (S1), template authoring / instantiation / role→agent
-	// resolution (S3). Each proxies to /admin/agent-tools/<name>.
-	"create_team",
-	"update_team",
-	"delete_team",
-	"get_team",
-	"list_teams",
-	"add_member",
-	"remove_member",
-	"associate_project",
-	"create_team_template",
-	"curate_team_template",
-	"export_team_template",
-	"import_team_template",
-	"instantiate_team",
-	"extract_from_team",
-	"assign_roles",
-}
+var AgentFacingToolNames = agenttools.AgentFacingToolNames
 
 // FilesSeamTools are the agent-facing tools that move BYTES through the FileMover
 // seam (NewServer's Files dep) rather than proxying to an /admin/agent-tools/<name>
@@ -142,6 +26,4 @@ var AgentFacingToolNames = []string{
 // reverse-lockstep half of the parity guard: every other AgentFacingToolNames entry
 // maps 1:1 to a /admin/agent-tools/<name> admin route, but these do not (download_file
 // proxies to GET /admin/files/{ulid}). Keep this list minimal and explicit.
-var FilesSeamTools = []string{
-	"download_file",
-}
+var FilesSeamTools = agenttools.FilesSeamTools
