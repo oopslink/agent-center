@@ -1,0 +1,59 @@
+{
+  "id": "i53-after-1788510985",
+  "binary": "./bin/agent-center",
+  "capture_mode": "with-seed",
+  "capture_fallback_reason": "  $ launchctl bootout gui/501 /Users/oopslink/Library/LaunchAgents/com.agent-center.center.test-i53-after-1788510985.plist\n  $ launchctl bootout gui/501 /Users/oopslink/Library/LaunchAgents/com.agent-center.worker.worker-2555b3d1.plist\nError: test_instance_with_agent_failed: create agent: status 400: {\"reason\":\"runtime_model_not_found\",\"message\":\"runtime model was not found\",\"details\":{\"model\":\"claude-opus-4-8\"}}\n",
+  "web_url": "http://127.0.0.1:64355",
+  "org_slug": "org-300625c9",
+  "project_id": "project-5ab01d11",
+  "overview_summary": {
+    "completed_executions": 0,
+    "failed_executions": 0,
+    "recovery_finalized_executions": 0,
+    "failure_rate": null,
+    "slot_utilization": null,
+    "slot_coverage_ratio": null,
+    "queue_wait_ms": {
+      "p50": null,
+      "p95": null,
+      "samples": 0
+    },
+    "execution_duration_ms": {
+      "p50": null,
+      "p95": null,
+      "samples": 0
+    }
+  },
+  "overview_freshness": {
+    "state": "fresh",
+    "age_ms": 3597,
+    "threshold_ms": 120000
+  },
+  "executions_count": 0,
+  "first_execution": null,
+  "agents_count": 0,
+  "projects_count": 1,
+  "console_errors": [],
+  "screenshots": [
+    {
+      "name": "01-overview",
+      "path": "docs/acceptance/i53-insight-semantics/after-run2/01-overview.png",
+      "url": "http://127.0.0.1:64355/organizations/org-300625c9/insights/overview"
+    },
+    {
+      "name": "02-executions",
+      "path": "docs/acceptance/i53-insight-semantics/after-run2/02-executions.png",
+      "url": "http://127.0.0.1:64355/organizations/org-300625c9/insights/executions?window=24h"
+    },
+    {
+      "name": "04-agents",
+      "path": "docs/acceptance/i53-insight-semantics/after-run2/04-agents.png",
+      "url": "http://127.0.0.1:64355/organizations/org-300625c9/insights/agents"
+    },
+    {
+      "name": "05-projects",
+      "path": "docs/acceptance/i53-insight-semantics/after-run2/05-projects.png",
+      "url": "http://127.0.0.1:64355/organizations/org-300625c9/insights/projects"
+    }
+  ]
+}

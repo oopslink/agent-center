@@ -7,7 +7,16 @@
       "title": "Insight overview",
       "byAgent": "By agent",
       "byProject": "By project",
-      "tableSubtitle": "Sorted by completed executions descending, then by ID; up to 20 items."
+      "tableSubtitle": "Past 24 hours. Rankings show sample counts, slot coverage, and retry-counted execution attempts."
+    },
+    "scope": {
+      "label": "Insight information levels",
+      "agentsTitle": "Object: agents",
+      "agentsBody": "Compare agent health first, then open scoped executions.",
+      "projectsTitle": "Object: projects",
+      "projectsBody": "Review project delivery health before drilling into plans.",
+      "executionsTitle": "Execution attempts",
+      "executionsBody": "Inspect attempt-level rows with the current filter context preserved."
     },
     "nav": {
       "section": "Insight",
@@ -31,7 +40,10 @@
     },
     "executions": {
       "title": "Task executions",
-      "subtitle": "Each row is one execution attempt"
+      "subtitle": "Each row is one execution attempt",
+      "contextTitle": "Execution list context",
+      "filteredBody": "Rows are constrained by the active object filter. Opening a row keeps this context for back navigation.",
+      "unfilteredBody": "Rows show all execution attempts in the rolling 24-hour window."
     },
     "agents": {
       "title": "Agents",
@@ -49,6 +61,7 @@
         "health": "Health",
         "executions": "Executions",
         "unknown": "Unknown",
+        "samples": "Samples",
         "coverage": "Coverage"
       },
       "metric": {
@@ -102,6 +115,7 @@
       "known": "known",
       "unknown": "unknown",
       "meta": "{{known}} · samples {{sample}} · coverage {{coverage}} · unknown {{unknown}}",
+      "metricEvidence": "{{state}} · {{sample}} samples · coverage {{coverage}} · {{unknown}} unknown",
       "noReasons": "No backend reason codes",
       "noDrilldown": "No drilldown filter"
     },
@@ -403,12 +417,14 @@
       "failure": "Failure",
       "queue": "Queue P50 / P95",
       "duration": "Duration P50 / P95",
+      "evidence": "Samples / coverage",
       "action": "Action",
       "completedValue": "{{count}} completed",
       "failureValue": "{{failed}}/{{completed}} ({{rate}})",
       "noCompletedFailure": "— (0 completed)",
       "percentileValue": "P50 {{p50}} / P95 {{p95}} · {{samples}} samples",
-      "noPercentileSamples": "— (0 valid samples)"
+      "noPercentileSamples": "— (0 valid samples)",
+      "leaderboardEvidence": "{{executions}} execution attempts · queue {{queue}} samples · duration {{duration}} samples · coverage {{coverage}}"
     },
     "filters": {
       "agent": "Agent: {{value}}",
@@ -459,6 +475,7 @@
     },
     "method": {
       "base": "Each retry is counted as one execution attempt. P50/P95 use only records with valid start/end times.",
+      "ranking": "Agent and project rankings use the same rolling 24-hour window as the summary. Capacity utilization is hidden when slot coverage is insufficient.",
       "invalidFacts": "{{count}} records have invalid time data and were excluded from related duration statistics.",
       "lateEvents": "{{count}} late observations were processed in this window; metrics are assigned by event time."
     }

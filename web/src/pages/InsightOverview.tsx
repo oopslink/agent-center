@@ -20,6 +20,7 @@ import {
   formatInsightClock,
   formatInsightDuration,
   formatInsightFailure,
+  formatInsightLeaderboardEvidence,
   formatInsightPercentiles,
   formatInsightRatio,
   formatInsightTimeOrLabel,
@@ -49,6 +50,7 @@ export default function InsightOverview(): React.ReactElement {
         <>
           <WindowBar data={overview.data} />
           <FreshnessNotice data={overview.data} />
+          <InsightScopeMap base={base} />
           <SummaryCards summary={overview.data.summary} />
           <CoverageNotice summary={overview.data.summary} />
           <OverviewTrendCharts data={overview.data} />
@@ -217,6 +219,26 @@ function InsightHeader({ title, subtitle, action }: { title: string; subtitle?: 
   );
 }
 
+function InsightScopeMap({ base }: { base: string }): React.ReactElement {
+  const { t } = useTranslation('insights');
+  return (
+    <nav className="grid gap-3 md:grid-cols-3" aria-label={t('insight.scope.label')} data-testid="insight-scope-map">
+      <ScopeLink to={`${base}/agents`} title={t('insight.scope.agentsTitle')} body={t('insight.scope.agentsBody')} />
+      <ScopeLink to={`${base}/projects`} title={t('insight.scope.projectsTitle')} body={t('insight.scope.projectsBody')} />
+      <ScopeLink to={`${base}/executions?window=24h`} title={t('insight.scope.executionsTitle')} body={t('insight.scope.executionsBody')} />
+    </nav>
+  );
+}
+
+function ScopeLink({ to, title, body }: { to: string; title: string; body: string }): React.ReactElement {
+  return (
+    <Link to={to} className="rounded border border-border-base bg-bg-elevated p-3 hover:bg-bg-subtle">
+      <span className="text-sm font-semibold text-text-primary">{title}</span>
+      <span className="mt-1 block text-xs text-text-secondary">{body}</span>
+    </Link>
+  );
+}
+
 function WindowBar({ data }: { data: Pick<InsightOverviewDTO, 'window' | 'refreshed_at' | 'freshness'> }): React.ReactElement {
   const { t } = useTranslation('insights');
   return (
@@ -307,7 +329,7 @@ function OverviewCharts({ data, base }: { data: InsightOverviewDTO; base: string
       value: agent.summary.completed_executions,
       tone: riskTone(agent.summary),
       href: `${base}/executions?window=24h&agent_ref=${encodeURIComponent(agent.agent_ref)}`,
-      detail: t('insight.chart.failureDetail', { failed: agent.summary.failed_executions, recovery: recoveryFinalized(agent.summary) }),
+      detail: `${t('insight.chart.failureDetail', { failed: agent.summary.failed_executions, recovery: recoveryFinalized(agent.summary) })} · ${formatInsightLeaderboardEvidence(agent.summary, t)}`,
     }));
   const projects = data.projects
     .slice()
@@ -319,7 +341,7 @@ function OverviewCharts({ data, base }: { data: InsightOverviewDTO; base: string
       value: riskScore(project.summary),
       tone: riskTone(project.summary),
       href: `${base}/executions?window=24h&project_id=${encodeURIComponent(project.project_id)}`,
-      detail: t('insight.chart.riskDetail', { completed: project.summary.completed_executions }),
+      detail: `${t('insight.chart.riskDetail', { completed: project.summary.completed_executions })} · ${formatInsightLeaderboardEvidence(project.summary, t)}`,
     }));
   const latency = [
     { key: 'queue-p50', label: t('insight.chart.queueP50'), value: data.summary.queue_wait_ms.p50 ?? 0, tone: 'info' as const },
@@ -509,6 +531,7 @@ function DimensionTable({ title, kind, rows }: { title: string; kind: 'agent' | 
                 <th className="px-3 py-2 font-medium">{t('insight.table.failure')}</th>
                 <th className="px-3 py-2 font-medium">{t('insight.table.queue')}</th>
                 <th className="px-3 py-2 font-medium">{t('insight.table.duration')}</th>
+                <th className="px-3 py-2 font-medium">{t('insight.table.evidence')}</th>
                 <th className="px-3 py-2 font-medium">{t('insight.table.action')}</th>
               </tr>
             </thead>
@@ -523,6 +546,7 @@ function DimensionTable({ title, kind, rows }: { title: string; kind: 'agent' | 
                   <td className="px-3 py-2 tabular-nums">{formatInsightFailure(row.summary, t)}</td>
                   <td className="px-3 py-2 tabular-nums">{formatInsightPercentiles(row.summary.queue_wait_ms, t)}</td>
                   <td className="px-3 py-2 tabular-nums">{formatInsightPercentiles(row.summary.execution_duration_ms, t)}</td>
+                  <td className="px-3 py-2 text-xs text-text-secondary">{formatInsightLeaderboardEvidence(row.summary, t)}</td>
                   <td className="px-3 py-2"><Link to={row.to} className="text-brand hover:underline">{t('insight.actions.viewExecutions')}</Link></td>
                 </tr>
               ))}
@@ -569,6 +593,7 @@ function MethodNote({ diagnostics }: { diagnostics: { invalid_facts: number; lat
   return (
     <div className="space-y-1 rounded border border-border-base bg-bg-elevated p-3 text-xs text-text-secondary" data-testid="insight-method-note">
       <p>{t('insight.method.base')}</p>
+      <p>{t('insight.method.ranking')}</p>
       {diagnostics.invalid_facts > 0 && <p>{t('insight.method.invalidFacts', { count: diagnostics.invalid_facts })}</p>}
       {diagnostics.late_events > 0 && <p>{t('insight.method.lateEvents', { count: diagnostics.late_events })}</p>}
     </div>
@@ -578,11 +603,15 @@ function MethodNote({ diagnostics }: { diagnostics: { invalid_facts: number; lat
 function FilterSummary({ filters, onRemove, onClear }: { filters: InsightExecutionFilters; onRemove: (key: 'agent_ref' | 'project_id') => void; onClear: () => void }): React.ReactElement {
   const { t } = useTranslation('insights');
   return (
-    <div className="flex flex-wrap items-center gap-2 text-sm" data-testid="insight-filter-summary">
-      <span className="text-text-muted">{t('insight.window.title')}</span>
+    <div className="rounded border border-border-base bg-bg-elevated p-3 text-sm" data-testid="insight-filter-summary">
+      <div className="font-medium text-text-primary">{t('insight.executions.contextTitle')}</div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-text-muted">{t('insight.window.title')}</span>
       {filters.agent_ref && <FilterChip label={t('insight.filters.agent', { value: filters.agent_ref })} onClick={() => onRemove('agent_ref')} />}
       {filters.project_id && <FilterChip label={t('insight.filters.project', { value: filters.project_id })} onClick={() => onRemove('project_id')} />}
       {hasExecutionFilter(filters) && <button type="button" onClick={onClear} className="text-brand hover:underline">{t('insight.filters.clear')}</button>}
+      </div>
+      <p className="mt-2 text-xs text-text-secondary">{hasExecutionFilter(filters) ? t('insight.executions.filteredBody') : t('insight.executions.unfilteredBody')}</p>
     </div>
   );
 }

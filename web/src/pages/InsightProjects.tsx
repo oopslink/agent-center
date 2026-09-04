@@ -19,7 +19,7 @@ import {
   type InsightV2ProjectEvolution,
   type InsightV2ProjectSummary,
 } from '@/api/insights';
-import { presentInsightEnum } from '@/utils/insightPresentation';
+import { formatInsightCoverage, formatInsightMetricEvidence, presentInsightEnum } from '@/utils/insightPresentation';
 
 const EMPTY = '—';
 
@@ -84,7 +84,7 @@ function InsightProjectsCharts({ projects, base }: { projects: InsightV2ProjectS
       value: projectRisk(project),
       tone: project.health.status === 'healthy' ? 'warning' as const : healthTone(project.health.status),
       href: `${base}/${encodeURIComponent(project.id)}`,
-      detail: t('insight.chart.projectRiskV2Detail', { issues: metricText(project.open_issues), blocked: metricText(project.blocked_tasks) }),
+      detail: `${t('insight.chart.projectRiskV2Detail', { issues: metricText(project.open_issues), blocked: metricText(project.blocked_tasks) })} · ${formatInsightMetricEvidence(project.blocked_tasks.meta, t)}`,
     }));
   const executionData = projects
     .slice()
@@ -96,7 +96,7 @@ function InsightProjectsCharts({ projects, base }: { projects: InsightV2ProjectS
       value: metricNumber(project.execution_count),
       tone: healthTone(project.health.status),
       href: `${base}/${encodeURIComponent(project.id)}`,
-      detail: t('insight.chart.projectExecutionDetail', { plans: metricText(project.active_plans) }),
+      detail: `${t('insight.chart.projectExecutionDetail', { plans: metricText(project.active_plans) })} · ${formatInsightMetricEvidence(project.execution_count.meta, t)}`,
     }));
   return (
     <section className="grid gap-4 lg:grid-cols-3" data-testid="insight-projects-charts">
@@ -519,7 +519,8 @@ function FreshnessBadge({ freshness }: { freshness: InsightFreshness }): React.R
 }
 
 function MetricTile({ label, metric }: { label: string; metric: InsightV2CountMetric }): React.ReactElement {
-  return <ValueTile label={label} value={<MetricValue metric={metric} />} sub={metric.meta.known ? undefined : 'known=false'} />;
+  const { t } = useTranslation('insights');
+  return <ValueTile label={label} value={<MetricValue metric={metric} />} sub={formatInsightMetricEvidence(metric.meta, t)} />;
 }
 
 function ValueTile({ label, value, sub }: { label: string; value: React.ReactNode; sub?: string }): React.ReactElement {
@@ -533,7 +534,13 @@ function ValueTile({ label, value, sub }: { label: string; value: React.ReactNod
 }
 
 function MetricValue({ metric }: { metric: InsightV2CountMetric }): React.ReactElement {
-  return <span title={`known=${metric.meta.known}; sample_count=${metric.meta.sample_count}; unknown_count=${metric.meta.unknown_count}`}>{metric.meta.known && metric.value !== null ? metric.value : EMPTY}</span>;
+  const { t } = useTranslation('insights');
+  return (
+    <span title={formatInsightMetricEvidence(metric.meta, t)}>
+      <span>{metric.meta.known && metric.value !== null ? metric.value : EMPTY}</span>
+      <span className="mt-0.5 block text-xs font-normal text-text-muted">{metric.meta.sample_count} · {formatInsightCoverage(metric.meta.coverage)}</span>
+    </span>
+  );
 }
 
 function ReasonCodes({ codes }: { codes: string[] }): React.ReactElement {
@@ -584,7 +591,7 @@ function JsonBlock({ title, value }: { title: string; value: Record<string, unkn
 
 function formatRatio(value: number | null): string {
   if (value === null) return EMPTY;
-  return `${Math.round(value * 1000) / 10}%`;
+  return formatInsightCoverage(value);
 }
 
 function metricNumber(metric: InsightV2CountMetric): number {

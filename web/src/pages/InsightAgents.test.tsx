@@ -76,6 +76,10 @@ describe('Insight agents pages', () => {
     expect(table).toHaveTextContent('Builder');
     expect(table).toHaveTextContent('0.1%');
     expect(table).toHaveTextContent('2');
+    expect(table).toHaveTextContent('5');
+    expect(table).toHaveTextContent('Samples');
+    expect(screen.getByTestId('insight-agents-charts')).toHaveTextContent('5 samples');
+    expect(screen.getByTestId('insight-agents-charts')).toHaveTextContent('2 unknown');
     expect(within(table).getByRole('link', { name: 'Builder' })).toHaveAttribute('href', '/organizations/acme/insights/agents/agent%3Abuilder');
     expect(within(table).getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');
   });
@@ -101,6 +105,8 @@ describe('Insight agents pages', () => {
     expect(detail).not.toHaveTextContent('coverage_low');
     expect(detail).not.toHaveTextContent('raw_future_enum');
     expect(detail).toHaveTextContent('Metric confidence');
+    expect(detail).toHaveTextContent('Sample count');
+    expect(detail).toHaveTextContent('—');
     expect(screen.getByText('Agent work shape')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View executions' })).toHaveAttribute('href', '/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder');
   });

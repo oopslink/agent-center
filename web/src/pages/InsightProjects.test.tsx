@@ -138,8 +138,11 @@ describe('Insight v2 project pages', () => {
     expect(row).toHaveTextContent('Unknown');
     expect(row).toHaveTextContent('Low observation coverage');
     expect(row).toHaveTextContent('Source state is not yet known');
+    expect(row).toHaveTextContent('4 · 100%');
     expect(row).not.toHaveTextContent('coverage_low');
     expect(row).not.toHaveTextContent('unknown_source_state');
+    expect(screen.getByTestId('insight-projects-charts')).toHaveTextContent('4 samples');
+    expect(screen.getByTestId('insight-projects-charts')).toHaveTextContent('coverage 100%');
     expect(within(row).getByRole('link', { name: 'Launch' })).toHaveAttribute('href', '/organizations/acme/insights/projects/proj-1');
   });
 
@@ -197,6 +200,7 @@ describe('Insight v2 project pages', () => {
     renderAt('/organizations/acme/insights/projects/proj-1?plan_id=plan-1');
 
     expect(await screen.findByTestId('insight-project-summary')).toHaveTextContent('Runtime health');
+    expect(screen.getByTestId('insight-project-summary')).toHaveTextContent('known · 4 samples · coverage 100% · 0 unknown');
     expect(screen.getByTestId('insight-delivery-funnel')).toHaveTextContent('Issue / Task / Plan / Done funnel');
     expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Project lifecycle timelines');
     expect(screen.getByTestId('insight-project-lifecycle-charts')).toHaveTextContent('Launch');
@@ -329,6 +333,7 @@ describe('Insight v2 project pages', () => {
     expect(screen.getByTestId('insight-health-panel')).toHaveTextContent('Unknown');
     expect(screen.getByTestId('insight-health-panel')).toHaveTextContent('coverage 40%');
     expect(screen.getByTestId('insight-health-panel')).toHaveTextContent('Low observation coverage');
+    expect(screen.getByTestId('insight-delivery-funnel')).not.toHaveTextContent('known=false');
     expect(screen.getByTestId('insight-health-panel')).not.toHaveTextContent('coverage_low');
     expect(screen.getByTestId('insight-delivery-funnel')).toHaveTextContent('—');
   });

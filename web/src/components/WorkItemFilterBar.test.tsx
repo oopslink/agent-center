@@ -70,7 +70,7 @@ describe('WorkItemFilterBar collapse (T339)', () => {
       onIncludeCompletedPlanFailuresChange: onInclude,
     });
     expect(screen.getByTestId('org-filter-active-count')).toHaveTextContent('1');
-    expect(screen.getByTestId('org-filter-completed-plan-failures')).toBeChecked();
+    expect(screen.getByTestId('org-filter-completed-plan-failures')).toHaveAttribute('aria-checked', 'true');
     fireEvent.click(screen.getByTestId('org-filter-clear'));
     expect(onInclude).toHaveBeenCalledWith(false);
   });

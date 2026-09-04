@@ -5,6 +5,7 @@ import { useProjects } from '@/api/projects';
 import { useMembers, normalizeIdentityRef } from '@/api/members';
 import { statusSolidClass, statusDotClass } from '@/components/workItemDisplay';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
+import { ToggleSwitch } from '@/components/ToggleSwitch';
 
 // T339: the filter panel collapses behind a "Filters" disclosure so the list is
 // immediately visible — esp. on mobile, where the full status/assignee/date form
@@ -345,19 +346,18 @@ export function WorkItemFilterBar({
           </select>
         </label>
         {kind === 'task' && onIncludeCompletedPlanFailuresChange && (
-          <label
+          <div
             className="inline-flex min-h-[1.75rem] items-center gap-1.5 rounded border border-border-base bg-bg-base px-2 text-xs text-text-secondary"
             title={t('filter.completedPlanFailures.title')}
           >
-            <input
-              type="checkbox"
-              data-testid="org-filter-completed-plan-failures"
+            <ToggleSwitch
+              testId="org-filter-completed-plan-failures"
               checked={includeCompletedPlanFailures}
-              onChange={(e) => onIncludeCompletedPlanFailuresChange(e.target.checked)}
-              className="h-3.5 w-3.5 accent-brand"
+              onChange={onIncludeCompletedPlanFailuresChange}
+              ariaLabel={t('filter.completedPlanFailures.label')}
             />
             <span>{t('filter.completedPlanFailures.label')}</span>
-          </label>
+          </div>
         )}
       </div>
       {/* Row 2 — DATE RANGE: two inline start→end pairs (Created / Updated), then

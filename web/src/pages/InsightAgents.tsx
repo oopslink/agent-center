@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { ApiError } from '@/api/client';
 import { useInsightAgent, useInsightAgents, type InsightV2AgentSummary, type InsightV2CountMetric } from '@/api/insights';
 import { ChartPanel, DonutChart, HorizontalBars, SegmentedBar, type ChartDatum } from '@/components/insight/InsightCharts';
-import { presentInsightEnum } from '@/utils/insightPresentation';
+import { formatInsightCoverage, formatInsightMetricEvidence, presentInsightEnum } from '@/utils/insightPresentation';
 
 const EMPTY = '—';
 
@@ -51,7 +51,7 @@ function InsightAgentsCharts({ agents, base }: { agents: InsightV2AgentSummary[]
       value: metricNumber(agent.execution_count),
       tone: healthTone(agent.health.status),
       href: `${base}/executions?window=24h&agent_ref=${encodeURIComponent(agent.id)}`,
-      detail: t('insight.chart.agentWorkDetail', { blocked: metricValue(agent.blocked_tasks), plans: metricValue(agent.active_plans) }),
+      detail: `${t('insight.chart.agentWorkDetail', { blocked: metricValue(agent.blocked_tasks), plans: metricValue(agent.active_plans) })} · ${formatInsightMetricEvidence(agent.execution_count.meta, t)}`,
     }));
   const workData = agents
     .slice()
@@ -63,7 +63,7 @@ function InsightAgentsCharts({ agents, base }: { agents: InsightV2AgentSummary[]
       value: agentPressure(agent),
       tone: agent.health.status === 'healthy' ? 'info' as const : healthTone(agent.health.status),
       href: `${base}/agents/${encodeURIComponent(agent.id)}`,
-      detail: t('insight.chart.agentPressureDetail', { issues: metricValue(agent.open_issues), blocked: metricValue(agent.blocked_tasks) }),
+      detail: `${t('insight.chart.agentPressureDetail', { issues: metricValue(agent.open_issues), blocked: metricValue(agent.blocked_tasks) })} · ${formatInsightMetricEvidence(agent.blocked_tasks.meta, t)}`,
     }));
 
   return (
@@ -133,6 +133,7 @@ function InsightAgentsTable({ agents, base }: { agents: InsightV2AgentSummary[];
             <th className="px-3 py-2 font-medium">{t('insight.agents.col.health')}</th>
             <th className="px-3 py-2 font-medium">{t('insight.agents.col.executions')}</th>
             <th className="px-3 py-2 font-medium">{t('insight.agents.col.unknown')}</th>
+            <th className="px-3 py-2 font-medium">{t('insight.agents.col.samples')}</th>
             <th className="px-3 py-2 font-medium">{t('insight.agents.col.coverage')}</th>
             <th className="px-3 py-2 font-medium">{t('insight.table.action')}</th>
           </tr>
@@ -147,7 +148,8 @@ function InsightAgentsTable({ agents, base }: { agents: InsightV2AgentSummary[];
               <td className="px-3 py-2"><HealthBadge status={agent.health.status} /></td>
               <td className="px-3 py-2 tabular-nums">{metricValue(agent.execution_count)}</td>
               <td className="px-3 py-2 tabular-nums">{agent.execution_count.meta.unknown_count}</td>
-              <td className="px-3 py-2 tabular-nums">{formatCoverage(agent.execution_count.meta.coverage)}</td>
+              <td className="px-3 py-2 tabular-nums">{agent.execution_count.meta.sample_count}</td>
+              <td className="px-3 py-2 tabular-nums">{formatInsightCoverage(agent.execution_count.meta.coverage)}</td>
               <td className="px-3 py-2">
                 <Link to={`${base}/executions?window=24h&agent_ref=${encodeURIComponent(agent.id)}`} className="text-brand hover:underline">{t('insight.actions.viewExecutions')}</Link>
               </td>
@@ -177,7 +179,7 @@ function InsightAgentSummaryCard({ agent }: { agent: InsightV2AgentSummary }): R
         <section>
           <h2 className="text-sm font-semibold text-text-primary">{t('insight.agents.confidence')}</h2>
           <dl className="mt-2 grid gap-3 text-sm md:grid-cols-3">
-            <Info label={t('insight.agents.col.coverage')} value={formatCoverage(agent.execution_count.meta.coverage)} />
+            <Info label={t('insight.agents.col.coverage')} value={formatInsightCoverage(agent.execution_count.meta.coverage)} />
             <Info label={t('insight.agents.col.unknown')} value={String(agent.execution_count.meta.unknown_count)} />
             <Info label={t('insight.agents.sampleCount')} value={String(agent.execution_count.meta.sample_count)} />
           </dl>
@@ -252,10 +254,4 @@ function healthTone(status: string): ChartDatum['tone'] {
   if (status === 'elevated') return 'warning';
   if (status === 'degraded') return 'danger';
   return 'neutral';
-}
-
-function formatCoverage(value: number | null): string {
-  if (value === null) return EMPTY;
-  if (value > 0 && value < 0.001) return '<0.1%';
-  return `${Math.round(value * 1000) / 10}%`;
 }

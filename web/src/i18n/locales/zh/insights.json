@@ -7,7 +7,16 @@
       "title": "Insight 概览",
       "byAgent": "按智能体查看",
       "byProject": "按项目查看",
-      "tableSubtitle": "按已结束执行次数降序；同数时按 ID 排序；最多显示 20 项。"
+      "tableSubtitle": "过去 24 小时。排行展示样本数、slot 覆盖率，并按 execution attempt（含重试）计数。"
+    },
+    "scope": {
+      "label": "Insight 信息层级",
+      "agentsTitle": "对象：智能体",
+      "agentsBody": "先比较智能体健康，再进入带上下文的执行记录。",
+      "projectsTitle": "对象：项目",
+      "projectsBody": "先查看项目交付健康，再下钻 Plan。",
+      "executionsTitle": "执行尝试",
+      "executionsBody": "查看单次执行明细，并保留当前筛选上下文。"
     },
     "nav": {
       "section": "洞察",
@@ -31,7 +40,10 @@
     },
     "executions": {
       "title": "任务执行记录",
-      "subtitle": "每行代表一次执行尝试"
+      "subtitle": "每行代表一次执行尝试",
+      "contextTitle": "执行列表上下文",
+      "filteredBody": "当前列表受对象筛选约束；打开单行后返回仍保留此上下文。",
+      "unfilteredBody": "当前列表展示滚动 24 小时内的全部执行尝试。"
     },
     "agents": {
       "title": "智能体",
@@ -49,6 +61,7 @@
         "health": "健康状态",
         "executions": "执行",
         "unknown": "未知",
+        "samples": "样本",
         "coverage": "覆盖率"
       },
       "metric": {
@@ -102,6 +115,7 @@
       "known": "已知",
       "unknown": "未知",
       "meta": "{{known}} · 样本 {{sample}} · 覆盖 {{coverage}} · 未知 {{unknown}}",
+      "metricEvidence": "{{state}} · {{sample}} 个样本 · 覆盖 {{coverage}} · {{unknown}} 个未知",
       "noReasons": "无后端原因代码",
       "noDrilldown": "无下钻筛选"
     },
@@ -403,12 +417,14 @@
       "failure": "失败",
       "queue": "排队 P50 / P95",
       "duration": "耗时 P50 / P95",
+      "evidence": "样本 / 覆盖",
       "action": "操作",
       "completedValue": "{{count}} 次已结束",
       "failureValue": "{{failed}}/{{completed}}（{{rate}}）",
       "noCompletedFailure": "—（0 次已结束）",
       "percentileValue": "P50 {{p50}} / P95 {{p95}} · {{samples}} 个样本",
-      "noPercentileSamples": "—（0 个有效样本）"
+      "noPercentileSamples": "—（0 个有效样本）",
+      "leaderboardEvidence": "{{executions}} 次执行尝试 · 排队 {{queue}} 个样本 · 耗时 {{duration}} 个样本 · 覆盖 {{coverage}}"
     },
     "filters": {
       "agent": "智能体：{{value}}",
@@ -459,6 +475,7 @@
     },
     "method": {
       "base": "一次重试算一次 execution attempt；P50/P95 仅使用具有有效起止时间的样本。",
+      "ranking": "智能体和项目排行使用与概览相同的滚动 24 小时窗口；slot 覆盖不足时隐藏容量利用率。",
       "invalidFacts": "有 {{count}} 条记录的时间数据异常，已从相关耗时统计中排除。",
       "lateEvents": "本窗口处理了 {{count}} 条延迟到达的观测；指标按业务发生时间归窗。"
     }

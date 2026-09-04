@@ -172,6 +172,8 @@ describe('Insight pages', () => {
     renderAt('/organizations/acme/insights/overview');
 
     expect(await screen.findByTestId('insight-window')).toHaveTextContent('Past 24 hours (rolling)');
+    expect(screen.getByTestId('insight-scope-map')).toHaveTextContent('Object: agents');
+    expect(screen.getByTestId('insight-scope-map')).toHaveTextContent('Execution attempts');
     expect(screen.getByTestId('insight-summary')).toHaveTextContent('Completed executions');
     expect(screen.getByTestId('insight-summary')).toHaveTextContent('75%');
     expect(screen.getByTestId('insight-overview-charts')).toHaveTextContent('Execution outcome mix');
@@ -187,6 +189,9 @@ describe('Insight pages', () => {
     expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('Launch rollout');
     expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('5');
     expect(screen.getByTestId('insight-plan-scale-charts')).toHaveTextContent('2');
+    expect(screen.getByTestId('insight-agent-table')).toHaveTextContent('Samples / coverage');
+    expect(screen.getByTestId('insight-agent-table')).toHaveTextContent('10 execution attempts');
+    expect(screen.getByTestId('insight-agent-table')).toHaveTextContent('duration 10 samples');
     expect(screen.queryByTestId('insight-project-lifecycle-charts')).not.toBeInTheDocument();
     expect(screen.queryByTestId('insight-drilldown')).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'View all executions' })).not.toBeInTheDocument();
@@ -238,6 +243,8 @@ describe('Insight pages', () => {
     renderAt('/organizations/acme/insights/executions?window=24h&agent_ref=agent%3Abuilder&project_id=proj-1&cursor=old');
 
     expect(await screen.findByTestId('insight-execution-row')).toHaveTextContent('Ship UI');
+    expect(screen.getByTestId('insight-filter-summary')).toHaveTextContent('Execution list context');
+    expect(screen.getByTestId('insight-filter-summary')).toHaveTextContent('Opening a row keeps this context');
     let params = new URL(seen[0]).searchParams;
     expect(params.get('window')).toBe('24h');
     expect(params.get('agent_ref')).toBe('agent:builder');

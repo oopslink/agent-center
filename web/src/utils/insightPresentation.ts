@@ -1,5 +1,5 @@
 import type { TFunction } from 'i18next';
-import type { InsightExecutionRow, InsightFreshness, InsightPercentiles, InsightSummary } from '@/api/insights';
+import type { InsightExecutionRow, InsightFreshness, InsightPercentiles, InsightSummary, InsightV2Meta } from '@/api/insights';
 
 export const INSIGHT_EMPTY = '—';
 
@@ -84,6 +84,25 @@ export function formatInsightCoverage(value: number | null): string {
   if (value === null) return INSIGHT_EMPTY;
   if (value > 0 && value < 0.001) return '<0.1%';
   return `${Math.round(value * 1000) / 10}%`;
+}
+
+export function formatInsightMetricEvidence(meta: Pick<InsightV2Meta, 'sample_count' | 'coverage' | 'unknown_count' | 'known'>, t: TFunction<'insights'>): string {
+  const state = meta.known ? t('insight.v2.known') : t('insight.v2.unknown');
+  return t('insight.v2.metricEvidence', {
+    state,
+    sample: meta.sample_count,
+    coverage: formatInsightCoverage(meta.coverage),
+    unknown: meta.unknown_count,
+  });
+}
+
+export function formatInsightLeaderboardEvidence(summary: InsightSummary, t: TFunction<'insights'>): string {
+  return t('insight.table.leaderboardEvidence', {
+    executions: summary.completed_executions,
+    queue: summary.queue_wait_ms.samples,
+    duration: summary.execution_duration_ms.samples,
+    coverage: formatInsightCoverage(summary.slot_coverage_ratio),
+  });
 }
 
 export function formatInsightDuration(value: number | null, t: TFunction<'insights'>): string {
