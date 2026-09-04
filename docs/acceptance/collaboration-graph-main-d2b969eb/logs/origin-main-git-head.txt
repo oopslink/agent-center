@@ -1,0 +1,4 @@
+50316a712444017c8c10777500c4f1a88db63645
+2026-09-04 11:35:51 +0800
+origin/main, origin/ac-exec/task-31c14ed1/exec-d4a718ce, origin/HEAD
+chore(evidence): persist task-31c14ed1 verification
