@@ -1,0 +1,362 @@
+[
+  {
+    "url": "http://127.0.0.1:57719/signin",
+    "status": 200,
+    "method": "GET",
+    "type": "document"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/index-JBs96hhN.css",
+    "status": 200,
+    "method": "GET",
+    "type": "stylesheet"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/index-dlBRK3-T.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/Signin-U-Juca8m.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/fonts/plus-jakarta-sans-latin.woff2",
+    "status": 200,
+    "method": "GET",
+    "type": "font"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/auth/signin",
+    "status": 200,
+    "method": "POST",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/",
+    "status": 200,
+    "method": "GET",
+    "type": "document"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/index-JBs96hhN.css",
+    "status": 200,
+    "method": "GET",
+    "type": "stylesheet"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/index-dlBRK3-T.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/fonts/plus-jakarta-sans-latin.woff2",
+    "status": 200,
+    "method": "GET",
+    "type": "font"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/conversations?kind=channel",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/Projects-CsJfqQ2f.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/EmptyState-DkeK6b16.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/fonts/ibm-plex-mono-400-latin.woff2",
+    "status": 200,
+    "method": "GET",
+    "type": "font"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/EntityRef-DQMQP09H.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/auth/me",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/members",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/conversations?kind=dm",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/projects",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/sse?user_id=user%3Auser-fb2d8407",
+    "status": 200,
+    "method": "GET",
+    "type": "eventsource"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/permissions/effective?subject_ref=user%3Auser-fb2d8407&resource_kind=org&resource_id=organization-ee50e3d0",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/attention",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/unread-conversations",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/InsightCollaboration-CEHqcJa4.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/insights-tEmIKOO4.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/useInfiniteQuery-DaTr0GBq.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/orgWorkItems-D0y-AD6O.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/tasks-gY2hafve.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/EntitySelect-BlGZRqxh.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/plans-oIduPf3p.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/insights/collaboration-effects?limit=100&lod=cluster&max_nodes=90",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/organizations/org-fe22cb50/insights/collaboration",
+    "status": 200,
+    "method": "GET",
+    "type": "document"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/index-JBs96hhN.css",
+    "status": 200,
+    "method": "GET",
+    "type": "stylesheet"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/index-dlBRK3-T.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/fonts/plus-jakarta-sans-latin.woff2",
+    "status": 200,
+    "method": "GET",
+    "type": "font"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/insights-tEmIKOO4.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/useInfiniteQuery-DaTr0GBq.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/EntitySelect-BlGZRqxh.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/tasks-gY2hafve.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/orgWorkItems-D0y-AD6O.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/InsightCollaboration-CEHqcJa4.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/assets/plans-oIduPf3p.js",
+    "status": 200,
+    "method": "GET",
+    "type": "script"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/members",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/fonts/ibm-plex-mono-400-latin.woff2",
+    "status": 200,
+    "method": "GET",
+    "type": "font"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/auth/me",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/conversations?kind=dm",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/conversations?kind=channel",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/permissions/effective?subject_ref=user%3Auser-fb2d8407&resource_kind=org&resource_id=organization-ee50e3d0",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/sse?user_id=user%3Auser-fb2d8407",
+    "status": 200,
+    "method": "GET",
+    "type": "eventsource"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/insights/collaboration-effects?limit=100&lod=cluster&max_nodes=90",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/projects",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/attention",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/unread-conversations",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/insights/collaboration-effects?limit=100&project_id=project-c91a7aeb",
+    "status": 503,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/projects/project-c91a7aeb/plans",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/projects/project-c91a7aeb/members",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/projects/project-c91a7aeb/tasks?status=all&sort=updated&dir=desc&page_size=500",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  },
+  {
+    "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/insights/collaboration-effects/ce_c2a50bdef2cd6a3af81df6c3ef615267/evidence?project_id=project-c91a7aeb",
+    "status": 200,
+    "method": "GET",
+    "type": "fetch"
+  }
+]

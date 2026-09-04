@@ -1,0 +1,16 @@
+{
+  "consoleEvents": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 503 (Service Unavailable)",
+      "location": {
+        "url": "http://127.0.0.1:57719/api/orgs/org-fe22cb50/insights/collaboration-effects?limit=100&project_id=project-c91a7aeb",
+        "line": 0,
+        "column": 0,
+        "lineNumber": 0,
+        "columnNumber": 0
+      }
+    }
+  ],
+  "pageErrors": []
+}

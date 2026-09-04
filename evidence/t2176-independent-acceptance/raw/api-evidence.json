@@ -1,0 +1,34 @@
+{
+  "effect_id": "ce_6d4bd14e6dcd0e3229b6b9b881cec50a",
+  "project_id": "project-c91a7aeb",
+  "rule_version": "collaboration-effect.mvp.v1",
+  "before_state": {
+    "assignee": "agent:agent-921fac57"
+  },
+  "after_state": {
+    "assignee": "agent:agent-b2398ace"
+  },
+  "explanation_key": "collaboration.effect.reassign",
+  "evidence": [
+    {
+      "event_id": "01M1PTZ9SW06268ATG6KXQMNZW",
+      "event_type": "pm.audit_recorded",
+      "occurred_at": "2026-09-04T18:30:23.292316Z",
+      "actor_ref": "user:user-fb2d8407",
+      "refs": {
+        "project_id": "project-c91a7aeb",
+        "task_id": "task-bc178138"
+      },
+      "payload": {
+        "actor_ref": "user:user-fb2d8407",
+        "audit_id": "01M1PTZ9SW06268ATG6K0ECHJA",
+        "change_type": "reassigned",
+        "field": "assignee",
+        "from_value": "agent:agent-921fac57",
+        "object_id": "task-bc178138",
+        "object_type": "task",
+        "to_value": "agent:agent-b2398ace"
+      }
+    }
+  ]
+}
