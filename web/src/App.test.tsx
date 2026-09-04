@@ -218,6 +218,7 @@ describe('App shell + route tree', () => {
         ['Overview', `${ORG_BASE}/insights/overview`],
         ['Agents', `${ORG_BASE}/insights/agents`],
         ['Projects', `${ORG_BASE}/insights/projects`],
+        ['Collaboration effects', `${ORG_BASE}/insights/collaboration`],
         ['Task executions', `${ORG_BASE}/insights/executions?window=24h`],
       ]],
       [`${ORG_BASE}/environment`, [

@@ -189,7 +189,10 @@ describe('Collaboration Insight', () => {
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     await waitFor(() => {
       const search = new URL(requested).searchParams;
-      expect([...search.keys()]).toEqual(['limit']);
+      expect([...search.keys()]).toEqual(['limit', 'lod', 'max_nodes']);
+      expect(search.get('lod')).toBe('cluster');
+      expect(search.get('max_nodes')).toBe('90');
+      expect(search.has('project_id')).toBe(false);
     });
     expect(screen.getByLabelText('Polarity')).toHaveValue('');
     expect(screen.getByLabelText('Relationship')).toHaveValue('');
@@ -201,6 +204,7 @@ describe('Collaboration Insight', () => {
     const first = renderAt('/organizations/acme/insights/collaboration');
     expect(await screen.findByTestId('collaboration-graph')).toBeVisible();
     expect(new URL(organizationRequest).searchParams.has('project_id')).toBe(false);
+    expect(new URL(organizationRequest).searchParams.get('lod')).toBe('cluster');
     expect(screen.queryByTestId('collaboration-scope-required')).not.toBeInTheDocument();
     first.unmount();
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({ graph: { nodes: [], edges: [] }, effects: [], summary: { positive_count: 0, negative_count: 0, neutral_count: 0, mixed_count: 0, affected_task_count: 0 }, next_cursor: '' })));
@@ -214,6 +218,53 @@ describe('Collaboration Insight', () => {
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({ error: 'boom' }, { status: 500 })));
     renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
     expect(await screen.findByTestId('collaboration-error')).toBeVisible();
+  });
+
+  it('surfaces clustered/truncated graph feedback and can request the full organization graph', async () => {
+    const requests: string[] = [];
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
+      requests.push(request.url);
+      return HttpResponse.json({
+        graph: {
+          nodes: [
+            { id: 'project:P1', kind: 'project', label: 'Alpha Project', project_id: 'P1' },
+            ...Array.from({ length: 117 }, (_, i) => ({ id: `task:T${i}`, kind: 'task', label: `Task ${i}`, project_id: 'P1', task_id: `T${i}` })),
+            { id: 'agent:a0', kind: 'agent', label: 'Agent A' },
+          ],
+          edges: Array.from({ length: 250 }, (_, i) => ({
+            id: `edge-${i}`,
+            source: 'agent:a0',
+            target: `task:T${i % 117}`,
+            relation_type: i % 2 ? 'complete' : 'assign',
+            polarity: i % 3 ? 'positive' : 'neutral',
+            magnitude: (i % 3 + 1) as 1 | 2 | 3,
+            effect_id: `ce-large-${i}`,
+            effect_scopes: [{ effect_id: `ce-large-${i}`, project_id: 'P1' }],
+            interaction_count: 1,
+            evidence_count: 1,
+          })),
+          lod: new URL(request.url).searchParams.get('lod') === 'full' ? 'full' : 'cluster',
+          clusters: [{ id: 'cluster:project:P1', kind: 'cluster', label: 'P1', project_id: 'P1' }],
+          truncated: true,
+        },
+        effects: [],
+        summary: {},
+        graph_version: 'gv-large',
+        truncated: true,
+        next_cursor: 'cursor-2',
+      });
+    }));
+    const user = userEvent.setup();
+    renderAt('/organizations/acme/insights/collaboration');
+    const notice = await screen.findByTestId('collaboration-lod-notice');
+    expect(notice).toHaveTextContent('Clustered organization graph');
+    expect(notice).toHaveTextContent('119 nodes and 234 edges');
+    expect(await screen.findByTestId('collaboration-graph-svg')).toHaveTextContent('Clustered overview');
+    expect(screen.getAllByRole('button', { name: /P1 Tasks/ })).toHaveLength(1);
+
+    await user.click(screen.getByTestId('collaboration-show-full-graph'));
+    await waitFor(() => expect(new URL(requests.at(-1) ?? '').searchParams.get('lod')).toBe('full'));
+    expect(new URL(requests.at(-1) ?? '').searchParams.has('project_id')).toBe(false);
   });
 
   it('normalizes nullable collaboration response collections without crashing', async () => {

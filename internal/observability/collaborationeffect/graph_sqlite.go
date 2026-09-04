@@ -147,7 +147,7 @@ WHERE ce.rule_version=?`)
 }
 
 func (r *SQLiteGraphReader) readStructure(ctx context.Context, f Filter, scope *graphScope) error {
-	where, projectArgs := projectScopeWhere(f)
+	where, projectArgs := projectScopeWhere(f, "pm_projects")
 	projectRows, err := r.db.QueryContext(ctx, `SELECT id, organization_id, name FROM pm_projects `+where+` ORDER BY organization_id, id`, projectArgs...)
 	if err != nil {
 		return err
@@ -167,7 +167,7 @@ func (r *SQLiteGraphReader) readStructure(ctx context.Context, f Filter, scope *
 		return err
 	}
 
-	planWhere := strings.Replace(where, "pm_projects", "pr", 1)
+	planWhere, projectArgs := projectScopeWhere(f, "pr")
 	qPlans := `SELECT pl.id, pl.project_id, pl.name, pl.status
 FROM pm_plans pl JOIN pm_projects pr ON pr.id=pl.project_id ` + planWhere
 	planArgs := append([]any(nil), projectArgs...)
@@ -195,7 +195,7 @@ FROM pm_plans pl JOIN pm_projects pr ON pr.id=pl.project_id ` + planWhere
 		return err
 	}
 
-	taskWhere := strings.Replace(where, "pm_projects", "pr", 1)
+	taskWhere, projectArgs := projectScopeWhere(f, "pr")
 	taskArgs := append([]any(nil), projectArgs...)
 	qTasks := `SELECT t.id, t.project_id, COALESCE(t.plan_id,''), COALESCE(t.stage_id,''), t.title, t.status, COALESCE(t.assignee,'')
 FROM pm_tasks t JOIN pm_projects pr ON pr.id=t.project_id ` + taskWhere
@@ -280,14 +280,18 @@ ORDER BY d.plan_id,d.from_task_id,d.to_task_id`, append(projectScopeArgs(f), non
 	return depRows.Err()
 }
 
-func projectScopeWhere(f Filter) (string, []any) {
+func projectScopeWhere(f Filter, table string) (string, []any) {
+	table = strings.TrimSpace(table)
+	if table == "" {
+		table = "pm_projects"
+	}
 	args := projectScopeArgs(f)
 	clauses := []string{"WHERE 1=1"}
 	if f.OrganizationID != "" {
-		clauses = append(clauses, "AND pm_projects.organization_id=?")
+		clauses = append(clauses, "AND "+table+".organization_id=?")
 	}
 	if f.ProjectID != "" {
-		clauses = append(clauses, "AND pm_projects.id=?")
+		clauses = append(clauses, "AND "+table+".id=?")
 	}
 	return strings.Join(clauses, " "), args
 }

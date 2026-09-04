@@ -1,0 +1,16 @@
+$ git fetch origin main
+From github.com:oopslink/agent-center
+ * branch              main       -> FETCH_HEAD
+$ git rev-parse origin/main
+ddfb87d47e8253fb2e4f22d014f497301fa4b7ec
+$ git rev-parse HEAD
+6685a954ce5c5db64412157bbd3f6c608879f2ed
+$ git rev-list --left-right --count origin/main...HEAD
+0	1
+$ git status --short --branch
+## ac-exec/t2178-collab-project-filter...origin-push/ac-exec/t2178-collab-project-filter
+?? docs/acceptance/t2178-collaboration-project-filter/raw/delivery-preflight.log
+$ git rev-parse @{u}
+6685a954ce5c5db64412157bbd3f6c608879f2ed
+$ git ls-remote origin-push refs/heads/ac-exec/t2178-collab-project-filter
+6685a954ce5c5db64412157bbd3f6c608879f2ed	refs/heads/ac-exec/t2178-collab-project-filter

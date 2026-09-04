@@ -19,6 +19,7 @@ function renderShell(initial = '/insights/overview') {
             <Route path="/insights/overview" element={<div data-testid="page-InsightOverview">overview</div>} />
             <Route path="/insights/agents" element={<div data-testid="page-InsightAgents">agents</div>} />
             <Route path="/insights/projects" element={<div data-testid="page-InsightProjects">projects</div>} />
+            <Route path="/insights/collaboration" element={<div data-testid="page-InsightCollaboration">collaboration</div>} />
             <Route path="/insights/executions" element={<div data-testid="page-InsightExecutions">executions</div>} />
             <Route path="/insights/executions/:executionId" element={<div data-testid="page-InsightExecutionDetail">detail</div>} />
           </Route>
@@ -41,12 +42,16 @@ describe('AppLayout Insight secondary nav', () => {
     expect(within(nav).getByRole('link', { name: 'Overview' })).toHaveAttribute('href', '/insights/overview');
     expect(within(nav).getByRole('link', { name: 'Agents' })).toHaveAttribute('href', '/insights/agents');
     expect(within(nav).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/insights/projects');
+    expect(within(nav).getByRole('link', { name: 'Collaboration effects' })).toHaveAttribute('href', '/insights/collaboration');
     expect(within(nav).getByRole('link', { name: 'Task executions' })).toHaveAttribute('href', '/insights/executions?window=24h');
 
     fireEvent.click(within(nav).getByRole('link', { name: 'Projects' }));
     await waitFor(() => expect(screen.getByTestId('page-InsightProjects')).toBeInTheDocument());
     expect(within(rail).getByTestId('rail-module-insight')).toHaveAttribute('data-active', 'true');
     expect(within(nav).getByRole('link', { name: 'Projects' }).className).toContain('bg-brand-hover');
+    fireEvent.click(within(nav).getByRole('link', { name: 'Collaboration effects' }));
+    await waitFor(() => expect(screen.getByTestId('page-InsightCollaboration')).toBeInTheDocument());
+    expect(within(rail).getByTestId('rail-module-insight')).toHaveAttribute('data-active', 'true');
   });
 
   it('marks Task executions active on detail drilldown routes', () => {

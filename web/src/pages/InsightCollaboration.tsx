@@ -1,4 +1,5 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
@@ -34,6 +35,13 @@ export default function InsightCollaboration(): React.ReactElement {
   const effect = effects.find((item) => selectedIds.includes(item.effect_id)) ?? null;
   const view = useMemo(() => accumulateGraph(query.data?.pages ?? []), [query.data?.pages]);
   const summary = useMemo(() => summarizeEffects(effects), [effects]);
+  const showFullGraph = () => {
+    const next = new URLSearchParams(params);
+    next.set('lod', 'full');
+    next.delete('max_nodes');
+    next.delete('cursor');
+    setParams(next);
+  };
 
   const update = (key: string, value: string, clear: string[] = []) => {
     const next = new URLSearchParams(params);
@@ -52,8 +60,9 @@ export default function InsightCollaboration(): React.ReactElement {
       {query.isError ? <CollaborationError error={query.error} t={t} /> : null}
       {query.data ? <>
         <Summary summary={summary} t={t} />
+        <CollaborationLODNotice view={view} canLoadMore={query.hasNextPage} loadingMore={query.isFetchingNextPage} onLoadMore={() => void query.fetchNextPage()} onShowFull={showFullGraph} t={t} />
         {view.edges.length === 0 ? <State id="collaboration-empty" title={t('insight.collaboration.empty')} body={t('insight.collaboration.emptyBody')} /> :
-          <CollaborationGraph nodes={view.nodes} edges={view.edges} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} />}
+          <CollaborationGraph view={view} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} />}
         {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="rounded border border-border px-3 py-2 text-sm" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
         <Timeline effects={effects} onSelect={setSelected} t={t} />
       </> : null}
@@ -65,12 +74,16 @@ export default function InsightCollaboration(): React.ReactElement {
 function filtersFromParams(params: URLSearchParams): CollaborationFilters {
   const relation = params.get('relation_type');
   const polarity = params.get('polarity');
+  const hasDetailFilter = Boolean(params.get('project_id') || params.get('plan_id') || params.get('task_id') || params.get('agent_ref') || params.get('relation_type') || params.get('polarity'));
+  const lod = params.get('lod') === 'full' ? 'full' : params.get('lod') === 'cluster' ? 'cluster' : hasDetailFilter ? undefined : 'cluster';
+  const maxNodes = Number(params.get('max_nodes') ?? '');
   return {
     project_id: params.get('project_id') ?? '', plan_id: params.get('plan_id') ?? undefined, task_id: params.get('task_id') ?? undefined,
     agent_ref: params.get('agent_ref') ?? undefined,
     relation_type: RELATIONS.includes(relation as CollaborationRelation) ? relation as CollaborationRelation : undefined,
     polarity: POLARITIES.includes(polarity as CollaborationPolarity) ? polarity as CollaborationPolarity : undefined,
-    since: params.get('since') ?? undefined, until: params.get('until') ?? undefined, cursor: params.get('cursor') ?? undefined, limit: 100,
+    since: params.get('since') ?? undefined, until: params.get('until') ?? undefined, cursor: params.get('cursor') ?? undefined,
+    lod, max_nodes: Number.isFinite(maxNodes) && maxNodes > 0 ? maxNodes : lod === 'cluster' ? 90 : undefined, limit: 100,
   };
 }
 
@@ -196,7 +209,9 @@ function summarizeEffects(effects: Array<{ polarity: CollaborationPolarity; targ
   return { positive_count: count('positive'), negative_count: count('negative'), neutral_count: count('neutral'), mixed_count: count('mixed'), affected_task_count: new Set(effects.map((effect) => effect.target_task_id)).size };
 }
 
-function accumulateGraph(pages: CollaborationGraphResponse[]): { nodes: CollaborationNode[]; edges: CollaborationEdge[] } {
+type CollaborationGraphView = { nodes: CollaborationNode[]; edges: CollaborationEdge[]; clusters: CollaborationNode[]; lod: 'full' | 'cluster'; truncated: boolean };
+
+function accumulateGraph(pages: CollaborationGraphResponse[]): CollaborationGraphView {
   const evidenceIdsByEdge = new Map<string, Set<string>>();
   const effectIdsByEdge = new Map<string, Set<string>>();
   const effectScopesByEdge = new Map<string, Map<string, CollaborationEffectScope>>();
@@ -246,6 +261,9 @@ function accumulateGraph(pages: CollaborationGraphResponse[]): { nodes: Collabor
     // is collapsed while newly paged effects remain visible.
     nodes: dedupeBy(pages.flatMap((page) => page.graph.nodes), (node) => node.id),
     edges: [...mergedEdges.values()],
+    clusters: dedupeBy(pages.flatMap((page) => page.graph.clusters), (node) => node.id),
+    lod: pages.some((page) => page.graph.lod === 'cluster') ? 'cluster' : 'full',
+    truncated: pages.some((page) => page.truncated || page.graph.truncated),
   };
 }
 
@@ -282,16 +300,36 @@ function maxDate(a?: string, b?: string): string | undefined {
   return a >= b ? a : b;
 }
 
-function CollaborationGraph({ nodes, edges, selected, onSelect, onClearSelection, t }: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; onClearSelection: () => void; t: Translator }) {
+function CollaborationLODNotice({ view, canLoadMore, loadingMore, onLoadMore, onShowFull, t }: { view: CollaborationGraphView; canLoadMore: boolean; loadingMore: boolean; onLoadMore: () => void; onShowFull: () => void; t: Translator }) {
+  const clustered = view.lod === 'cluster' || view.clusters.length > 0;
+  if (!clustered && !view.truncated) return null;
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-bg-surface p-3 text-sm" data-testid="collaboration-lod-notice">
+      <div>
+        <strong className="text-text-primary">{clustered ? t('insight.collaboration.lod.clusteredTitle') : t('insight.collaboration.lod.truncatedTitle')}</strong>
+        <p className="mt-1 text-text-muted">{t('insight.collaboration.lod.body', { nodes: view.nodes.length, edges: view.edges.length })}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {canLoadMore ? <button type="button" disabled={loadingMore} onClick={onLoadMore} className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" data-testid="collaboration-lod-load-more">{loadingMore ? t('insight.collaboration.loadingMore') : t('insight.collaboration.lod.continueLoading')}</button> : null}
+        {clustered ? <button type="button" onClick={onShowFull} className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" data-testid="collaboration-show-full-graph">{t('insight.collaboration.lod.showFull')}</button> : null}
+      </div>
+    </div>
+  );
+}
+
+function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: { view: CollaborationGraphView; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; onClearSelection: () => void; t: Translator }) {
+  const { nodes, edges, clusteredOverview } = useMemo(() => readableGraph(view, t), [view, t]);
   const lanes = { agent: 65, project: 200, plan: 335, stage: 500, task: 660 };
   const laneIndex = new Map<string, number>();
-  const baseNodeMap = useMemo(() => new Map(nodes.map((node) => { const i = laneIndex.get(node.kind) ?? 0; laneIndex.set(node.kind, i + 1); return [node.id, { ...node, x: lanes[node.kind], y: 70 + i * 68 }]; })), [nodes]);
+  const baseNodeMap = useMemo(() => new Map(nodes.map((node) => { const i = laneIndex.get(node.kind) ?? 0; laneIndex.set(node.kind, i + 1); const lane = node.kind === 'cluster' ? 360 : lanes[node.kind]; return [node.id, { ...node, x: lane, y: 70 + i * 82 }]; })), [nodes]);
   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({});
   const nodeMap = useMemo(() => new Map([...baseNodeMap.values()].map((node) => [node.id, { ...node, ...(dragPositions[node.id] ?? {}) }])), [baseNodeMap, dragPositions]);
   const graphBounds = useMemo(() => graphViewBox([...nodeMap.values()]), [nodeMap]);
   const [viewport, setViewport] = useState(graphBounds);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
+  const pointerInsideSvgRef = useRef(false);
+  const lastPointerRef = useRef<{ clientX: number; clientY: number } | null>(null);
   const panRef = useRef<{ x: number; y: number; viewport: GraphViewBox } | null>(null);
   const dragRef = useRef<{ id: string; pointer: { x: number; y: number }; origin: { x: number; y: number }; moved: boolean } | null>(null);
   const selectedKey = selected?.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0') ?? '';
@@ -325,10 +363,22 @@ function CollaborationGraph({ nodes, edges, selected, onSelect, onClearSelection
     point.y = event.clientY;
     return point.matrixTransform(matrix.inverse());
   }, [viewport]);
-  const onWheel = useCallback((event: React.WheelEvent<SVGSVGElement>) => {
-    event.preventDefault();
-    zoom(event.deltaY > 0 ? 1.12 : 0.88, toSvgPoint(event));
-  }, [toSvgPoint, zoom]);
+  useEffect(() => setViewport(graphBounds), [graphBounds]);
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return undefined;
+    const handler = (event: WheelEvent) => {
+      event.preventDefault();
+      const center = toSvgPoint(lastPointerRef.current ?? event);
+      flushSync(() => setViewport((current) => zoomViewBox(current, event.deltaY > 0 ? 1.12 : 0.88, center)));
+    };
+    svg.addEventListener('wheel', handler, { passive: false });
+    window.addEventListener('wheel', handler, { passive: false });
+    return () => {
+      svg.removeEventListener('wheel', handler);
+      window.removeEventListener('wheel', handler);
+    };
+  }, [toSvgPoint]);
   return <section className="rounded-lg border border-border bg-bg-surface p-4" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
     <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
       <div className="flex flex-wrap gap-3 text-xs text-text-muted"><span>━━ {t('insight.collaboration.legend.relationship')}</span><span>┄┄ {t('insight.collaboration.legend.effect')}</span><span>+/− {t('insight.collaboration.legend.mixed')}</span></div>
@@ -346,9 +396,13 @@ function CollaborationGraph({ nodes, edges, selected, onSelect, onClearSelection
       role="img"
       aria-label={t('insight.collaboration.graph')}
       data-testid="collaboration-graph-svg"
-      onWheel={onWheel}
-      onPointerDown={(event) => { panRef.current = { x: event.clientX, y: event.clientY, viewport }; event.currentTarget.setPointerCapture?.(event.pointerId); }}
+      onMouseEnter={(event) => { pointerInsideSvgRef.current = true; lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; }}
+      onMouseMove={(event) => { pointerInsideSvgRef.current = true; lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; }}
+      onMouseLeave={() => { pointerInsideSvgRef.current = false; }}
+      onPointerEnter={(event) => { pointerInsideSvgRef.current = true; lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; }}
+      onPointerDown={(event) => { lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; panRef.current = { x: event.clientX, y: event.clientY, viewport }; event.currentTarget.setPointerCapture?.(event.pointerId); }}
       onPointerMove={(event) => {
+        lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY };
         const drag = dragRef.current;
         if (drag) {
           const point = toSvgPoint(event);
@@ -378,14 +432,67 @@ function CollaborationGraph({ nodes, edges, selected, onSelect, onClearSelection
         panRef.current = null;
         if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId);
       }}
-      onPointerLeave={() => { panRef.current = null; dragRef.current = null; }}
+      onPointerLeave={() => { pointerInsideSvgRef.current = false; panRef.current = null; dragRef.current = null; }}
     >
       <defs><linearGradient id="collaboration-mixed"><stop offset="0%" stopColor="#16803c"/><stop offset="50%" stopColor="#16803c"/><stop offset="50%" stopColor="#c0362c"/><stop offset="100%" stopColor="#c0362c"/></linearGradient></defs>
+      {clusteredOverview ? <text x={viewport.x + 12} y={viewport.y + 24} className="fill-text-muted text-[12px]">{t('insight.collaboration.lod.overviewBadge')}</text> : null}
       {edges.map((edge) => { const a = nodeMap.get(edge.source); const b = nodeMap.get(edge.target); if (!a || !b) return null; const structural = !edge.effect_id && edge.evidence_count === 0; const active = !hasNoiseReduction || context.edges.has(edge.id); const selectedEdge = selectedEffectIds.size > 0 && edgeHasAnyEffect(edge, selectedEffectIds); return <g key={edge.id} opacity={active ? 1 : 0.16}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={selectedEdge ? edge.magnitude + 3 : structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} /><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="fill-text-muted text-[11px]">{active ? <>{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</> : null}</text></g>; })}
-      {[...nodeMap.values()].map((node) => { const active = !hasNoiseReduction || context.nodes.has(node.id); const focused = focusedNodeId === node.id; return <g key={node.id} role="button" tabIndex={0} aria-label={node.label} className="cursor-pointer outline-none" opacity={active ? 1 : 0.18} onPointerDown={(event) => { event.stopPropagation(); const point = toSvgPoint(event); dragRef.current = { id: node.id, pointer: point, origin: { x: node.x, y: node.y }, moved: false }; svgRef.current?.setPointerCapture?.(event.pointerId); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocusedNodeId(node.id); setViewport(focusViewBox(node)); } }}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" className="fill-bg-primary stroke-brand" strokeWidth={focused ? 4 : 2} /> : <rect x={node.x-54} y={node.y-22} width="108" height="44" rx="5" className="fill-bg-primary stroke-text-muted" strokeWidth={focused ? 4 : 2} />}<text x={node.x} y={node.y+4} textAnchor="middle" className="pointer-events-none fill-text-primary text-[11px]">{truncateLabel(node.label)}</text><text x={node.x} y={node.y+18} textAnchor="middle" className="pointer-events-none fill-text-muted text-[8px]">{node.kind}</text></g>; })}
+      {[...nodeMap.values()].map((node) => { const active = !hasNoiseReduction || context.nodes.has(node.id); const focused = focusedNodeId === node.id; const wide = node.kind === 'cluster'; return <g key={node.id} role="button" tabIndex={0} aria-label={node.label} className="cursor-pointer outline-none" opacity={active ? 1 : 0.18} onPointerDown={(event) => { event.stopPropagation(); lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; const point = toSvgPoint(event); dragRef.current = { id: node.id, pointer: point, origin: { x: node.x, y: node.y }, moved: false }; svgRef.current?.setPointerCapture?.(event.pointerId); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocusedNodeId(node.id); setViewport(focusViewBox(node)); } }}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" fill="var(--color-bg-elevated)" stroke="var(--color-brand)" strokeWidth={focused ? 4 : 2} /> : <rect x={node.x-(wide ? 88 : 54)} y={node.y-24} width={wide ? 176 : 108} height="48" rx="5" fill="var(--color-bg-elevated)" stroke="var(--color-text-muted)" strokeWidth={focused ? 4 : 2} />}<text x={node.x} y={node.y+3} textAnchor="middle" fill="var(--color-text-primary)" className="pointer-events-none text-[11px]">{truncateLabel(node.label, wide ? 28 : 18)}</text><text x={node.x} y={node.y+18} textAnchor="middle" fill="var(--color-text-muted)" className="pointer-events-none text-[8px]">{node.kind}</text></g>; })}
     </svg>
     <div className="grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{edges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = edge.effect_scopes?.length ? edge.effect_scopes : edge.effect_ids?.length ? edge.effect_ids.map((id) => ({ effect_id: id, project_id: '' })) : edge.effect_id ? [{ effect_id: edge.effect_id, project_id: '' }] : []; const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
   </section>;
+}
+
+function readableGraph(view: CollaborationGraphView, t: Translator): CollaborationGraphView & { clusteredOverview: boolean } {
+  const shouldCluster = view.lod === 'cluster' || view.truncated || view.nodes.length > 90 || view.edges.length > 180;
+  if (!shouldCluster) return { ...view, clusteredOverview: false };
+  const groups = new Map<string, CollaborationNode & { count: number }>();
+  const nodeToGroup = new Map<string, string>();
+  const labelForGroup = (node: CollaborationNode) => {
+    if (node.kind === 'project') return node.label;
+    if (node.project_id) return `${node.project_id} ${labelFor(t, node.kind)}`;
+    return labelFor(t, node.kind);
+  };
+  for (const node of view.nodes) {
+    const groupID = node.kind === 'project' ? node.id : node.project_id ? `cluster:${node.project_id}:${node.kind}` : `cluster:global:${node.kind}`;
+    nodeToGroup.set(node.id, groupID);
+    const current = groups.get(groupID);
+    if (current) {
+      current.count += 1;
+      current.label = `${labelForGroup(node)} (${current.count})`;
+    } else {
+      groups.set(groupID, { id: groupID, kind: node.kind === 'project' ? 'project' : 'cluster', label: `${labelForGroup(node)} (1)`, project_id: node.project_id, count: 1 });
+    }
+  }
+  const groupedEdges = new Map<string, CollaborationEdge>();
+  for (const edge of view.edges) {
+    const source = nodeToGroup.get(edge.source) ?? edge.source;
+    const target = nodeToGroup.get(edge.target) ?? edge.target;
+    if (source === target) continue;
+    const key = semanticEdgeKey(source, target, edge.relation_type, edge.polarity);
+    const current = groupedEdges.get(key);
+    if (!current) {
+      groupedEdges.set(key, { ...edge, id: `cluster:${edge.id}`, source, target, clustered: true });
+      continue;
+    }
+    current.interaction_count += Math.max(1, edge.interaction_count);
+    current.evidence_count += edge.evidence_count;
+    current.magnitude = Math.max(current.magnitude, edge.magnitude) as CollaborationEdge['magnitude'];
+    current.effect_ids = sortedUnique([...(current.effect_ids ?? []), ...(edge.effect_ids ?? []), edge.effect_id ?? '']);
+    current.effect_scopes = sortedScopes([...(current.effect_scopes ?? []), ...(edge.effect_scopes ?? [])]);
+  }
+  return { ...view, nodes: [...groups.values()].map(({ count, ...node }) => node), edges: [...groupedEdges.values()], clusteredOverview: true };
+}
+
+function sortedUnique(values: string[]): string[] | undefined {
+  const out = [...new Set(values.filter(Boolean))].sort();
+  return out.length ? out : undefined;
+}
+
+function sortedScopes(scopes: CollaborationEffectScope[]): CollaborationEffectScope[] | undefined {
+  const out = [...new Map(scopes.filter((scope) => scope.effect_id).map((scope) => [`${scope.effect_id}\0${scope.project_id}`, scope])).values()]
+    .sort((a, b) => a.effect_id.localeCompare(b.effect_id) || a.project_id.localeCompare(b.project_id));
+  return out.length ? out : undefined;
 }
 
 type GraphViewBox = { x: number; y: number; width: number; height: number };
@@ -432,8 +539,8 @@ function edgeHasAnyEffect(edge: CollaborationEdge, effectIds: Set<string>): bool
   return (edge.effect_ids ?? edge.effect_scopes?.map((scope) => scope.effect_id) ?? []).some((id) => effectIds.has(id));
 }
 
-function truncateLabel(label: string): string {
-  return label.length > 18 ? `${label.slice(0, 17)}...` : label;
+function truncateLabel(label: string, max = 18): string {
+  return label.length > max ? `${label.slice(0, max - 1)}...` : label;
 }
 
 function Timeline({ effects, onSelect, t }: { effects: { effect_id: string; project_id: string; occurred_at: string; relation_type: string; polarity: string; source_agent_ref: string; target_task_id: string }[]; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {

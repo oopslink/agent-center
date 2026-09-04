@@ -1,0 +1,22 @@
+$ go test -v ./internal/observability/collaborationeffect ./internal/webconsole/api -run TestQueryServiceOrgGraphProjectFilterScopesStructure|TestQueryServiceOrgGraphAggregatesRealProjectPlanStageTaskFixture|TestQueryServiceOrgGraphCarriesEffectProjectScopes|TestQueryServiceStableValidationErrors|TestCollaborationEffectsHTTPProjectScopeAndFailures -count=1
+=== RUN   TestQueryServiceStableValidationErrors
+--- PASS: TestQueryServiceStableValidationErrors (0.12s)
+=== RUN   TestQueryServiceOrgGraphAggregatesRealProjectPlanStageTaskFixture
+--- PASS: TestQueryServiceOrgGraphAggregatesRealProjectPlanStageTaskFixture (0.09s)
+=== RUN   TestQueryServiceOrgGraphCarriesEffectProjectScopes
+--- PASS: TestQueryServiceOrgGraphCarriesEffectProjectScopes (0.09s)
+=== RUN   TestQueryServiceOrgGraphProjectFilterScopesStructure
+--- PASS: TestQueryServiceOrgGraphProjectFilterScopesStructure (0.09s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/observability/collaborationeffect	0.805s
+=== RUN   TestCollaborationEffectsHTTPProjectScopeAndFailures
+    handlers_collaboration_insight_test.go:82: project query params: limit=100 project_id=project-cfd594bc; status=200 effects=1 nodes=3 graph_version=cgv_889d58ef73e50fb89127d377
+    handlers_collaboration_insight_test.go:101: organization query params: limit=100; status=200 effects=2 nodes=6 graph_version=cgv_8871cb6c252a113e2a84ab7e
+    handlers_collaboration_insight_test.go:108: invalid cursor query params: limit=100 cursor=not-opaque; status=400
+    handlers_collaboration_insight_test.go:115: missing project query params: limit=100 project_id=project-missing; status=404
+    handlers_collaboration_insight_test.go:123: unauthorized project query params: limit=100 project_id=project-noauth; status=403
+    handlers_collaboration_insight_test.go:129: cross-org project query params: limit=100 project_id=project-other; status=404
+--- PASS: TestCollaborationEffectsHTTPProjectScopeAndFailures (0.12s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	0.822s
+exit=0

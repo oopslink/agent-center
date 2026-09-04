@@ -1,0 +1,2 @@
+$ pnpm exec eslint src/pages/InsightCollaboration.tsx src/pages/InsightCollaboration.test.tsx src/AppLayout.tsx src/App.test.tsx src/AppLayout.insightnav.test.tsx src/AppLayout.mobilenav.test.tsx src/shell/nav/InsightSecondaryNav.test.tsx
+exit=0

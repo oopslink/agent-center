@@ -276,6 +276,54 @@ func TestQueryServiceOrgGraphCarriesEffectProjectScopes(t *testing.T) {
 	}
 }
 
+func TestQueryServiceOrgGraphProjectFilterScopesStructure(t *testing.T) {
+	ctx := context.Background()
+	db, err := persistence.Open(t.TempDir() + "/project-filter.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err = persistence.NewMigrator(db).Up(ctx); err != nil {
+		t.Fatal(err)
+	}
+	repo, _ := NewSQLiteRepository(db)
+	events, err := obssql.NewEventRepo(ctx, db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	graphs, err := NewSQLiteGraphReader(db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, _ := NewQueryServiceWithGraph(repo, events, graphs)
+	base := time.Date(2026, 9, 4, 9, 0, 0, 0, time.UTC)
+	seedOrgGraphFixture(t, ctx, db, repo, events, base)
+
+	result, err := svc.Query(ctx, Filter{OrganizationID: "org-g", ProjectID: "proj-a", Limit: 100})
+	if err != nil {
+		t.Fatalf("project-scoped graph query returned unexpected error: %v", err)
+	}
+	if len(result.Effects) == 0 {
+		t.Fatalf("project-scoped graph returned no effects: %+v", result)
+	}
+	for _, effect := range result.Effects {
+		if effect.ProjectID != "proj-a" {
+			t.Fatalf("project-scoped effects leaked %s: %+v", effect.ProjectID, result.Effects)
+		}
+	}
+	for _, node := range result.Graph.Nodes {
+		if node.ProjectID != "" && node.ProjectID != "proj-a" {
+			t.Fatalf("project-scoped graph node leaked %s: %+v", node.ProjectID, result.Graph.Nodes)
+		}
+		if node.ID == "project:proj-b" || node.ID == "plan:plan-b" || node.ID == "task:task-b1" {
+			t.Fatalf("project-scoped graph included out-of-scope node %+v", node)
+		}
+	}
+	if !hasNode(result.Graph.Nodes, "project:proj-a", "project") || !hasNode(result.Graph.Nodes, "plan:plan-a", "plan") || !hasNode(result.Graph.Nodes, "task:task-a1", "task") {
+		t.Fatalf("project-scoped graph missing in-scope structure: %+v", result.Graph.Nodes)
+	}
+}
+
 func seedOrgGraphFixture(t *testing.T, ctx context.Context, db interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }, repo *SQLiteRepository, events observability.EventRepository, base time.Time) {

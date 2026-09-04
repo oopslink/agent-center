@@ -1,0 +1,11 @@
+$ go test ./internal/observability/collaborationeffect ./internal/webconsole/api -run TestQueryServiceOrgGraphProjectFilterScopesStructure|TestCollaborationEffectsHTTPProjectScopeAndFailures -count=1
+--- FAIL: TestQueryServiceOrgGraphProjectFilterScopesStructure (0.11s)
+    query_test.go:304: project-scoped graph query returned unexpected error: SQL logic error: no such column: pm_projects.id (1)
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/observability/collaborationeffect	0.312s
+--- FAIL: TestCollaborationEffectsHTTPProjectScopeAndFailures (0.12s)
+    handlers_collaboration_insight_test.go:73: project query status=503 body={"error":{"code":"insight_unavailable","message":"SQL logic error: no such column: pm_projects.id (1)"},"freshness":{"state":"unavailable","age_ms":0,"threshold_ms":120000},"refreshed_at":"","window":{"kind":"rolling","duration":"24h","start":"2026-09-03T18:48:32.264341Z","end":"2026-09-04T18:48:32.264341Z"}}
+FAIL
+FAIL	github.com/oopslink/agent-center/internal/webconsole/api	0.798s
+FAIL
+exit=1
