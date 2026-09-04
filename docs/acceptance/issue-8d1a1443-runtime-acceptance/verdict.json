@@ -1,0 +1,70 @@
+{
+  "verdict": "PASS",
+  "purpose": "test",
+  "target_sha": "226de72569b18913ccb09119922a6feed9ad174a",
+  "required_candidate_sha": "f2a3bf2d81437892b7e320f0a5736e5d798dc3cf",
+  "candidate_in_origin_main": true,
+  "candidate_ancestry_exit_code": 0,
+  "executor_ref": "ac-exec/task-0e398848/exec-c6d16f2d",
+  "production_deployed": false,
+  "isolation": {
+    "production_center_reused": false,
+    "production_worker_reused": false,
+    "production_runtime_reused": false,
+    "production_db_written": false,
+    "production_refs_written_before_evidence_push": false,
+    "remote_refs_diff_before_delivery_push_exit_code": 0
+  },
+  "isolated_instances": [
+    {
+      "name": "restart-recovery-deploy-level",
+      "sandbox": "/tmp/p46-restart-recovery-1062708250",
+      "config": "/tmp/p46-restart-recovery-1062708250/config.yaml",
+      "db": "/tmp/p46-restart-recovery-1062708250/agent-center.db",
+      "admin_socket": "/tmp/p46-restart-recovery-1062708250/admin.sock",
+      "listen_addr": "127.0.0.1:0",
+      "worker_id": "w-p46",
+      "agent_id": "agent-p46-0001",
+      "org_id": "organization-p46aa001",
+      "conversation_id": "conv-p46-dm-0001",
+      "start_mode": "real agent-center server plus real agent-center worker run with fake claude first on PATH",
+      "restart_mode": "SIGKILL worker before reply and restart with same isolated config/home",
+      "evidence": "raw/40-deployed-restart-recovery-e2e.log",
+      "exit_code": 0
+    },
+    {
+      "name": "runtime-executor-deploy-level",
+      "worker_id": "worker-deployed-fork",
+      "agent_id": "agent-deployed-fork",
+      "task_id": "task-deployed-running",
+      "start_mode": "real worker agent-runtime, Unix control socket, agent.fork_executor, real worker executor, /usr/bin/true runner",
+      "center_boundary": "isolated fake HTTP center over per-test Unix socket",
+      "evidence": "raw/30-deployed-runtime-executor-e2e.log",
+      "exit_code": 0
+    }
+  ],
+  "acceptance": {
+    "A_dirty_finalization": "PASS",
+    "B_safe_ref": "PASS",
+    "C_stale_lease": "PASS",
+    "negative_adjacent": "PASS"
+  },
+  "raw_evidence": [
+    "raw/00-main-lock.txt",
+    "raw/01-remote-refs-before.txt",
+    "raw/10-ab-finalize-tests.log",
+    "raw/20-c-stale-lease-tests.log",
+    "raw/30-deployed-runtime-executor-e2e.log",
+    "raw/40-deployed-restart-recovery-e2e.log",
+    "raw/50-negative-adjacent-classification.log",
+    "raw/60-race-focused.log",
+    "raw/70-remote-refs-after-before-delivery-push.txt",
+    "raw/71-remote-refs-diff-before-delivery-push.txt"
+  ],
+  "production_follow_up_required": [
+    "production center/worker rollout authorization",
+    "production runtime restart smoke",
+    "production worker capability/readback smoke",
+    "production protected-ref readback after deployment"
+  ]
+}

@@ -1,0 +1,48 @@
+$ go test adjacent classification focused
+=== RUN   TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery
+=== RUN   TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/not_a_git_workspace
+=== RUN   TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/commit_not_pushed
+=== RUN   TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/no_commit
+--- PASS: TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery (0.00s)
+    --- PASS: TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/not_a_git_workspace (0.00s)
+    --- PASS: TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/commit_not_pushed (0.00s)
+    --- PASS: TestReport_CodeExitZeroWithoutDurableDeliveryIsNonDelivery/no_commit (0.00s)
+=== RUN   TestReport_Failed_BlocksTask
+--- PASS: TestReport_Failed_BlocksTask (0.00s)
+=== RUN   TestReport_Failed_NoErrorDetail
+--- PASS: TestReport_Failed_NoErrorDetail (0.00s)
+=== RUN   TestValidCodeDelivery_RejectsProtectedBranch
+--- PASS: TestValidCodeDelivery_RejectsProtectedBranch (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/orchestrator	0.371s
+=== RUN   TestMonitor_Finalize_PushedDeliveryStaysSucceeded
+--- PASS: TestMonitor_Finalize_PushedDeliveryStaysSucceeded (0.46s)
+=== RUN   TestMonitor_Finalize_FailedRunDiscoversPartialOriginDelivery
+--- PASS: TestMonitor_Finalize_FailedRunDiscoversPartialOriginDelivery (0.36s)
+=== RUN   TestMonitor_Finalize_FailedRunNeverCreatesOriginDelivery
+--- PASS: TestMonitor_Finalize_FailedRunNeverCreatesOriginDelivery (0.31s)
+=== RUN   TestMonitor_Finalize_EagerPush_PushFailureDowngrades
+--- PASS: TestMonitor_Finalize_EagerPush_PushFailureDowngrades (0.31s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime/executor	1.939s
+=== RUN   TestCompleteTask_InvalidReviewVerdict_Rejected_T468
+--- PASS: TestCompleteTask_InvalidReviewVerdict_Rejected_T468 (0.09s)
+=== RUN   TestCompleteTask_StageGateRejectAppendsRemediationAndReplayIsIdempotent
+--- PASS: TestCompleteTask_StageGateRejectAppendsRemediationAndReplayIsIdempotent (0.09s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/admin/api	0.779s
+=== RUN   TestStageReject_AppendsIncrementalStageWithoutReopeningHistory
+=== PAUSE TestStageReject_AppendsIncrementalStageWithoutReopeningHistory
+=== RUN   TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume
+=== PAUSE TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume
+=== RUN   TestEnsureTaskRunnable_MergeToMain_RejectVerdict_Blocked
+=== PAUSE TestEnsureTaskRunnable_MergeToMain_RejectVerdict_Blocked
+=== CONT  TestStageReject_AppendsIncrementalStageWithoutReopeningHistory
+=== CONT  TestEnsureTaskRunnable_MergeToMain_RejectVerdict_Blocked
+=== CONT  TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume
+--- PASS: TestEnsureTaskRunnable_MergeToMain_RejectVerdict_Blocked (0.15s)
+--- PASS: TestStageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume (0.15s)
+--- PASS: TestStageReject_AppendsIncrementalStageWithoutReopeningHistory (0.16s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	0.348s
+EXIT_CODE=0

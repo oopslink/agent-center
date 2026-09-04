@@ -1,0 +1,6 @@
+$ go test ./tests/e2e -run TestForkExecutorDeployedBinary_AlreadyRunningTask -count=1 -v
+=== RUN   TestForkExecutorDeployedBinary_AlreadyRunningTask
+--- PASS: TestForkExecutorDeployedBinary_AlreadyRunningTask (10.60s)
+PASS
+ok  	github.com/oopslink/agent-center/tests/e2e	11.287s
+EXIT_CODE=0

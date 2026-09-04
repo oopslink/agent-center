@@ -1,0 +1,169 @@
+$ go test C stale/lease/reset/read-model focused packages
+=== RUN   TestResetToOpen_ClearsAndReturnsToPool
+--- PASS: TestResetToOpen_ClearsAndReturnsToPool (0.00s)
+=== RUN   TestResetToOpen_NilLeasePasses
+--- PASS: TestResetToOpen_NilLeasePasses (0.00s)
+=== RUN   TestResetToOpen_LiveLeaseRejected
+--- PASS: TestResetToOpen_LiveLeaseRejected (0.00s)
+=== RUN   TestResetToOpen_BypassLeaseResetsLiveLease
+--- PASS: TestResetToOpen_BypassLeaseResetsLiveLease (0.00s)
+=== RUN   TestResetToOpen_BypassLeaseStillRejectsFailed
+--- PASS: TestResetToOpen_BypassLeaseStillRejectsFailed (0.00s)
+=== RUN   TestResetToOpen_RejectsNonRunning
+--- PASS: TestResetToOpen_RejectsNonRunning (0.00s)
+=== RUN   TestResetToOpen_RejectsFailed
+--- PASS: TestResetToOpen_RejectsFailed (0.00s)
+=== RUN   TestComplete_ZeroesRecoveryResetCount
+--- PASS: TestComplete_ZeroesRecoveryResetCount (0.00s)
+=== RUN   TestBlockForResetExhaustion_FailsWithDistinctLog
+--- PASS: TestBlockForResetExhaustion_FailsWithDistinctLog (0.00s)
+=== RUN   TestBlockForResetExhaustion_RejectsNonRunning
+--- PASS: TestBlockForResetExhaustion_RejectsNonRunning (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager	0.382s
+=== RUN   TestCompleteTaskRejectsReportedZeroDelivery
+=== PAUSE TestCompleteTaskRejectsReportedZeroDelivery
+=== RUN   TestResetTask_ReturnsToPoolAndIncrementsCount
+=== PAUSE TestResetTask_ReturnsToPoolAndIncrementsCount
+=== RUN   TestResetTask_LiveLeaseRejected
+=== PAUSE TestResetTask_LiveLeaseRejected
+=== RUN   TestResetTask_OwnerConfirmedDeadBypassesLiveLease
+=== PAUSE TestResetTask_OwnerConfirmedDeadBypassesLiveLease
+=== RUN   TestResetTask_StrangerConfirmedDeadStillRejectedOnLiveLease
+=== PAUSE TestResetTask_StrangerConfirmedDeadStillRejectedOnLiveLease
+=== RUN   TestResetTask_CapTripsBlock
+=== PAUSE TestResetTask_CapTripsBlock
+=== RUN   TestResetTask_RedispatchesToFreshAgent
+=== PAUSE TestResetTask_RedispatchesToFreshAgent
+=== RUN   TestResetTask_ConcurrentSingleIncrement
+=== PAUSE TestResetTask_ConcurrentSingleIncrement
+=== RUN   TestResetTask_StructuredStagePlanNode_SelfHeals
+=== PAUSE TestResetTask_StructuredStagePlanNode_SelfHeals
+=== RUN   TestStuckNode_FruitlessReopens_DurableAcrossRestart
+=== PAUSE TestStuckNode_FruitlessReopens_DurableAcrossRestart
+=== RUN   TestStuckNode_FruitlessReopens_ValidDeliveryResets
+=== PAUSE TestStuckNode_FruitlessReopens_ValidDeliveryResets
+=== RUN   TestStuckNode_TriageSurfacesRetainedWorktree
+=== PAUSE TestStuckNode_TriageSurfacesRetainedWorktree
+=== RUN   TestStuckNode_TrueDead_AutoReopened
+=== PAUSE TestStuckNode_TrueDead_AutoReopened
+=== RUN   TestStuckNode_SlowButAlive_NotReopened
+=== PAUSE TestStuckNode_SlowButAlive_NotReopened
+=== RUN   TestStuckNode_LiveOwnerIdleWithoutExecutor_AutoReopenedDespiteLeaseRenewal
+=== PAUSE TestStuckNode_LiveOwnerIdleWithoutExecutor_AutoReopenedDespiteLeaseRenewal
+=== RUN   TestStuckNode_SupervisorInlineGate_NotTreatedAsDeadExecutor
+=== PAUSE TestStuckNode_SupervisorInlineGate_NotTreatedAsDeadExecutor
+=== RUN   TestStuckNode_CircuitBreaker_BlocksAfterRmax
+=== PAUSE TestStuckNode_CircuitBreaker_BlocksAfterRmax
+=== RUN   TestStuckNode_UpdatedAtStale_ReopenedWithoutLeaseLapse
+=== PAUSE TestStuckNode_UpdatedAtStale_ReopenedWithoutLeaseLapse
+=== RUN   TestStuckNode_UpdatedAtAdvancing_NotReopened
+=== PAUSE TestStuckNode_UpdatedAtAdvancing_NotReopened
+=== CONT  TestStuckNode_UpdatedAtAdvancing_NotReopened
+=== CONT  TestCompleteTaskRejectsReportedZeroDelivery
+=== CONT  TestStuckNode_UpdatedAtStale_ReopenedWithoutLeaseLapse
+=== CONT  TestStuckNode_CircuitBreaker_BlocksAfterRmax
+=== CONT  TestStuckNode_SupervisorInlineGate_NotTreatedAsDeadExecutor
+=== CONT  TestStuckNode_LiveOwnerIdleWithoutExecutor_AutoReopenedDespiteLeaseRenewal
+=== CONT  TestStuckNode_SlowButAlive_NotReopened
+=== CONT  TestStuckNode_TrueDead_AutoReopened
+=== CONT  TestStuckNode_TriageSurfacesRetainedWorktree
+=== CONT  TestResetTask_CapTripsBlock
+--- PASS: TestCompleteTaskRejectsReportedZeroDelivery (0.17s)
+=== CONT  TestResetTask_StrangerConfirmedDeadStillRejectedOnLiveLease
+--- PASS: TestStuckNode_UpdatedAtAdvancing_NotReopened (0.21s)
+=== CONT  TestResetTask_OwnerConfirmedDeadBypassesLiveLease
+--- PASS: TestStuckNode_SupervisorInlineGate_NotTreatedAsDeadExecutor (0.21s)
+=== CONT  TestResetTask_RedispatchesToFreshAgent
+--- PASS: TestResetTask_StrangerConfirmedDeadStillRejectedOnLiveLease (0.05s)
+=== CONT  TestResetTask_LiveLeaseRejected
+--- PASS: TestResetTask_CapTripsBlock (0.22s)
+=== CONT  TestStuckNode_FruitlessReopens_ValidDeliveryResets
+--- PASS: TestStuckNode_TriageSurfacesRetainedWorktree (0.24s)
+=== CONT  TestResetTask_ReturnsToPoolAndIncrementsCount
+--- PASS: TestStuckNode_LiveOwnerIdleWithoutExecutor_AutoReopenedDespiteLeaseRenewal (0.24s)
+=== CONT  TestStuckNode_FruitlessReopens_DurableAcrossRestart
+--- PASS: TestStuckNode_UpdatedAtStale_ReopenedWithoutLeaseLapse (0.24s)
+=== CONT  TestResetTask_StructuredStagePlanNode_SelfHeals
+--- PASS: TestStuckNode_TrueDead_AutoReopened (0.24s)
+=== CONT  TestResetTask_ConcurrentSingleIncrement
+--- PASS: TestStuckNode_SlowButAlive_NotReopened (0.24s)
+--- PASS: TestResetTask_OwnerConfirmedDeadBypassesLiveLease (0.05s)
+--- PASS: TestResetTask_RedispatchesToFreshAgent (0.05s)
+--- PASS: TestResetTask_LiveLeaseRejected (0.05s)
+--- PASS: TestStuckNode_CircuitBreaker_BlocksAfterRmax (0.27s)
+--- PASS: TestResetTask_ReturnsToPoolAndIncrementsCount (0.04s)
+--- PASS: TestResetTask_ConcurrentSingleIncrement (0.05s)
+--- PASS: TestStuckNode_FruitlessReopens_ValidDeliveryResets (0.07s)
+--- PASS: TestStuckNode_FruitlessReopens_DurableAcrossRestart (0.05s)
+2026/09/04 14:28:50 WARN plan dispatch: assignee display_name unresolved — posting without @mention (idle wake will not fire) assignee_ref="" conversation_id=01HF7YAT00RG4G4NEGK997S9XY
+--- PASS: TestResetTask_StructuredStagePlanNode_SelfHeals (0.06s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	0.725s
+=== RUN   TestTaskExecutionsProjectsRecoveryDiagnostics
+--- PASS: TestTaskExecutionsProjectsRecoveryDiagnostics (0.00s)
+=== RUN   TestMapDomainError_TaskNonDeliveryIsExplicitConflict
+--- PASS: TestMapDomainError_TaskNonDeliveryIsExplicitConflict (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/admin/api	1.127s
+=== RUN   TestClassifyExecutor
+=== RUN   TestClassifyExecutor/inflight+alive_→_adopt
+=== RUN   TestClassifyExecutor/inflight+dead(crash)_→_recover
+=== RUN   TestClassifyExecutor/inflight+dead(failed,no_verdict)_→_recover
+=== RUN   TestClassifyExecutor/inflight+dead(failed,valid_verdict)_→_finalize
+=== RUN   TestClassifyExecutor/succeeded_→_finalize
+=== RUN   TestClassifyExecutor/succeeded_not_in-flight_→_quiet-finalize
+=== RUN   TestClassifyExecutor/succeeded_with_unknown_inflight_→_quiet-finalize
+=== RUN   TestClassifyExecutor/failed_valid_verdict_not_in-flight_→_quiet-finalize
+=== RUN   TestClassifyExecutor/not-inflight+alive_→_verify-cancel
+=== RUN   TestClassifyExecutor/not-inflight+dead_→_verify-cancel
+=== RUN   TestClassifyExecutor/ownerless_alive_→_leave
+=== RUN   TestClassifyExecutor/ownerless_dead_→_finalize
+=== RUN   TestClassifyExecutor/degraded_alive_→_adopt
+=== RUN   TestClassifyExecutor/degraded_dead_→_finalize
+--- PASS: TestClassifyExecutor (0.00s)
+    --- PASS: TestClassifyExecutor/inflight+alive_→_adopt (0.00s)
+    --- PASS: TestClassifyExecutor/inflight+dead(crash)_→_recover (0.00s)
+    --- PASS: TestClassifyExecutor/inflight+dead(failed,no_verdict)_→_recover (0.00s)
+    --- PASS: TestClassifyExecutor/inflight+dead(failed,valid_verdict)_→_finalize (0.00s)
+    --- PASS: TestClassifyExecutor/succeeded_→_finalize (0.00s)
+    --- PASS: TestClassifyExecutor/succeeded_not_in-flight_→_quiet-finalize (0.00s)
+    --- PASS: TestClassifyExecutor/succeeded_with_unknown_inflight_→_quiet-finalize (0.00s)
+    --- PASS: TestClassifyExecutor/failed_valid_verdict_not_in-flight_→_quiet-finalize (0.00s)
+    --- PASS: TestClassifyExecutor/not-inflight+alive_→_verify-cancel (0.00s)
+    --- PASS: TestClassifyExecutor/not-inflight+dead_→_verify-cancel (0.00s)
+    --- PASS: TestClassifyExecutor/ownerless_alive_→_leave (0.00s)
+    --- PASS: TestClassifyExecutor/ownerless_dead_→_finalize (0.00s)
+    --- PASS: TestClassifyExecutor/degraded_alive_→_adopt (0.00s)
+    --- PASS: TestClassifyExecutor/degraded_dead_→_finalize (0.00s)
+=== RUN   TestPlanExecutorReconcile_Branches
+--- PASS: TestPlanExecutorReconcile_Branches (0.00s)
+=== RUN   TestPlanExecutorReconcile_DegradedNeverCancels
+--- PASS: TestPlanExecutorReconcile_DegradedNeverCancels (0.00s)
+=== RUN   TestPlanExecutorReconcile_HistoricalTerminalQuietFinalizes
+--- PASS: TestPlanExecutorReconcile_HistoricalTerminalQuietFinalizes (0.00s)
+=== RUN   TestReconcileOneExecutor_DeathShouldContinue_ConsumesBudget
+--- PASS: TestReconcileOneExecutor_DeathShouldContinue_ConsumesBudget (0.00s)
+=== RUN   TestReconcileOneExecutor_LegitFailure_NoRecovery
+--- PASS: TestReconcileOneExecutor_LegitFailure_NoRecovery (0.00s)
+=== RUN   TestReconcileOneExecutor_BudgetExhausted_Escalates
+--- PASS: TestReconcileOneExecutor_BudgetExhausted_Escalates (0.00s)
+=== RUN   TestReconcileOneExecutor_Fused_QuietFinalizeNoRecover
+--- PASS: TestReconcileOneExecutor_Fused_QuietFinalizeNoRecover (0.00s)
+=== RUN   TestReconcileOneExecutor_BlockedTask_NoRecover
+--- PASS: TestReconcileOneExecutor_BlockedTask_NoRecover (0.01s)
+=== RUN   TestReconcileOneExecutor_ParkedStatus_NoRecover
+=== RUN   TestReconcileOneExecutor_ParkedStatus_NoRecover/blocked_status_no_reason
+=== RUN   TestReconcileOneExecutor_ParkedStatus_NoRecover/blocked_status_with_reason
+--- PASS: TestReconcileOneExecutor_ParkedStatus_NoRecover (0.01s)
+    --- PASS: TestReconcileOneExecutor_ParkedStatus_NoRecover/blocked_status_no_reason (0.01s)
+    --- PASS: TestReconcileOneExecutor_ParkedStatus_NoRecover/blocked_status_with_reason (0.01s)
+=== RUN   TestReconcileOneExecutor_RunningNotBlocked_StillRecovers
+--- PASS: TestReconcileOneExecutor_RunningNotBlocked_StillRecovers (0.00s)
+=== RUN   TestEnactRecover_Fresh_CallsResetTask
+--- PASS: TestEnactRecover_Fresh_CallsResetTask (0.00s)
+=== RUN   TestEnactRecover_Resume_NoResetTask
+--- PASS: TestEnactRecover_Resume_NoResetTask (0.00s)
+PASS
+ok  	github.com/oopslink/agent-center/internal/agentruntime	0.486s
+EXIT_CODE=0

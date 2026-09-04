@@ -1,0 +1,5 @@
+$ go test -race focused finalizer/reaper/reset
+ok  	github.com/oopslink/agent-center/internal/agentruntime/executor	8.509s
+ok  	github.com/oopslink/agent-center/internal/agentruntime/orchestrator	1.814s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	7.545s
+EXIT_CODE=0
