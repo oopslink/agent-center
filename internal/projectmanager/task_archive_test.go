@@ -125,8 +125,8 @@ func TestTask_Archived_RejectsMutations(t *testing.T) {
 	if err := tk.Archive(at, "user:admin"); err != nil {
 		t.Fatal(err)
 	}
-	if err := tk.Reopen(at); err != ErrTaskReopenRetired {
-		t.Fatalf("retired Reopen on archived task = %v want ErrTaskReopenRetired", err)
+	if err := tk.Reopen(at); err != ErrTaskArchived {
+		t.Fatalf("Reopen on archived task = %v want ErrTaskArchived", err)
 	}
 }
 

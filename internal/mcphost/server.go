@@ -380,6 +380,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Description: "Terminally DISCARD a non-terminal task (open/running → discarded) — the right way to retire a superseded or mis-created task. A reason is required. Unlike complete_task it does not mark the work done (shows Discarded, not Completed); unlike fail_task it does not feed failure/evolution. A terminal task (completed/failed/discarded) is rejected.",
 	}, makeDiscardTask(cfg))
 
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "reopen_task",
+		Description: "Explicitly restore a failed or discarded task to open without dispatching it. Reopen clears stale completion/failure/block/lease/latest-delivery state, preserves the task description, issue/plan links, assignee, audit, and execution history, and the next fork/start must create a fresh execution/worktree. Completed tasks are rejected.",
+	}, makeReopenTask(cfg))
+
 	// T192: (re)set or clear a task's derived_from_issue AFTER creation.
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "set_task_issue",

@@ -15,6 +15,7 @@
 //   - heartbeat                   : {task_id}
 //   - complete_task               : {task_id, summary?}
 //   - discard_task                : {task_id, reason}
+//   - reopen_task                 : {task_id}
 //   - create_task                 : {project_id, title, description?, derived_from_issue?, assignee?, dispatch?, dispatch_mode?}
 //   - update_task                 : {task_id, title?, description?, clear_description?}
 //   - fork_executor               : {task_id, model?, context?}
@@ -729,6 +730,24 @@ func makeDiscardTask(cfg Config) mcp.ToolHandlerFor[discardTaskArgs, any] {
 			"reason":   args.Reason,
 		}
 		return callAdmin(ctx, cfg, "discard_task", body)
+	}
+}
+
+// --- reopen_task -------------------------------------------------------------
+
+type reopenTaskArgs struct {
+	TaskID string `json:"task_id" jsonschema:"the failed or discarded task to restore to open"`
+}
+
+// makeReopenTask explicitly restores failed/discarded work to open without
+// dispatching. The next fork/start must create a fresh execution/worktree.
+func makeReopenTask(cfg Config) mcp.ToolHandlerFor[reopenTaskArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, args reopenTaskArgs) (*mcp.CallToolResult, any, error) {
+		body := map[string]any{
+			"agent_id": cfg.AgentID,
+			"task_id":  args.TaskID,
+		}
+		return callAdmin(ctx, cfg, "reopen_task", body)
 	}
 }
 

@@ -7,7 +7,7 @@ import { useDisplayNameResolver } from '@/api/members';
 import { CollapsibleDescription } from '@/components/CollapsibleDescription';
 import { Skeleton } from '@/components/Skeleton';
 import { TypeChip } from '@/components/TypeChip';
-import { useTask } from '@/api/tasks';
+import { useReopenTask, useTask } from '@/api/tasks';
 import { useProject } from '@/api/projects';
 import { usePlan } from '@/api/plans';
 import { useIssue } from '@/api/issues';
@@ -51,6 +51,7 @@ export default function TaskDetail(): React.ReactElement {
   // T184: resolve the task's bound conversation so the shared col④ sidebar
   // (Participants / Threads / Files) can render for it, same as channels/DMs.
   const conv = useConversationByOwnerRef(`pm://tasks/${id}`);
+  const reopen = useReopenTask(projectId, id);
   const [editOpen, setEditOpen] = useState(false);
   // T309: mobile "Show info" toggle (description/attachments/details collapsed
   // by default so the chat fills the screen).
@@ -95,6 +96,7 @@ export default function TaskDetail(): React.ReactElement {
   const status = tk.status;
   // The Edit-Task button hides on a terminal (discarded) task — nothing to edit.
   const isTerminal = status === 'discarded';
+  const canReopen = status === 'failed' || status === 'discarded';
 
   const resolvedAssigneeName = tk.assignee ? resolveName(tk.assignee) : '';
   // T106: pass the owning plan to the sidebar ONLY when it is a structured plan
@@ -261,6 +263,9 @@ export default function TaskDetail(): React.ReactElement {
             derivedIssue={derivedIssueForSidebar}
             onEdit={() => setEditOpen(true)}
             editable={!isTerminal}
+            canReopen={canReopen}
+            onReopen={() => reopen.mutate()}
+            reopening={reopen.isPending}
           />
           {status === 'failed' && tk.failed_reason && (
             <div

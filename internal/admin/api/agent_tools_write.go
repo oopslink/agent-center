@@ -1259,6 +1259,49 @@ func (s *Server) discardTaskHandler(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "discarded"})
 }
 
+// --- reopen_task -------------------------------------------------------------
+
+type reopenTaskReq struct {
+	AgentID string `json:"agent_id"`
+	TaskID  string `json:"task_id"`
+}
+
+// reopenTaskHandler explicitly restores a failed/discarded task to open. It does
+// not post a task message or dispatch work; the shared PM AppService clears stale
+// terminal/lease/delivery state, preserves history, and emits the state event that
+// lets normal plan/pool gates decide whether the task can be assigned or started.
+func (s *Server) reopenTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	var req reopenTaskReq
+	if err := decodeJSON(r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
+		return
+	}
+	a, ok := s.requireAgentOnWorker(w, r, d, req.AgentID)
+	if !ok {
+		return
+	}
+	if d.PMService == nil {
+		writeError(w, http.StatusNotImplemented, "pm_not_wired", "")
+		return
+	}
+	if strings.TrimSpace(req.TaskID) == "" {
+		writeError(w, http.StatusBadRequest, "missing_task_id", "")
+		return
+	}
+	if !s.requireTaskAccess(w, r, d, a, req.TaskID) {
+		return
+	}
+	if !s.requireAgentTaskWrite(w, r, d, a, req.TaskID) {
+		return
+	}
+	if err := d.PMService.ReopenTask(r.Context(), pm.TaskID(req.TaskID), pm.IdentityRef(agentActor(a))); err != nil {
+		mapDomainError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "status": "open"})
+}
+
 // --- set_task_issue (T192) ---------------------------------------------------
 
 type setTaskIssueReq struct {

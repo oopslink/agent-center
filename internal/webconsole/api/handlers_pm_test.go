@@ -108,6 +108,66 @@ func TestPM_NestedTaskFlow_EndToEnd(t *testing.T) {
 	}
 }
 
+func TestPM_ReopenTaskHTTPContract(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		status     pm.TaskStatus
+		wantHTTP   int
+		wantStatus string
+		wantError  string
+	}{
+		{name: "failed", status: pm.TaskFailed, wantHTTP: 200, wantStatus: "open"},
+		{name: "discarded", status: pm.TaskDiscarded, wantHTTP: 200, wantStatus: "open"},
+		{name: "completed", status: pm.TaskCompleted, wantHTTP: 409, wantStatus: "completed", wantError: "task_reopen_retired"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			deps, db := setupAPIWithAuth(t)
+			sess := setupTestSession(t, db, deps)
+			s := newTestServer(t, deps)
+			defer s.Close()
+			ctx := context.Background()
+			caller := pm.IdentityRef("user:" + sess.IdentityID)
+			pid, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{
+				OrganizationID: sess.OrgID, Name: "Acme", CreatedBy: caller,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			tid, err := deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{
+				ProjectID: pid, Title: "do the thing", CreatedBy: caller,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := deps.PM.SetTaskStatus(ctx, tid, tc.status, caller); err != nil {
+				t.Fatalf("SetTaskStatus(%s): %v", tc.status, err)
+			}
+
+			resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/tasks/"+string(tid)+"/reopen", `{}`, sess)
+			if resp.StatusCode != tc.wantHTTP {
+				b, _ := io.ReadAll(resp.Body)
+				t.Fatalf("reopen status=%d body=%s, want %d", resp.StatusCode, b, tc.wantHTTP)
+			}
+			body := map[string]any{}
+			_ = json.NewDecoder(resp.Body).Decode(&body)
+			if tc.wantError != "" {
+				if body["error"] != tc.wantError {
+					t.Fatalf("error=%v want %s", body["error"], tc.wantError)
+				}
+			} else if body["status"] != tc.wantStatus {
+				t.Fatalf("response status=%v want %s", body["status"], tc.wantStatus)
+			}
+			got, err := deps.PM.GetTask(ctx, tid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(got.Status()) != tc.wantStatus {
+				t.Fatalf("stored status=%s want %s", got.Status(), tc.wantStatus)
+			}
+		})
+	}
+}
+
 // TestPM_FlatProjectLifecycle covers the flat /api/projects surface that the
 // retired Workforce project routes were repointed to in B3-c: create → list →
 // get → update (rename/describe) → archive (DELETE active project) → hard-delete

@@ -266,7 +266,7 @@ func TestEventProjector_Idempotent_Redelivery(t *testing.T) {
 	e := newEventEnv(t)
 	e.createOnEvent(t, "rmd-idem", "proj-1", "AG2",
 		reminder.OnEvent{EntityType: reminder.EntityTask, EntityID: "T1", Event: "reopened"}, "x")
-	ev := taskStateEvent("ev-dup", "T1", "proj-1", "reopened", "", oe0.Add(time.Hour))
+	ev := taskStateEvent("ev-dup", "T1", "proj-1", "open", "reopened", oe0.Add(time.Hour))
 	for i := 0; i < 3; i++ {
 		if err := e.proj.Project(e.ctx, ev); err != nil {
 			t.Fatalf("Project #%d: %v", i, err)

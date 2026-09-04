@@ -180,13 +180,14 @@ func (p *ReminderEventProjector) classify(e outbox.Event) (reminder.EntityType, 
 // Firing "completed" on it would be the same false green ADR-0054 exists to abolish, and
 // inventing a "delivered" event is a separate product decision, not this change's call.
 func taskEvent(status, reason string) string {
+	if strings.TrimSpace(reason) == "reopened" && status == "open" {
+		return "reopened"
+	}
 	switch status {
 	case "completed":
 		return "completed"
 	case "discarded":
 		return "discarded"
-	case "reopened":
-		return "reopened"
 	case "failed":
 		return "failed"
 	}

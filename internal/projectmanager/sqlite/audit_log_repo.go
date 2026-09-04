@@ -57,11 +57,11 @@ func (r *AuditLogRepo) Append(ctx context.Context, entry pm.AuditEntry) error {
 	return err
 }
 
-// ListByObject returns (objType, objID)'s ledger newest-first ((occurred_at, id)
+// ListByObject returns (objType, objID)'s ledger newest-first ((occurred_at, rowid)
 // DESC), one page at a time. cursor is the id of the previous page's last row ("" =
 // first page); limit caps the page (clamped to [1, MaxAuditPageSize], default
 // DefaultAuditPageSize). nextCursor is "" on the final page. Pagination is stable
-// under equal occurred_at values because it breaks ties on the unique id.
+// under equal occurred_at values because it breaks ties on insertion order.
 func (r *AuditLogRepo) ListByObject(ctx context.Context, objType pm.AuditObjectType, objID, cursor string, limit int) ([]pm.AuditEntry, string, error) {
 	exec, err := persistence.ExecutorFromCtx(ctx, r.db)
 	if err != nil {
@@ -74,14 +74,14 @@ func (r *AuditLogRepo) ListByObject(ctx context.Context, objType pm.AuditObjectT
 		limit = MaxAuditPageSize
 	}
 
-	// Resolve the cursor row's occurred_at so the keyset predicate can page on the
-	// (occurred_at, id) tuple without a dialect-specific row-value subquery. An
-	// unknown cursor id yields the zero anchor (empty page follows) — treated as "no
-	// more rows" rather than an error, so a stale cursor degrades gracefully.
+	// Resolve the cursor row's key so the keyset predicate can page on the
+	// (occurred_at, rowid) tuple. An unknown cursor id yields an empty page rather
+	// than an error, so a stale cursor degrades gracefully.
 	var curOccurred string
+	var curRowID int64
 	if c := strings.TrimSpace(cursor); c != "" {
 		if err := exec.QueryRowContext(ctx,
-			`SELECT occurred_at FROM pm_audit_log WHERE id = ?`, c).Scan(&curOccurred); err != nil {
+			`SELECT occurred_at, rowid FROM pm_audit_log WHERE id = ?`, c).Scan(&curOccurred, &curRowID); err != nil {
 			if err == sql.ErrNoRows {
 				return nil, "", nil
 			}
@@ -95,13 +95,13 @@ func (r *AuditLogRepo) ListByObject(ctx context.Context, objType pm.AuditObjectT
 	         FROM pm_audit_log WHERE object_type = ? AND object_id = ?`
 	if curOccurred == "" && strings.TrimSpace(cursor) == "" {
 		rows, err = exec.QueryContext(ctx,
-			base+` ORDER BY occurred_at DESC, id DESC LIMIT ?`,
+			base+` ORDER BY occurred_at DESC, rowid DESC LIMIT ?`,
 			string(objType), objID, limit+1)
 	} else {
 		rows, err = exec.QueryContext(ctx,
-			base+` AND (occurred_at < ? OR (occurred_at = ? AND id < ?))
-			       ORDER BY occurred_at DESC, id DESC LIMIT ?`,
-			string(objType), objID, curOccurred, curOccurred, strings.TrimSpace(cursor), limit+1)
+			base+` AND (occurred_at < ? OR (occurred_at = ? AND rowid < ?))
+			       ORDER BY occurred_at DESC, rowid DESC LIMIT ?`,
+			string(objType), objID, curOccurred, curOccurred, curRowID, limit+1)
 	}
 	if err != nil {
 		return nil, "", err

@@ -47,6 +47,24 @@ function PencilIcon(): React.ReactElement {
   );
 }
 
+function ReopenIcon(): React.ReactElement {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      className="h-3.5 w-3.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M4 5.5A4.5 4.5 0 1 1 3.3 8" />
+      <path d="M4 2.5v3h3" />
+    </svg>
+  );
+}
+
 interface Props {
   task: Task;
   projectName?: string;
@@ -70,6 +88,9 @@ interface Props {
   onEdit: () => void;
   /** whether the task is editable (non-terminal). Terminal → no Edit button. */
   editable: boolean;
+  canReopen?: boolean;
+  onReopen?: () => void;
+  reopening?: boolean;
 }
 
 export function TaskDetailSidebar({
@@ -80,6 +101,9 @@ export function TaskDetailSidebar({
   derivedIssue,
   onEdit,
   editable,
+  canReopen = false,
+  onReopen,
+  reopening = false,
 }: Props): React.ReactElement {
   const { t } = useTranslation('work');
   const tk = task;
@@ -105,18 +129,33 @@ export function TaskDetailSidebar({
       <section className="space-y-3" data-testid="task-sidebar-editable">
         <div className="flex items-start justify-between gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{t('task.sidebar.details')}</p>
-          {editable && (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="inline-flex items-center gap-1 rounded bg-bg-subtle px-2 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
-              data-testid="task-edit-button"
-              aria-label={t('task.sidebar.editTaskAria')}
-            >
-              <PencilIcon />
-              {t('task.sidebar.editTask')}
-            </button>
-          )}
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {canReopen && (
+              <button
+                type="button"
+                onClick={onReopen}
+                disabled={reopening}
+                className="inline-flex items-center gap-1 rounded bg-bg-subtle px-2 py-1 text-xs font-medium text-text-primary hover:bg-border-base disabled:cursor-not-allowed disabled:opacity-60"
+                data-testid="task-reopen-button"
+                aria-label={t('task.sidebar.reopenTaskAria')}
+              >
+                <ReopenIcon />
+                {reopening ? t('task.sidebar.reopeningTask') : t('task.sidebar.reopenTask')}
+              </button>
+            )}
+            {editable && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="inline-flex items-center gap-1 rounded bg-bg-subtle px-2 py-1 text-xs font-medium text-text-primary hover:bg-border-base"
+                data-testid="task-edit-button"
+                aria-label={t('task.sidebar.editTaskAria')}
+              >
+                <PencilIcon />
+                {t('task.sidebar.editTask')}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* STATUS + in-status duration — display only */}

@@ -30,6 +30,7 @@ var AgentFacingToolNames = []string{
 	"complete_plan",
 	"report_manual_recovery_delivery",
 	"discard_task",   // T119: terminal-discard a superseded / mis-created task
+	"reopen_task",    // explicit failed/discarded -> open retry without dispatch
 	"set_task_issue", // T192: (re)set/clear a task's derived_from_issue after creation
 	// T206 Cognition reminders
 	"create_reminder",

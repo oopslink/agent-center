@@ -238,19 +238,39 @@ describe('TaskDetail page', () => {
       expect(screen.getByTestId('task-edit-tags-input')).toBeInTheDocument();
     });
 
-    it('hides the Edit-Task button on a terminal (discarded) task — nothing to edit', async () => {
+    it('hides Edit but shows explicit Reopen on a discarded task', async () => {
+      let reopened = false;
       server.use(
         http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('discarded'))),
+        http.post('/api/projects/proj-a/tasks/:id/reopen', () => {
+          reopened = true;
+          return HttpResponse.json(taskAt('open'));
+        }),
       );
       wrap('/projects/proj-a/tasks/TS-1');
       await waitFor(() =>
         expect(screen.getByTestId('status-block')).toHaveAttribute('data-status', 'discarded'),
       );
       expect(screen.queryByTestId('task-edit-button')).not.toBeInTheDocument();
+      const reopen = screen.getByTestId('task-reopen-button');
+      expect(reopen).toHaveAttribute('aria-label', 'Reopen task');
+      fireEvent.click(reopen);
+      await waitFor(() => expect(reopened).toBe(true));
       // still no inline controls in the terminal state either.
       expect(screen.queryByTestId('task-status')).not.toBeInTheDocument();
       expect(screen.queryByTestId('task-assign-change')).not.toBeInTheDocument();
       expect(screen.queryByTestId('task-tag-add')).not.toBeInTheDocument();
+    });
+
+    it('does not offer Reopen on completed tasks', async () => {
+      server.use(
+        http.get('/api/projects/proj-a/tasks/:id', () => HttpResponse.json(taskAt('completed'))),
+      );
+      wrap('/projects/proj-a/tasks/TS-1');
+      await waitFor(() =>
+        expect(screen.getByTestId('status-block')).toHaveAttribute('data-status', 'completed'),
+      );
+      expect(screen.queryByTestId('task-reopen-button')).not.toBeInTheDocument();
     });
 
     it('computes the in-status duration ("Xh Ym") from status_changed_at (display)', async () => {

@@ -6,10 +6,11 @@ import (
 	"time"
 )
 
-// TaskStatus enum + state machine. ADR-0055 makes terminal facts immutable:
+// TaskStatus enum + state machine. ADR-0055 makes completed facts immutable:
 //
 //	open → running → completed
-//	open/running → failed/discarded (terminal)
+//	open/running → failed/discarded
+//	failed/discarded → open only through the explicit ReopenTask use case
 //
 // Migration 0120 converts legacy `reopened` rows to open. `reopened` is not a
 // valid persisted or writable Task status anymore.
@@ -60,9 +61,9 @@ func AllTaskStatuses() []TaskStatus {
 var taskTransitions = map[TaskStatus][]TaskStatus{
 	TaskOpen:      {TaskRunning, TaskFailed, TaskDiscarded},
 	TaskRunning:   {TaskCompleted, TaskFailed, TaskDiscarded},
-	TaskCompleted: {}, // terminal: follow-up work is a new Task/Remediation Stage
-	TaskFailed:    {}, // terminal: replacement work is produced by plan evolution
-	TaskDiscarded: {}, // terminal
+	TaskCompleted: {},         // terminal: follow-up work is a new Task/Remediation Stage
+	TaskFailed:    {TaskOpen}, // terminal outcome, explicitly reopenable by a project member
+	TaskDiscarded: {TaskOpen}, // abandoned work may be explicitly restored
 }
 
 // CanTransitionTo reports whether from→to is a legal Task transition.
@@ -76,7 +77,8 @@ func (s TaskStatus) CanTransitionTo(to TaskStatus) bool {
 }
 
 // IsTerminal reports whether the task has reached a concluded state: work is done
-// (completed), failed, or abandoned (discarded). Terminal tasks never become active again.
+// (completed), failed, or abandoned (discarded). Failed/discarded are terminal for
+// ordinary workflow gates but may be restored by the explicit ReopenTask use case.
 // The active / non-terminal set is exactly {open, running}.
 // v2.7 #107 Phase-2 (proj-B): the observability default task-query set is the
 // non-terminal set.
@@ -669,6 +671,12 @@ func (t *Task) NoteFruitlessReopen() { t.fruitlessReopens++ }
 // progress does not carry a stale strike toward the circuit breaker. Complete() also
 // zeroes it; this is the mid-flight reset for a delivery-that-advanced-but-node-stuck.
 func (t *Task) ClearFruitlessReopens() { t.fruitlessReopens = 0 }
+
+// ClearDelivery resets the denormalized latest-delivery pointer used to judge the
+// current execution attempt. Historical executor/delivery evidence remains in the
+// execution read models; this only prevents a reopened task from reusing a stale
+// prior-run delivery verdict.
+func (t *Task) ClearDelivery() { t.delivery = nil }
 
 // IsArchived reports the ORTHOGONAL archived state (v2.9 P3). Independent of
 // status: a task may be archived in any status.
@@ -1373,9 +1381,40 @@ func (t *Task) SetStatus(target TaskStatus, at time.Time) error {
 	return nil
 }
 
-// Reopen is retained only as a source-compatibility guard. Terminal history is
-// immutable; callers must append a new Task/Remediation Stage.
-func (t *Task) Reopen(time.Time) error { return ErrTaskReopenRetired }
+// Reopen restores a failed/discarded task to open for an explicit retry. It keeps
+// task identity, description, issue/plan links, and assignee, but clears state that
+// belongs to the previous terminal attempt so the next execution starts fresh.
+// Completed tasks remain immutable; their completion evidence must be followed up
+// with a new task/remediation rather than rewritten in place.
+func (t *Task) Reopen(at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	switch t.status {
+	case TaskOpen:
+		return nil
+	case TaskCompleted:
+		return ErrTaskReopenRetired
+	case TaskFailed, TaskDiscarded:
+		// legal below
+	default:
+		return ErrIllegalTransition
+	}
+	t.status = TaskOpen
+	t.statusChangedAt = at.UTC()
+	t.completedBy = ""
+	t.completedAt = time.Time{}
+	t.blockedReason = ""
+	t.blockedReasonType = ""
+	t.blockedComment = ""
+	t.failedReason = ""
+	t.executionLeaseExpiresAt = nil
+	t.recoveryResetCount = 0
+	t.delivery = nil
+	t.fruitlessReopens = 0
+	t.touch(at)
+	return nil
+}
 
 // ToOpenFromReopened is a retired compatibility entrypoint.
 func (t *Task) ToOpenFromReopened(time.Time) error { return ErrTaskReopenRetired }

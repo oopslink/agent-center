@@ -159,9 +159,9 @@ func TestTaskUnassignAndIllegal(t *testing.T) {
 	}
 }
 
-// --- Task: terminal history is immutable ---
+// --- Task: explicit failed/discarded reopen ---
 
-func TestTaskTerminalStatusesCannotReopen(t *testing.T) {
+func TestTaskCompletedCannotReopen(t *testing.T) {
 	tk := newTask(t)
 	_ = tk.Assign("agent:c", t0)
 	_ = tk.Start(t0)
@@ -172,7 +172,7 @@ func TestTaskTerminalStatusesCannotReopen(t *testing.T) {
 		t.Fatalf("discarded is terminal, got %v", err)
 	}
 
-	// Completed is equally terminal: remediation is represented by a new task.
+	// Completed remains immutable: remediation is represented by a new task.
 	tk2 := newTask(t)
 	_ = tk2.Assign("agent:c", t0)
 	_ = tk2.Start(t0)
@@ -185,6 +185,69 @@ func TestTaskTerminalStatusesCannotReopen(t *testing.T) {
 	}
 	if tk2.Status() != TaskCompleted || tk2.Assignee() != "agent:c" || tk2.CompletedBy() != "agent:c" {
 		t.Fatalf("retired reopen mutated terminal task: %s/%s/%s", tk2.Status(), tk2.Assignee(), tk2.CompletedBy())
+	}
+}
+
+func TestTaskReopenFailedOrDiscardedClearsAttemptState(t *testing.T) {
+	for _, status := range []TaskStatus{TaskFailed, TaskDiscarded} {
+		t.Run(string(status), func(t *testing.T) {
+			tk := newTask(t)
+			if err := tk.Assign("agent:c", t0); err != nil {
+				t.Fatal(err)
+			}
+			if err := tk.Start(t0.Add(time.Minute)); err != nil {
+				t.Fatal(err)
+			}
+			if err := tk.RenewLease(time.Hour, t0.Add(2*time.Minute)); err != nil {
+				t.Fatal(err)
+			}
+			tk.SetDelivery(&Delivery{Probed: true, Pushed: false, Branch: "old", HeadSHA: "old", BaseKnown: true})
+			tk.NoteFruitlessReopen()
+			if status == TaskFailed {
+				if err := tk.Fail("old failure", "agent:c", t0.Add(3*time.Minute)); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := tk.Discard(t0.Add(3 * time.Minute)); err != nil {
+				t.Fatal(err)
+			}
+
+			at := t0.Add(4 * time.Minute)
+			if err := tk.Reopen(at); err != nil {
+				t.Fatalf("Reopen(%s): %v", status, err)
+			}
+			if tk.Status() != TaskOpen || tk.Assignee() != "agent:c" {
+				t.Fatalf("status/assignee = %s/%q, want open/agent:c", tk.Status(), tk.Assignee())
+			}
+			if tk.CompletedBy() != "" || !tk.CompletedAt().IsZero() || tk.FailedReason() != "" {
+				t.Fatalf("terminal state survived reopen: completed_by=%q completed_at=%v failed=%q", tk.CompletedBy(), tk.CompletedAt(), tk.FailedReason())
+			}
+			if tk.BlockedReason() != "" || tk.BlockedReasonType() != "" || tk.BlockedComment() != "" || tk.ExecutionLeaseExpiresAt() != nil {
+				t.Fatalf("blocked/lease state survived reopen: blocked=%q/%q comment=%q lease=%v", tk.BlockedReason(), tk.BlockedReasonType(), tk.BlockedComment(), tk.ExecutionLeaseExpiresAt())
+			}
+			if tk.Delivery() != nil || tk.FruitlessReopens() != 0 || tk.RecoveryResetCount() != 0 {
+				t.Fatalf("attempt counters survived reopen: delivery=%v fruitless=%d resets=%d", tk.Delivery(), tk.FruitlessReopens(), tk.RecoveryResetCount())
+			}
+			if !tk.StatusChangedAt().Equal(at.UTC()) {
+				t.Fatalf("status_changed_at=%v want %v", tk.StatusChangedAt(), at.UTC())
+			}
+		})
+	}
+}
+
+func TestTaskReopenIdempotentOpenAndRejectsRunning(t *testing.T) {
+	tk := newTask(t)
+	v := tk.Version()
+	if err := tk.Reopen(t0.Add(time.Minute)); err != nil {
+		t.Fatalf("Reopen(open) = %v", err)
+	}
+	if tk.Status() != TaskOpen || tk.Version() != v {
+		t.Fatalf("open reopen must be no-op, status=%s version %d→%d", tk.Status(), v, tk.Version())
+	}
+	if err := tk.Start(t0.Add(2 * time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := tk.Reopen(t0.Add(3 * time.Minute)); err != ErrIllegalTransition {
+		t.Fatalf("Reopen(running) = %v want ErrIllegalTransition", err)
 	}
 }
 

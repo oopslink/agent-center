@@ -102,6 +102,46 @@ func TestCreateStage_RejectsEmptyHumanGateContract(t *testing.T) {
 	}
 }
 
+func TestReopenTaskInStagedPlanDoesNotBypassStageGate(t *testing.T) {
+	h := planAdvanceSetup(t)
+	ctx := h.ctx
+	pid, _ := h.svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	planID, _ := h.svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "stages", CreatedBy: "user:a"})
+	h.drain(t)
+	a1, _, b1, _, _ := seedTwoStagePlan(t, h, pid, planID, 2)
+	if err := h.svc.StartPlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("StartPlan: %v", err)
+	}
+	if dispatched, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("initial AdvancePlan: %v", err)
+	} else if len(dispatched) != 1 || dispatched[0] != a1 {
+		t.Fatalf("initial AdvancePlan dispatched=%v, want [%s]", dispatched, a1)
+	}
+	if dispatched := dispatchedSet(t, h, planID); !dispatched[a1] || dispatched[b1] {
+		t.Fatalf("initial dispatch set=%v, want only stage A entry dispatched", dispatched)
+	}
+
+	if err := h.svc.SetTaskStatus(ctx, b1, pm.TaskFailed, "user:a"); err != nil {
+		t.Fatalf("force fail blocked stage-B task: %v", err)
+	}
+	if err := h.svc.ReopenTask(ctx, b1, "user:a"); err != nil {
+		t.Fatalf("ReopenTask(stage-B gated): %v", err)
+	}
+	if _, err := h.svc.AdvancePlan(ctx, planID, "user:a"); err != nil {
+		t.Fatalf("AdvancePlan after reopen: %v", err)
+	}
+	if dispatched := dispatchedSet(t, h, planID); dispatched[b1] {
+		t.Fatalf("reopened stage-B task bypassed incomplete stage-A gate; dispatch set=%v", dispatched)
+	}
+	got, err := h.tasks.FindByID(ctx, b1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status() != pm.TaskOpen || got.StageID() == "" {
+		t.Fatalf("reopened staged task = status %s stage %s, want open with stage preserved", got.Status(), got.StageID())
+	}
+}
+
 func TestCreateStage_RunningPausedFailClosed(t *testing.T) {
 	h := planAdvanceSetup(t)
 	ctx := h.ctx

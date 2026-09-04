@@ -925,6 +925,87 @@ func TestDiscardTask_ProjectMemberNoWorkItem_OK(t *testing.T) {
 	}
 }
 
+// --- reopen_task -------------------------------------------------------------
+
+func TestReopenTask_FailedAndDiscarded_HTTPAndRestartable(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		terminal  pm.TaskStatus
+		makeState func(context.Context, *writeToolsFixture, string) error
+	}{
+		{
+			name:     "failed",
+			terminal: pm.TaskFailed,
+			makeState: func(ctx context.Context, f *writeToolsFixture, tid string) error {
+				return f.pmSvc.FailTask(ctx, pm.TaskID(tid), "executor failed", pm.IdentityRef("agent:"+atAgent1))
+			},
+		},
+		{
+			name:     "discarded",
+			terminal: pm.TaskDiscarded,
+			makeState: func(ctx context.Context, f *writeToolsFixture, tid string) error {
+				return f.pmSvc.DiscardTaskWithReason(ctx, pm.TaskID(tid), pm.IdentityRef("agent:"+atAgent1), "wrong scope")
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newWriteToolsFixture(t)
+			f.addWorkerToken(t, "acat_w1", atWorker1)
+			ctx := context.Background()
+			tid := f.seedRunningTask(t)
+			if err := tc.makeState(ctx, f, tid); err != nil {
+				t.Fatalf("make %s: %v", tc.terminal, err)
+			}
+			if got := f.taskStatus(t, tid); got != tc.terminal {
+				t.Fatalf("precondition status=%s want %s", got, tc.terminal)
+			}
+			srv := f.server(t)
+
+			status, body := postBearer(t, srv.URL, "/admin/agent-tools/reopen_task", "acat_w1",
+				map[string]any{"agent_id": atAgent1, "task_id": tid})
+			if status != http.StatusOK || body["status"] != "open" {
+				t.Fatalf("reopen_task status=%d body=%v, want 200 open", status, body)
+			}
+			got, err := f.pmSvc.GetTask(ctx, pm.TaskID(tid))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Status() != pm.TaskOpen || got.Assignee() != pm.IdentityRef("agent:"+atAgent1) || got.ExecutionLeaseExpiresAt() != nil {
+				t.Fatalf("reopened task status=%s assignee=%s lease=%v", got.Status(), got.Assignee(), got.ExecutionLeaseExpiresAt())
+			}
+
+			status, body = postBearer(t, srv.URL, "/admin/agent-tools/start_task", "acat_w1",
+				map[string]any{"agent_id": atAgent1, "task_id": tid})
+			if status != http.StatusOK {
+				t.Fatalf("start_task after reopen status=%d body=%v, want 200", status, body)
+			}
+			if got := f.taskStatus(t, tid); got != pm.TaskRunning {
+				t.Fatalf("status after start=%s want running", got)
+			}
+		})
+	}
+}
+
+func TestReopenTask_CompletedRejectedHTTP(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	tid := f.seedRunningTask(t)
+	srv := f.server(t)
+
+	if status, body := postBearer(t, srv.URL, "/admin/agent-tools/complete_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid}); status != http.StatusOK {
+		t.Fatalf("precondition complete status=%d body=%v", status, body)
+	}
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/reopen_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": tid})
+	if status != http.StatusConflict || body["error"] != "task_reopen_retired" {
+		t.Fatalf("reopen completed status=%d body=%v, want 409 task_reopen_retired", status, body)
+	}
+	if got := f.taskStatus(t, tid); got != pm.TaskCompleted {
+		t.Fatalf("task status=%s, want completed", got)
+	}
+}
+
 // T183: a NON-member with no WorkItem is still fail-closed on discard_task
 // (mirrors the task-post 403) — the relaxed gate does not leak access.
 func TestDiscardTask_NonMemberNoWorkItem_403(t *testing.T) {

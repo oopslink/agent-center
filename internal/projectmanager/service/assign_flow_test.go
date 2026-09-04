@@ -226,7 +226,7 @@ func TestUnassignTask_ClearsAssignee(t *testing.T) {
 	}
 }
 
-func TestReopenTask_RetiredAndLeavesCompletionImmutable(t *testing.T) {
+func TestReopenTask_CompletedRetiredAndLeavesCompletionImmutable(t *testing.T) {
 	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
@@ -242,6 +242,86 @@ func TestReopenTask_RetiredAndLeavesCompletionImmutable(t *testing.T) {
 	if tk.Status() != pm.TaskCompleted || tk.Assignee() != "user:a" || tk.CompletedBy() != "user:a" {
 		t.Fatalf("retired reopen mutated completion, got %s / %q / %q",
 			tk.Status(), tk.Assignee(), tk.CompletedBy())
+	}
+}
+
+func TestReopenTask_FailedAndDiscardedReturnToOpen(t *testing.T) {
+	for _, status := range []pm.TaskStatus{pm.TaskFailed, pm.TaskDiscarded} {
+		t.Run(string(status), func(t *testing.T) {
+			svc, _, ctx := flowSetup(t)
+			pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+			if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:AG1", Actor: "user:a"}); err != nil {
+				t.Fatal(err)
+			}
+			tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", Description: "keep this", CreatedBy: "user:a"})
+			if err := svc.AssignTask(ctx, tid, "agent:AG1", "user:a"); err != nil {
+				t.Fatal(err)
+			}
+			if err := svc.StartTask(ctx, tid, "agent:AG1"); err != nil {
+				t.Fatal(err)
+			}
+			task, err := svc.tasks.FindByID(ctx, tid)
+			if err != nil {
+				t.Fatal(err)
+			}
+			task.SetDelivery(&pm.Delivery{Probed: true, Pushed: false, Branch: "old", HeadSHA: "old", BaseKnown: true, AheadOfBase: 0})
+			task.NoteFruitlessReopen()
+			if err := svc.tasks.Update(ctx, task); err != nil {
+				t.Fatal(err)
+			}
+			if status == pm.TaskFailed {
+				if err := svc.FailTask(ctx, tid, "executor failed", "agent:AG1"); err != nil {
+					t.Fatal(err)
+				}
+			} else if err := svc.DiscardTaskWithReason(ctx, tid, "user:a", "retry same card"); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := svc.ReopenTask(ctx, tid, "user:a"); err != nil {
+				t.Fatalf("ReopenTask(%s): %v", status, err)
+			}
+			got, _ := svc.tasks.FindByID(ctx, tid)
+			if got.Status() != pm.TaskOpen || got.Assignee() != "agent:AG1" || got.Description() != "keep this" {
+				t.Fatalf("reopened state = %s/%q/%q", got.Status(), got.Assignee(), got.Description())
+			}
+			if got.FailedReason() != "" || got.ExecutionLeaseExpiresAt() != nil || got.Delivery() != nil || got.FruitlessReopens() != 0 {
+				t.Fatalf("old attempt state survived: failed=%q lease=%v delivery=%v fruitless=%d", got.FailedReason(), got.ExecutionLeaseExpiresAt(), got.Delivery(), got.FruitlessReopens())
+			}
+			if err := svc.StartTask(ctx, tid, "agent:AG1"); err != nil {
+				t.Fatalf("reopened task should start through normal admission with same assignee: %v", err)
+			}
+			started, _ := svc.tasks.FindByID(ctx, tid)
+			if started.Status() != pm.TaskRunning || started.ExecutionLeaseExpiresAt() == nil {
+				t.Fatalf("start after reopen = %s lease=%v, want running with fresh lease", started.Status(), started.ExecutionLeaseExpiresAt())
+			}
+			events := unprocessedTypes(t, outboxsql.NewOutboxRepo(svc.db), ctx)
+			if !contains(events, EvtTaskStateChanged) {
+				t.Fatalf("reopen did not emit task state_changed; events=%v", events)
+			}
+		})
+	}
+}
+
+func TestReopenTask_OpenIdempotentRunningIllegal(t *testing.T) {
+	svc, _, ctx := flowSetup(t)
+	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
+	before, _ := svc.tasks.FindByID(ctx, tid)
+	if err := svc.ReopenTask(ctx, tid, "user:a"); err != nil {
+		t.Fatalf("ReopenTask(open) = %v", err)
+	}
+	after, _ := svc.tasks.FindByID(ctx, tid)
+	if after.Status() != pm.TaskOpen || after.Version() != before.Version() {
+		t.Fatalf("open reopen must be idempotent, status=%s version %d→%d", after.Status(), before.Version(), after.Version())
+	}
+	if err := svc.AssignTask(ctx, tid, "user:a", "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.StartTask(ctx, tid, "user:a"); err != nil {
+		t.Fatal(err)
+	}
+	if err := svc.ReopenTask(ctx, tid, "user:a"); err != pm.ErrIllegalTransition {
+		t.Fatalf("ReopenTask(running) = %v want ErrIllegalTransition", err)
 	}
 }
 

@@ -76,13 +76,13 @@ func TestAuditLogRepo_AppendListRoundTrip(t *testing.T) {
 }
 
 // TestAuditLogRepo_CursorPagination proves keyset pagination is stable and complete
-// across pages, including a tie on occurred_at (broken on the unique id).
+// across pages, including a tie on occurred_at (broken on insertion order).
 func TestAuditLogRepo_CursorPagination(t *testing.T) {
 	ctx, d := dbSetup(t)
 	repo := NewAuditLogRepo(d, idgen.NewGenerator(clock.SystemClock{}))
 	base := time.Date(2026, 7, 3, 1, 0, 0, 0, time.UTC)
 
-	// 5 entries; two share the SAME occurred_at (tie → id breaks it).
+	// 5 entries; two share the SAME occurred_at (tie → insertion order breaks it).
 	times := []time.Time{base, base.Add(time.Second), base.Add(2 * time.Second), base.Add(2 * time.Second), base.Add(3 * time.Second)}
 	for i, ts := range times {
 		if err := repo.Append(ctx, pm.AuditEntry{ProjectID: "P1", ObjectType: pm.AuditObjectTask, ObjectID: "T1", ChangeType: pm.AuditTaskStatusChanged, ToValue: string(rune('a' + i)), ActorRef: "user:x", OccurredAt: ts}); err != nil {

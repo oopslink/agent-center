@@ -115,6 +115,9 @@ func mapDomainError(w http.ResponseWriter, err error) {
 	case errors.Is(err, pm.ErrTaskDescriptionFrozen):
 		writeError(w, http.StatusConflict, "task_description_frozen", err.Error())
 
+	case errors.Is(err, pm.ErrTaskReopenRetired):
+		writeError(w, http.StatusConflict, "task_reopen_retired", err.Error())
+
 	// ---- lease_still_live (409) — T862 reset_task mis-fire guard: reset_task on a task
 	// whose execution lease has NOT yet lapsed. A live lease means the agent may be alive
 	// and must be NUDGED (续租 + @-owner), never reset. The caller must wait for the lease

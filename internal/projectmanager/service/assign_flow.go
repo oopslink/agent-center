@@ -911,9 +911,11 @@ func (s *Service) UnassignTask(ctx context.Context, taskID pm.TaskID, actor pm.I
 	})
 }
 
-// ReopenTask is a compatibility guard for retired transports. ADR-0055 makes
-// completed/discarded Task facts permanent; follow-up work is represented by a
-// new Task (or a remediation Stage), never by rewriting this Task in place.
+// ReopenTask explicitly restores failed/discarded tasks to open. It preserves the
+// task's identity, description, issue/plan links, assignee, and historical audit /
+// execution evidence, while clearing live derived state from the prior terminal
+// attempt. It does not dispatch by itself: plan/pool gates decide whether the
+// reopened task is runnable, and a fresh fork creates a new execution/worktree.
 func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.IdentityRef) error {
 	return s.runInTx(ctx, func(txCtx context.Context) error {
 		t, err := s.tasks.FindByID(txCtx, taskID)
@@ -926,7 +928,31 @@ func (s *Service) ReopenTask(ctx context.Context, taskID pm.TaskID, actor pm.Ide
 		if err := s.requireProjectMutable(txCtx, t.ProjectID()); err != nil {
 			return err
 		}
-		return pm.ErrTaskReopenRetired
+		prevStatus := t.Status()
+		if err := t.Reopen(s.clock.Now()); err != nil {
+			return err
+		}
+		if prevStatus == t.Status() {
+			return nil
+		}
+		if t.PlanID() != "" && s.plans != nil {
+			if err := s.reopenStuckPlanNode(txCtx, t, "task explicitly reopened"); err != nil {
+				return err
+			}
+		}
+		if err := s.tasks.Update(txCtx, t); err != nil {
+			return err
+		}
+		if err := s.emitTaskStateChanged(txCtx, t, prevStatus, "reopened"); err != nil {
+			return err
+		}
+		if t.PlanID() != "" && s.plans != nil {
+			if err := s.refreshBlockedOnForTaskState(txCtx, t); err != nil {
+				return err
+			}
+		}
+		s.auditTaskStatusChange(txCtx, t, prevStatus, actor)
+		return s.maybeNotifyIssueDerivedTasksDone(txCtx, t, prevStatus)
 	})
 }
 
