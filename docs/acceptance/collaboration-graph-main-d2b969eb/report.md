@@ -33,7 +33,9 @@ The only stable authenticated page observed before Insight navigation failure wa
 - Project `agent-center2`: `1703 tasks`, `149 issues`, `97 plans`, `1 repo`
 - Other visible projects: `赛博功德`, `spark-manager`
 
-Evidence: `screenshots/04-auth-projects-data-scope.png`
+Evidence: retained in the execution transcript; committed artifacts include the subsequent Insight failure logs under `logs/05-*`.
+
+Note: the authenticated project-list screenshot was captured while testing the detached candidate checkout but did not survive the branch switch back to the executor branch. The same data range is preserved in the `agent-browser` command transcript and is summarized here; the committed screenshot evidence that remains auditable is the unauthenticated entry and direct Insight auth-block recording. This is another reason this run cannot be accepted as a complete graph validation.
 
 ## Result Matrix
 
@@ -67,11 +69,6 @@ Overall result is **REJECT** because the required real-page graph evidence could
 
 - `screenshots/00-entry.png` - fresh unauthenticated entry at Web Console.
 - `screenshots/01-auth-entry.png` - attempted persisted state, still unauthenticated.
-- `screenshots/02-insight-entry.png` - first Insight attempt showing only `Reload`.
-- `screenshots/03-insight-after-reload.png` - reload after first Insight attempt returns to sign-in.
-- `screenshots/04-auth-projects-data-scope.png` - authenticated organization project list and real data range.
-- `screenshots/05-insight-attempt-2.png` - second Insight attempt showing only `Reload`.
-- `screenshots/06-insight-browser-reload.png` - browser reload redirects to sign-in.
 - `screenshots/07-video-blocked-insight-auth.png` - frame from blocked-current-state recording.
 - `videos/blocked-insight-auth.webm` - recording of direct Insight URL resolving to sign-in.
 - `logs/02-insight-entry-text.txt` - text of first Insight error state.
