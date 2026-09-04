@@ -20,6 +20,7 @@ export default function OrgWorkItemsPage({ kind }: { kind: OrgWorkItemKind }): R
   // a prefixed identity ref ("user:<id>" / "agent:<id>"), '' = Any.
   const [selectedProjects, setSelectedProjects] = useState<string[]>([]);
   const [assignee, setAssignee] = useState<string>('');
+  const [includeCompletedPlanFailures, setIncludeCompletedPlanFailures] = useState(false);
   // #258 date-range filters: raw "YYYY-MM-DD" picker values (the FilterBar's
   // local state). Converted to RFC3339-with-LOCAL-offset only when calling the
   // hook (see localDateToRFC3339 — the off-by-one 命门: never send naive/UTC).
@@ -40,7 +41,7 @@ export default function OrgWorkItemsPage({ kind }: { kind: OrgWorkItemKind }): R
   // local-date→RFC3339-offset 命门 lives there). Merge in sort + pagination so
   // the backend returns the requested page (and `total` for the pagination bar).
   const filters = {
-    ...(buildWorkItemFilters({ selectedStatuses, selectedProjects, assignee, dateRange }) ?? {}),
+    ...(buildWorkItemFilters({ selectedStatuses, selectedProjects, assignee, includeCompletedPlanFailures, dateRange }) ?? {}),
     sort: controls.sort,
     dir: controls.dir,
     page: controls.page,
@@ -59,6 +60,8 @@ export default function OrgWorkItemsPage({ kind }: { kind: OrgWorkItemKind }): R
         onProjectsChange={setSelectedProjects}
         assignee={assignee}
         onAssigneeChange={setAssignee}
+        includeCompletedPlanFailures={includeCompletedPlanFailures}
+        onIncludeCompletedPlanFailuresChange={setIncludeCompletedPlanFailures}
         dateRange={dateRange}
         onDateRangeChange={setDateRange}
         onCreate={() => setCreateOpen(true)}

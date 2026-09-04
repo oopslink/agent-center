@@ -217,6 +217,7 @@ func (s *Server) pmListOrgTasksHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q.Assignee = strings.TrimSpace(r.URL.Query().Get("assignee"))
+	q.IncludeCompletedPlanFailures = includeCompletedPlanFailures(r)
 	tasks, total, lerr := d.PM.ListTasksOrgPage(r.Context(), q)
 	if lerr != nil {
 		mapPMError(w, lerr)
@@ -339,6 +340,7 @@ func (s *Server) orgTaskRow(r *http.Request, d HandlerDeps, t *pm.Task, p *pm.Pr
 		m["plan_id"] = string(pid)
 		if d.PM != nil {
 			if pl, perr := d.PM.GetPlan(r.Context(), pid); perr == nil && pl != nil {
+				m["plan_status"] = string(pl.Status())
 				if pl.IsBuiltin() {
 					m["plan_name"] = ""
 				} else {
@@ -348,6 +350,11 @@ func (s *Server) orgTaskRow(r *http.Request, d HandlerDeps, t *pm.Task, p *pm.Pr
 		}
 	}
 	return m
+}
+
+func includeCompletedPlanFailures(r *http.Request) bool {
+	raw := strings.TrimSpace(strings.ToLower(r.URL.Query().Get("include_completed_plan_failures")))
+	return raw == "1" || raw == "true" || raw == "yes" || len(parseSetParam(r, "status")) > 0
 }
 
 // enrichAssignee resolves a prefixed identity ref ("agent:<id>"/"user:<id>")

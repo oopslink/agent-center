@@ -207,23 +207,33 @@ func enrichTaskPlanNames(ctx context.Context, d HandlerDeps, rows []map[string]a
 	if d.PM == nil {
 		return
 	}
-	cache := make(map[string]string)
+	type planMeta struct {
+		name   string
+		status string
+		ok     bool
+	}
+	cache := make(map[string]planMeta)
 	for _, m := range rows {
 		pid, _ := m["plan_id"].(string)
 		if pid == "" {
 			continue
 		}
 		if _, ok := cache[pid]; !ok {
+			meta := planMeta{}
 			if pl, err := d.PM.GetPlan(ctx, pm.PlanID(pid)); err == nil && pl != nil {
+				meta.status = string(pl.Status())
 				if pl.IsBuiltin() {
-					cache[pid] = ""
+					meta.name = ""
 				} else {
-					cache[pid] = pl.Name()
+					meta.name = pl.Name()
 				}
+				meta.ok = true
 			}
+			cache[pid] = meta
 		}
-		if name, ok := cache[pid]; ok {
-			m["plan_name"] = name
+		if meta, ok := cache[pid]; ok && meta.ok {
+			m["plan_name"] = meta.name
+			m["plan_status"] = meta.status
 		}
 	}
 }
@@ -851,6 +861,7 @@ func (s *Server) pmListTasksHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q.Assignee = strings.TrimSpace(r.URL.Query().Get("assignee"))
+	q.IncludeCompletedPlanFailures = includeCompletedPlanFailures(r)
 	ts, total, err := d.PM.ListTasksOrgPage(r.Context(), q)
 	if err != nil {
 		mapPMError(w, err)

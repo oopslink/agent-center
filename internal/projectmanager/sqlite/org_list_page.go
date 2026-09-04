@@ -18,10 +18,11 @@ import (
 
 // orgWhereOpts toggles entity-specific predicates in the shared WHERE builder.
 type orgWhereOpts struct {
-	hasAssignee     bool // tasks: apply the assignee filter
-	hasCreatedBy    bool // issues: apply the created_by (author) filter
-	excludeBuiltin  bool // plans: WHERE is_builtin = 0 (the builtin pool is not a user plan)
-	excludeArchived bool // tasks: exclude archived rows unless q.IncludeArchived (T339; archived_at is a tasks-only column)
+	hasAssignee                  bool // tasks: apply the assignee filter
+	hasCreatedBy                 bool // issues: apply the created_by (author) filter
+	excludeBuiltin               bool // plans: WHERE is_builtin = 0 (the builtin pool is not a user plan)
+	excludeArchived              bool // tasks: exclude archived rows unless q.IncludeArchived (T339; archived_at is a tasks-only column)
+	excludeCompletedPlanFailures bool // tasks: hide failed rows whose owning plan is terminal unless explicitly included
 }
 
 // orgSortColumns maps a client sort key → a vetted physical column. The key is
@@ -63,6 +64,14 @@ func buildOrgListWhere(q pm.OrgListQuery, opts orgWhereOpts) (string, []any) {
 	// q.IncludeArchived opts back in for an explicit archived view.
 	if opts.excludeArchived && !q.IncludeArchived {
 		conds = append(conds, "archived_at = ''")
+	}
+	if opts.excludeCompletedPlanFailures && !q.IncludeCompletedPlanFailures {
+		conds = append(conds, `(status != 'failed' OR plan_id = '' OR NOT EXISTS (
+			SELECT 1 FROM pm_plans p
+			WHERE p.id = pm_tasks.plan_id
+			  AND p.is_builtin = 0
+			  AND p.status IN ('done', 'discarded')
+		))`)
 	}
 
 	if len(q.Statuses) > 0 {
@@ -214,7 +223,7 @@ func (r *IssueRepo) ListOrgPage(ctx context.Context, q pm.OrgListQuery) ([]*pm.I
 // --- Tasks ------------------------------------------------------------------
 
 func (r *TaskRepo) ListOrgPage(ctx context.Context, q pm.OrgListQuery) ([]*pm.Task, int, error) {
-	where, args := buildOrgListWhere(q, orgWhereOpts{hasAssignee: true, excludeArchived: true})
+	where, args := buildOrgListWhere(q, orgWhereOpts{hasAssignee: true, excludeArchived: true, excludeCompletedPlanFailures: true})
 	total, err := countOrg(ctx, r.db, "pm_tasks", where, args)
 	if err != nil {
 		return nil, 0, err

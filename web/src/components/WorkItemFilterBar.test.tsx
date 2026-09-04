@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { http, HttpResponse } from 'msw';
@@ -60,6 +60,19 @@ describe('WorkItemFilterBar collapse (T339)', () => {
     renderBar({ selectedStatuses: ['open', 'closed'], assignee: 'agent:agent-1' });
     // 2 statuses + 1 assignee = 3 active filter values.
     expect(screen.getByTestId('org-filter-active-count')).toHaveTextContent('3');
+  });
+
+  it('counts and clears the completed-plan failures task filter', () => {
+    const onInclude = vi.fn();
+    renderBar({
+      kind: 'task',
+      includeCompletedPlanFailures: true,
+      onIncludeCompletedPlanFailuresChange: onInclude,
+    });
+    expect(screen.getByTestId('org-filter-active-count')).toHaveTextContent('1');
+    expect(screen.getByTestId('org-filter-completed-plan-failures')).toBeChecked();
+    fireEvent.click(screen.getByTestId('org-filter-clear'));
+    expect(onInclude).toHaveBeenCalledWith(false);
   });
 
   it('shows no count badge when no filters are active', () => {

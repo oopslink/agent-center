@@ -917,6 +917,10 @@
         "agent": "智能体"
       }
     },
+    "completedPlanFailures": {
+      "label": "已完成计划的失败任务",
+      "title": "显示所属计划已经完成或废弃的 failed 任务"
+    },
     "date": {
       "label": "日期范围",
       "created": "创建",

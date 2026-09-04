@@ -136,6 +136,8 @@ export function WorkItemFilterBar({
   onProjectsChange,
   assignee,
   onAssigneeChange,
+  includeCompletedPlanFailures = false,
+  onIncludeCompletedPlanFailuresChange,
   dateRange,
   onDateRangeChange,
   hideProject = false,
@@ -149,6 +151,8 @@ export function WorkItemFilterBar({
   onProjectsChange: (p: string[]) => void;
   assignee: string;
   onAssigneeChange: (a: string) => void;
+  includeCompletedPlanFailures?: boolean;
+  onIncludeCompletedPlanFailuresChange?: (v: boolean) => void;
   dateRange: DateRange;
   onDateRangeChange: (d: DateRange) => void;
   // T131: hide the Project picker when the surface fixes the project dimension
@@ -170,6 +174,7 @@ export function WorkItemFilterBar({
     selectedStatuses.length > 0 ||
     (!hideProject && selectedProjects.length > 0) ||
     assignee !== '' ||
+    (kind === 'task' && includeCompletedPlanFailures) ||
     anyDateSet;
   // T339: count of active filter values, shown as a header badge so a collapsed
   // panel still signals "filters are on".
@@ -177,6 +182,7 @@ export function WorkItemFilterBar({
     selectedStatuses.length +
     (!hideProject && selectedProjects.length > 0 ? 1 : 0) +
     (assignee !== '' ? 1 : 0) +
+    (kind === 'task' && includeCompletedPlanFailures ? 1 : 0) +
     dateSetCount;
   const isMobile = useIsMobile();
   const [open, setOpen] = useState<boolean>(() => readStoredOpen() ?? !isMobile);
@@ -192,6 +198,7 @@ export function WorkItemFilterBar({
     onStatusesChange([]);
     if (!hideProject) onProjectsChange([]);
     onAssigneeChange('');
+    onIncludeCompletedPlanFailuresChange?.(false);
     onDateRangeChange(EMPTY_DATE_RANGE);
   };
   const toggleStatus = (s: string) =>
@@ -337,6 +344,21 @@ export function WorkItemFilterBar({
             })}
           </select>
         </label>
+        {kind === 'task' && onIncludeCompletedPlanFailuresChange && (
+          <label
+            className="inline-flex min-h-[1.75rem] items-center gap-1.5 rounded border border-border-base bg-bg-base px-2 text-xs text-text-secondary"
+            title={t('filter.completedPlanFailures.title')}
+          >
+            <input
+              type="checkbox"
+              data-testid="org-filter-completed-plan-failures"
+              checked={includeCompletedPlanFailures}
+              onChange={(e) => onIncludeCompletedPlanFailuresChange(e.target.checked)}
+              className="h-3.5 w-3.5 accent-brand"
+            />
+            <span>{t('filter.completedPlanFailures.label')}</span>
+          </label>
+        )}
       </div>
       {/* Row 2 — DATE RANGE: two inline start→end pairs (Created / Updated), then
           the always-visible Clear pushed to the right. All 4 pickers stay

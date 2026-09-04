@@ -108,6 +108,20 @@ describe('OrgWorkItems page (#258)', () => {
     expect(assignee).not.toHaveTextContent('agent-bot9');
   });
 
+  it('tasks: completed-plan failures toggle opts into historical failed rows', async () => {
+    let gotQuery = '';
+    server.use(
+      http.get('/api/tasks', ({ request }) => {
+        gotQuery = new URL(request.url).search;
+        return HttpResponse.json({ items: [taskRow()], total: 1 });
+      }),
+    );
+    wrap('task', '/organizations/acme/tasks');
+    await waitFor(() => expect(gotQuery).toBe('?sort=updated_at&dir=desc&page_size=25'));
+    fireEvent.click(screen.getByTestId('org-filter-completed-plan-failures'));
+    await waitFor(() => expect(gotQuery).toContain('include_completed_plan_failures=1'));
+  });
+
   // v2.8 #270/#272: an archived agent assignee shows a "(archived)" chip (#215
   // deleted-peer pattern). The task's assignee ref/history is preserved; the chip
   // is driven by the backend assignee_lifecycle (#184), no raw-id leak (#192).

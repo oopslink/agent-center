@@ -45,6 +45,8 @@ export function OrgWorkItemsView({
   onProjectsChange,
   assignee,
   onAssigneeChange,
+  includeCompletedPlanFailures,
+  onIncludeCompletedPlanFailuresChange,
   dateRange,
   onDateRangeChange,
   onCreate,
@@ -69,6 +71,8 @@ export function OrgWorkItemsView({
   // "agent:<id>"), or '' = Any (no assignee param).
   assignee: string;
   onAssigneeChange: (a: string) => void;
+  includeCompletedPlanFailures?: boolean;
+  onIncludeCompletedPlanFailuresChange?: (v: boolean) => void;
   // #258 raw date-picker values (YYYY-MM-DD; '' = unset).
   dateRange: DateRange;
   onDateRangeChange: (d: DateRange) => void;
@@ -94,7 +98,7 @@ export function OrgWorkItemsView({
   const anyDateSet = DATE_KEYS.some((k) => dateRange[k] !== '');
   // "default view" (empty-state copy) = no status, project, assignee OR date filter.
   const defaultView =
-    selectedStatuses.length === 0 && selectedProjects.length === 0 && assignee === '' && !anyDateSet;
+    selectedStatuses.length === 0 && selectedProjects.length === 0 && assignee === '' && !includeCompletedPlanFailures && !anyDateSet;
 
   return (
     <section className="space-y-4" data-testid={`page-Org${titleToken}`}>
@@ -121,6 +125,8 @@ export function OrgWorkItemsView({
           onProjectsChange={onProjectsChange}
           assignee={assignee}
           onAssigneeChange={onAssigneeChange}
+          includeCompletedPlanFailures={includeCompletedPlanFailures}
+          onIncludeCompletedPlanFailuresChange={onIncludeCompletedPlanFailuresChange}
           dateRange={dateRange}
           onDateRangeChange={onDateRangeChange}
         />
@@ -227,7 +233,16 @@ export function OrgWorkItemsView({
                         muted text beneath so both are visible; '—' when no plan. */}
                     {it.plan_id ? (
                       <span className="flex flex-col leading-tight">
-                        {it.plan_name && <span className="text-text-secondary">{it.plan_name}</span>}
+                        {it.plan_name && (
+                          <span className="flex items-center gap-1 text-text-secondary">
+                            <span className="truncate">{it.plan_name}</span>
+                            {it.plan_status && (
+                              <span className="rounded bg-bg-subtle px-1 font-mono text-[0.5625rem] uppercase text-text-muted">
+                                {it.plan_status}
+                              </span>
+                            )}
+                          </span>
+                        )}
                         <span className="font-mono text-[0.625rem] text-text-muted" data-testid="org-workitem-plan-id">
                           {it.plan_id}
                         </span>
@@ -303,6 +318,12 @@ export function OrgWorkItemsView({
                     >
                       {it.project.name}
                     </OrgLink>
+                    {it.plan_id && (
+                      <span className="truncate font-mono text-[0.625rem]" title={it.plan_id}>
+                        {it.plan_name || it.plan_id}
+                        {it.plan_status ? ` · ${it.plan_status}` : ''}
+                      </span>
+                    )}
                     {it.assignee && (
                       <span className="truncate" title={it.assignee.member_id}>
                         {it.assignee.display_name}

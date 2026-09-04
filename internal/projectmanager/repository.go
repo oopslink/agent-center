@@ -48,6 +48,10 @@ type OrgListQuery struct {
 	// issues/plans have no archived_at column and ignore it. Set true for an explicit
 	// "show archived" view.
 	IncludeArchived bool
+	// IncludeCompletedPlanFailures, when false (the default), hides failed tasks
+	// whose owning plan is already terminal. Those rows are historical audit facts,
+	// not current actionable work. Tasks-only.
+	IncludeCompletedPlanFailures bool
 }
 
 // ProjectRepository persists Project ARs.

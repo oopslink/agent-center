@@ -917,6 +917,10 @@
         "agent": "agent"
       }
     },
+    "completedPlanFailures": {
+      "label": "Completed-plan failures",
+      "title": "Show failed tasks whose plan is already completed or discarded"
+    },
     "date": {
       "label": "Date range",
       "created": "Created",

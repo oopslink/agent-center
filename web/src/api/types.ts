@@ -743,6 +743,7 @@ export interface Task {
   // plan_name is the owning plan's name. Empty string for assignment-pool tasks
   // (builtin plan), absent when unresolved or no plan.
   plan_name?: string;
+  plan_status?: string;
   // T566 (issue-577a7b0e): canonical capability tags an agent must ALL have for
   // this task to be auto-assigned (strict subset gate). Empty = no requirement.
   // The DTO always emits an array ([] when none); optional for legacy payloads.
@@ -800,6 +801,7 @@ export interface OrgWorkItem {
   // tasks (builtin plan), absent when no plan.
   plan_id?: string;
   plan_name?: string;
+  plan_status?: string;
 }
 
 // CodeRepo — a PROJECT's reference to a code repo (v2.7; T575 turns it into a

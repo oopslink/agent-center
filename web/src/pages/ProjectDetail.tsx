@@ -1163,11 +1163,12 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
   const { t } = useTranslation('work');
   const [selectedStatuses, setSelectedStatuses] = useState<string[]>([]);
   const [assignee, setAssignee] = useState<string>('');
+  const [includeCompletedPlanFailures, setIncludeCompletedPlanFailures] = useState(false);
   const [dateRange, setDateRange] = useState<DateRange>(EMPTY_DATE_RANGE);
   // T302: server-side sort + pagination.
   const controls = useListControls({ pageSize: 25, defaultSort: 'updated_at', defaultDir: 'desc' });
   const filters = {
-    ...(buildWorkItemFilters({ selectedStatuses, selectedProjects: [], assignee, dateRange }) ?? {}),
+    ...(buildWorkItemFilters({ selectedStatuses, selectedProjects: [], assignee, includeCompletedPlanFailures, dateRange }) ?? {}),
     sort: controls.sort,
     dir: controls.dir,
     page: controls.page,
@@ -1184,7 +1185,7 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
   const setPage = controls.setPage;
   useEffect(() => {
     setPage(1);
-  }, [selectedStatuses, assignee, dateRange, setPage]);
+  }, [selectedStatuses, assignee, includeCompletedPlanFailures, dateRange, setPage]);
   return (
     <div
       className="rounded-lg border border-border-base bg-bg-elevated p-4 shadow-1"
@@ -1211,6 +1212,8 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
           onProjectsChange={() => {}}
           assignee={assignee}
           onAssigneeChange={setAssignee}
+          includeCompletedPlanFailures={includeCompletedPlanFailures}
+          onIncludeCompletedPlanFailuresChange={setIncludeCompletedPlanFailures}
           dateRange={dateRange}
           onDateRangeChange={setDateRange}
         />
@@ -1286,7 +1289,16 @@ function TasksPanel({ projectId }: { projectId: string }): React.ReactElement {
                         muted text beneath; '—' when the task has no plan. */}
                     {tk.plan_id ? (
                       <span className="flex flex-col leading-tight">
-                        {tk.plan_name && <span className="text-text-secondary">{tk.plan_name}</span>}
+                        {tk.plan_name && (
+                          <span className="flex items-center gap-1 text-text-secondary">
+                            <span className="truncate">{tk.plan_name}</span>
+                            {tk.plan_status && (
+                              <span className="rounded bg-bg-subtle px-1 font-mono text-[0.5625rem] uppercase text-text-muted">
+                                {tk.plan_status}
+                              </span>
+                            )}
+                          </span>
+                        )}
                         <span className="font-mono text-[0.625rem] text-text-muted" data-testid="task-plan-id">
                           {tk.plan_id}
                         </span>

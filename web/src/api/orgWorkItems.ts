@@ -22,6 +22,8 @@ export interface OrgWorkItemFilters {
   status?: string[];
   /** assignee member-id or prefixed ref. */
   assignee?: string;
+  /** task lists only: include failed rows from plans that have already ended. */
+  include_completed_plan_failures?: boolean;
   // #258 date-range filters (PR #224). Each an ABSOLUTE RFC3339 instant carrying
   // the viewer's LOCAL offset (built via localDateToRFC3339 — NOT a naive date /
   // UTC midnight). The backend compares absolute instants. Each is optional and
@@ -51,6 +53,7 @@ export function buildWorkItemQuery(f?: OrgWorkItemFilters): string {
   for (const id of f.project ?? []) p.append('project', id);
   for (const s of f.status ?? []) p.append('status', s);
   if (f.assignee) p.set('assignee', f.assignee);
+  if (f.include_completed_plan_failures) p.set('include_completed_plan_failures', '1');
   // #258 date-range params — only appended when set (already RFC3339-local-offset).
   if (f.created_after) p.set('created_after', f.created_after);
   if (f.created_before) p.set('created_before', f.created_before);
@@ -74,13 +77,15 @@ export function buildWorkItemFilters(opts: {
   selectedStatuses: string[];
   selectedProjects: string[];
   assignee: string;
+  includeCompletedPlanFailures?: boolean;
   dateRange: DateRange;
 }): OrgWorkItemFilters | undefined {
-  const { selectedStatuses, selectedProjects, assignee, dateRange } = opts;
+  const { selectedStatuses, selectedProjects, assignee, includeCompletedPlanFailures, dateRange } = opts;
   const f: OrgWorkItemFilters = {};
   if (selectedStatuses.length > 0) f.status = selectedStatuses;
   if (selectedProjects.length > 0) f.project = selectedProjects;
   if (assignee) f.assignee = assignee;
+  if (includeCompletedPlanFailures) f.include_completed_plan_failures = true;
   const createdAfter = localDateToRFC3339(dateRange.created_after, 'start');
   const createdBefore = localDateToRFC3339(dateRange.created_before, 'end');
   const updatedAfter = localDateToRFC3339(dateRange.updated_after, 'start');

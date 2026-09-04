@@ -1,9 +1,13 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"testing"
+
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
+	pmservice "github.com/oopslink/agent-center/internal/projectmanager/service"
 )
 
 // TestPM_ListTasks_ExcludesTerminalByDefault is the v2.9.1 task-c91805fe guard: the
@@ -157,4 +161,120 @@ func TestListOrgTasks_StatusAll_IncludesTerminal_ForRefResolution(t *testing.T) 
 	if !all[openT] || !all[doneT] {
 		t.Fatalf("?status=all org list must include BOTH open and completed, got %+v", all)
 	}
+}
+
+func TestListTasks_HidesFailedTasksFromCompletedPlansByDefault(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	fx := setupPlanAPI(t, deps)
+	s := newTestServer(t, fx.deps)
+	defer s.Close()
+
+	presp := orgScopedPost(t, s.URL+"/api/projects", `{"name":"P"}`, sess)
+	if presp.StatusCode != http.StatusOK {
+		t.Fatalf("create project status=%d", presp.StatusCode)
+	}
+	var pc map[string]any
+	json.NewDecoder(presp.Body).Decode(&pc)
+	pid := pc["id"].(string)
+
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+	activePlan, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pm.ProjectID(pid), Name: "active", CreatedBy: caller})
+	if err != nil {
+		t.Fatalf("CreatePlan active: %v", err)
+	}
+	donePlan, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pm.ProjectID(pid), Name: "done", CreatedBy: caller})
+	if err != nil {
+		t.Fatalf("CreatePlan done: %v", err)
+	}
+	mkFailedTaskInPlan := func(title string, planID pm.PlanID) string {
+		tid, err := fx.deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pm.ProjectID(pid), Title: title, CreatedBy: caller})
+		if err != nil {
+			t.Fatalf("CreateTask %s: %v", title, err)
+		}
+		if err := fx.deps.PM.SelectTaskIntoPlan(ctx, planID, tid, caller); err != nil {
+			t.Fatalf("SelectTaskIntoPlan %s: %v", title, err)
+		}
+		assignee := string(caller)
+		if err := fx.deps.PM.BatchUpdateTask(ctx, tid, pmservice.BatchTaskPatch{Assignee: &assignee}, caller); err != nil {
+			t.Fatalf("BatchUpdateTask assignee %s: %v", title, err)
+		}
+		if err := fx.deps.PM.StartPlan(ctx, planID, caller); err != nil {
+			t.Fatalf("StartPlan %s: %v", planID, err)
+		}
+		if err := fx.deps.PM.FailTask(ctx, tid, "test failure", caller); err != nil {
+			t.Fatalf("FailTask %s: %v", title, err)
+		}
+		return string(tid)
+	}
+	activeFailed := mkFailedTaskInPlan("active failed", activePlan)
+	doneFailed := mkFailedTaskInPlan("done failed", donePlan)
+	if err := fx.deps.PM.CompletePlanWithOptions(ctx, donePlan, caller, pmservice.CompletePlanOptions{
+		Force:  true,
+		Reason: "historical failure accepted",
+	}); err != nil {
+		t.Fatalf("CompletePlanWithOptions done: %v", err)
+	}
+
+	projectList := func(query string) map[string]map[string]any {
+		resp := orgScopedGet(t, s.URL+"/api/projects/"+pid+"/tasks"+query, sess)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("project list %q status=%d", query, resp.StatusCode)
+		}
+		var l struct {
+			Tasks []map[string]any `json:"tasks"`
+			Total int              `json:"total"`
+		}
+		json.NewDecoder(resp.Body).Decode(&l)
+		if l.Total != len(l.Tasks) {
+			t.Fatalf("project list total=%d len=%d query=%q", l.Total, len(l.Tasks), query)
+		}
+		out := map[string]map[string]any{}
+		for _, tk := range l.Tasks {
+			out[tk["id"].(string)] = tk
+		}
+		return out
+	}
+	orgList := func(query string) map[string]map[string]any {
+		resp := orgScopedGet(t, s.URL+"/api/tasks"+query, sess)
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("org list %q status=%d", query, resp.StatusCode)
+		}
+		items := decodeItems(t, resp)
+		out := map[string]map[string]any{}
+		for _, tk := range items {
+			out[tk["id"].(string)] = tk
+		}
+		return out
+	}
+
+	def := projectList("")
+	if !containsTask(def, activeFailed) || containsTask(def, doneFailed) {
+		t.Fatalf("default project list should include active failed and hide completed-plan failed, got %+v", def)
+	}
+	inc := projectList("?include_completed_plan_failures=1")
+	if !containsTask(inc, activeFailed) || !containsTask(inc, doneFailed) {
+		t.Fatalf("include flag should surface both failed tasks, got %+v", inc)
+	}
+	if inc[doneFailed]["plan_status"] != "done" {
+		t.Fatalf("included historical row plan_status=%v want done", inc[doneFailed]["plan_status"])
+	}
+	explicitFailed := projectList("?status=failed")
+	if !containsTask(explicitFailed, doneFailed) {
+		t.Fatalf("explicit status=failed should still surface completed-plan failures, got %+v", explicitFailed)
+	}
+	orgDef := orgList("")
+	if !containsTask(orgDef, activeFailed) || containsTask(orgDef, doneFailed) {
+		t.Fatalf("default org list should include active failed and hide completed-plan failed, got %+v", orgDef)
+	}
+	orgInc := orgList("?include_completed_plan_failures=1")
+	if !containsTask(orgInc, activeFailed) || !containsTask(orgInc, doneFailed) {
+		t.Fatalf("include flag should surface both org failed tasks, got %+v", orgInc)
+	}
+}
+
+func containsTask(rows map[string]map[string]any, id string) bool {
+	_, ok := rows[id]
+	return ok
 }
