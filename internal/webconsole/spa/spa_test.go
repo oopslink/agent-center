@@ -75,6 +75,23 @@ func TestHandler_ServesAssetsVerbatim(t *testing.T) {
 	if !strings.Contains(string(body), "bundle") {
 		t.Fatalf("expected bundle content; got %q", body)
 	}
+	if cc := w.Header().Get("Cache-Control"); cc != "public, max-age=31536000, immutable" {
+		t.Fatalf("Cache-Control = %q, want immutable hashed-asset caching", cc)
+	}
+}
+
+func TestHandler_MissingAssetDoesNotFallbackToIndex(t *testing.T) {
+	h := HandlerFromFS(newSPAFs())
+	req := httptest.NewRequest(http.MethodGet, "/assets/InsightOverview-missing.js", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("got %d, want 404", w.Code)
+	}
+	body, _ := io.ReadAll(w.Body)
+	if strings.Contains(string(body), "id=root") {
+		t.Fatalf("missing asset must not serve SPA index; got %q", body)
+	}
 }
 
 func TestHandler_SPAFallbackForClientRoute(t *testing.T) {
