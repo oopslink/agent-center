@@ -46,6 +46,8 @@ const (
 	healthPath = "/health"
 	// concurrencyPath exposes the runtime's live executor snapshot to the worker heartbeat.
 	concurrencyPath = "/concurrency"
+	// executionStatePath exposes the supervisor-local task/executor/mapping view.
+	executionStatePath = "/execution-state"
 )
 
 // HealthResponse is the body of a GET /health probe: the agent id this process serves.
@@ -111,6 +113,13 @@ type Snapshotter interface {
 // source for /concurrency; Snapshotter remains for older handlers/tests.
 type AgentSnapshotter interface {
 	SnapshotAgentConcurrency() concurrency.AgentSnapshot
+}
+
+// ExecutionStateSnapshotter exposes the runtime-authoritative supervisor control
+// view. Unlike /concurrency, this is read by the supervisor's MCP host, not by the
+// center heartbeat.
+type ExecutionStateSnapshotter interface {
+	SnapshotExecutionState(ctx context.Context) (concurrency.ExecutionStateSnapshot, error)
 }
 
 // HandlerFunc adapts a function to Handler.
@@ -187,6 +196,7 @@ func NewServer(sockPath, agentID string, h Handler, log func(format string, args
 	mux.HandleFunc(controlPath, s.serveControl)
 	mux.HandleFunc(healthPath, s.serveHealth)
 	mux.HandleFunc(concurrencyPath, s.serveConcurrency)
+	mux.HandleFunc(executionStatePath, s.serveExecutionState)
 	s.srv = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	return s, nil
 }
@@ -227,6 +237,47 @@ func (s *Server) serveConcurrency(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(concurrency.AgentSnapshot{Active: len(execs), Executors: execs})
+}
+
+func (s *Server) serveExecutionState(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	snapper, ok := s.handler.(ExecutionStateSnapshotter)
+	if !ok {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(concurrency.ExecutionStateSnapshot{
+			AgentID:             s.agentID,
+			AvailableTasks:      []concurrency.TaskAuthorityRow{},
+			ActiveTasks:         []concurrency.ExecutionTaskRow{},
+			TaskExecutorMapping: []concurrency.TaskExecutorBinding{},
+			Executors:           []concurrency.ExecutorStateRow{},
+			Integrity:           "degraded",
+			IntegrityError:      "handler does not expose execution state",
+			UpdatedAt:           time.Now().UTC(),
+		})
+		return
+	}
+	snap, err := snapper.SnapshotExecutionState(r.Context())
+	if err != nil {
+		http.Error(w, "execution state failed: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	if snap.AvailableTasks == nil {
+		snap.AvailableTasks = []concurrency.TaskAuthorityRow{}
+	}
+	if snap.ActiveTasks == nil {
+		snap.ActiveTasks = []concurrency.ExecutionTaskRow{}
+	}
+	if snap.TaskExecutorMapping == nil {
+		snap.TaskExecutorMapping = []concurrency.TaskExecutorBinding{}
+	}
+	if snap.Executors == nil {
+		snap.Executors = []concurrency.ExecutorStateRow{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(snap)
 }
 
 func executablePath() string {
@@ -375,6 +426,28 @@ func (c *Client) SnapshotConcurrency(ctx context.Context) (concurrency.AgentSnap
 	var snap concurrency.AgentSnapshot
 	if err := json.NewDecoder(resp.Body).Decode(&snap); err != nil {
 		return concurrency.AgentSnapshot{}, fmt.Errorf("agentcontrol: concurrency: decode: %w", err)
+	}
+	return snap, nil
+}
+
+// SnapshotExecutionState returns the supervisor-local execution state from the
+// agent runtime control socket.
+func (c *Client) SnapshotExecutionState(ctx context.Context) (concurrency.ExecutionStateSnapshot, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://agent"+executionStatePath, nil)
+	if err != nil {
+		return concurrency.ExecutionStateSnapshot{}, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return concurrency.ExecutionStateSnapshot{}, fmt.Errorf("agentcontrol: execution state: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return concurrency.ExecutionStateSnapshot{}, fmt.Errorf("agentcontrol: execution state: agent returned %s", resp.Status)
+	}
+	var snap concurrency.ExecutionStateSnapshot
+	if err := json.NewDecoder(resp.Body).Decode(&snap); err != nil {
+		return concurrency.ExecutionStateSnapshot{}, fmt.Errorf("agentcontrol: execution state: decode: %w", err)
 	}
 	return snap, nil
 }

@@ -266,6 +266,7 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 		ClaudeBinary:       strings.TrimSpace(os.Getenv("AGENT_CENTER_CLAUDE_BINARY")),
 		CodexBinary:        strings.TrimSpace(os.Getenv("AGENT_CENTER_CODEX_BINARY")),
 		AgentHomeBase:      homeBase,
+		RuntimeSocket:      filepath.Join(opts.SockDir, agentcontrol.SocketName(opts.AgentID)),
 		Log:                func(f string, a ...any) { logf(fmt.Sprintf(f, a...)) },
 		DisableUsageReport: func() bool { return disableUsage },
 		TaskDirManager:     taskexec.NewDirManager(),
@@ -562,6 +563,13 @@ func (h agentControlHandler) SnapshotAgentConcurrency() concurrency.AgentSnapsho
 		return concurrency.AgentSnapshot{Executors: []concurrency.ExecutorSnapshot{}}
 	}
 	return h.rt.SnapshotAgentConcurrency()
+}
+
+func (h agentControlHandler) SnapshotExecutionState(ctx context.Context) (concurrency.ExecutionStateSnapshot, error) {
+	if h.rt == nil {
+		return concurrency.ExecutionStateSnapshot{Executors: []concurrency.ExecutorStateRow{}}, nil
+	}
+	return h.rt.SnapshotExecutionState(ctx)
 }
 
 // Handle decodes cmd.Payload — the RAW center command payload the worker proxied

@@ -83,6 +83,7 @@ type LocalRuntimeConfig struct {
 	ClaudeBinary      string
 	CodexBinary       string
 	AgentHomeBase     string
+	RuntimeSocket     string
 
 	// Log is the daemon's prefixed logger (== AgentController.log) so log lines stay
 	// byte-identical to before the move.
@@ -903,6 +904,7 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 		WorkerToken:       r.cfg.WorkerToken,
 		ServerFingerprint: r.cfg.ServerFingerprint,
 		AgentRoot:         tasksDir,
+		RuntimeSocket:     r.cfg.RuntimeSocket,
 		Generation:        plannedGeneration,
 	})
 	if err != nil {
@@ -912,7 +914,7 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 	if err != nil {
 		return fmt.Errorf("agent_controller: write mcp-config: %w", err)
 	}
-	if err := r.requireSupervisorMCP(ctx, agentID, tasksDir, true, []string{"post_message", "list_my_tasks", "search_tools"}); err != nil {
+	if err := r.requireSupervisorMCP(ctx, agentID, tasksDir, true, []string{"post_message", "list_my_execution_state", "list_my_tasks", "search_tools"}); err != nil {
 		return err
 	}
 
@@ -1062,6 +1064,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		WorkerToken:        r.cfg.WorkerToken,
 		ServerFingerprint:  r.cfg.ServerFingerprint,
 		AgentRoot:          tasksDir,
+		RuntimeSocket:      r.cfg.RuntimeSocket,
 		Generation:         plannedGeneration,
 		DisableToolTiering: true,
 	})
@@ -1102,6 +1105,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	})
 	if err := r.requireSupervisorMCP(ctx, agentID, tasksDir, false, []string{
 		"post_message",
+		"list_my_execution_state",
 		"list_my_tasks",
 		"get_my_profile",
 		"get_plan",
@@ -1564,7 +1568,7 @@ func (r *LocalRuntime) NotifyWorkAvailable(ctx context.Context, taskID string) e
 }
 
 func workAvailableBrief(taskID string) string {
-	return fmt.Sprintf("[work_available] Task %s is assigned to you.\n\nDecide in this supervisor session: inspect it with get_task/list_my_tasks, handle it inline when it is a supervisor/control task, or call fork_executor(task_id=%q) when it should run in an isolated executor. Do not complete the task until you have judged the result.", taskID, taskID)
+	return fmt.Sprintf("[work_available] Task %s is assigned to you.\n\nDecide in this supervisor session: first call list_my_execution_state, inspect task details with get_task only as needed, handle it inline when it is a supervisor/control task, or call fork_executor(task_id=%q) when it should run in an isolated executor. Do not complete the task until you have judged the result.", taskID, taskID)
 }
 
 // cloneEnv duplicates an env overlay (nil-safe).

@@ -87,6 +87,10 @@ type Runtime interface {
 
 	// SnapshotConcurrency: heartbeat 上报的实时 executor 视图。
 	SnapshotConcurrency() []concurrency.ExecutorSnapshot
+
+	// SnapshotExecutionState returns the supervisor-local execution control view:
+	// center task authority plus runtime-owned executor/mapping truth.
+	SnapshotExecutionState(ctx context.Context) (concurrency.ExecutionStateSnapshot, error)
 }
 
 // WorkRequest is the runtime-facing form of an agent.work command. It mirrors the

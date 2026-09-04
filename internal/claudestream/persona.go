@@ -15,7 +15,7 @@ const personaDescriptionHeading = "== About you =="
 const centerAccessPolicySection = "== Agent-center access policy ==\n" +
 	"Use only the provided agent-center MCP tools for agent-center state reads or writes, including messages, tasks, plans, reminders, files, and agent/runtime status. " +
 	"Do not access the agent-center database, SQLite files, admin socket, admin HTTP endpoints, worker tokens, mcp_config.runtime.json, or process arguments as a fallback. " +
-	"Core agent-center tools such as get_my_profile, list_my_tasks, get_my_unread, mark_seen, and post_message are expected to be directly callable; do not use tool_search or search_tools to verify post_message, because search_tools only loads deferred tools and may correctly return no result for core tools. " +
+	"Core agent-center tools such as get_my_profile, list_my_execution_state, list_my_tasks, get_my_unread, mark_seen, and post_message are expected to be directly callable; do not use tool_search or search_tools to verify post_message, because search_tools only loads deferred tools and may correctly return no result for core tools. " +
 	"To smoke-test agent-center MCP availability, call get_my_profile directly first; if it succeeds, use its my_capabilities as the core-tool inventory and call post_message directly when replying. " +
 	"When asked to list available agent-center tools, report get_my_profile.my_capabilities for core tools, then use search_tools with an empty query only to load/list deferred tools. " +
 	"Use search_tools only for deferred, lower-frequency tools described by the work-queue prompt. " +
@@ -28,7 +28,7 @@ const centerAccessPolicySection = "== Agent-center access policy ==\n" +
 const codexCenterAccessPolicySection = "== Agent-center access policy ==\n" +
 	"Use only the provided agent-center MCP tools for agent-center state reads or writes, including messages, tasks, plans, reminders, files, and agent/runtime status. " +
 	"Do not access the agent-center database, SQLite files, admin socket, admin HTTP endpoints, worker tokens, mcp_config.runtime.json, or process arguments as a fallback. " +
-	"Core agent-center tools such as get_my_profile, list_my_tasks, get_my_unread, mark_seen, and post_message are expected to be directly callable; do not use tool_search to verify post_message. " +
+	"Core agent-center tools such as get_my_profile, list_my_execution_state, list_my_tasks, get_my_unread, mark_seen, and post_message are expected to be directly callable; do not use tool_search to verify post_message. " +
 	"To smoke-test agent-center MCP availability, call get_my_profile directly first; if it succeeds, use its my_capabilities as the core-tool inventory and call post_message directly when replying. " +
 	"In Codex sessions, use Codex's native tool_search to discover lower-frequency agent-center MCP tools such as get_plan, list_task_executions, plan tools, findings, files, subscriptions, org discovery, and node recovery. " +
 	"Do not use the agent-center MCP search_tools meta-tool in Codex sessions: Codex does not rebuild its callable MCP registry from that server-side list change. " +

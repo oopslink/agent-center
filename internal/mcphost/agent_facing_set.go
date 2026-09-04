@@ -76,6 +76,7 @@ var AgentFacingToolNames = []string{
 	"get_my_profile",
 	"get_my_unread",
 	"list_my_tasks", // v2.14.0 I14/F5 §五/§13.A: the agent's runnable-task queue (replaces get_my_work)
+	"list_my_execution_state",
 	"get_plan",
 	"get_task",
 	"get_task_audit",
@@ -137,12 +138,14 @@ var AgentFacingToolNames = []string{
 	"assign_roles",
 }
 
-// FilesSeamTools are the agent-facing tools that move BYTES through the FileMover
-// seam (NewServer's Files dep) rather than proxying to an /admin/agent-tools/<name>
-// HTTP endpoint via callAdmin. They are the legitimate EXCEPTION to the
-// reverse-lockstep half of the parity guard: every other AgentFacingToolNames entry
-// maps 1:1 to a /admin/agent-tools/<name> admin route, but these do not (download_file
-// proxies to GET /admin/files/{ulid}). Keep this list minimal and explicit.
+// FilesSeamTools are the agent-facing tools that use a local daemon/runtime seam
+// rather than proxying to an /admin/agent-tools/<name> HTTP endpoint via callAdmin.
+// They are the legitimate EXCEPTION to the reverse-lockstep half of the parity
+// guard: every other AgentFacingToolNames entry maps 1:1 to a
+// /admin/agent-tools/<name> admin route, but these do not (download_file proxies to
+// GET /admin/files/{ulid}; list_my_execution_state reads the local runtime socket).
+// Keep this list minimal and explicit.
 var FilesSeamTools = []string{
 	"download_file",
+	"list_my_execution_state",
 }

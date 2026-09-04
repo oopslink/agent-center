@@ -72,8 +72,9 @@ var toolDomain = map[string]string{
 	// identity / discovery
 	"get_my_profile": "identity", "find_org_agent": "identity", "find_org_channel": "identity",
 	// work queue
-	"get_my_work": "work_queue", "start_task": "work_queue",
+	"get_my_work": "work_queue", "list_my_tasks": "work_queue", "list_my_execution_state": "work_queue", "start_task": "work_queue",
 	"pause_task": "work_queue", "resume_task": "work_queue", "claim_task": "work_queue",
+	"fork_executor": "work_queue",
 	// tasks & issues
 	"get_task": "tasks_issues", "list_tasks": "tasks_issues", "create_task": "tasks_issues",
 	"update_task": "tasks_issues", "assign_task": "tasks_issues", "reassign_task": "tasks_issues", "complete_task": "tasks_issues",

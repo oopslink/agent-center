@@ -70,6 +70,116 @@ type AgentSnapshot struct {
 	Slots          []SlotSnapshot     `json:"slots,omitempty"`
 }
 
+// Execution state enums are the supervisor-control read model. They deliberately
+// separate center task authority from runtime executor authority.
+const (
+	ExecutionModeNone     = "none"
+	ExecutionModeInline   = "inline"
+	ExecutionModeExecutor = "executor"
+
+	ExecutorStateNone        = "none"
+	ExecutorStateActive      = "active"
+	ExecutorStateTerminal    = "terminal"
+	ExecutorStateStale       = "stale"
+	ExecutorStateNonDelivery = "non_delivery"
+	ExecutorStateUnknown     = "unknown"
+
+	DeliveryStateNone    = "none"
+	DeliveryStateValid   = "valid"
+	DeliveryStateInvalid = "invalid"
+	DeliveryStateUnknown = "unknown"
+
+	NextActionForkExecutor      = "fork_executor"
+	NextActionHandleInline      = "handle_inline"
+	NextActionWaitExecutor      = "wait_executor"
+	NextActionJudgeExecutor     = "judge_executor"
+	NextActionRepairNonDelivery = "repair_non_delivery"
+	NextActionResetStale        = "reset_stale_executor"
+)
+
+// ExecutionStateSnapshot is the runtime-local control-plane view a supervisor should
+// read before deciding work. Center-sourced fields answer "what tasks are assigned
+// and runnable"; runtime-sourced fields answer "what this agent is actually doing".
+type ExecutionStateSnapshot struct {
+	AgentID             string                `json:"agent_id"`
+	AvailableTasks      []TaskAuthorityRow    `json:"available_tasks"`
+	ActiveTasks         []ExecutionTaskRow    `json:"active_tasks"`
+	TaskExecutorMapping []TaskExecutorBinding `json:"task_executor_mapping"`
+	Executors           []ExecutorStateRow    `json:"executors"`
+	Integrity           string                `json:"integrity,omitempty"`
+	IntegrityError      string                `json:"integrity_error,omitempty"`
+	UpdatedAt           time.Time             `json:"updated_at"`
+}
+
+// TaskAuthorityRow is a center-authority task projection. Runnable means the center
+// currently considers it eligible to start; running is only a task-layer occupancy
+// projection, not executor liveness.
+type TaskAuthorityRow struct {
+	TaskID             string `json:"task_id"`
+	Title              string `json:"title,omitempty"`
+	Status             string `json:"status,omitempty"`
+	Runnable           bool   `json:"runnable"`
+	RequiredNextAction string `json:"required_next_action,omitempty"`
+	BlockedReason      string `json:"blocked_reason,omitempty"`
+	BlockedReasonType  string `json:"blocked_reason_type,omitempty"`
+	BlockedComment     string `json:"blocked_comment,omitempty"`
+	LeaseExpiresAt     string `json:"lease_expires_at,omitempty"`
+}
+
+// ExecutionTaskRow is a task row annotated with runtime-owned execution truth and
+// the one primary action the supervisor should take next.
+type ExecutionTaskRow struct {
+	TaskID             string              `json:"task_id"`
+	Title              string              `json:"title,omitempty"`
+	TaskStatus         string              `json:"task_status,omitempty"`
+	Runnable           bool                `json:"runnable"`
+	ExecutionMode      string              `json:"execution_mode"`
+	ExecutorID         string              `json:"executor_id,omitempty"`
+	ExecutorState      string              `json:"executor_state"`
+	DeliveryState      string              `json:"delivery_state"`
+	Worktree           string              `json:"worktree,omitempty"`
+	RequiredNextAction string              `json:"required_next_action"`
+	Evidence           []ExecutionEvidence `json:"evidence,omitempty"`
+}
+
+// TaskExecutorBinding is the canonical runtime mapping projected for the
+// supervisor. An empty ExecutorID with mode=inline means the supervisor owns that
+// task in-process.
+type TaskExecutorBinding struct {
+	TaskID        string    `json:"task_id"`
+	Mode          string    `json:"mode"`
+	ExecutorID    string    `json:"executor_id,omitempty"`
+	ExecutorState string    `json:"executor_state,omitempty"`
+	UpdatedAt     time.Time `json:"updated_at,omitempty"`
+}
+
+// ExecutorStateRow is runtime executor authority, enriched from the local file
+// protocol when available.
+type ExecutorStateRow struct {
+	ExecutorID      string              `json:"executor_id"`
+	TaskID          string              `json:"task_id,omitempty"`
+	SlotIndex       *int                `json:"slot_index,omitempty"`
+	State           string              `json:"state"`
+	PID             int                 `json:"pid,omitempty"`
+	StartedAt       time.Time           `json:"started_at,omitempty"`
+	LastProgressAt  *time.Time          `json:"last_progress_at,omitempty"`
+	CurrentActivity string              `json:"current_activity,omitempty"`
+	CLI             string              `json:"cli,omitempty"`
+	Model           string              `json:"model,omitempty"`
+	Worktree        string              `json:"worktree,omitempty"`
+	DeliveryState   string              `json:"delivery_state,omitempty"`
+	ReasonCodes     []string            `json:"reason_codes,omitempty"`
+	RequiredAction  string              `json:"required_action,omitempty"`
+	Evidence        []ExecutionEvidence `json:"evidence,omitempty"`
+}
+
+// ExecutionEvidence carries concise machine-readable reasons behind a row's state.
+type ExecutionEvidence struct {
+	Source  string `json:"source"`
+	Kind    string `json:"kind"`
+	Message string `json:"message,omitempty"`
+}
+
 // LiveStateStore keeps the latest per-agent snapshot the center received on a
 // heartbeat. The interface is small + behind a port so a future backend (Redis /
 // shared cache for a multi-process center) can replace the in-memory default.

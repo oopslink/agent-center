@@ -18,6 +18,7 @@
 //	AC_MCP_WORKER_TOKEN       worker bearer token (owner worker:<id>)
 //	AC_MCP_SERVER_FINGERPRINT pinned cert fingerprint (required for tcp://)
 //	AC_MCP_AGENT_ROOT         agent workspace root (file-tool containment)
+//	AC_MCP_RUNTIME_SOCKET    local agent-runtime control socket
 //	AC_MCP_TIER_TOOLS         optional bool; false exposes the full catalog
 //	AC_MCP_GENERATION         supervisor generation that owns this host process
 package mcphost
@@ -52,6 +53,7 @@ type MCPConfigParams struct {
 	WorkerToken       string
 	ServerFingerprint string
 	AgentRoot         string
+	RuntimeSocket     string
 	Generation        int
 	// DisableToolTiering sets AC_MCP_TIER_TOOLS=false for clients that already
 	// have their own deferred-tool mechanism. Codex is one such client: it only
@@ -73,6 +75,9 @@ func BuildMCPConfig(p MCPConfigParams) MCPConfig {
 	}
 	if p.DisableToolTiering {
 		env["AC_MCP_TIER_TOOLS"] = "false"
+	}
+	if p.RuntimeSocket != "" {
+		env["AC_MCP_RUNTIME_SOCKET"] = p.RuntimeSocket
 	}
 	return MCPConfig{
 		MCPServers: map[string]MCPServerSpec{

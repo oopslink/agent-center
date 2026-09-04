@@ -366,7 +366,7 @@ func mentionsAgentCenterCoreTool(s string) bool {
 	if !strings.Contains(s, "agent-center") && !strings.Contains(s, "agent_center") {
 		return false
 	}
-	for _, tool := range []string{"get_my_profile", "post_message", "list_my_tasks", "list_messages", "search_tools", "get_plan"} {
+	for _, tool := range []string{"get_my_profile", "post_message", "list_my_execution_state", "list_my_tasks", "list_messages", "search_tools", "get_plan"} {
 		if strings.Contains(s, tool) {
 			return true
 		}

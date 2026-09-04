@@ -97,6 +97,10 @@ type Config struct {
 	// stamped onto the frozen plan-rule snapshot so audits can distinguish a
 	// reused planning session from a fresh supervisor generation reload.
 	Generation int
+	// RuntimeSocket is the local agent-runtime control socket. Tools that need
+	// runtime authority, such as list_my_execution_state, read through this instead
+	// of querying executor state from the center.
+	RuntimeSocket string
 
 	planningRules *planningRuleCache
 }
@@ -145,6 +149,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 		Name:        "list_my_tasks",
 		Description: "Your single \"what do I have to do?\" query. Returns the open/running tasks assigned to you that are runnable now (their dependencies are satisfied) — each with task_id, title, status, lease_expires_at, and any legacy blocked_reason fields. start_task one (by task_id) to begin it. Call it at the start of your loop and after finishing a task.",
 	}, makeListMyTasks(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "list_my_execution_state",
+		Description: "Supervisor-first control view. Call this at the start of every supervisor loop before list_my_tasks. It combines center task authority (available/runnable/assigned/running task rows) with this runtime's executor authority (active/terminal/stale/non_delivery executors, task_executor_mapping, delivery evidence) and returns required_next_action for each active task: fork_executor, wait_executor, judge_executor, repair_non_delivery, reset_stale_executor, or handle_inline. Executor liveness comes from the local agent-runtime, not the center.",
+	}, makeListMyExecutionState(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "fork_executor",

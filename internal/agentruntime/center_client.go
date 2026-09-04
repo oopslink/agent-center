@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/agentruntime/orchestrator"
+	"github.com/oopslink/agent-center/internal/concurrency"
 )
 
 // ToolCaller is the narrow seam the writeback adapter needs from the admin client:
@@ -127,8 +128,15 @@ type InflightTaskLister interface {
 	ListMyInflightTasks(ctx context.Context, agentID string) ([]InflightTask, error)
 }
 
+// RunnableTaskLister reads the center's runnable assigned task queue. This is task
+// authority only; executor truth remains runtime-local.
+type RunnableTaskLister interface {
+	ListMyRunnableTasks(ctx context.Context, agentID string) ([]concurrency.TaskAuthorityRow, error)
+}
+
 // compile-time check.
 var _ InflightTaskLister = (*centerClientAdapter)(nil)
+var _ RunnableTaskLister = (*centerClientAdapter)(nil)
 
 // NewInflightTaskLister wraps a ToolCaller as an InflightTaskLister (nil ⇒ nil, matching
 // newCenterClient's graceful-degrade contract). The reconcile pass builds one from the
@@ -138,6 +146,38 @@ func NewInflightTaskLister(caller ToolCaller) InflightTaskLister {
 		return nil
 	}
 	return &centerClientAdapter{caller: caller}
+}
+
+func NewRunnableTaskLister(caller ToolCaller) RunnableTaskLister {
+	if caller == nil {
+		return nil
+	}
+	return &centerClientAdapter{caller: caller}
+}
+
+// ListMyRunnableTasks → POST /admin/agent-tools/list_my_tasks {agent_id}. It
+// returns center-authoritative runnable/open/running rows for this agent.
+func (a *centerClientAdapter) ListMyRunnableTasks(ctx context.Context, agentID string) ([]concurrency.TaskAuthorityRow, error) {
+	body := map[string]any{"agent_id": agentID}
+	var raw json.RawMessage
+	if err := a.caller.CallAgentTool(ctx, "list_my_tasks", body, &raw); err != nil {
+		return nil, err
+	}
+	var resp struct {
+		Tasks []concurrency.TaskAuthorityRow `json:"tasks"`
+	}
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &resp); err != nil {
+			return nil, fmt.Errorf("agentruntime: list_my_tasks: decode response: %w", err)
+		}
+	}
+	if resp.Tasks == nil {
+		resp.Tasks = []concurrency.TaskAuthorityRow{}
+	}
+	for i := range resp.Tasks {
+		resp.Tasks[i].Runnable = true
+	}
+	return resp.Tasks, nil
 }
 
 // ListMyInflightTasks → POST /admin/agent-tools/list_my_inflight_tasks {agent_id}. The

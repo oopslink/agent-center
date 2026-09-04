@@ -509,6 +509,7 @@ func TestGenerateMCPConfig(t *testing.T) {
 		WorkerToken:       "tok-abc",
 		ServerFingerprint: "SHA256:deadbeef",
 		AgentRoot:         "/ws/agent-42",
+		RuntimeSocket:     "/tmp/agent-42.sock",
 	})
 	if err != nil {
 		t.Fatalf("generate: %v", err)
@@ -541,6 +542,7 @@ func TestGenerateMCPConfig(t *testing.T) {
 		"AC_MCP_WORKER_TOKEN":       "tok-abc",
 		"AC_MCP_SERVER_FINGERPRINT": "SHA256:deadbeef",
 		"AC_MCP_AGENT_ROOT":         "/ws/agent-42",
+		"AC_MCP_RUNTIME_SOCKET":     "/tmp/agent-42.sock",
 	}
 	for k, v := range wantEnv {
 		if got := srv.Env[k]; got != v {

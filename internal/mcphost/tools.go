@@ -26,8 +26,12 @@ package mcphost
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 )
 
 const (
@@ -447,6 +451,39 @@ func makeListMyTasks(cfg Config) mcp.ToolHandlerFor[listMyTasksArgs, any] {
 		body := map[string]any{"agent_id": cfg.AgentID}
 		return callAdmin(ctx, cfg, "list_my_tasks", body)
 	}
+}
+
+// --- list_my_execution_state -------------------------------------------------
+
+type listMyExecutionStateArgs struct{}
+
+func makeListMyExecutionState(cfg Config) mcp.ToolHandlerFor[listMyExecutionStateArgs, any] {
+	return func(ctx context.Context, _ *mcp.CallToolRequest, _ listMyExecutionStateArgs) (*mcp.CallToolResult, any, error) {
+		sock := strings.TrimSpace(cfg.RuntimeSocket)
+		if sock == "" {
+			return &mcp.CallToolResult{
+				IsError: true,
+				Content: []mcp.Content{&mcp.TextContent{Text: `{"error":"runtime_socket_unavailable","message":"AC_MCP_RUNTIME_SOCKET is not set; cannot read runtime-local execution state"}`}},
+			}, nil, nil
+		}
+		state, err := agentcontrol.NewClient(sock, 5*time.Second).SnapshotExecutionState(ctx)
+		if err != nil {
+			return &mcp.CallToolResult{
+				IsError: true,
+				Content: []mcp.Content{&mcp.TextContent{Text: `{"error":"runtime_execution_state_unavailable","message":` + quoteJSONString(err.Error()) + `}`}},
+			}, nil, nil
+		}
+		raw, err := json.Marshal(state)
+		if err != nil {
+			return nil, nil, err
+		}
+		return &mcp.CallToolResult{Content: []mcp.Content{&mcp.TextContent{Text: adminToolResultText(raw)}}}, nil, nil
+	}
+}
+
+func quoteJSONString(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }
 
 // --- start_task (v2.14.0 I14/F5 §五 — task_id pull model) --------------------

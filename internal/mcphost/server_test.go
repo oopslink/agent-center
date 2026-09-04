@@ -3,10 +3,15 @@ package mcphost
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/oopslink/agent-center/internal/concurrency"
+	"github.com/oopslink/agent-center/internal/workerdaemon/agentcontrol"
 )
 
 func TestForkExecutorTool_StatesAdmissionContract(t *testing.T) {
@@ -27,6 +32,55 @@ func TestForkExecutorTool_StatesAdmissionContract(t *testing.T) {
 		return
 	}
 	t.Fatal("fork_executor tool missing")
+}
+
+type executionStateHandler struct {
+	snap concurrency.ExecutionStateSnapshot
+}
+
+func (h executionStateHandler) Handle(context.Context, agentcontrol.Command) error { return nil }
+
+func (h executionStateHandler) SnapshotExecutionState(context.Context) (concurrency.ExecutionStateSnapshot, error) {
+	return h.snap, nil
+}
+
+func TestListMyExecutionState_ReadsRuntimeSocket(t *testing.T) {
+	sock := fmt.Sprintf("/tmp/ac-mcp-exec-state-%d.sock", os.Getpid())
+	_ = os.Remove(sock)
+	srv, err := agentcontrol.NewServer(sock, "agent-1", executionStateHandler{
+		snap: concurrency.ExecutionStateSnapshot{
+			AgentID: "agent-1",
+			ActiveTasks: []concurrency.ExecutionTaskRow{{
+				TaskID:             "task-1",
+				ExecutionMode:      concurrency.ExecutionModeExecutor,
+				ExecutorID:         "exec-1",
+				ExecutorState:      concurrency.ExecutorStateNonDelivery,
+				DeliveryState:      concurrency.DeliveryStateInvalid,
+				RequiredNextAction: concurrency.NextActionRepairNonDelivery,
+			}},
+			UpdatedAt: time.Unix(1, 0).UTC(),
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	defer func() { _ = srv.Close(context.Background()); _ = os.Remove(sock) }()
+	go func() { _ = srv.Serve() }()
+
+	cs := connect(t, Config{AgentID: "agent-1", Admin: &fakeAdmin{}, RuntimeSocket: sock})
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_my_execution_state"})
+	if err != nil {
+		t.Fatalf("call list_my_execution_state: %v", err)
+	}
+	var body struct {
+		ActiveTasks []concurrency.ExecutionTaskRow `json:"active_tasks"`
+	}
+	if err := json.Unmarshal([]byte(textContent(t, res)), &body); err != nil {
+		t.Fatalf("decode result: %v", err)
+	}
+	if len(body.ActiveTasks) != 1 || body.ActiveTasks[0].RequiredNextAction != concurrency.NextActionRepairNonDelivery {
+		t.Fatalf("active_tasks = %+v", body.ActiveTasks)
+	}
 }
 
 func TestResetTaskTool_StatesSupervisorMustFork(t *testing.T) {
@@ -150,6 +204,8 @@ func textContent(t *testing.T, res *mcp.CallToolResult) string {
 var wantTools = []string{
 	// v2.14.0 I14/F5 §五/§13.A: the agent's runnable-task queue (replaces get_my_work)
 	"list_my_tasks",
+	// Supervisor runtime-local task/executor/mapping control view.
+	"list_my_execution_state",
 	// Supervisor dispatch decision: explicit fork, never automatic from work_available.
 	"fork_executor",
 	// v2.14.0 I14/F5 §五: agent drives its own task queue by task_id (open→running + lease)

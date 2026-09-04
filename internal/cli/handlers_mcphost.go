@@ -34,6 +34,8 @@ import (
 //   - AC_MCP_WORKER_TOKEN worker bearer token (owner worker:<id>).
 //   - AC_MCP_SERVER_FINGERPRINT  pinned cert fingerprint, required when
 //     AC_MCP_ADMIN_URL is tcp://...
+//   - AC_MCP_RUNTIME_SOCKET optional local runtime control socket for
+//     runtime-authoritative supervisor execution state.
 //   - AC_MCP_TIER_TOOLS optional bool, default true. Set false only for
 //     clients that already own deferred MCP discovery.
 //   - AC_MCP_GENERATION optional non-negative int identifying the launching
@@ -47,7 +49,8 @@ func MCPHostCommand() *Command {
 			"is injected into every admin call and is never taken from tool args. " +
 			"Reads AC_MCP_AGENT_ID, AC_MCP_ADMIN_URL, AC_MCP_WORKER_TOKEN " +
 			"(+ AC_MCP_SERVER_FINGERPRINT for tcp://, + AC_MCP_AGENT_ROOT for the " +
-			"file tools' workspace containment, + AC_MCP_GENERATION for plan-rule " +
+			"file tools' workspace containment, + AC_MCP_RUNTIME_SOCKET for " +
+			"runtime-local execution state, + AC_MCP_GENERATION for plan-rule " +
 			"snapshot auditing) from the environment.",
 		Flags: func(fs *flag.FlagSet) Handler {
 			return func(ctx context.Context, args []string, out, errw io.Writer) ExitCode {
@@ -78,6 +81,7 @@ func runMCPHost(ctx context.Context, errw io.Writer) ExitCode {
 	// for path containment. Optional: when empty the file tools fail
 	// containment with a clear error (they are not hard-required to start).
 	agentRoot := strings.TrimSpace(os.Getenv("AC_MCP_AGENT_ROOT"))
+	runtimeSocket := strings.TrimSpace(os.Getenv("AC_MCP_RUNTIME_SOCKET"))
 	tierTools, err := mcpHostTierToolsFromEnv()
 	if err != nil {
 		fmt.Fprintf(errw, "Error: mcp_host: %v\n", err)
@@ -106,12 +110,13 @@ func runMCPHost(ctx context.Context, errw io.Writer) ExitCode {
 	fileClient := workerdaemon.NewFileTransferClient(adminClient)
 
 	srv := mcphost.NewServer(mcphost.Config{
-		AgentID:    agentID,
-		Admin:      adminClient,
-		AgentRoot:  agentRoot,
-		Files:      fileClient,
-		TierTools:  tierTools,
-		Generation: generation,
+		AgentID:       agentID,
+		Admin:         adminClient,
+		AgentRoot:     agentRoot,
+		Files:         fileClient,
+		TierTools:     tierTools,
+		Generation:    generation,
+		RuntimeSocket: runtimeSocket,
 	})
 
 	// SIGINT/SIGTERM cancels the run ctx so Server.Run closes the stdio
