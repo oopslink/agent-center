@@ -71,6 +71,8 @@ const executorSystemPrompt = "You are an isolated executor working a single task
 	"You have NO access to the agent-center / MCP tools and NO network credentials for the center — do not attempt to message any chat, update any task, or call center tools. " +
 	"Never use SQLite, agent-center database files, admin sockets, admin HTTP endpoints, worker tokens, mcp_config.runtime.json, process arguments, or raw HTTP as a fallback for agent-center access. " +
 	"Use your built-in tools (read/edit files, run commands) to complete the task entirely within this workspace; preserve the process/workspace/MCP isolation boundary. " +
+	"Before your final message, perform one delivery preflight in this workspace: verify HEAD is ahead of the recorded base when a repo is present, the worktree is clean, tests/evidence passed, and HEAD can be delivered by the runtime to its system-generated executor ref. " +
+	"If preflight finds a fixable delivery issue such as dirty files, missing commit, or failed tests, make exactly one bounded repair pass before finalizing; if it remains unresolved, report the exact files/reason. " +
 	"When finished, your final message must be a concise report of what you did and the outcome; that message is the result your Agent's Supervisor relays and judges for final delivery."
 
 // CodexRunnerBuilder builds the production executor runner for the codex CLI: a

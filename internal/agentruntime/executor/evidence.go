@@ -264,6 +264,11 @@ func (m *Monitor) evidenceNonDelivery(c Completion, reason string) Completion {
 		return c
 	}
 	c.Kind, c.Retryable = OutcomeNonDelivery, true
-	c.Error = &ErrorDetail{Kind: "non_delivery", Message: "evidence_only result has no durable artifact: " + reason}
+	c.Error = &ErrorDetail{
+		Kind:        "non_delivery",
+		Message:     "evidence_only result has no durable artifact: " + reason,
+		ReasonCodes: []string{"evidence_artifact_missing"},
+		NextAction:  "produce and persist the required evidence artifact, then retry or register manual recovery delivery with evidence",
+	}
 	return c
 }

@@ -573,7 +573,8 @@ func makeHeartbeat(cfg Config) mcp.ToolHandlerFor[heartbeatArgs, any] {
 // --- reset_task / rerun_failed_node (v2.9.1 P0 recovery) ---------------------
 
 type resetTaskArgs struct {
-	TaskID string `json:"task_id" jsonschema:"the orphaned running task to reset back to the pool"`
+	TaskID        string `json:"task_id" jsonschema:"the orphaned running task to reset back to the pool"`
+	ConfirmedDead bool   `json:"confirmed_dead,omitempty" jsonschema:"set true only after get_task_execution/list_task_executions shows this Agent's executor is dead, stale, or recovery_required; lets the owner bypass a still-live self-renewed lease"`
 }
 
 // makeResetTask resets a confirmed-dead running task back to the pool (running→open,
@@ -582,8 +583,9 @@ type resetTaskArgs struct {
 func makeResetTask(cfg Config) mcp.ToolHandlerFor[resetTaskArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args resetTaskArgs) (*mcp.CallToolResult, any, error) {
 		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"task_id":  args.TaskID,
+			"agent_id":       cfg.AgentID,
+			"task_id":        args.TaskID,
+			"confirmed_dead": args.ConfirmedDead,
 		}
 		return callAdmin(ctx, cfg, "reset_task", body)
 	}

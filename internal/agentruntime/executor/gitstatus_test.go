@@ -339,6 +339,15 @@ func TestMonitor_Finalize_DirtyPushedHeadIsNonDeliveryWithPaths(t *testing.T) {
 	if !strings.Contains(got.Error.Message, "dirty paths: dirty.txt") {
 		t.Fatalf("dirty path missing from non_delivery message: %q", got.Error.Message)
 	}
+	if got.Git.Worktree != ws {
+		t.Fatalf("retained worktree path not carried in git status: got %q want %q", got.Git.Worktree, ws)
+	}
+	if strings.Join(got.Error.ReasonCodes, ",") != "worktree_dirty" {
+		t.Fatalf("dirty non_delivery reason codes = %v", got.Error.ReasonCodes)
+	}
+	if !strings.Contains(got.Error.NextAction, "commit or discard dirty worktree changes") {
+		t.Fatalf("dirty non_delivery next action missing repair guidance: %q", got.Error.NextAction)
+	}
 	d, _ := f.fx.Layout().Dir(id)
 	if _, err := os.Stat(d); err != nil {
 		t.Fatalf("dirty non_delivery must retain executor dir: %v", err)

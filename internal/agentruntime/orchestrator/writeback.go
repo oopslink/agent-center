@@ -444,6 +444,12 @@ func deliveryLine(git *executor.FinalizedGitStatus) string {
 	} else if git.Pushed {
 		line += " The branch is on origin — check it out / merge it to review the delivery."
 	}
+	if git.Dirty && len(git.DirtyPaths) > 0 {
+		line += " Dirty paths: " + strings.Join(git.DirtyPaths, ", ") + "."
+	}
+	if git.Worktree != "" && (!git.Pushed || git.Dirty || git.PushError != "") {
+		line += " Retained worktree: " + git.Worktree + "."
+	}
 	return "\n" + line
 }
 
@@ -587,6 +593,12 @@ func failureReason(c executor.Completion) string {
 			b.WriteString("[" + k + "] ")
 		}
 		b.WriteString(c.Error.Message)
+		if len(c.Error.ReasonCodes) > 0 {
+			b.WriteString(" reason_codes=" + strings.Join(c.Error.ReasonCodes, ","))
+		}
+		if next := strings.TrimSpace(c.Error.NextAction); next != "" {
+			b.WriteString(" next_action=" + next)
+		}
 	} else {
 		b.WriteString("no error detail reported")
 	}

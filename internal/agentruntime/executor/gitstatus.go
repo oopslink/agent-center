@@ -38,6 +38,9 @@ type FinalizedGitStatus struct {
 	// DirtyPaths is the bounded porcelain path list captured with Dirty=true so a
 	// non_delivery report names what must be repaired while the worktree is retained.
 	DirtyPaths []string `json:"dirty_paths,omitempty"`
+	// Worktree is the local path retained for non_delivery/manual recovery inspection.
+	// It is diagnostic evidence only, not a delivery credential.
+	Worktree string `json:"worktree,omitempty"`
 	// Pushed is a local remote-tracking hint when set by probeGitStatus. Before the delivery
 	// gate accepts it, eagerSupervisorPush replaces that hint with an independently verified
 	// actual origin ref + exact HEAD SHA (and also covers mirror-backed worktrees).

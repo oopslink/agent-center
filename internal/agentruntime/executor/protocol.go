@@ -68,8 +68,10 @@ func (s State) Valid() bool {
 // Kind is the machine-readable reason enum the orchestrator routes on; Message is
 // the human-readable detail relayed to chat / inspect / logs.
 type ErrorDetail struct {
-	Kind    string `json:"kind"`
-	Message string `json:"message"`
+	Kind        string   `json:"kind"`
+	Message     string   `json:"message"`
+	ReasonCodes []string `json:"reason_codes,omitempty"`
+	NextAction  string   `json:"next_action,omitempty"`
 }
 
 // Validate requires both halves of the pair to be present.

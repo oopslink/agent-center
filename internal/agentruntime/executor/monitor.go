@@ -678,8 +678,58 @@ func (m *Monitor) gateNonDelivery(ctx context.Context, c Completion) Completion 
 	if gs.PushError != "" {
 		msg += " — eager-push failed: " + gs.PushError
 	}
-	c.Error = &ErrorDetail{Kind: "non_delivery", Message: msg}
+	c.Error = &ErrorDetail{
+		Kind:        "non_delivery",
+		Message:     msg,
+		ReasonCodes: deliveryReasonCodes(gs),
+		NextAction:  deliveryNextAction(gs),
+	}
 	return c
+}
+
+func deliveryReasonCodes(gs *FinalizedGitStatus) []string {
+	if gs == nil {
+		return nil
+	}
+	var codes []string
+	if !gs.Pushed {
+		codes = append(codes, "head_not_pushed")
+	}
+	if gs.Dirty {
+		codes = append(codes, "worktree_dirty")
+	}
+	if !gs.BaseKnown {
+		codes = append(codes, "base_unknown")
+	} else if gs.AheadOfBase <= 0 {
+		codes = append(codes, "no_commit_ahead_of_base")
+	}
+	if strings.TrimSpace(gs.Branch) == "" {
+		codes = append(codes, "branch_missing")
+	}
+	if strings.TrimSpace(gs.HeadSHA) == "" {
+		codes = append(codes, "head_sha_missing")
+	}
+	return codes
+}
+
+func deliveryNextAction(gs *FinalizedGitStatus) string {
+	if gs == nil {
+		return "inspect the retained executor worktree and register a valid pushed delivery before completing the task"
+	}
+	steps := []string{}
+	if gs.Dirty {
+		steps = append(steps, "commit or discard dirty worktree changes")
+	}
+	if gs.BaseKnown && gs.AheadOfBase <= 0 {
+		steps = append(steps, "create at least one commit ahead of the recorded base")
+	}
+	if !gs.Pushed {
+		steps = append(steps, "ensure HEAD is pushed to the system executor ref")
+	}
+	if len(steps) == 0 {
+		steps = append(steps, "inspect the retained executor worktree and delivery record")
+	}
+	return strings.Join(steps, "; ") + "; retry or register manual recovery delivery with evidence"
 }
 
 // finalizeGitStatus probes the terminal executor's worktree git state for the retain
@@ -698,6 +748,7 @@ func (m *Monitor) finalizeGitStatus(ctx context.Context, executorID string) *Fin
 	if !gs.Probed {
 		return nil // not a git worktree / probe failed → record timestamp only
 	}
+	gs.Worktree = ws
 	return &gs
 }
 

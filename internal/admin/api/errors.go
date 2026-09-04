@@ -222,6 +222,7 @@ func deliveryErrorMap(d *pm.Delivery) map[string]any {
 		"branch":        d.Branch,
 		"head_sha":      d.HeadSHA,
 		"dirty":         d.Dirty,
+		"dirty_paths":   d.DirtyPaths,
 		"pushed":        d.Pushed,
 		"probed":        d.Probed,
 		"base_ref":      d.BaseRef,

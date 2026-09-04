@@ -11,7 +11,7 @@ import (
 )
 
 // Delivery is the last forked executor's terminal git status — the center-side mirror
-// of agentruntime executor.FinalizedGitStatus (the verbatim 8 fields). It answers the
+// of agentruntime executor.FinalizedGitStatus. It answers the
 // one question the delivery-flow fixes (issue-f30b7e7b) need: did this executor
 // produce a DURABLE, pushed delivery, or a zero-delivery run (committed-but-not-pushed
 // / dirty / no-commit) that must be auto-blocked rather than re-nudged/re-dispatched?
@@ -21,14 +21,15 @@ import (
 // executor never reported one (e.g. it never forked — the fork-fail loop — or the
 // best-effort send failed): treated as "no valid delivery", the safe side.
 type Delivery struct {
-	Probed      bool   `json:"probed"`
-	Pushed      bool   `json:"pushed"`
-	Branch      string `json:"branch,omitempty"`
-	HeadSHA     string `json:"head_sha,omitempty"`
-	Dirty       bool   `json:"dirty"`
-	BaseRef     string `json:"base_ref,omitempty"`
-	BaseKnown   bool   `json:"base_known"`
-	AheadOfBase int    `json:"ahead_of_base"`
+	Probed      bool     `json:"probed"`
+	Pushed      bool     `json:"pushed"`
+	Branch      string   `json:"branch,omitempty"`
+	HeadSHA     string   `json:"head_sha,omitempty"`
+	Dirty       bool     `json:"dirty"`
+	DirtyPaths  []string `json:"dirty_paths,omitempty"`
+	BaseRef     string   `json:"base_ref,omitempty"`
+	BaseKnown   bool     `json:"base_known"`
+	AheadOfBase int      `json:"ahead_of_base"`
 	// PushError is set when the eager supervisor-push (issue-f30b7e7b) could not push the
 	// committed feat branch to origin (guardrail refusal / auth / non-ff / network). "" =
 	// no push failure. It is the DURABLE record of WHY a delivery was not durably pushed —
@@ -244,7 +245,11 @@ func (d *Delivery) InvalidReasons() []DeliveryReason {
 		reasons = append(reasons, DeliveryReason{Code: "head_not_pushed", Message: msg})
 	}
 	if d.Dirty {
-		reasons = append(reasons, DeliveryReason{Code: "worktree_dirty", Message: "worktree still has uncommitted changes"})
+		msg := "worktree still has uncommitted changes"
+		if len(d.DirtyPaths) > 0 {
+			msg += ": " + strings.Join(d.DirtyPaths, ", ")
+		}
+		reasons = append(reasons, DeliveryReason{Code: "worktree_dirty", Message: msg})
 	}
 	if !d.BaseKnown {
 		reasons = append(reasons, DeliveryReason{Code: "base_unknown", Message: "spawn/recovery base ref is unknown or unresolved"})

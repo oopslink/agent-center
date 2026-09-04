@@ -215,3 +215,19 @@ func TestClaudeRunnerBuilder_CustomBinaryAndValidation(t *testing.T) {
 		t.Error("empty prompt must error")
 	}
 }
+
+func TestExecutorSystemPromptRequiresDeliveryPreflightAndBoundedRepair(t *testing.T) {
+	prompt := ExecutorSystemPrompt()
+	for _, want := range []string{
+		"perform one delivery preflight",
+		"HEAD is ahead of the recorded base",
+		"worktree is clean",
+		"system-generated executor ref",
+		"exactly one bounded repair pass",
+		"report the exact files/reason",
+	} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("executor system prompt missing %q: %s", want, prompt)
+		}
+	}
+}

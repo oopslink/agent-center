@@ -39,7 +39,7 @@ func TestResetTaskTool_StatesSupervisorMustFork(t *testing.T) {
 		if tool.Name != "reset_task" {
 			continue
 		}
-		for _, phrase := range []string{"does NOT fork or re-dispatch", "supervisor must explicitly call fork_executor"} {
+		for _, phrase := range []string{"does NOT fork or re-dispatch", "supervisor must explicitly call fork_executor", "confirmed_dead=true", "recovery_required"} {
 			if !strings.Contains(tool.Description, phrase) {
 				t.Fatalf("reset_task description missing %q: %s", phrase, tool.Description)
 			}

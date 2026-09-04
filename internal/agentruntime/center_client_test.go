@@ -164,8 +164,8 @@ func TestDeliveryReporter_ReportDelivery_Body(t *testing.T) {
 	fc := &fakeToolCaller{}
 	dr := newDeliveryReporter(fc)
 	git := &executor.FinalizedGitStatus{
-		Branch: "feat/x", HeadSHA: "abc", Dirty: false, Pushed: false, Probed: true,
-		BaseRef: "origin/main", BaseKnown: true, AheadOfBase: 2,
+		Branch: "feat/x", HeadSHA: "abc", Dirty: true, DirtyPaths: []string{"dirty.txt"}, Worktree: "/tmp/w",
+		Pushed: false, Probed: true, BaseRef: "origin/main", BaseKnown: true, AheadOfBase: 2,
 	}
 	if err := dr.ReportDelivery(context.Background(), orchestrator.DeliverySample{
 		AgentID: "agent-1", TaskID: "task-7", ExecutorID: "exec-9", Source: "executor", Git: git,
@@ -183,10 +183,14 @@ func TestDeliveryReporter_ReportDelivery_Body(t *testing.T) {
 	if !ok {
 		t.Fatalf("git must be a nested object, got %v", fc.body["git"])
 	}
-	// All 8 FinalizedGitStatus fields, verbatim (JSON numbers round-trip as float64).
-	if g["branch"] != "feat/x" || g["head_sha"] != "abc" || g["dirty"] != false ||
+	// FinalizedGitStatus fields, verbatim (JSON numbers round-trip as float64).
+	if g["branch"] != "feat/x" || g["head_sha"] != "abc" || g["dirty"] != true ||
 		g["pushed"] != false || g["probed"] != true || g["base_ref"] != "origin/main" ||
 		g["base_known"] != true || g["ahead_of_base"] != float64(2) {
-		t.Errorf("git body = %v, want all 8 fields verbatim", g)
+		t.Errorf("git body = %v, want fields verbatim", g)
+	}
+	paths, _ := g["dirty_paths"].([]any)
+	if len(paths) != 1 || paths[0] != "dirty.txt" || g["worktree"] != "/tmp/w" {
+		t.Errorf("git dirty/worktree body = %v, want dirty path and retained worktree", g)
 	}
 }
