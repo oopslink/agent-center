@@ -289,14 +289,15 @@ func TestMonitor_Finalize_RecordedWorkspace_EagerPushesExpectedBranch(t *testing
 	}
 }
 
-// Regression for exec-a9ae5c15: the executor used a RepoCacheManager worktree, switched
-// to a task-specific branch, and pushed it itself. Mirror caches have no refs/remotes/*,
-// so branch -r cannot prove delivery; Finalize must resolve Record.WorkspacePath and bind
-// the actual origin ref to the exact local HEAD SHA before accepting it.
-func TestMonitor_Finalize_RecordedWorkspace_DiscoversActualPushedBranch(t *testing.T) {
+// Regression for exec-a9ae5c15 evolved by issue-8d1a1443: the executor used a
+// RepoCacheManager worktree and switched to a task-specific branch. Finalize must resolve
+// Record.WorkspacePath and deliver the actual HEAD through the system-owned executor ref,
+// independent of the local branch name.
+func TestMonitor_Finalize_RecordedWorkspace_PushesActualHeadToSafeRef(t *testing.T) {
 	f := newFinalizeGateFixture(t)
 	id, taskRef := "exec-recorded-discovery", "task-recorded-discovery"
 	branch := "hotfix/deployed-binary-smoke-version-assertions"
+	safeBranch := "ac-exec/" + taskRef + "/" + id
 	bare := t.TempDir()
 	runGitIn(t, f.git, bare, "init", "-q", "--bare")
 	ws := setupRecordedWorkspacePushCase(t, f, id, taskRef, branch, bare, "main")
@@ -316,8 +317,11 @@ func TestMonitor_Finalize_RecordedWorkspace_DiscoversActualPushedBranch(t *testi
 	if got.Kind != OutcomeSucceeded || got.Git == nil || !got.Git.Pushed {
 		t.Fatalf("independently verified origin delivery must stay succeeded: %+v", got)
 	}
-	if got.Git.Branch != branch || got.Git.HeadSHA != wantSHA {
-		t.Fatalf("delivery identity branch=%q sha=%q, want branch=%q sha=%q", got.Git.Branch, got.Git.HeadSHA, branch, wantSHA)
+	if got.Git.Branch != safeBranch || got.Git.HeadSHA != wantSHA {
+		t.Fatalf("delivery identity branch=%q sha=%q, want branch=%q sha=%q", got.Git.Branch, got.Git.HeadSHA, safeBranch, wantSHA)
+	}
+	if !gitRefExists(f.git, bare, "refs/heads/"+safeBranch) {
+		t.Fatalf("safe executor ref %q was not pushed", safeBranch)
 	}
 	if !f.loggedContains("EAGER-PUSH ok") {
 		t.Fatalf("remote discovery must be observable as durable delivery, logs=%v", f.logs)
@@ -413,6 +417,7 @@ func TestMonitor_Finalize_ExactOriginMainStillRefused(t *testing.T) {
 	runGitIn(t, f.git, ws, "add", "-A")
 	runGitIn(t, f.git, ws, "commit", "-q", "-m", "executor wrote main")
 	runGitIn(t, f.git, ws, "push", "-q", "origin", "main")
+	runGitIn(t, f.git, ws, "push", "-q", "origin", "HEAD:refs/heads/ac-exec/"+taskRef+"/"+id)
 
 	if _, err := f.fx.Provision(id); err != nil {
 		t.Fatal(err)
@@ -429,16 +434,17 @@ func TestMonitor_Finalize_ExactOriginMainStillRefused(t *testing.T) {
 	}))
 
 	got := f.wb.reports[0]
-	if got.Kind != OutcomeCrashed || got.Git == nil || got.Git.Pushed ||
+	if got.Kind != OutcomeNonDelivery || got.Git == nil || got.Git.Pushed ||
 		!strings.Contains(got.Git.PushError, "protected") {
 		t.Fatalf("an exact origin/main ref must still be refused as delivery: %+v", got)
 	}
 }
 
-func TestMonitor_Finalize_RecordedWorkspace_RejectsOriginAtDifferentSHA(t *testing.T) {
+func TestMonitor_Finalize_RecordedWorkspace_RemoteBranchMismatchPushesSafeRef(t *testing.T) {
 	f := newFinalizeGateFixture(t)
 	id, taskRef := "exec-recorded-mismatch", "task-recorded-mismatch"
 	branch := "hotfix/remote-behind"
+	safeBranch := "ac-exec/" + taskRef + "/" + id
 	bare := t.TempDir()
 	runGitIn(t, f.git, bare, "init", "-q", "--bare")
 	ws := setupRecordedWorkspacePushCase(t, f, id, taskRef, branch, bare, "main")
@@ -456,28 +462,31 @@ func TestMonitor_Finalize_RecordedWorkspace_RejectsOriginAtDifferentSHA(t *testi
 	}))
 
 	got := f.wb.reports[0]
-	if got.Kind != OutcomeCrashed || !got.Retryable || got.Error == nil || got.Error.Kind != "non_delivery" {
-		t.Fatalf("origin SHA mismatch must fail closed: %+v", got)
+	if got.Kind != OutcomeSucceeded || got.Retryable || got.Error != nil {
+		t.Fatalf("origin business-branch mismatch must deliver via safe ref: %+v", got)
 	}
-	if got.Git == nil || got.Git.Pushed || !strings.Contains(got.Git.PushError, "does not point at HEAD") {
-		t.Fatalf("origin SHA mismatch reason missing: %+v", got.Git)
+	if got.Git == nil || !got.Git.Pushed || got.Git.Branch != safeBranch || got.Git.PushError != "" {
+		t.Fatalf("safe ref delivery missing: %+v", got.Git)
 	}
 	after := strings.TrimSpace(evidenceGitOut(t, f.git, bare, "rev-parse", "refs/heads/"+branch))
 	if after != remoteSHA {
 		t.Fatalf("guardrail pushed unexpected branch: origin moved from %s to %s", remoteSHA, after)
 	}
+	if !gitRefExists(f.git, bare, "refs/heads/"+safeBranch) {
+		t.Fatalf("safe executor ref %q was not pushed", safeBranch)
+	}
 }
 
-// TestMonitor_Finalize_EagerPush_MainBranchRefused is the branch-guardrail lock (the most
-// dangerous corner): an executor whose HEAD is NOT its provisioned ac-exec branch (here a
-// stray executor/<id> branch — stands in for main/detached/unexpected) must NEVER be pushed,
-// so a stray local commit can never reach origin/main. The run is refused and downgraded to
-// non_delivery carrying the refusal, and the branch does NOT appear on the remote.
-func TestMonitor_Finalize_EagerPush_MainBranchRefused(t *testing.T) {
+// TestMonitor_Finalize_EagerPush_UnexpectedLocalBranchPushesSafeExecutorRef locks the
+// system-ref delivery path: a non-protected local branch name does not control the remote
+// destination. Finalize pushes HEAD explicitly to ac-exec/<task>/<exec> and does not create
+// an origin ref for the local business branch.
+func TestMonitor_Finalize_EagerPush_UnexpectedLocalBranchPushesSafeExecutorRef(t *testing.T) {
 	f := newFinalizeGateFixture(t)
 	id := "exec-wrongbranch"
 	taskRef := "T-D1"
-	wrongBranch := "executor/" + id // != ac-exec/<task>/<exec> → guardrail must refuse
+	safeBranch := "ac-exec/" + taskRef + "/" + id
+	wrongBranch := "g9-final-integration"
 	bare := t.TempDir()
 	runGitIn(t, f.git, bare, "init", "-q", "--bare")
 
@@ -492,18 +501,20 @@ func TestMonitor_Finalize_EagerPush_MainBranchRefused(t *testing.T) {
 		t.Fatalf("want 1 report, got %d", len(reps))
 	}
 	got := reps[0]
-	if got.Kind != OutcomeCrashed || !got.Retryable || got.Error == nil || got.Error.Kind != "non_delivery" {
-		t.Errorf("refused push must downgrade to retryable non_delivery, got kind=%q retryable=%v err=%+v", got.Kind, got.Retryable, got.Error)
+	if got.Kind != OutcomeSucceeded || got.Retryable || got.Error != nil {
+		t.Errorf("unexpected local branch must deliver via safe ref, got kind=%q retryable=%v err=%+v", got.Kind, got.Retryable, got.Error)
 	}
-	if got.Git == nil || got.Git.Pushed || got.Git.PushError == "" || !strings.Contains(got.Git.PushError, "refused") {
-		t.Errorf("expected a 'refused' PushError with Pushed=false, got %+v", got.Git)
+	if got.Git == nil || !got.Git.Pushed || got.Git.Branch != safeBranch || got.Git.PushError != "" {
+		t.Errorf("expected safe executor ref delivery, got %+v", got.Git)
 	}
-	// CRITICAL: the stray branch must NOT have been pushed to the remote.
+	if !gitRefExists(f.git, bare, "refs/heads/"+safeBranch) {
+		t.Errorf("safe executor ref %q was not pushed to origin", safeBranch)
+	}
 	if gitRefExists(f.git, bare, "refs/heads/"+wrongBranch) {
-		t.Errorf("guardrail breach: stray branch %q was pushed to origin — must never happen", wrongBranch)
+		t.Errorf("guardrail breach: local business branch %q was pushed to origin", wrongBranch)
 	}
-	if !f.loggedContains("EAGER-PUSH FAILED") {
-		t.Errorf("expected EAGER-PUSH FAILED (refused) log, logs=%v", f.logs)
+	if !f.loggedContains("EAGER-PUSH ok") {
+		t.Errorf("expected EAGER-PUSH ok log, logs=%v", f.logs)
 	}
 }
 
@@ -530,7 +541,7 @@ func TestMonitor_Finalize_EagerPush_PushFailureDowngrades(t *testing.T) {
 		t.Fatalf("want 1 report, got %d", len(reps))
 	}
 	got := reps[0]
-	if got.Kind != OutcomeCrashed || !got.Retryable || got.Error == nil || got.Error.Kind != "non_delivery" {
+	if got.Kind != OutcomeNonDelivery || !got.Retryable || got.Error == nil || got.Error.Kind != "non_delivery" {
 		t.Errorf("push failure must downgrade to retryable non_delivery, got kind=%q retryable=%v err=%+v", got.Kind, got.Retryable, got.Error)
 	}
 	if got.Git == nil || got.Git.Pushed || got.Git.PushError == "" {

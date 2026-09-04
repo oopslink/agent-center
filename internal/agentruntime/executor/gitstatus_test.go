@@ -214,8 +214,8 @@ func TestMonitor_Finalize_NonDeliveryGate(t *testing.T) {
 		t.Fatalf("writeback got %d reports, want 1", len(reps))
 	}
 	got := reps[0]
-	if got.Kind != OutcomeCrashed {
-		t.Errorf("zero-delivery success must be downgraded, Kind=%q want crashed", got.Kind)
+	if got.Kind != OutcomeNonDelivery {
+		t.Errorf("zero-delivery success must be downgraded, Kind=%q want non_delivery", got.Kind)
 	}
 	if !got.Retryable {
 		t.Error("non-delivery downgrade must be retryable")
@@ -292,7 +292,7 @@ func TestMonitor_Finalize_CommittedButUnpushed_Downgraded(t *testing.T) {
 		t.Fatalf("writeback got %d reports, want 1", len(reps))
 	}
 	got := reps[0]
-	if got.Kind != OutcomeCrashed || !got.Retryable {
+	if got.Kind != OutcomeNonDelivery || !got.Retryable {
 		t.Errorf("committed-but-unpushed must be downgraded to retryable non-delivery, Kind=%q retryable=%v", got.Kind, got.Retryable)
 	}
 	if got.Error == nil || got.Error.Kind != "non_delivery" {
@@ -310,5 +310,37 @@ func TestMonitor_Finalize_CommittedButUnpushed_Downgraded(t *testing.T) {
 	d, _ := f.fx.Layout().Dir(id)
 	if _, err := os.Stat(d); err != nil {
 		t.Errorf("downgraded run must RETAIN the executor dir, stat: %v", err)
+	}
+}
+
+func TestMonitor_Finalize_DirtyPushedHeadIsNonDeliveryWithPaths(t *testing.T) {
+	f := newFinalizeGateFixture(t)
+	id, taskRef := "exec-dirty-pushed", "task-dirty-pushed"
+	branch := "ac-exec/" + taskRef + "/" + id
+	bare := t.TempDir()
+	runGitIn(t, f.git, bare, "init", "-q", "--bare")
+	ws := setupAcExecPushCase(t, f, id, taskRef, branch, bare)
+	runGitIn(t, f.git, ws, "push", "-q", "origin", "HEAD:refs/heads/"+branch)
+	if err := os.WriteFile(filepath.Join(ws, "dirty.txt"), []byte("not committed\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	must(t, f.mon.Finalize(context.Background(), Completion{
+		ExecutorID: id, Kind: OutcomeSucceeded, Output: okOutput(id), Status: doneStatus(id),
+	}))
+
+	got := f.wb.reports[0]
+	if got.Kind != OutcomeNonDelivery || !got.Retryable || got.Error == nil || got.Error.Kind != "non_delivery" {
+		t.Fatalf("dirty pushed head must be structured non_delivery, got %+v", got)
+	}
+	if got.Git == nil || !got.Git.Pushed || !got.Git.Dirty || len(got.Git.DirtyPaths) != 1 || got.Git.DirtyPaths[0] != "dirty.txt" {
+		t.Fatalf("dirty paths not captured: %+v", got.Git)
+	}
+	if !strings.Contains(got.Error.Message, "dirty paths: dirty.txt") {
+		t.Fatalf("dirty path missing from non_delivery message: %q", got.Error.Message)
+	}
+	d, _ := f.fx.Layout().Dir(id)
+	if _, err := os.Stat(d); err != nil {
+		t.Fatalf("dirty non_delivery must retain executor dir: %v", err)
 	}
 }

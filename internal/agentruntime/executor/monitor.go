@@ -614,8 +614,8 @@ func (m *Monitor) Finalize(ctx context.Context, c Completion) error {
 }
 
 // gateNonDelivery is the issue-37015227 ② delivery hard-gate: it downgrades a
-// self-reported OutcomeSucceeded that produced NO real git side effect to a retryable
-// OutcomeCrashed with a machine-readable non_delivery cause, and logs FAIL-LOUD. It runs
+// self-reported OutcomeSucceeded that produced NO durable git delivery to a retryable
+// OutcomeNonDelivery with a machine-readable non_delivery cause, and logs FAIL-LOUD. It runs
 // at the single Finalize funnel, BEFORE the writeback, so a zero-delivery success can
 // never be relayed to the center/supervisor as "succeeded" (the canned-PASS hole).
 //
@@ -662,13 +662,16 @@ func (m *Monitor) gateNonDelivery(ctx context.Context, c Completion) Completion 
 	// An un-fetched remote also reads as not-pushed; that is the delivery-audit SAFE side (the
 	// supervisor judgment still verifies), preferred over trusting a maybe-unpushed run.
 	m.log("NON-DELIVERY executor=%s task=%s: reported SUCCESS but produced NO DURABLE delivery "+
-		"(branch=%s head=%s ahead=%d dirty=%t pushed=%t) — code_change requires pushed + clean + HEAD advancement; "+
+		"(branch=%s head=%s ahead=%d dirty=%t dirty_paths=%v pushed=%t) — code_change requires pushed + clean + HEAD advancement; "+
 		"the reaped worktree; refusing to complete, downgrading to non_delivery (issue-f30b7e7b N3, "+
 		"extends issue-37015227 ②)",
-		c.ExecutorID, m.taskRef(c.ExecutorID), gs.Branch, gs.HeadSHA, gs.AheadOfBase, gs.Dirty, gs.Pushed)
-	c.Kind = OutcomeCrashed
+		c.ExecutorID, m.taskRef(c.ExecutorID), gs.Branch, gs.HeadSHA, gs.AheadOfBase, gs.Dirty, gs.DirtyPaths, gs.Pushed)
+	c.Kind = OutcomeNonDelivery
 	c.Retryable = true
 	msg := "executor reported success but did not satisfy code_change delivery: requires pushed + clean + HEAD advancement — treated as non-delivery"
+	if len(gs.DirtyPaths) > 0 {
+		msg += " — dirty paths: " + strings.Join(gs.DirtyPaths, ", ")
+	}
 	// If the eager supervisor-push (issue-f30b7e7b) attempted and failed, surface WHY the
 	// branch could not be delivered (guardrail refusal / auth / non-ff / network) so the
 	// supervisor judgment + audit can act on the real cause and escalate.

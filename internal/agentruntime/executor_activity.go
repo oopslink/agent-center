@@ -137,7 +137,7 @@ func executorStartPayload(f executorStartFields) map[string]any {
 }
 
 // executorStopPayload builds the executor.stop lifecycle payload from the classified
-// completion. outcome=Kind (succeeded|failed|crashed); reason=Error.Kind (or
+// completion. outcome=Kind (succeeded|failed|crashed|non_delivery); reason=Error.Kind (or
 // "stalled" for a watchdog kill); recovered flags the orphan-cleanup path. scope
 // summarizes outcome[:reason] for the row preview ("executor.stop (failed:stalled)").
 func executorStopPayload(ev executor.StopEvent) map[string]any {

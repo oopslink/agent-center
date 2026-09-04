@@ -182,7 +182,7 @@ func terminalWritebackAllowed(f execReconcileFacts) bool {
 // no-valid-output) — the recoverable case — vs reached a legitimate failure verdict.
 // Mirrors the D5 mid-life discriminator (comp.Output!=nil ⟺ a valid verdict).
 func isDeath(kind executor.OutcomeKind, hasValidVerdict bool) bool {
-	return kind == executor.OutcomeCrashed || (kind == executor.OutcomeFailed && !hasValidVerdict)
+	return kind == executor.OutcomeCrashed || kind == executor.OutcomeNonDelivery || (kind == executor.OutcomeFailed && !hasValidVerdict)
 }
 
 // execReconcileDecision is one executor's classified outcome plus the durable facts the
