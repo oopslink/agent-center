@@ -1,0 +1,14 @@
+HEAD=f7f1cf48e55e05cb19e501127b79428536dfe267
+BASE=ddfb87d47e8253fb2e4f22d014f497301fa4b7ec
+CANDIDATE=6074ea621f178889bcfca5adca8cf27c3ad174da
+MERGE_BASE_HEAD_BASE=ddfb87d47e8253fb2e4f22d014f497301fa4b7ec
+HEAD_AHEAD_BASE_COUNT=2
+CANDIDATE_IS_ANCESTOR=0
+REMOTE_REF=f7f1cf48e55e05cb19e501127b79428536dfe267
+STATUS_START
+## HEAD (no branch)
+?? evidence_preflight_t2181.log
+STATUS_END
+VERDICT_PRODUCT=PASS
+HARD_GATE_FAILURES=0
+QUALITY_SUMMARY={"origin_main_lint":{"status":"BASELINE_FAIL","exit_code":2,"log":"evidence/t2181/main_lint_rerun.log","failure":"web/src/components/WorkItemFilterBar.tsx:352:13 no-restricted-syntax checkbox rule"},"candidate_lint":{"status":"BASELINE_FAIL_NO_NEW_FAILURE","exit_code":2,"log":"evidence/t2181/candidate_lint.log","failure":"same WorkItemFilterBar.tsx:352:13 failure as origin/main; no added candidate lint failure observed"},"candidate_go_related_tests":{"status":"PASS","exit_code":0,"log":"evidence/t2181/candidate_quality.log","command":"go test ./internal/observability/collaborationeffect ./internal/webconsole/api"},"candidate_web_tests":{"status":"PASS","exit_code":0,"log":"evidence/t2181/candidate_quality.log","command":"pnpm --dir web test -- InsightCollaboration AppLayout.insightnav AppLayout.mobilenav App.test","summary":"Vitest ran 200 files / 1924 tests; all passed, including targeted collaboration/navigation tests."},"candidate_typecheck":{"status":"PASS","exit_code":0,"log":"evidence/t2181/candidate_quality.log","command":"pnpm --dir web exec tsc -b --force"},"candidate_web_build":{"status":"PASS","exit_code":0,"log":"evidence/t2181/candidate_quality.log","command":"pnpm --dir web run build"},"candidate_make_build":{"status":"PASS","exit_code":0,"log":"evidence/t2181/candidate_quality.log","command":"make build"}}
