@@ -1,0 +1,4 @@
+[ac-exec/task-b3eb83d7/exec-f19e27f0 fbdebf25] acceptance: record executor abc push attempt logs
+ 2 files changed, 47 insertions(+)
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/36-git-amend.log
+ create mode 100644 docs/acceptance/exec-f19e27f0-abcc/raw/38-git-push.log

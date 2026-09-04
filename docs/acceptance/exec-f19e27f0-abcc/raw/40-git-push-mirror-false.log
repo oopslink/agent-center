@@ -1,0 +1,8 @@
+cmd: git -c remote.origin.mirror=false push origin HEAD:refs/heads/ac-exec/task-b3eb83d7/exec-f19e27f0
+remote: 
+remote: Create a pull request for 'ac-exec/task-b3eb83d7/exec-f19e27f0' on GitHub by visiting:        
+remote:      https://github.com/oopslink/agent-center/pull/new/ac-exec/task-b3eb83d7/exec-f19e27f0        
+remote: 
+To github.com:oopslink/agent-center.git
+ * [new branch]        HEAD -> ac-exec/task-b3eb83d7/exec-f19e27f0
+exit_code=0
