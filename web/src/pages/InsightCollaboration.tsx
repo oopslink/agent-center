@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useDeferredValue, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
 import { ApiError } from '@/api/client';
@@ -22,6 +22,12 @@ import { EntitySelect, type EntityOption } from '@/components/EntitySelect';
 
 const RELATIONS: CollaborationRelation[] = ['assign', 'reassign', 'complete', 'block', 'unblock', 'dependency_release', 'review_accept', 'review_reject'];
 const POLARITIES: CollaborationPolarity[] = ['positive', 'negative', 'neutral', 'mixed'];
+const PAGE_SIZE = 200;
+const GRAPH_VIEW_HEIGHT = 520;
+const NODE_ROW = 48;
+const MAX_VISIBLE_EDGES = 220;
+const MAX_ACCESSIBLE_EDGES = 80;
+const MAX_TIMELINE_ITEMS = 120;
 
 export default function InsightCollaboration(): React.ReactElement {
   const { t } = useTranslation('insights');
@@ -70,7 +76,7 @@ function filtersFromParams(params: URLSearchParams): CollaborationFilters {
     agent_ref: params.get('agent_ref') ?? undefined,
     relation_type: RELATIONS.includes(relation as CollaborationRelation) ? relation as CollaborationRelation : undefined,
     polarity: POLARITIES.includes(polarity as CollaborationPolarity) ? polarity as CollaborationPolarity : undefined,
-    since: params.get('since') ?? undefined, until: params.get('until') ?? undefined, cursor: params.get('cursor') ?? undefined, limit: 100,
+    since: params.get('since') ?? undefined, until: params.get('until') ?? undefined, cursor: params.get('cursor') ?? undefined, limit: PAGE_SIZE,
   };
 }
 
@@ -281,25 +287,62 @@ function maxDate(a?: string, b?: string): string | undefined {
   return a >= b ? a : b;
 }
 
-function CollaborationGraph({ nodes, edges, selected, onSelect, t }: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
+type PositionedNode = CollaborationNode & { x: number; y: number };
+
+function buildGraphLayout(nodes: CollaborationNode[]) {
   const lanes = { agent: 65, project: 200, plan: 335, stage: 500, task: 660 };
   const laneIndex = new Map<string, number>();
-  const nodeMap = useMemo(() => new Map(nodes.map((node) => { const i = laneIndex.get(node.kind) ?? 0; laneIndex.set(node.kind, i + 1); return [node.id, { ...node, x: lanes[node.kind], y: 70 + i * 68 }]; })), [nodes]);
+  const positioned = new Map<string, PositionedNode>();
+  for (const node of [...nodes].sort((a, b) => a.kind.localeCompare(b.kind) || a.label.localeCompare(b.label) || a.id.localeCompare(b.id))) {
+    const i = laneIndex.get(node.kind) ?? 0;
+    laneIndex.set(node.kind, i + 1);
+    positioned.set(node.id, { ...node, x: lanes[node.kind], y: 56 + i * NODE_ROW });
+  }
+  return { positioned, height: Math.max(GRAPH_VIEW_HEIGHT, Math.max(0, ...laneIndex.values()) * NODE_ROW + 96) };
+}
+
+function edgeScopes(edge: CollaborationEdge): CollaborationEffectScope[] {
+  return edge.effect_scopes?.length ? edge.effect_scopes : edge.effect_ids?.length ? edge.effect_ids.map((id) => ({ effect_id: id, project_id: '' })) : edge.effect_id ? [{ effect_id: edge.effect_id, project_id: '' }] : [];
+}
+
+function CollaborationGraph({ nodes, edges, selected, onSelect, t }: { nodes: CollaborationNode[]; edges: CollaborationEdge[]; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
+  const [offset, setOffset] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  // Let urgent filter/control updates paint before rebuilding a production-size
+  // layout. React can discard obsolete deferred layouts when filters change.
+  const deferredNodes = useDeferredValue(nodes);
+  const deferredEdges = useDeferredValue(edges);
+  const layout = useMemo(() => buildGraphLayout(deferredNodes), [deferredNodes]);
+  const visibleTop = offset;
+  const visibleBottom = offset + GRAPH_VIEW_HEIGHT / zoom;
+  const visibleNodes = [...layout.positioned.values()].filter((node) => node.y >= visibleTop - NODE_ROW && node.y <= visibleBottom + NODE_ROW);
+  const visibleNodeIds = new Set(visibleNodes.map((node) => node.id));
+  const visibleEdges = deferredEdges
+    .filter((edge) => visibleNodeIds.has(edge.source) || visibleNodeIds.has(edge.target))
+    .sort((a, b) => b.interaction_count - a.interaction_count || b.magnitude - a.magnitude || a.id.localeCompare(b.id))
+    .slice(0, MAX_VISIBLE_EDGES);
+  const actionableEdges = deferredEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0);
+  const accessibleEdges = actionableEdges.slice(0, MAX_ACCESSIBLE_EDGES);
+  const hideLabels = deferredEdges.length > 120 || zoom < 0.85;
+  const pan = (delta: number) => setOffset((value) => Math.max(0, Math.min(layout.height - GRAPH_VIEW_HEIGHT / zoom, value + delta)));
+  const zoomBy = (delta: number) => setZoom((value) => Math.max(0.7, Math.min(1.6, Number((value + delta).toFixed(2)))));
   const selectedKey = selected?.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0') ?? '';
   return <section className="rounded-lg border border-border bg-bg-surface p-4" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
-    <div className="mb-3 flex flex-wrap gap-3 text-xs text-text-muted"><span>━━ {t('insight.collaboration.legend.relationship')}</span><span>┄┄ {t('insight.collaboration.legend.effect')}</span><span>+/− {t('insight.collaboration.legend.mixed')}</span></div>
-    <svg viewBox={`0 0 720 ${Math.max(260, nodes.length * 64 + 30)}`} className="min-h-64 w-full" role="img" aria-label={t('insight.collaboration.graph')}>
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted"><div className="flex flex-wrap gap-3"><span>━━ {t('insight.collaboration.legend.relationship')}</span><span>┄┄ {t('insight.collaboration.legend.effect')}</span><span>+/− {t('insight.collaboration.legend.mixed')}</span></div><div className="flex items-center gap-1" aria-label={t('insight.collaboration.viewportControls')}><button type="button" className="h-7 w-7 rounded border border-border text-text-primary" onClick={() => pan(-GRAPH_VIEW_HEIGHT / 2)} aria-label={t('insight.collaboration.panUp')}>↑</button><button type="button" className="h-7 w-7 rounded border border-border text-text-primary" onClick={() => pan(GRAPH_VIEW_HEIGHT / 2)} aria-label={t('insight.collaboration.panDown')}>↓</button><button type="button" className="h-7 w-7 rounded border border-border text-text-primary" onClick={() => zoomBy(0.15)} aria-label={t('insight.collaboration.zoomIn')}>+</button><button type="button" className="h-7 w-7 rounded border border-border text-text-primary" onClick={() => zoomBy(-0.15)} aria-label={t('insight.collaboration.zoomOut')}>−</button></div></div>
+    {deferredEdges.length > visibleEdges.length || deferredNodes.length > visibleNodes.length ? <div role="status" className="mb-3 rounded border border-border bg-bg-subtle px-3 py-2 text-xs text-text-muted" data-testid="collaboration-lod-status">{t('insight.collaboration.lodStatus', { visibleEdges: visibleEdges.length, totalEdges: deferredEdges.length, visibleNodes: visibleNodes.length, totalNodes: deferredNodes.length })}</div> : null}
+    <svg viewBox={`0 ${offset} 720 ${GRAPH_VIEW_HEIGHT / zoom}`} className="h-[520px] w-full" role="img" aria-label={t('insight.collaboration.graph')}>
       <defs><linearGradient id="collaboration-mixed"><stop offset="0%" stopColor="#16803c"/><stop offset="50%" stopColor="#16803c"/><stop offset="50%" stopColor="#c0362c"/><stop offset="100%" stopColor="#c0362c"/></linearGradient></defs>
-      {edges.map((edge) => { const a = nodeMap.get(edge.source); const b = nodeMap.get(edge.target); if (!a || !b) return null; const structural = !edge.effect_id && edge.evidence_count === 0; return <g key={edge.id}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} /><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="fill-text-muted text-[11px]">{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</text></g>; })}
-      {[...nodeMap.values()].map((node) => <g key={node.id}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" className="fill-bg-primary stroke-brand" strokeWidth="2" /> : <rect x={node.x-54} y={node.y-22} width="108" height="44" rx="5" className="fill-bg-primary stroke-text-muted" strokeWidth="2" />}<text x={node.x} y={node.y+4} textAnchor="middle" className="fill-text-primary text-[11px]">{node.label.slice(0, 18)}</text><text x={node.x} y={node.y+18} textAnchor="middle" className="fill-text-muted text-[8px]">{node.kind}</text></g>)}
+      {visibleEdges.map((edge) => { const a = layout.positioned.get(edge.source); const b = layout.positioned.get(edge.target); if (!a || !b) return null; const structural = !edge.effect_id && edge.evidence_count === 0; return <g key={edge.id}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={structural ? 1.5 : Math.min(8, edge.magnitude + Math.log2(edge.interaction_count + 1))} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} />{!hideLabels ? <text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="fill-text-muted text-[11px]">{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}{edge.interaction_count > 1 ? ` ×${edge.interaction_count}` : ''}</text> : null}</g>; })}
+      {visibleNodes.map((node) => <g key={node.id}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="20" className="fill-bg-primary stroke-brand" strokeWidth="2" /> : <rect x={node.x-48} y={node.y-17} width="96" height="34" rx="5" className="fill-bg-primary stroke-text-muted" strokeWidth="2" />}{!hideLabels ? <><text x={node.x} y={node.y+4} textAnchor="middle" className="fill-text-primary text-[11px]">{node.label.slice(0, 18)}</text><text x={node.x} y={node.y+15} textAnchor="middle" className="fill-text-muted text-[8px]">{node.kind}</text></> : null}</g>)}
     </svg>
-    <div className="grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{edges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = edge.effect_scopes?.length ? edge.effect_scopes : edge.effect_ids?.length ? edge.effect_ids.map((id) => ({ effect_id: id, project_id: '' })) : edge.effect_id ? [{ effect_id: edge.effect_id, project_id: '' }] : []; const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
+    <div className="grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{accessibleEdges.map((edge) => { const scopes = edgeScopes(edge); const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
+    {actionableEdges.length > accessibleEdges.length ? <p className="mt-2 text-xs text-text-muted" data-testid="collaboration-edge-list-limited">{t('insight.collaboration.edgeListLimited', { count: accessibleEdges.length, total: actionableEdges.length })}</p> : null}
   </section>;
 }
 
 function Timeline({ effects, onSelect, t }: { effects: { effect_id: string; project_id: string; occurred_at: string; relation_type: string; polarity: string; source_agent_ref: string; target_task_id: string }[]; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
-  const ordered = [...effects].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
-  return <section className="rounded-lg border border-border bg-bg-surface p-4" data-testid="collaboration-timeline"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2><ol className="mt-3 border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol></section>;
+  const ordered = [...effects].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, MAX_TIMELINE_ITEMS);
+  return <section className="rounded-lg border border-border bg-bg-surface p-4" data-testid="collaboration-timeline"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2><ol className="mt-3 border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol>{effects.length > ordered.length ? <p className="text-xs text-text-muted">{t('insight.collaboration.timelineLimited', { count: ordered.length, total: effects.length })}</p> : null}</section>;
 }
 
 function EvidenceDrawer({ effect, effectIds, onClose, t }: { effect: Pick<CollaborationEffect, 'project_id' | 'explanation_key' | 'before_state' | 'after_state'> | null; effectIds: CollaborationEffectScope[]; onClose: () => void; t: Translator }) {
