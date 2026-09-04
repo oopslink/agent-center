@@ -1,0 +1,317 @@
+{
+  "task_id": "task-0e398848",
+  "execution_id": "exec-c6d16f2d",
+  "reviewed_sha": "84d217db4530485d1b26d13ff2f4c49d0c8a62e3",
+  "base_sha": "226de72569b18913ccb09119922a6feed9ad174a",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 rg --files task-input/v1 . | head -200'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"rg --files | rg '(\"'^cmd/|''^internal/|go.mod|package.json|Makefile|docker|compose|agent-runtime|worker|center|test)'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"rg -n \\\"delivery preflight|bounded repair|non_delivery|lease_still_live|recovery_required|eager-push|ac-exec|dirty\\\" . --glob '\"'!web/node_modules'\"' --glob '\"'!tests/e2e/v2/node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'git fetch origin --prune'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/issue-8d1a1443-f2a3bf2d-independent-review.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' go.mod \u0026\u0026 rg -n \\\"func main|agent-center|worker|runtime\\\" cmd internal/agentruntime internal/admin internal/projectmanager | head -300\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git config --get-all remote.origin.fetch \u0026\u0026 git branch --show-current \u0026\u0026 git rev-parse --abbrev-ref HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' tests/e2e/fork_executor_deployed_e2e_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' tests/e2e/restart_recovery_e2e_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc 'git fetch origin +refs/heads/main:refs/remotes/origin/main \u0026\u0026 git rev-parse refs/remotes/origin/main \u0026\u0026 git merge-base --is-ancestor f2a3bf2d81437892b7e320f0a5736e5d798dc3cf refs/remotes/origin/main; echo ancestry_exit=$? \u0026\u0026 git log --oneline --decorate -n 8 refs/remotes/origin/main'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc 'go run ./cmd/agent-center --help'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' internal/agentruntime/executor/push_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"sed -n '260,620p' tests/e2e/restart_recovery_e2e_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"sed -n '240,620p' internal/agentruntime/executor/push_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc 'go run ./cmd/agent-center help server \u0026\u0026 go run ./cmd/agent-center help worker \u0026\u0026 go run ./cmd/agent-center help worker agent-runtime \u0026\u0026 go run ./cmd/agent-center help worker executor'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/issue-8d1a1443-runtime-acceptance/raw'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"{ date -u '+%Y-%m-%dT%H:%M:%SZ'; git rev-parse refs/remotes/origin/main; git merge-base --is-ancestor f2a3bf2d81437892b7e320f0a5736e5d798dc3cf refs/remotes/origin/main; echo ancestry_exit=\"'$?; git branch --show-current; git rev-parse HEAD; git status --short --branch; } \u003e docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/00-main-lock.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'git ls-remote --heads origin \u003e docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/01-remote-refs-before.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc '{ git rev-parse refs/remotes/origin/main; git ls-remote origin refs/heads/main; git ls-remote origin refs/heads/ac-exec/task-0e398848/exec-c6d16f2d; git remote -v; git config --get-all remote.origin.fetch; } \u003e docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/02-remote-provenance-before.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"set -o pipefail; { echo '\"'$ go test ./internal/agentruntime/executor -run TestMonitor_Finalize -count=1 -v'\"'; go test ./internal/agentruntime/executor -run 'TestMonitor_Finalize_(NonDeliveryGate|CommittedButUnpushed_Downgraded|DirtyPushedHeadIsNonDeliveryWithPaths|EagerPush|RecordedWorkspace|ExactOriginMainStillRefused|FailedRun|PushedDeliveryStaysSucceeded|WritebackErrorRetainsDir|RunningIsNoop|NoWritebackStillTearsDown)' -count=1 -v; rc=\"'$?; echo EXIT_CODE=$rc; exit $rc; } 2\u003e\u00261 | tee docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/10-ab-finalize-tests.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"set -o pipefail; { echo '\"'$ go test C stale/lease/reset/read-model focused packages'\"'; go test ./internal/projectmanager ./internal/projectmanager/service ./internal/admin/api ./internal/agentruntime -run 'Test(ResetToOpen|ResetTask|Complete_ZeroesRecoveryResetCount|BlockForResetExhaustion|Migration_0154|Migration_0155|StuckNode|EnactRecover|ReconcileOneExecutor|ClassifyExecutor|PlanExecutorReconcile|MapDomainError_TaskNonDelivery|CompleteTaskRejectsReportedZeroDelivery|ReportManualRecovery|TaskExecutionsProjectsRecoveryDiagnostics)' -count=1 -v; rc=\"'$?; echo EXIT_CODE=$rc; exit $rc; } 2\u003e\u00261 | tee docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/20-c-stale-lease-tests.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"set -o pipefail; { echo '\"'$ go test ./tests/e2e -run TestForkExecutorDeployedBinary_AlreadyRunningTask -count=1 -v'\"'; go test ./tests/e2e -run TestForkExecutorDeployedBinary_AlreadyRunningTask -count=1 -v; rc=\"'$?; echo EXIT_CODE=$rc; exit $rc; } 2\u003e\u00261 | tee docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/30-deployed-runtime-executor-e2e.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"set -o pipefail; { echo '\"'$ go test ./tests/e2e -run TestE2E_RestartRecovery_DeployLevel -count=1 -v'\"'; go test ./tests/e2e -run TestE2E_RestartRecovery_DeployLevel -count=1 -v; rc=\"'$?; echo EXIT_CODE=$rc; exit $rc; } 2\u003e\u00261 | tee docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/40-deployed-restart-recovery-e2e.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc 'rg -n \"quality.*reject|review_verdict|OutcomeFailed|tests_failed|non_delivery|implementation\" internal/agentruntime internal/projectmanager internal/admin/api | head -300'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc 'rg -n \"Test.*(Quality|Reject|Verdict|NonDelivery|FailedRun|PushedDeliveryStaysSucceeded|ValidCodeDelivery)\" internal/agentruntime internal/projectmanager internal/admin/api'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"set -o pipefail; { echo '\"'$ go test adjacent classification focused'\"'; go test ./internal/agentruntime/orchestrator ./internal/agentruntime/executor ./internal/admin/api ./internal/projectmanager/service -run 'Test(Report_CodeExitZeroWithoutDurableDeliveryIsNonDelivery|Report_DurableDeliveryIsSucceeded|Report_Failed|ValidCodeDelivery_RejectsProtectedBranch|Monitor_Finalize_PushedDeliveryStaysSucceeded|Monitor_Finalize_FailedRunDiscoversPartialOriginDelivery|Monitor_Finalize_FailedRunNeverCreatesOriginDelivery|Monitor_Finalize_EagerPush_PushFailureDowngrades|CompleteTask_StageGateRejectAppendsRemediationAndReplayIsIdempotent|CompleteTask_InvalidReviewVerdict_Rejected_T468|StageReject_AppendsIncrementalStageWithoutReopeningHistory|StageReject_WhilePausedRecordsFactsThenAppendsOnceAfterResume|EnsureTaskRunnable_MergeToMain_RejectVerdict_Blocked)' -count=1 -v; rc=\"'$?; echo EXIT_CODE=$rc; exit $rc; } 2\u003e\u00261 | tee docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/50-negative-adjacent-classification.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"set -o pipefail; { echo '\"'$ go test -race focused finalizer/reaper/reset'\"'; go test -race ./internal/agentruntime/executor ./internal/agentruntime/orchestrator ./internal/projectmanager/service -run 'TestMonitor_Finalize|TestMonitor_ReapFinalized|TestMonitor_Recover|TestResetTask|TestStuckNode|TestReport_|TestValidCodeDelivery|TestReconcileOneExecutor|TestPlanExecutorReconcile' -count=1; rc=\"'$?; echo EXIT_CODE=$rc; exit $rc; } 2\u003e\u00261 | tee docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/60-race-focused.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"sed -n '1,120p' docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/00-main-lock.txt \u0026\u0026 sed -n '1,120p' docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/40-deployed-restart-recovery-e2e.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc 'git ls-remote --heads origin \u003e docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/70-remote-refs-after-before-delivery-push.txt \u0026\u0026 diff -u docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/01-remote-refs-before.txt docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/70-remote-refs-after-before-delivery-push.txt \u003e docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/71-remote-refs-diff-before-delivery-push.txt; rc=$?; echo diff_exit=$rc \u003e\u003e docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/71-remote-refs-diff-before-delivery-push.txt; exit 0'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/71-remote-refs-diff-before-delivery-push.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc \"sed -n '1,80p' docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/30-deployed-runtime-executor-e2e.log \u0026\u0026 sed -n '1,100p' docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/10-ab-finalize-tests.log \u0026\u0026 sed -n '1,140p' docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/20-c-stale-lease-tests.log\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc 'git diff --stat -- docs/acceptance/issue-8d1a1443-runtime-acceptance'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc 'find docs/acceptance/issue-8d1a1443-runtime-acceptance -type f -maxdepth 2 -print | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'git status --short \u0026\u0026 git diff --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/issue-8d1a1443-runtime-acceptance \u0026\u0026 git commit -m \"chore(evidence): runtime acceptance for issue-8d1a1443\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc \"set -o pipefail; { echo '\"'$ git push origin HEAD:refs/heads/ac-exec/task-0e398848/exec-c6d16f2d'\"'; git push origin HEAD:refs/heads/ac-exec/task-0e398848/exec-c6d16f2d; rc=\"'$?; echo EXIT_CODE=$rc; exit $rc; } 2\u003e\u00261 | tee docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/80-evidence-push.log'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc \"git config --get-regexp '\"'^remote'\"\\\\.(origin|origin-push)\\\\.'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc \"set -o pipefail; { echo '\"'$ git push origin-push HEAD:refs/heads/ac-exec/task-0e398848/exec-c6d16f2d'\"'; git push origin-push HEAD:refs/heads/ac-exec/task-0e398848/exec-c6d16f2d; rc=\"'$?; echo EXIT_CODE=$rc; exit $rc; } 2\u003e\u00261 | tee docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/81-evidence-push-origin-push.log'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc 'git ls-remote --heads origin-push \u003e docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/83-remote-refs-after-evidence-push.txt \u0026\u0026 diff -u docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/70-remote-refs-after-before-delivery-push.txt docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/83-remote-refs-after-evidence-push.txt \u003e docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/84-remote-refs-diff-after-evidence-push.txt; rc=$?; echo diff_exit=$rc \u003e\u003e docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/84-remote-refs-diff-after-evidence-push.txt; exit 0'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc \"{ date -u '+%Y-%m-%dT%H:%M:%SZ'; git rev-parse HEAD; git ls-remote origin-push refs/heads/main; git ls-remote origin-push refs/heads/ac-exec/task-0e398848/exec-c6d16f2d; } \u003e docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/82-post-push-readback.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc 'cat docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/82-post-push-readback.txt \u0026\u0026 cat docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/84-remote-refs-diff-after-evidence-push.txt'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc \"find docs/acceptance/issue-8d1a1443-runtime-acceptance/raw -maxdepth 1 -type f -print | sort | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/issue-8d1a1443-runtime-acceptance \u0026\u0026 git commit -m \"chore(evidence): record acceptance delivery push\" \u0026\u0026 git push origin-push HEAD:refs/heads/ac-exec/task-0e398848/exec-c6d16f2d'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate -n 4 \u0026\u0026 git diff --stat origin/main..HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc \"{ date -u '+%Y-%m-%dT%H:%M:%SZ'; git rev-parse HEAD; git ls-remote origin-push refs/heads/ac-exec/task-0e398848/exec-c6d16f2d; git ls-remote origin-push refs/heads/main; git merge-base --is-ancestor f2a3bf2d81437892b7e320f0a5736e5d798dc3cf refs/remotes/origin/main; echo ancestry_exit=\"'$?; git status --short --branch; }'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-c6d16f2d/command_events.jsonl",
+  "command_event_digest": "sha256:ce79d21b07d3ee2a4536ebc24ee6b1c5a7849ebdd32b89be26c0815d63e73138",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "PASS.",
+  "artifact_digest": "sha256:0d46f6f6711f9d1a4ae14fd29f4ea51f0d0cad77d128952256997100f746279e",
+  "path": ".agent-center/evidence/task-0e398848/exec-c6d16f2d.json",
+  "branch": "ac-exec/task-0e398848/exec-c6d16f2d"
+}
