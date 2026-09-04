@@ -263,7 +263,7 @@ func (m *Monitor) evidenceNonDelivery(c Completion, reason string) Completion {
 		}
 		return c
 	}
-	c.Kind, c.Retryable = OutcomeCrashed, true
+	c.Kind, c.Retryable = OutcomeNonDelivery, true
 	c.Error = &ErrorDetail{Kind: "non_delivery", Message: "evidence_only result has no durable artifact: " + reason}
 	return c
 }

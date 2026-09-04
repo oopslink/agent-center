@@ -21,6 +21,8 @@ import (
 	"strings"
 )
 
+const maxDirtyPaths = 100
+
 // FinalizedGitStatus is the structured git state of a terminal executor's worktree,
 // captured at finalize and persisted in the `finalized` marker (the issue's
 // "finalized.json"). It is the audit/delivery-detection contract: read it after the
@@ -33,6 +35,9 @@ type FinalizedGitStatus struct {
 	// Dirty is true when the worktree has uncommitted changes (staged or unstaged) — the
 	// executor left work it never committed.
 	Dirty bool `json:"dirty"`
+	// DirtyPaths is the bounded porcelain path list captured with Dirty=true so a
+	// non_delivery report names what must be repaired while the worktree is retained.
+	DirtyPaths []string `json:"dirty_paths,omitempty"`
 	// Pushed is a local remote-tracking hint when set by probeGitStatus. Before the delivery
 	// gate accepts it, eagerSupervisorPush replaces that hint with an independently verified
 	// actual origin ref + exact HEAD SHA (and also covers mirror-backed worktrees).
@@ -115,7 +120,8 @@ func probeGitStatus(ctx context.Context, runner GitRunner, dir, baseRef string) 
 		}
 	}
 	if st, serr := runner.Run(ctx, dir, env, "status", "--porcelain"); serr == nil {
-		gs.Dirty = strings.TrimSpace(st) != ""
+		gs.DirtyPaths = parseDirtyPaths(st)
+		gs.Dirty = len(gs.DirtyPaths) > 0
 	}
 	// HEAD present on ANY remote-tracking branch ⇒ pushed. Empty/err ⇒ not pushed (best
 	// -effort: an un-fetched remote reads as not-pushed, the safe side for delivery audit).
@@ -136,6 +142,29 @@ func probeGitStatus(ctx context.Context, runner GitRunner, dir, baseRef string) 
 		}
 	}
 	return gs
+}
+
+func parseDirtyPaths(status string) []string {
+	lines := strings.Split(status, "\n")
+	paths := make([]string, 0, len(lines))
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		path := ""
+		if len(line) > 3 {
+			path = strings.TrimSpace(line[3:])
+		}
+		if path == "" {
+			path = line
+		}
+		paths = append(paths, path)
+		if len(paths) >= maxDirtyPaths {
+			break
+		}
+	}
+	return paths
 }
 
 // gitProbeEnv is the neutralized environment the git-status probe runs under — the same

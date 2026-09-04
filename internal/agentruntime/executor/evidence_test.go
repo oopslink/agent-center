@@ -93,7 +93,7 @@ func TestEvidenceOnly_MissingGitAndFailedPersistenceAreExplicit(t *testing.T) {
 	in.DeliveryContract = DeliveryContractEvidenceOnly
 	mustWriteInput(t, f.fx, in)
 	got := f.mon.materializeEvidence(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded})
-	if got.Kind != OutcomeCrashed || got.Error == nil || got.Error.Kind != "non_delivery" || got.Evidence == nil || got.Evidence.Error == "" {
+	if got.Kind != OutcomeNonDelivery || got.Error == nil || got.Error.Kind != "non_delivery" || got.Evidence == nil || got.Evidence.Error == "" {
 		t.Fatalf("missing git evidence result=%+v", got)
 	}
 
@@ -250,20 +250,19 @@ func TestEvidenceOnly_RedVerdictStillDurable(t *testing.T) {
 	}
 }
 
-func TestEvidenceOnlyPushFailureIsNonDelivery(t *testing.T) {
+func TestEvidenceOnlyUnexpectedBranchPushesSafeRef(t *testing.T) {
 	f := newFinalizeGateFixture(t)
-	id, task := "exec-evidence-refused", "task-refused"
-	ws, _ := setupEvidenceOnly(t, f, id, task, false)
-	writeEvidenceCommandEvent(t, f.fx, id, "cmd-refused", "go test ./...", 0)
-	// Violate the unique ac-exec branch guardrail: runtime must fail closed.
+	id, task := "exec-evidence-safe-ref", "task-safe-ref"
+	ws, bare := setupEvidenceOnly(t, f, id, task, false)
+	writeEvidenceCommandEvent(t, f.fx, id, "cmd-safe-ref", "go test ./...", 0)
 	runGitIn(t, f.git, ws, "checkout", "-q", "-b", "unexpected")
 	must(t, f.mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded, Output: okOutput(id), Status: doneStatus(id)}))
 	got := f.wb.reports[0]
-	if got.Kind != OutcomeCrashed || !got.Retryable || got.Error == nil || got.Error.Kind != "non_delivery" {
+	if got.Kind != OutcomeSucceeded || got.Error != nil || got.Git == nil || !got.Git.Pushed || got.Git.Branch != "ac-exec/"+task+"/"+id {
 		t.Fatalf("completion=%+v", got)
 	}
-	if got.Evidence == nil || got.Evidence.Error == "" {
-		t.Fatalf("evidence failure ref lost: %+v", got.Evidence)
+	if !gitRefExists(f.git, bare, "refs/heads/ac-exec/"+task+"/"+id) || gitRefExists(f.git, bare, "refs/heads/unexpected") {
+		t.Fatalf("safe ref push invariant failed")
 	}
 }
 
@@ -275,7 +274,7 @@ func TestEvidenceOnlyCommandEventsUnavailableIsExplicitNonDelivery(t *testing.T)
 	must(t, f.fx.AppendProgress(id, progress))
 	must(t, f.mon.Finalize(context.Background(), Completion{ExecutorID: id, Kind: OutcomeSucceeded, Output: okOutput(id), Status: doneStatus(id)}))
 	got := f.wb.reports[0]
-	if got.Kind != OutcomeCrashed || !got.Retryable || got.Error == nil || got.Error.Kind != "non_delivery" {
+	if got.Kind != OutcomeNonDelivery || !got.Retryable || got.Error == nil || got.Error.Kind != "non_delivery" {
 		t.Fatalf("missing command events must be non-delivery, got %+v", got)
 	}
 	if got.Evidence == nil || got.Evidence.CommandsAvailable || got.Evidence.CommandsUnavailableReason == "" || got.Evidence.CommandEventDigest == "" {

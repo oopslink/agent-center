@@ -235,7 +235,7 @@ func (w *CenterWriteback) Report(ctx context.Context, c executor.Completion) err
 	switch c.Kind {
 	case executor.OutcomeSucceeded:
 		return w.reportSuccess(ctx, in, c)
-	case executor.OutcomeFailed, executor.OutcomeCrashed:
+	case executor.OutcomeFailed, executor.OutcomeCrashed, executor.OutcomeNonDelivery:
 		return w.reportFailure(ctx, in, c)
 	default:
 		return fmt.Errorf("orchestrator: writeback unknown completion kind %q for %s", c.Kind, c.ExecutorID)
@@ -353,6 +353,8 @@ func (w *CenterWriteback) reportFailure(ctx context.Context, in executor.Input, 
 		outcome := "failed"
 		if c.Kind == executor.OutcomeCrashed {
 			outcome = "crashed"
+		} else if c.Kind == executor.OutcomeNonDelivery {
+			outcome = "non_delivery"
 		}
 		if err := w.deliverJudgment(ctx, taskRef, outcome, reason, c.Git, c.Evidence); err != nil {
 			return err
@@ -575,6 +577,8 @@ func failureReason(c executor.Completion) string {
 	var b strings.Builder
 	if c.Kind == executor.OutcomeCrashed {
 		b.WriteString("executor crashed (retryable): ")
+	} else if c.Kind == executor.OutcomeNonDelivery {
+		b.WriteString("executor non_delivery (retryable): ")
 	} else {
 		b.WriteString("executor failed: ")
 	}

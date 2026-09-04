@@ -213,7 +213,7 @@ func TestReport_JudgmentSurfacesPushFailure(t *testing.T) {
 	wb, _ := newWB(t, fc, in)
 	c := executor.Completion{
 		ExecutorID: "exec-10",
-		Kind:       executor.OutcomeCrashed,
+		Kind:       executor.OutcomeNonDelivery,
 		Error:      &executor.ErrorDetail{Kind: "non_delivery", Message: "no durable delivery — eager-push failed: auth denied"},
 		Status:     &executor.Status{ExecutorID: "exec-10", State: executor.StateDone, StartedAt: wbNow},
 		Git:        &executor.FinalizedGitStatus{Probed: true, Branch: "ac-exec/task-1/exec-10", HeadSHA: "def5678", Pushed: false, PushError: "auth denied"},

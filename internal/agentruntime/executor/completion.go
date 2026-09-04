@@ -34,6 +34,10 @@ const (
 	// process vanished while status was still "running", or exited cleanly without
 	// the output it promised.
 	OutcomeCrashed OutcomeKind = "crashed"
+	// OutcomeNonDelivery — the executor reached a terminal result, but delivery
+	// preflight proved the result is not durable/reviewable (dirty, unpushed, or no
+	// delivery). This is distinct from implementation failure and process crash.
+	OutcomeNonDelivery OutcomeKind = "non_delivery"
 )
 
 // Completion is the orchestrator's resolved view of a finished executor (design
@@ -50,8 +54,8 @@ type Completion struct {
 	// Error is the resolved failure detail for Failed/Crashed (nil for Succeeded/
 	// Running). Always carries a human-readable message (conventions §16).
 	Error *ErrorDetail
-	// Retryable is true iff Kind == OutcomeCrashed: the orchestrator MAY re-queue
-	// the work rather than reporting a terminal failure.
+	// Retryable is true for recoverable crashes and delivery preflight failures: the
+	// orchestrator MAY re-queue/repair rather than reporting an implementation failure.
 	Retryable bool
 	// Recovered marks a completion observed via the crash-recovery / orphan path
 	// (Monitor.Recover / Monitor.CheckOrphan) rather than a reaped this-process exit

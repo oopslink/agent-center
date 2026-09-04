@@ -163,6 +163,7 @@ func TestExecutorStopPayload_FourClasses(t *testing.T) {
 		{"正常退出", base(executor.OutcomeSucceeded, "", "", false, false), "succeeded", nil, "succeeded", false},
 		{"异常退出(exit code)", base(executor.OutcomeFailed, "nonzero_exit", "executor exited with error", false, false), "failed", "nonzero_exit", "failed:nonzero_exit", false},
 		{"看门狗 stall-kill", base(executor.OutcomeFailed, "stalled", "killed by watchdog", false, false), "failed", "stalled", "failed:stalled", false},
+		{"交付预检失败", base(executor.OutcomeNonDelivery, "non_delivery", "dirty paths", true, false), "non_delivery", "non_delivery", "non_delivery:non_delivery", false},
 		{"orphan 清理", base(executor.OutcomeCrashed, "process_gone", "process gone", true, true), "crashed", "process_gone", "crashed:process_gone", true},
 	}
 	for _, tc := range cases {

@@ -34,12 +34,10 @@ func gitNetworkEnv() []string {
 	)
 }
 
-// expectedExecutorBranch reconstructs the executor's provisioned worktree branch —
-// "ac-exec/<task_ref>/<executor_id>" (materializer WorktreeRequest.BranchName in
-// executor_runtime.go) — the ONLY branch an eager-push is ever allowed to push. It is
-// deterministic from taskRef + executorID, so the guardrail needs no extra persisted state.
-// "" when the task ref is unknown (then there is no legitimate push target and push is
-// refused).
+// expectedExecutorBranch reconstructs the system-owned executor delivery ref —
+// "ac-exec/<task_ref>/<executor_id>". Eager-push always pushes HEAD explicitly to this
+// safe remote ref, independent of the checked-out local branch name. "" when the task ref
+// is unknown (then there is no legitimate push target and push is refused).
 func (m *Monitor) expectedExecutorBranch(executorID string) string {
 	taskRef := strings.TrimSpace(m.taskRef(executorID))
 	if taskRef == "" {
@@ -139,21 +137,31 @@ func (m *Monitor) eagerSupervisorPush(ctx context.Context, c Completion) (bool, 
 	// successfully pushed. Independently verify the ACTUAL branch against origin before
 	// applying the runtime-push branch guard. This only observes an already-durable ref;
 	// it never grants permission to push an unexpected branch.
-	verified, verifyErr := m.verifyExistingOriginDelivery(ctx, c)
-	if verified {
-		return true, nil
-	}
 	if policyErr := m.deliveryBranchAllowed(c.ExecutorID, gs.Branch); policyErr != nil {
 		return false, fmt.Errorf("eager-push refused: %w", policyErr)
 	}
-	// Branch guardrail: only the provisioned executor branch may be pushed.
 	want := m.expectedExecutorBranch(c.ExecutorID)
-	branch := strings.TrimSpace(gs.Branch)
-	if want == "" || branch == "" || branch != want {
-		if verifyErr != nil {
-			return false, fmt.Errorf("eager-push refused: HEAD on %q, expected executor branch %q; origin verification failed: %v (unexpected branch — not pushing to origin)", gs.Branch, want, verifyErr)
+	var verifyErr error
+	if want != "" {
+		var verified bool
+		verified, verifyErr = m.originHeadMatchesForCompletion(ctx, c, want)
+		if verified {
+			gs.Branch = want
+			return true, nil
 		}
-		return false, fmt.Errorf("eager-push refused: HEAD on %q, expected executor branch %q; origin ref does not point at HEAD %s (unexpected branch — not pushing to origin)", gs.Branch, want, gs.HeadSHA)
+	} else {
+		verified, err := m.verifyExistingOriginDelivery(ctx, c)
+		if verified {
+			return true, nil
+		}
+		verifyErr = err
+	}
+	// Ref guardrail: only the system-generated executor ref may receive HEAD.
+	if want == "" {
+		if verifyErr != nil {
+			return false, fmt.Errorf("eager-push refused: no expected executor ref; origin verification failed: %v", verifyErr)
+		}
+		return false, fmt.Errorf("eager-push refused: no expected executor ref for HEAD %s", gs.HeadSHA)
 	}
 	if m.git == nil {
 		return false, fmt.Errorf("eager-push: no git runner wired")
@@ -171,19 +179,31 @@ func (m *Monitor) eagerSupervisorPush(ctx context.Context, c Completion) (bool, 
 	// guarded branch, never a mirror push.
 	pushCtx, cancel := context.WithTimeout(ctx, defaultOriginVerificationTimeout)
 	defer cancel()
-	ref := "refs/heads/" + branch
+	ref := "refs/heads/" + want
 	if out, perr := m.git.Run(pushCtx, ws, gitNetworkEnv(),
-		"-c", "remote.origin.mirror=false", "push", "origin", ref+":"+ref); perr != nil {
-		return false, fmt.Errorf("eager-push %s → origin failed: %w: %s", branch, perr, strings.TrimSpace(out))
+		"-c", "remote.origin.mirror=false", "push", "origin", "HEAD:"+ref); perr != nil {
+		return false, fmt.Errorf("eager-push %s → origin failed: %w: %s", want, perr, strings.TrimSpace(out))
 	}
-	verified, err = m.originHeadMatches(ctx, ws, branch, gs.HeadSHA)
+	verified, err := m.originHeadMatches(ctx, ws, want, gs.HeadSHA)
 	if err != nil {
-		return false, fmt.Errorf("eager-push %s reached origin but exact ref/SHA verification failed: %w", branch, err)
+		return false, fmt.Errorf("eager-push %s reached origin but exact ref/SHA verification failed: %w", want, err)
 	}
 	if !verified {
-		return false, fmt.Errorf("eager-push %s returned success but origin ref does not point at HEAD %s", branch, gs.HeadSHA)
+		return false, fmt.Errorf("eager-push %s returned success but origin ref does not point at HEAD %s", want, gs.HeadSHA)
 	}
+	gs.Branch = want
 	return true, nil
+}
+
+func (m *Monitor) originHeadMatchesForCompletion(ctx context.Context, c Completion, branch string) (bool, error) {
+	if m.git == nil {
+		return false, fmt.Errorf("origin verification: no git runner wired")
+	}
+	ws, err := m.executorWorkspacePath(c.ExecutorID)
+	if err != nil {
+		return false, fmt.Errorf("origin verification: resolve actual workspace: %w", err)
+	}
+	return m.originHeadMatches(ctx, ws, branch, c.Git.HeadSHA)
 }
 
 // originHeadMatches proves that refs/heads/<branch> exists on origin at exactly headSHA.
@@ -290,6 +310,9 @@ func (m *Monitor) eagerPushBeforeGate(ctx context.Context, c Completion) Complet
 	}
 	if pushed {
 		c.Git.Pushed = true // durable off-machine now → the gate passes → genuine success
+		if want := m.expectedExecutorBranch(c.ExecutorID); want != "" {
+			c.Git.Branch = want
+		}
 		m.log("EAGER-PUSH ok executor=%s task=%s branch=%s head=%s — durably delivered to origin",
 			c.ExecutorID, m.taskRef(c.ExecutorID), c.Git.Branch, c.Git.HeadSHA)
 	}
