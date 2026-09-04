@@ -21,6 +21,16 @@ Raw proof:
 - `raw/01-remote-refs-before.txt`
 - `raw/70-remote-refs-after-before-delivery-push.txt`
 - `raw/71-remote-refs-diff-before-delivery-push.txt`
+- `raw/80-evidence-push.log`
+- `raw/81-evidence-push-origin-push.log`
+- `raw/82-post-push-readback.txt`
+- `raw/83-remote-refs-after-evidence-push.txt`
+- `raw/84-remote-refs-diff-after-evidence-push.txt`
+
+Delivery note: the first push attempt through `origin` failed because that remote is
+configured as `mirror=true` and Git rejects mirror push with an explicit refspec. The
+evidence was then pushed through the non-mirror `origin-push` remote to the same safe
+executor ref only.
 
 ## Isolated Instance Provenance
 

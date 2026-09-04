@@ -59,8 +59,20 @@
     "raw/50-negative-adjacent-classification.log",
     "raw/60-race-focused.log",
     "raw/70-remote-refs-after-before-delivery-push.txt",
-    "raw/71-remote-refs-diff-before-delivery-push.txt"
+    "raw/71-remote-refs-diff-before-delivery-push.txt",
+    "raw/80-evidence-push.log",
+    "raw/81-evidence-push-origin-push.log",
+    "raw/82-post-push-readback.txt",
+    "raw/83-remote-refs-after-evidence-push.txt",
+    "raw/84-remote-refs-diff-after-evidence-push.txt"
   ],
+  "delivery_push": {
+    "initial_origin_push_exit_code": 128,
+    "initial_origin_push_reason": "origin is configured mirror=true; Git rejects --mirror with explicit refspecs",
+    "safe_remote": "origin-push",
+    "safe_ref": "refs/heads/ac-exec/task-0e398848/exec-c6d16f2d",
+    "safe_push_exit_code": 0
+  },
   "production_follow_up_required": [
     "production center/worker rollout authorization",
     "production runtime restart smoke",

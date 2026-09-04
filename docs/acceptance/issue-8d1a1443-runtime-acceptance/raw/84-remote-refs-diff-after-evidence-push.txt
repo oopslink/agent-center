@@ -1,0 +1,11 @@
+--- docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/70-remote-refs-after-before-delivery-push.txt	2026-09-04 14:30:53
++++ docs/acceptance/issue-8d1a1443-runtime-acceptance/raw/83-remote-refs-after-evidence-push.txt	2026-09-04 14:33:29
+@@ -43,6 +43,7 @@
+ fada1de9f5236d65475f5541a537ba131abaddf1	refs/heads/ac-exec/task-09d36abb/exec-b896c5c8
+ 5073fcacc71c02aa77a67cd7481a410d163ed2bb	refs/heads/ac-exec/task-0acd92ce/exec-949c3245
+ 1c5f5508accb32a29fe0477ed05e0b80f57bba79	refs/heads/ac-exec/task-0d152cac/exec-6e0d643a
++641e7d7b48f59be796a121c8a13403c95174552d	refs/heads/ac-exec/task-0e398848/exec-c6d16f2d
+ 1467848d08a43395b2740d921836727d989aafff	refs/heads/ac-exec/task-107cf20a/exec-e0cc7664
+ 5e03ed05005f0923187c877d506d5bd518ce648f	refs/heads/ac-exec/task-10e532df/exec-be668465
+ 8f624900dcbb23f496745dd41fec1b330ce93858	refs/heads/ac-exec/task-115697b6/exec-1ba0d31f
+diff_exit=1

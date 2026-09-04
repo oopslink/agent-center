@@ -1,0 +1,3 @@
+$ git push origin HEAD:refs/heads/ac-exec/task-0e398848/exec-c6d16f2d
+fatal: --mirror can't be combined with refspecs
+EXIT_CODE=128
