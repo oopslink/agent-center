@@ -1,0 +1,357 @@
+{
+  "schema": "agent-center.acceptance.verdict/v1",
+  "task": "T2181 independent acceptance of combined candidate",
+  "product_verdict": "PASS",
+  "candidate": {
+    "required_ref": "ac-exec/task-340201c6/exec-7a7d087b",
+    "required_sha": "6074ea621f178889bcfca5adca8cf27c3ad174da",
+    "verified_sha": "6074ea621f178889bcfca5adca8cf27c3ad174da",
+    "merge_base_origin_main": "ddfb87d47e8253fb2e4f22d014f497301fa4b7ec",
+    "graph_evidence": "docs/acceptance/t2181-independent/raw/git-graph.log",
+    "fresh_main_single_commit": true,
+    "no_main_merge_performed": true
+  },
+  "input_package_note": {
+    "result": "MISMATCH_RECORDED",
+    "details": "task-input/v1 describes T1850, while this executor contract explicitly fixes T2181 candidate 6074ea621f178889bcfca5adca8cf27c3ad174da; acceptance used the explicit current contract.",
+    "paths": [
+      "task-input/v1/README.md",
+      "task-input/v1/manifest.json"
+    ]
+  },
+  "coverage_matrix": [
+    {
+      "source": "T2176 formal navigation",
+      "result": "PASS",
+      "proof": "Insight module default path and secondary/mobile nav expose Collaboration effects; authenticated click and URL refresh loaded without unexpected 401/import errors.",
+      "paths": [
+        "web/src/AppLayout.tsx",
+        "web/src/AppLayout.insightnav.test.tsx",
+        "web/src/AppLayout.mobilenav.test.tsx",
+        "docs/acceptance/t2181-independent/evidence/01-authenticated-projects.png",
+        "docs/acceptance/t2181-independent/evidence/03-direct-refresh.png"
+      ]
+    },
+    {
+      "source": "T2176 real wheel and viewport controls",
+      "result": "PASS",
+      "proof": "SVG wheel listener, +, -, Fit, Reset, pan, node drag, keyboard focus and reset changed viewBox/position in browser evidence.",
+      "paths": [
+        "web/src/pages/InsightCollaboration.tsx",
+        "docs/acceptance/t2181-independent/evidence/05-agent-focus.png",
+        "docs/acceptance/t2181-independent/evidence/interaction-after-reset.png"
+      ]
+    },
+    {
+      "source": "T2176 LOD/truncated feedback",
+      "result": "PASS",
+      "proof": "Cluster LOD and truncation are represented in API normalization and UI notice with Show full graph action.",
+      "paths": [
+        "web/src/api/insights.ts",
+        "web/src/pages/InsightCollaboration.tsx",
+        "docs/acceptance/t2181-independent/evidence/api-lod-cluster.json",
+        "docs/acceptance/t2181-independent/evidence/02-organization-graph.png"
+      ]
+    },
+    {
+      "source": "T2176 large-scale readability",
+      "result": "PASS",
+      "proof": "Real fixture produced 120 API nodes/256 edges and clustered first screen remained readable with interaction timings under 3s; visual note records minor edge-label proximity but no blocking overlap.",
+      "paths": [
+        "docs/acceptance/t2181-independent/evidence/api-org-graph.json",
+        "docs/acceptance/t2181-independent/evidence/02-organization-graph.png",
+        "docs/acceptance/t2181-independent/evidence/network.har"
+      ]
+    },
+    {
+      "source": "T2179 project_id 503 fix",
+      "result": "PASS",
+      "proof": "Graph reader applies project/org scoped structure queries; HTTP/API probes return valid 200, bad cursor 400, missing/cross-org 404, unauth 401, and no 503.",
+      "paths": [
+        "internal/observability/collaborationeffect/graph_sqlite.go",
+        "internal/webconsole/api/handlers_collaboration_insight_test.go",
+        "docs/acceptance/t2181-independent/evidence/api-project-filter-probes.json"
+      ]
+    }
+  ],
+  "isolated_instance": {
+    "candidate_sha": "6074ea621f178889bcfca5adca8cf27c3ad174da",
+    "install_root": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-HC7pLp",
+    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-HC7pLp/config.yaml",
+    "web_origin": "http://127.0.0.1:62184",
+    "grpc_port": 62185,
+    "admin_tcp_port": 62186,
+    "database": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-HC7pLp/agent-center.db",
+    "duckdb": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-HC7pLp/agent-center.duckdb",
+    "runtime_identity": "AGENT_CENTER_INVOCATION_ID=t2181-combined-ui",
+    "cookie_namespace": "ac_session@127.0.0.1",
+    "fixture_provenance": "Fresh isolated instance; data seeded via authenticated production HTTP endpoints only.",
+    "organization_id": "organization-477a1288",
+    "organization_slug": "org-27a26777",
+    "worker_id": "worker-496125a3",
+    "worker_bootstrap_host": "127.0.0.1:62186",
+    "worker_fingerprint": "sha256:DD:68:DE:85:AA:21:94:ED:A3:92:A9:56:CD:DD:3E:EB:EB:A7:6F:46:DA:8D:9B:E1:39:A9:65:78:40:BD:E5:64",
+    "runtime_catalog_revision": 1,
+    "agent_refs": [
+      "agent:agent-4e25bea7",
+      "agent:agent-85ab2575"
+    ],
+    "project_id": "project-048db05c",
+    "plan_id": "plan-8e175823"
+  },
+  "seeded_graph": {
+    "api_nodes": 120,
+    "api_edges": 256,
+    "relation_types": [
+      "agent_plan",
+      "agent_task",
+      "plan_task",
+      "project_plan",
+      "reassign",
+      "task_dependency"
+    ],
+    "required_relationships": {
+      "agent_agent": true,
+      "agent_task": true,
+      "agent_plan": true,
+      "plan_task": true
+    },
+    "lod_cluster": {
+      "lod": "cluster",
+      "clusters": 1,
+      "truncated": true
+    }
+  },
+  "hard_gates": [
+    {
+      "id": "hard_gate_1",
+      "name": "Authenticated navigation and direct URL refresh",
+      "result": "PASS",
+      "evidence": "nav_link=true; org_url=http://127.0.0.1:62184/organizations/org-27a26777/insights/collaboration; unexpected401=0; import_errors=0",
+      "paths": [
+        "docs/acceptance/t2181-independent/evidence/01-authenticated-projects.png",
+        "docs/acceptance/t2181-independent/evidence/03-direct-refresh.png",
+        "docs/acceptance/t2181-independent/evidence/network.har",
+        "docs/acceptance/t2181-independent/evidence/network.json",
+        "docs/acceptance/t2181-independent/evidence/console.json",
+        "docs/acceptance/t2181-independent/evidence/server.log"
+      ]
+    },
+    {
+      "id": "hard_gate_2",
+      "name": "No-query first screen non-empty organization graph",
+      "result": "PASS",
+      "evidence": "url=http://127.0.0.1:62184/organizations/org-27a26777/insights/collaboration; svg_nodes=4; svg_edges=6; api_nodes=120; api_edges=256",
+      "paths": [
+        "docs/acceptance/t2181-independent/evidence/02-organization-graph.png",
+        "docs/acceptance/t2181-independent/evidence/api-org-graph.json",
+        "docs/acceptance/t2181-independent/evidence/network.har",
+        "docs/acceptance/t2181-independent/evidence/network.json",
+        "docs/acceptance/t2181-independent/evidence/console.json",
+        "docs/acceptance/t2181-independent/evidence/server.log"
+      ]
+    },
+    {
+      "id": "hard_gate_3",
+      "name": "Agent-Agent, Agent-Task, Agent-Plan, Plan-Task same screen",
+      "result": "PASS",
+      "evidence": "agent_agent=true; agent_task=true; agent_plan=true; plan_task=true; effects=2; edge_text_sample=plan task · Neutral · strength 1 · 84 effects · evidence 0 | agent task · Neutral · strength 1 · 84 effects · evidence 0 | agent plan · Neutral · strength 1 · 1 effects · evidence 0 | Dependency release · Positive · strength 3 · 1 effects · evidence 2 · 9/5/2026, 4:06:32 AM | Complete · Positive · strength 2 · 1 effects · evidence 1 · 9/5/2026, 4:06:32 AM",
+      "paths": [
+        "docs/acceptance/t2181-independent/evidence/02-organization-graph.png",
+        "docs/acceptance/t2181-independent/evidence/api-org-graph.json",
+        "docs/acceptance/t2181-independent/evidence/network.har",
+        "docs/acceptance/t2181-independent/evidence/network.json",
+        "docs/acceptance/t2181-independent/evidence/console.json",
+        "docs/acceptance/t2181-independent/evidence/server.log"
+      ]
+    },
+    {
+      "id": "hard_gate_4",
+      "name": "Search/filter and clear restores full graph",
+      "result": "PASS",
+      "evidence": "filtered=http://127.0.0.1:62184/organizations/org-27a26777/insights/collaboration?project_id=project-048db05c; cleared=http://127.0.0.1:62184/organizations/org-27a26777/insights/collaboration",
+      "paths": [
+        "docs/acceptance/t2181-independent/evidence/04-filtered-project.png",
+        "docs/acceptance/t2181-independent/evidence/api-project-filter-probes.json",
+        "docs/acceptance/t2181-independent/evidence/network.har",
+        "docs/acceptance/t2181-independent/evidence/network.json",
+        "docs/acceptance/t2181-independent/evidence/console.json",
+        "docs/acceptance/t2181-independent/evidence/server.log"
+      ]
+    },
+    {
+      "id": "hard_gate_5",
+      "name": "Zoom/pan/drag/Fit/Reset/focus/restore interactions",
+      "result": "PASS",
+      "evidence": "{\"pass\":true,\"before\":{\"viewBox\":\"120 0 320 304\",\"nodes\":4,\"edges\":6},\"zoomIn\":{\"viewBox\":\"148.8 27.360000000000014 262.4 249.27999999999997\",\"nodes\":4,\"edges\":6},\"zoomOut\":{\"viewBox\":\"125.18400000000003 4.924800000000033 309.63199999999995 294.15039999999993\",\"nodes\":4,\"edges\":6},\"resetForWheel\":{\"viewBox\":\"120 0 320 304\",\"nodes\":4,\"edges\":6},\"wheel\":{\"viewBox\":\"156.0619135253906 34.28960273437501 247.80800000000002 235.4176\",\"nodes\":4,\"edges\":6},\"pan\":{\"viewBox\":\"158.82472229003906 -104.66074752807617 281.17527770996094 408.6607475280762\",\"nodes\":4,\"edges\":6},\"fit\":{\"viewBox\":\"120 0 392.617919921875 304\",\"nodes\":4,\"edges\":6},\"focus\":{\"viewBox\":\"312.617919921875 5.352790832519531 240 180\",\"nodes\":4,\"edges\":6},\"reset\":{\"viewBox\":\"120 0 320 304\",\"nodes\":4,\"edges\":6},\"circleBefore\":{\"cx\":null,\"x\":\"272\"},\"circleAfter\":{\"cx\":null,\"x\":\"344.617919921875\"},\"dragged\":true,\"continuousMs\":448}",
+      "paths": [
+        "docs/acceptance/t2181-independent/evidence/05-agent-focus.png",
+        "docs/acceptance/t2181-independent/evidence/interaction-after-reset.png",
+        "docs/acceptance/t2181-independent/evidence/page@3297b9e5697c9000aaad27ee549e3a10.webm",
+        "docs/acceptance/t2181-independent/evidence/network.har",
+        "docs/acceptance/t2181-independent/evidence/network.json",
+        "docs/acceptance/t2181-independent/evidence/console.json",
+        "docs/acceptance/t2181-independent/evidence/server.log"
+      ]
+    },
+    {
+      "id": "hard_gate_6",
+      "name": "Evidence drill-down",
+      "result": "PASS",
+      "evidence": "drawer contains Effect evidence × collaboration.effect.dependency_release { \"before\": { \"downstream_task_id\": \"task-6299759e\", \"upstream_task_status\": \"running\" }, \"after\": { \"downstream_task_id\": \"task-6299759e\", ",
+      "paths": [
+        "docs/acceptance/t2181-independent/evidence/06-evidence-drawer.png",
+        "docs/acceptance/t2181-independent/evidence/api-evidence.json",
+        "docs/acceptance/t2181-independent/evidence/network.har",
+        "docs/acceptance/t2181-independent/evidence/network.json",
+        "docs/acceptance/t2181-independent/evidence/console.json",
+        "docs/acceptance/t2181-independent/evidence/server.log"
+      ]
+    },
+    {
+      "id": "hard_gate_7",
+      "name": "LOD/cluster/truncation prompt",
+      "result": "PASS",
+      "evidence": "api_lod=cluster; clusters=1; api_truncated=true; ui_lod_notice=1; ui_load_more=0; ui_show_full=1; explicit_lod_text=true",
+      "paths": [
+        "docs/acceptance/t2181-independent/evidence/02-organization-graph.png",
+        "docs/acceptance/t2181-independent/evidence/api-org-graph.json",
+        "docs/acceptance/t2181-independent/evidence/api-lod-cluster.json",
+        "docs/acceptance/t2181-independent/evidence/network.har",
+        "docs/acceptance/t2181-independent/evidence/network.json",
+        "docs/acceptance/t2181-independent/evidence/console.json",
+        "docs/acceptance/t2181-independent/evidence/server.log"
+      ]
+    },
+    {
+      "id": "hard_gate_8",
+      "name": "Real-scale first interactive and continuous interactions",
+      "result": "PASS",
+      "evidence": "{\"first_graph_interactive_ms\":0,\"continuous_interaction_ms\":448}",
+      "paths": [
+        "docs/acceptance/t2181-independent/evidence/network.har",
+        "docs/acceptance/t2181-independent/evidence/network.json",
+        "docs/acceptance/t2181-independent/evidence/console.json",
+        "docs/acceptance/t2181-independent/evidence/server.log"
+      ]
+    },
+    {
+      "id": "hard_gate_9",
+      "name": "Contrast/readability and overlap",
+      "result": "PASS",
+      "evidence": "{\"pass\":true,\"method\":\"visual screenshot inspection plus DOM graph density\",\"note\":\"Primary graph viewport remained readable in the captured screenshot.\"}",
+      "paths": [
+        "docs/acceptance/t2181-independent/evidence/02-organization-graph.png",
+        "docs/acceptance/t2181-independent/evidence/api-org-graph.json",
+        "docs/acceptance/t2181-independent/evidence/network.har",
+        "docs/acceptance/t2181-independent/evidence/network.json",
+        "docs/acceptance/t2181-independent/evidence/console.json",
+        "docs/acceptance/t2181-independent/evidence/server.log"
+      ]
+    },
+    {
+      "id": "hard_gate_10",
+      "name": "Project_id API scoping and fail-closed errors",
+      "result": "PASS",
+      "evidence": "{\"slug\":\"org-27a26777\",\"projectID\":\"project-048db05c\",\"foreignProjectID\":\"project-05c33f60\",\"valid\":{\"status\":200,\"nodes\":120,\"edges\":256,\"effects\":2},\"badProject\":{\"status\":404,\"body\":\"{\\\"error\\\":\\\"not_found\\\",\\\"message\\\":\\\"project not found in this organization\\\"}\\n\"},\"badCursor\":{\"status\":400,\"body\":\"{\\\"error\\\":\\\"invalid_cursor\\\",\\\"message\\\":\\\"collaboration insight: invalid cursor\\\"}\\n\"},\"unauth\":{\"status\":401,\"body\":\"{\\\"error\\\":\\\"unauthenticated\\\",\\\"message\\\":\\\"no session cookie\\\"}\\n\"},\"foreignProjectInOwnerOrg\":{\"status\":404,\"nodes\":null,\"edges\":null,\"effects\":null,\"body\":\"{\\\"error\\\":\\\"not_found\\\",\\\"message\\\":\\\"project not found in this organization\\\"}\\n\"}}",
+      "paths": [
+        "docs/acceptance/t2181-independent/evidence/api-project-filter-probes.json",
+        "docs/acceptance/t2181-independent/evidence/network.har",
+        "docs/acceptance/t2181-independent/evidence/network.json",
+        "docs/acceptance/t2181-independent/evidence/console.json",
+        "docs/acceptance/t2181-independent/evidence/server.log"
+      ]
+    }
+  ],
+  "quality_gates": [
+    {
+      "name": "fresh origin/main make lint",
+      "result": "BASELINE_FAIL",
+      "exit": "pnpm_install_exit:0\nmake_lint_exit:2",
+      "paths": [
+        "docs/acceptance/t2181-independent/raw/main-lint.log",
+        "docs/acceptance/t2181-independent/raw/main-lint.exit"
+      ],
+      "note": "Existing web/src/components/WorkItemFilterBar.tsx checkbox eslint rule."
+    },
+    {
+      "name": "candidate make lint",
+      "result": "BASELINE_FAIL_NOT_NEW",
+      "exit": "make_lint_exit:2",
+      "paths": [
+        "docs/acceptance/t2181-independent/raw/candidate-make-lint.log",
+        "docs/acceptance/t2181-independent/raw/candidate-make-lint.exit"
+      ],
+      "note": "Same file/rule as fresh origin/main; no candidate-added lint failure."
+    },
+    {
+      "name": "candidate web typecheck",
+      "result": "PASS",
+      "exit": "web_typecheck_exit:0",
+      "paths": [
+        "docs/acceptance/t2181-independent/raw/candidate-web-typecheck.log",
+        "docs/acceptance/t2181-independent/raw/candidate-web-typecheck.exit"
+      ]
+    },
+    {
+      "name": "candidate related Go tests",
+      "result": "PASS",
+      "exit": "go_related_exit:0",
+      "paths": [
+        "docs/acceptance/t2181-independent/raw/candidate-go-related-tests.log",
+        "docs/acceptance/t2181-independent/raw/candidate-go-related-tests.exit"
+      ]
+    },
+    {
+      "name": "candidate related Web tests",
+      "result": "PASS",
+      "exit": "web_related_vitest_exit:0",
+      "paths": [
+        "docs/acceptance/t2181-independent/raw/candidate-web-related-vitest.log",
+        "docs/acceptance/t2181-independent/raw/candidate-web-related-vitest.exit"
+      ]
+    },
+    {
+      "name": "candidate make build",
+      "result": "PASS",
+      "exit": "make_build_exit:0",
+      "paths": [
+        "docs/acceptance/t2181-independent/raw/candidate-make-build.log",
+        "docs/acceptance/t2181-independent/raw/candidate-make-build.exit"
+      ]
+    },
+    {
+      "name": "isolated production-like acceptance",
+      "result": "PASS",
+      "exit": "isolated_acceptance_rerun_exit:0",
+      "paths": [
+        "docs/acceptance/t2181-independent/raw/isolated-acceptance-rerun.log",
+        "docs/acceptance/t2181-independent/evidence/network.har",
+        "docs/acceptance/t2181-independent/evidence/server.log"
+      ]
+    }
+  ],
+  "evidence_index": [
+    "63d393e2aae4f995a79b858fa25eaa8d9a6723d261b4a6ceb07c223eab13af58  docs/acceptance/t2181-independent/evidence/02-organization-graph.png",
+    "89457e4c67f23e3450f8c27551e3ba03d0e9a2304b298ade5d8e21f3ae4a0abf  docs/acceptance/t2181-independent/evidence/05-agent-focus.png",
+    "6bfe5b6d160d212369facdb961b6104af0e270c8ef48ae86688cb3da60aeac40  docs/acceptance/t2181-independent/evidence/06-evidence-drawer.png",
+    "b66db4e3722074a4f9e56b2c135d9bf376edcad67950f367b9ee71caa3885b81  docs/acceptance/t2181-independent/evidence/console.json",
+    "40362e9137a40dc6934d9411b15f2ecb61b67211de67f3678b748026d3026e92  docs/acceptance/t2181-independent/evidence/page@3297b9e5697c9000aaad27ee549e3a10.webm",
+    "8bc4ba6167ac2f58e19b4b9ded6ff2e32035d04e5fb6688a500a012ba080f01a  docs/acceptance/t2181-independent/evidence/03-direct-refresh.png",
+    "bffa2488dea655673b0349a3b68641ec157c9c27642f5df347c778d548580ae0  docs/acceptance/t2181-independent/evidence/api-evidence.json",
+    "2d9859af70932f9af5481db564a830fc16b226d5c0cc5742840eede7a2c6f271  docs/acceptance/t2181-independent/evidence/page@5f899d759ab2463c6c9541220019e034.webm",
+    "1770f51ce677edbecb9ff5dcef8328914acad56b7e82b4a0a2d20f3f44116e77  docs/acceptance/t2181-independent/evidence/network.har",
+    "877a5b3a8624e416f6cadfdaef6c35dd89ed0ea7c57a6aa520089254a38e87f7  docs/acceptance/t2181-independent/evidence/04-filtered-project.png",
+    "da1816dcd9f7486c6a8148ab77ab7360de9ab7c2828af8b58bb404cf8a312899  docs/acceptance/t2181-independent/evidence/network.json",
+    "ba94f6ab3f62b616c8cf2a73a21bbdb1105411e0d7b2adae9dfdad4148105fc2  docs/acceptance/t2181-independent/evidence/api-project-filter-probes.json",
+    "c4cd60e5d91d33f397fb152bd3acbd1e72f6542010c333de8ae357416f3e455a  docs/acceptance/t2181-independent/evidence/server.log",
+    "89457e4c67f23e3450f8c27551e3ba03d0e9a2304b298ade5d8e21f3ae4a0abf  docs/acceptance/t2181-independent/evidence/interaction-after-reset.png",
+    "0e17f86f149082e47393f8ea2566cb46c1a12ec97eec7939194e400202701ed8  docs/acceptance/t2181-independent/evidence/api-lod-cluster.json",
+    "25a5e3e293292b850fa274c6ff9d6fc127e89e9d452d09a9440f2d736a273c5f  docs/acceptance/t2181-independent/evidence/api-org-graph.json",
+    "51ee2a0fefc908dbf4978117bdebb49fee4c0e2387fcc72b0d4469181dd0bd36  docs/acceptance/t2181-independent/evidence/01-authenticated-projects.png"
+  ],
+  "notes": [
+    "No production instance, Vite dev server, MSW, or mock backend was used for hard-gate acceptance; the script ran the built Go binary with embedded SPA on random loopback ports.",
+    "No product code was edited during independent acceptance; only docs/acceptance/t2181-independent evidence/report files were added."
+  ]
+}
