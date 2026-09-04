@@ -110,7 +110,57 @@ func (r *LocalRuntime) AttachExecutorEngine(pl ExecutorConfig) error {
 		return err
 	}
 	r.AttachExecutor(ee)
+	r.recordExecAttachState(true, "")
 	return nil
+}
+
+// EnsureExecutorEngine attaches this runtime's executor engine from durable center
+// config when it is missing. It is intentionally bounded by the caller's context so a
+// fork control command can retry attach once without wedging the worker cursor.
+func (r *LocalRuntime) EnsureExecutorEngine(ctx context.Context) (bool, error) {
+	if r.execEngine() != nil {
+		r.recordExecAttachState(true, "")
+		return true, nil
+	}
+	provider := r.cfg.ExecutorConfigProvider
+	if provider == nil {
+		return false, nil
+	}
+	r.execAttachMu.Lock()
+	defer r.execAttachMu.Unlock()
+	if r.execEngine() != nil {
+		r.recordExecAttachState(true, "")
+		return true, nil
+	}
+	pl, enabled, err := provider(ctx)
+	if err != nil {
+		r.recordExecAttachState(true, err.Error())
+		return false, err
+	}
+	r.SetAgentRef(pl.AgentRef)
+	if !enabled {
+		r.recordExecAttachState(false, "")
+		return false, nil
+	}
+	if err := r.AttachExecutorEngine(pl); err != nil {
+		r.recordExecAttachState(true, err.Error())
+		return false, err
+	}
+	r.recordExecAttachState(true, "")
+	return true, nil
+}
+
+func (r *LocalRuntime) recordExecAttachState(desired bool, lastErr string) {
+	r.mu.Lock()
+	r.execAttachDesired = desired
+	r.execAttachLastError = strings.TrimSpace(lastErr)
+	r.mu.Unlock()
+}
+
+func (r *LocalRuntime) executorAttachState() (desired bool, lastErr string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.execAttachDesired, r.execAttachLastError
 }
 
 // routerConfigOf projects an ExecutorConfig onto the model-routing Config. The SINGLE
@@ -726,7 +776,16 @@ func (r *LocalRuntime) SnapshotConcurrency() []concurrency.ExecutorSnapshot {
 func (r *LocalRuntime) SnapshotAgentConcurrency() concurrency.AgentSnapshot {
 	ee := r.execEngine()
 	if ee == nil {
-		return concurrency.AgentSnapshot{Executors: []concurrency.ExecutorSnapshot{}}
+		snap := concurrency.AgentSnapshot{Executors: []concurrency.ExecutorSnapshot{}}
+		if desired, lastErr := r.executorAttachState(); desired || lastErr != "" {
+			snap.Integrity = "degraded"
+			if lastErr != "" {
+				snap.IntegrityError = "executor engine not attached: " + lastErr
+			} else {
+				snap.IntegrityError = "executor engine not attached"
+			}
+		}
+		return snap
 	}
 	return ee.SnapshotAgentConcurrency()
 }
@@ -764,8 +823,20 @@ func (r *LocalRuntime) SpawnExecutor(ctx context.Context, req SpawnRequest) (*Sp
 	defer r.endRuntimeWork()
 	ee := r.execEngine()
 	if ee == nil {
-		r.log("fork_executor agent=%s task=%s SpawnExecutor: no executor engine — left queued", agentID, taskID)
-		return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "runtime_executor_unavailable", Detail: "runtime has no executor engine attached"}, nil
+		attached, aerr := r.EnsureExecutorEngine(ctx)
+		if aerr != nil {
+			r.log("fork_executor agent=%s task=%s SpawnExecutor: reattach executor engine failed: %v", agentID, taskID, aerr)
+			return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "runtime_executor_unavailable", Detail: "reattach executor engine failed: " + aerr.Error()}, nil
+		}
+		if !attached {
+			r.log("fork_executor agent=%s task=%s SpawnExecutor: no executor engine — left queued", agentID, taskID)
+			return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "runtime_executor_unavailable", Detail: "runtime has no executor engine attached"}, nil
+		}
+		r.log("fork_executor agent=%s task=%s SpawnExecutor: reattached executor engine before fork", agentID, taskID)
+		ee = r.execEngine()
+		if ee == nil {
+			return &SpawnResult{CommandStatus: controlCommandStatusFailed, Reason: "runtime_executor_unavailable", Detail: "runtime has no executor engine attached after reattach"}, nil
+		}
 	}
 
 	if strings.TrimSpace(taskID) == "" {

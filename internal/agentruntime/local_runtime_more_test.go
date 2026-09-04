@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -28,6 +29,54 @@ func TestExecutorSurface_NoEngineNoop(t *testing.T) {
 	}
 	if rt.HasExecutor() {
 		t.Error("a runtime with no engine attached must report HasExecutor()=false")
+	}
+}
+
+func TestSpawnExecutor_ReattachesMissingExecutorEngine(t *testing.T) {
+	agentID := "agent-reattach"
+	rt := newExecRuntime(t, t.TempDir(), agentID, lookTrue(t))
+	rt.cfg.ExecutorConfigProvider = func(context.Context) (ExecutorConfig, bool, error) {
+		return ExecutorConfig{
+			AgentID:              agentID,
+			AgentRef:             "agent:member-reattach",
+			MaxConcurrentTasks:   2,
+			DefaultExecutorModel: "claude-default",
+		}, true, nil
+	}
+	sc := &scriptedToolCaller{getTaskBody: map[string]any{
+		"id": "task-reattach", "title": "Fix", "status": "open",
+	}}
+	setToolCaller(rt, sc)
+
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-reattach"})
+	if err != nil {
+		t.Fatalf("SpawnExecutor: %v", err)
+	}
+	if res == nil || res.ExecutorID == "" {
+		t.Fatalf("SpawnExecutor result=%+v, want forked executor after reattach", res)
+	}
+	if !rt.HasExecutor() {
+		t.Fatal("SpawnExecutor must leave the executor engine attached")
+	}
+	assertAdmissionForked(t, sc, "reattach path must continue into normal admission/fork flow")
+}
+
+func TestSpawnExecutor_ReattachFailureMarksSnapshotDegraded(t *testing.T) {
+	rt := newExecRuntime(t, t.TempDir(), "agent-reattach-fail", lookTrue(t))
+	rt.cfg.ExecutorConfigProvider = func(context.Context) (ExecutorConfig, bool, error) {
+		return ExecutorConfig{}, false, errors.New("resume-state unavailable")
+	}
+
+	res, err := rt.SpawnExecutor(context.Background(), SpawnRequest{TaskID: "task-fail"})
+	if err != nil {
+		t.Fatalf("SpawnExecutor: %v", err)
+	}
+	if res == nil || res.CommandStatus != controlCommandStatusFailed || res.Reason != "runtime_executor_unavailable" {
+		t.Fatalf("SpawnExecutor result=%+v, want runtime_executor_unavailable", res)
+	}
+	snap := rt.SnapshotAgentConcurrency()
+	if snap.Integrity != "degraded" || !strings.Contains(snap.IntegrityError, "resume-state unavailable") {
+		t.Fatalf("SnapshotAgentConcurrency=%+v, want degraded attach error", snap)
 	}
 }
 

@@ -85,28 +85,15 @@ func RunAgentRuntime(ctx context.Context, opts AgentRuntimeOptions, logf func(st
 		return err
 	}
 
-	// 2b) 🔴 ENGINE-ATTACH-BEFORE-BOOT (T854 D6 fix, sibling to Boot-before-serve): a
-	// crash-rebuilt agent-runtime process gets NO reconcile command (the center has not
-	// re-pushed), so the executor engine MUST be attached from DURABLE config before
-	// Boot — otherwise selfReconcile has no engine and in-flight executors can never be
-	// recovered (the §4.4 core). The config comes from the center's ResumeState, which
-	// survives the restart (in-process memory does not). Best-effort: no engine ⇒
-	// single-active until the first reconcile re-attaches it.
-	if ecfg, enabled, ferr := agentExecConfig(ctx, client, opts.Run.WorkerID, opts.AgentID); ferr != nil {
-		logf(fmt.Sprintf("agent-runtime agent=%s exec-config at boot: %v (single-active until reconcile)", opts.AgentID, ferr))
-	} else {
-		// Seed the stable identity ref (from ResumeState) BEFORE Boot's self-reconcile —
-		// it drives the should-continue check's assignee comparison (T872). Set regardless
-		// of concurrency so an agent that turns concurrent via a later reconcile still has
-		// its ref (identity is stable; reconcile never overwrites it).
-		rt.SetAgentRef(ecfg.AgentRef)
-		if enabled {
-			if aerr := rt.AttachExecutorEngine(ecfg); aerr != nil {
-				logf(fmt.Sprintf("agent-runtime agent=%s attach executor engine: %v", opts.AgentID, aerr))
-			} else {
-				logf(fmt.Sprintf("agent-runtime agent=%s executor engine attached (max=%d) before Boot", opts.AgentID, ecfg.MaxConcurrentTasks))
-			}
-		}
+	// 2b) ENGINE-ATTACH-BEFORE-BOOT: a crash-rebuilt agent-runtime process often gets
+	// no reconcile command, so it must attach the executor engine from durable center
+	// ResumeState before self-reconcile. Failure is a visible degraded state with a
+	// retry loop; it is not silently treated as "single-active until reconcile".
+	if attached, aerr := rt.EnsureExecutorEngine(ctx); aerr != nil {
+		logf(fmt.Sprintf("agent-runtime agent=%s attach executor engine at boot: %v (degraded; retrying)", opts.AgentID, aerr))
+		go retryAttachExecutorEngine(ctx, rt, opts.AgentID, logf, time.Second)
+	} else if attached {
+		logf(fmt.Sprintf("agent-runtime agent=%s executor engine attached before Boot", opts.AgentID))
 	}
 
 	// 3) Boot self-recovery — AFTER the engine is attached, BEFORE serving any command
@@ -283,6 +270,9 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 		DisableUsageReport: func() bool { return disableUsage },
 		TaskDirManager:     taskexec.NewDirManager(),
 		EventWriter:        taskexec.NewEventStreamWriter(),
+		ExecutorConfigProvider: func(ctx context.Context) (agentruntime.ExecutorConfig, bool, error) {
+			return agentExecConfig(ctx, client, opts.Run.WorkerID, opts.AgentID)
+		},
 		// §4.5 process model: no in-process self-heal — a supervisor crash fires OnFatal →
 		// this process exits and the worker launcher rebuilds it (bounded backoff).
 		OnFatal: onFatal,
@@ -312,7 +302,9 @@ func gitWorktreeFlagEnabled() bool {
 // the DURABLE source that survives a process restart (T854 D6 fix): the launcher
 // rebuilds the process with no reconcile command, so the boot engine-attach reads the
 // center's desired config here rather than lost in-process memory. Returns (config,
-// concurrencyEnabled, err); a missing agent in the resume set is (zero, false, nil).
+// concurrencyEnabled, err); a missing agent in the resume set is an error because a
+// launched agent-runtime serving without its durable center record cannot decide
+// whether executor readiness is required.
 func agentExecConfig(ctx context.Context, client *AdminClient, workerID, agentID string) (agentruntime.ExecutorConfig, bool, error) {
 	state, err := client.ResumeState(ctx, workerID)
 	if err != nil {
@@ -323,7 +315,7 @@ func agentExecConfig(ctx context.Context, client *AdminClient, workerID, agentID
 			return execConfigFromResumeAgent(ra)
 		}
 	}
-	return agentruntime.ExecutorConfig{}, false, nil
+	return agentruntime.ExecutorConfig{}, false, fmt.Errorf("agent %s not found in worker resume-state", agentID)
 }
 
 // agentResumeRecord fetches THIS agent's full resume record (desired lifecycle + in-flight
@@ -421,6 +413,33 @@ func retryBootStartSupervisorSession(ctx context.Context, rt *agentruntime.Local
 				logf(fmt.Sprintf("agent-runtime agent=%s boot-session retry converged", opts.AgentID))
 				return
 			}
+			timer.Reset(interval)
+		}
+	}
+}
+
+func retryAttachExecutorEngine(ctx context.Context, rt *agentruntime.LocalRuntime, agentID string, logf func(string), interval time.Duration) {
+	if interval <= 0 {
+		interval = time.Second
+	}
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			logf(fmt.Sprintf("agent-runtime agent=%s executor attach retry stopped: %v", agentID, ctx.Err()))
+			return
+		case <-timer.C:
+			attemptCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			attached, err := rt.EnsureExecutorEngine(attemptCtx)
+			cancel()
+			if err == nil {
+				if attached {
+					logf(fmt.Sprintf("agent-runtime agent=%s executor attach retry converged", agentID))
+				}
+				return
+			}
+			logf(fmt.Sprintf("agent-runtime agent=%s executor attach retry: %v", agentID, err))
 			timer.Reset(interval)
 		}
 	}

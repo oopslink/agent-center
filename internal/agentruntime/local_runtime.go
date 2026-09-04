@@ -164,6 +164,11 @@ type LocalRuntimeConfig struct {
 	// before a Codex session is allowed to start. nil ⇒ production mcphost catalog
 	// preflight. Tests may replace it to force the blocked path.
 	MCPPreflight func(context.Context, mcphost.Config, ...string) error
+
+	// ExecutorConfigProvider reloads this agent's durable executor config from the
+	// center. It lets a rebuilt agent-runtime repair a missing executor engine without
+	// waiting for a later reconcile command.
+	ExecutorConfigProvider func(context.Context) (ExecutorConfig, bool, error)
 }
 
 // LocalRuntime is the in-process Runtime for one agent.
@@ -230,6 +235,12 @@ type LocalRuntime struct {
 	// daemon-side cache. Guarded by r.mu; execConfigSet gates "have we built one yet".
 	execConfig    ExecutorConfig
 	execConfigSet bool
+
+	// execAttachMu serializes engine reattach attempts. The desired/error fields feed
+	// health snapshots so a supervisor-only runtime is visible as degraded.
+	execAttachMu        sync.Mutex
+	execAttachDesired   bool
+	execAttachLastError string
 
 	// recoveredOnce is the per-runtime "executor crash-recovery has run once" guard
 	// (T848 §4.4 migration: was AgentController.recoveredExec[agentID]). A durable,
