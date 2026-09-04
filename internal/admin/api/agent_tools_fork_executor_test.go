@@ -14,6 +14,7 @@ import (
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	envsqlite "github.com/oopslink/agent-center/internal/environment/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
+	pm "github.com/oopslink/agent-center/internal/projectmanager"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
 
@@ -447,6 +448,100 @@ func TestForkExecutorHandler_CommandFailureIsQueryableWithoutExecutionStart(t *t
 	}
 	if !found {
 		t.Fatalf("audit did not include failed fork command %s: %v", commandID, auditItems)
+	}
+}
+
+func TestRetryFailedTask_AllowsFreshForkAndPreservesOldExecution(t *testing.T) {
+	fx := newWriteToolsFixture(t)
+	fx.addWorkerToken(t, "acat_w1", atWorker1)
+	taskID := fx.seedStandaloneRunningTask(t)
+	envWorkers := envsqlite.NewWorkerRepo(fx.db)
+	envEvents := envsqlite.NewControlEventRepo(fx.db)
+	fx.deps.EnvControlSvc = envservice.New(envservice.Deps{
+		DB: fx.db, Workers: envWorkers, Events: envEvents,
+		IDGen: idgen.NewGenerator(fx.clk), Clock: fx.clk,
+	})
+	if _, err := fx.deps.EnvControlSvc.ConnectWorker(context.Background(), environment.WorkerID(atWorker1)); err != nil {
+		t.Fatalf("connect env worker: %v", err)
+	}
+	markForkRuntimeReady(t, fx, atWorker1, atAgent1)
+	srv := fx.server(t)
+
+	st, body := postBearer(t, srv.URL, "/admin/agent-tools/fork_executor", "acat_w1", map[string]any{
+		"agent_id": atAgent1,
+		"task_id":  taskID,
+	})
+	if st != http.StatusAccepted {
+		t.Fatalf("first fork status=%d body=%v, want 202", st, body)
+	}
+	oldCommandID, _ := body["command_id"].(string)
+	if oldCommandID == "" {
+		t.Fatalf("first fork missing command_id: %v", body)
+	}
+	st, body = postBearer(t, srv.URL, "/admin/environment/agent/control-command-status", "acat_w1", map[string]any{
+		"agent_id":     atAgent1,
+		"command_id":   oldCommandID,
+		"task_id":      taskID,
+		"status":       environment.CommandStatusFailed,
+		"reason":       "runner_failed",
+		"detail":       "old execution failed",
+		"execution_id": "exec-old",
+	})
+	if st != http.StatusOK {
+		t.Fatalf("old status report=%d body=%v, want 200", st, body)
+	}
+	if err := fx.pmSvc.FailTask(context.Background(), pm.TaskID(taskID), "executor failed", pm.IdentityRef("agent:"+atAgent1)); err != nil {
+		t.Fatalf("fail task: %v", err)
+	}
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/retry_failed_task", "acat_w1", map[string]any{
+		"agent_id": atAgent1,
+		"task_id":  taskID,
+	})
+	if st != http.StatusOK {
+		t.Fatalf("retry status=%d body=%v, want 200", st, body)
+	}
+
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/fork_executor", "acat_w1", map[string]any{
+		"agent_id": atAgent1,
+		"task_id":  taskID,
+	})
+	if st != http.StatusAccepted {
+		t.Fatalf("second fork status=%d body=%v, want 202", st, body)
+	}
+	newCommandID, _ := body["command_id"].(string)
+	if newCommandID == "" || newCommandID == oldCommandID {
+		t.Fatalf("retry must enqueue a fresh command, old=%q new=%q body=%v", oldCommandID, newCommandID, body)
+	}
+	st, body = postBearer(t, srv.URL, "/admin/environment/agent/control-command-status", "acat_w1", map[string]any{
+		"agent_id":     atAgent1,
+		"command_id":   newCommandID,
+		"task_id":      taskID,
+		"status":       environment.CommandStatusStarted,
+		"execution_id": "exec-new",
+	})
+	if st != http.StatusOK {
+		t.Fatalf("new status report=%d body=%v, want 200", st, body)
+	}
+
+	st, body = postBearer(t, srv.URL, "/admin/agent-tools/list_task_executions", "acat_w1", map[string]any{
+		"agent_id": atAgent1,
+		"task_id":  taskID,
+	})
+	if st != http.StatusOK {
+		t.Fatalf("list executions=%d body=%v, want 200", st, body)
+	}
+	items, ok := body["items"].([]any)
+	if !ok || len(items) != 2 {
+		t.Fatalf("executions items=%#v, want old and new", body["items"])
+	}
+	seen := map[string]bool{}
+	for _, item := range items {
+		run, _ := item.(map[string]any)
+		execID, _ := run["execution_id"].(string)
+		seen[execID] = true
+	}
+	if !seen["exec-old"] || !seen["exec-new"] {
+		t.Fatalf("execution history must retain old and include fresh new id, items=%v", items)
 	}
 }
 

@@ -67,6 +67,10 @@ func mapPMError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "task_description_frozen", err.Error())
 	case errors.Is(err, pm.ErrTaskReopenRetired):
 		writeError(w, http.StatusConflict, "task_reopen_retired", err.Error())
+	case errors.Is(err, pm.ErrTaskRetryPlanBound):
+		writeError(w, http.StatusConflict, "task_retry_plan_bound", err.Error())
+	case errors.Is(err, pm.ErrTaskRetryNotApplicable):
+		writeError(w, http.StatusConflict, "task_retry_not_applicable", err.Error())
 	case errors.Is(err, pm.ErrIllegalTransition), errors.Is(err, pm.ErrInvalidStatus),
 		errors.Is(err, pm.ErrBlockReasonRequired),
 		errors.Is(err, pm.ErrCrossProject), errors.Is(err, pm.ErrEmptyProjectScope),
@@ -1208,6 +1212,11 @@ func (s *Server) pmUnassignTaskHandler(w http.ResponseWriter, r *http.Request) {
 func (s *Server) pmReopenTaskHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
 	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.ReopenTask(r.Context(), id, c) })
+}
+
+func (s *Server) pmRetryFailedTaskHandler(w http.ResponseWriter, r *http.Request) {
+	d := hd(r)
+	s.pmTaskAction(w, r, func(id pm.TaskID, c pm.IdentityRef) error { return d.PM.RetryFailedTask(r.Context(), id, c) })
 }
 
 func (s *Server) pmSubscribeTaskHandler(w http.ResponseWriter, r *http.Request) {

@@ -346,6 +346,11 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 	}, makeFailTask(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "retry_failed_task",
+		Description: "Retry a standalone failed task by returning it to open for a fresh attempt. Only tasks with status=failed and no plan_id are eligible; plan-bound failed tasks, completed/discarded tasks, and running tasks are rejected. Failure audit and old execution evidence are retained; the next start/fork creates a new execution.",
+	}, makeRetryFailedTask(cfg))
+
+	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "reset_task",
 		Description: "Tier-3 recovery for a task stranded RUNNING under this Agent's dead/stale executor (its workspace/worktree is gone, node changed, or get_task_execution reports recovery_required): reset it back to the pool (running→open, assignee/lease cleared). Reset does NOT fork or re-dispatch an executor: after the task is assigned and work_available wakes its supervisor, that supervisor must explicitly call fork_executor for code/tooling work (or handle supervisor_inline/control work itself). Pass confirmed_dead=true only when current execution evidence proves this Agent's executor cannot make progress; that lets the owner break a still-live self-renewed lease. Without that proof, a live lease is rejected. After repeated resets the center fails the task for evolution triage.",
 	}, makeResetTask(cfg))

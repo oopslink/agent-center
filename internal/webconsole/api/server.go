@@ -396,6 +396,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/complete", s.pmCompleteTaskHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/discard", s.pmDiscardTaskHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/unassign", s.pmUnassignTaskHandler)
+	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/retry_failed", s.pmRetryFailedTaskHandler)
 	s.mux.HandleFunc("POST /api/orgs/{slug}/projects/{project_id}/tasks/{task_id}/reopen", s.pmReopenTaskHandler)
 	// v2.8.1: free status-set (any valid target, no adjacency) — the full-enum
 	// Change-status menu. The typed endpoints above remain for the agent's

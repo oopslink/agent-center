@@ -173,8 +173,10 @@ export function useUnassignTask(projectId: string, taskId: string) {
   );
 }
 
-export function useReopenTask(projectId: string, taskId: string) {
+export function useRetryFailedTask(projectId: string, taskId: string) {
   return useTaskAction<void>(projectId, taskId, () =>
-    api.post<Task>(`${taskPath(projectId, taskId)}/reopen`),
+    api.post<Task>(`${taskPath(projectId, taskId)}/retry_failed`),
   );
 }
+
+export const useReopenTask = useRetryFailedTask;

@@ -10,6 +10,7 @@ import (
 //
 //	open → running → completed
 //	open/running → failed/discarded (terminal)
+//	failed → open is reserved for explicit standalone retry (plan_id == "")
 //
 // Migration 0120 converts legacy `reopened` rows to open. `reopened` is not a
 // valid persisted or writable Task status anymore.
@@ -218,6 +219,7 @@ const (
 	TaskActionLeaseNudged TaskAction = "lease_nudge"
 	TaskActionCompleted   TaskAction = "completed"
 	TaskActionFailed      TaskAction = "failed"
+	TaskActionRetried     TaskAction = "retried"
 	// TaskActionReset (T862) records a tier-3 recovery RESET: a confirmed-dead running
 	// task whose lease has ALSO lapsed is returned to open with the assignee cleared so
 	// the pool re-dispatches it to a FRESH executor. Distinct from lease_expired (which
@@ -656,6 +658,11 @@ func (t *Task) Delivery() *Delivery { return t.delivery }
 // SetDelivery records the last executor's terminal git status (report_delivery
 // agent-tool). Latest-wins: a terminal report overwrites any prior one.
 func (t *Task) SetDelivery(d *Delivery) { t.delivery = d }
+
+// ClearDelivery drops the current-attempt delivery pointer. Historical execution
+// and delivery rows are append-only elsewhere; this prevents a retried task from
+// completing against stale delivery from the failed attempt.
+func (t *Task) ClearDelivery() { t.delivery = nil }
 
 // FruitlessReopens exposes the durable no-progress reopen tally (issue-f30b7e7b).
 func (t *Task) FruitlessReopens() int { return t.fruitlessReopens }
@@ -1332,6 +1339,40 @@ func (t *Task) Discard(at time.Time) error {
 	}
 	t.blockedReason = ""
 	t.failedReason = ""
+	return nil
+}
+
+// RetryFailed returns a standalone failed task to open for a fresh attempt. It is
+// the only sanctioned terminal-to-active task path: plan-bound failures are
+// remediated by plan evolution, and completed/discarded facts remain permanent.
+func (t *Task) RetryFailed(actor IdentityRef, at time.Time) error {
+	if t.IsArchived() {
+		return ErrTaskArchived
+	}
+	if err := actor.Validate(); err != nil {
+		return err
+	}
+	if t.planID != "" {
+		return ErrTaskRetryPlanBound
+	}
+	if t.status == TaskOpen {
+		return nil
+	}
+	if t.status != TaskFailed {
+		return ErrTaskRetryNotApplicable
+	}
+	t.status = TaskOpen
+	t.statusChangedAt = at.UTC()
+	t.blockedReason = ""
+	t.blockedReasonType = ""
+	t.blockedComment = ""
+	t.failedReason = ""
+	t.executionLeaseExpiresAt = nil
+	t.completedBy = ""
+	t.completedAt = time.Time{}
+	t.delivery = nil
+	t.appendLog(TaskActionRetried, actor, t.assignee, "standalone failed task retried", at)
+	t.touch(at)
 	return nil
 }
 

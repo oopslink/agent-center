@@ -25,6 +25,7 @@ var AgentFacingToolNames = []string{
 	"assign_task",
 	"attach_file",
 	"fail_task",
+	"retry_failed_task",
 	"heartbeat", // v2.14.0 I14/F5 §五/§2.5: renew the running task's execution lease
 	"complete_task",
 	"complete_plan",

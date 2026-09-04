@@ -188,6 +188,75 @@ func TestTaskTerminalStatusesCannotReopen(t *testing.T) {
 	}
 }
 
+func TestTaskRetryFailedStandaloneOnly(t *testing.T) {
+	tk := newTask(t)
+	_ = tk.Assign("agent:c", t0)
+	_ = tk.Start(t0)
+	tk.SetDelivery(&Delivery{Source: "executor", ExecutorID: "exec-old", Pushed: true, Probed: true, BaseKnown: true, AheadOfBase: 1, Branch: "ac-exec/old", HeadSHA: "abc"})
+	if err := tk.Fail("old attempt failed", "agent:c", t0.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := tk.RetryFailed("user:a", t0.Add(2*time.Minute)); err != nil {
+		t.Fatalf("RetryFailed standalone failed = %v", err)
+	}
+	if tk.Status() != TaskOpen || tk.FailedReason() != "" || tk.BlockedReason() != "" || tk.ExecutionLeaseExpiresAt() != nil || tk.Delivery() != nil {
+		t.Fatalf("retry must reopen and clear current attempt state: status=%s failed=%q blocked=%q lease=%v delivery=%v",
+			tk.Status(), tk.FailedReason(), tk.BlockedReason(), tk.ExecutionLeaseExpiresAt(), tk.Delivery())
+	}
+	logs := tk.ActionLogs()
+	if len(logs) < 2 || logs[len(logs)-2].Action != TaskActionFailed || logs[len(logs)-1].Action != TaskActionRetried {
+		t.Fatalf("retry must append without erasing failure evidence, logs=%+v", logs)
+	}
+	if err := tk.Assign("agent:new", t0.Add(3*time.Minute)); err != nil {
+		t.Fatalf("retry result should be assignable: %v", err)
+	}
+	if err := tk.Start(t0.Add(4 * time.Minute)); err != nil {
+		t.Fatalf("retry result should be startable: %v", err)
+	}
+}
+
+func TestTaskRetryFailedRejectsPlanBoundAndOtherStatuses(t *testing.T) {
+	planBound := newTask(t)
+	_ = planBound.SetPlan("PL1", t0)
+	_ = planBound.Assign("agent:c", t0)
+	_ = planBound.Start(t0)
+	_ = planBound.Fail("failed in plan", "agent:c", t0)
+	if err := planBound.RetryFailed("user:a", t0); err != ErrTaskRetryPlanBound {
+		t.Fatalf("plan-bound failed retry = %v want ErrTaskRetryPlanBound", err)
+	}
+	if planBound.Status() != TaskFailed || planBound.FailedReason() == "" {
+		t.Fatalf("rejected plan-bound retry mutated task: %s/%q", planBound.Status(), planBound.FailedReason())
+	}
+
+	open := newTask(t)
+	if err := open.RetryFailed("user:a", t0); err != nil {
+		t.Fatalf("standalone open retry should be idempotent: %v", err)
+	}
+	planOpen := newTask(t)
+	_ = planOpen.SetPlan("PL2", t0)
+	if err := planOpen.RetryFailed("user:a", t0); err != ErrTaskRetryPlanBound {
+		t.Fatalf("plan-bound open retry = %v want ErrTaskRetryPlanBound", err)
+	}
+
+	for _, status := range []TaskStatus{TaskRunning, TaskCompleted, TaskDiscarded} {
+		tk := newTask(t)
+		_ = tk.Assign("agent:c", t0)
+		_ = tk.Start(t0)
+		switch status {
+		case TaskCompleted:
+			_ = tk.Complete("agent:c", t0)
+		case TaskDiscarded:
+			_ = tk.Discard(t0)
+		}
+		if err := tk.RetryFailed("user:a", t0); err != ErrTaskRetryNotApplicable {
+			t.Fatalf("RetryFailed(%s) = %v want ErrTaskRetryNotApplicable", status, err)
+		}
+		if tk.Status() != status {
+			t.Fatalf("RetryFailed(%s) mutated status to %s", status, tk.Status())
+		}
+	}
+}
+
 func TestTaskReopenedIsRetired(t *testing.T) {
 	if TaskStatus("reopened").IsValid() {
 		t.Fatal("reopened must not be a valid writable/persisted Task status")

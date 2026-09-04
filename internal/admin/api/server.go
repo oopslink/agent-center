@@ -511,6 +511,7 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("POST /admin/agent-tools/stop_plan", s.stopPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/delete_plan", s.deletePlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/archive_plan", s.archivePlanHandler)
+	s.mux.HandleFunc("POST /admin/agent-tools/retry_failed_task", s.retryFailedTaskHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/get_plan", s.getPlanHandler)
 	s.mux.HandleFunc("POST /admin/agent-tools/list_plans", s.listPlansHandler)
 	// 2026-07-03 plan-stage-model §6: Stage authoring + read.
