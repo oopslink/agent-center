@@ -444,7 +444,8 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
 }
 
 function readableGraph(view: CollaborationGraphView, t: Translator): CollaborationGraphView & { clusteredOverview: boolean } {
-  const shouldCluster = view.lod === 'cluster' || view.truncated || view.nodes.length > 90 || view.edges.length > 180;
+  const exceedsReadableSize = view.lod !== 'full' && (view.nodes.length > 90 || view.edges.length > 180);
+  const shouldCluster = view.lod === 'cluster' || view.truncated || exceedsReadableSize;
   if (!shouldCluster) return { ...view, clusteredOverview: false };
   const groups = new Map<string, CollaborationNode & { count: number }>();
   const nodeToGroup = new Map<string, string>();

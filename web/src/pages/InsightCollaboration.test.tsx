@@ -267,6 +267,52 @@ describe('Collaboration Insight', () => {
     expect(new URL(requests.at(-1) ?? '').searchParams.has('project_id')).toBe(false);
   });
 
+  it('renders concrete agents in full LOD above the local readability threshold and supports focus reset', async () => {
+    const largeNodes = [
+      { id: 'agent:atlas', kind: 'agent', label: 'Atlas agent' },
+      ...Array.from({ length: 120 }, (_, i) => ({ id: `task:T${i}`, kind: 'task', label: `Task ${i}`, task_id: `T${i}` })),
+    ];
+    const largeEdges = Array.from({ length: 258 }, (_, i) => ({
+      id: `edge-full-${i}`,
+      source: 'agent:atlas',
+      target: `task:T${i % 120}`,
+      relation_type: relations[Math.floor(i / 120) % relations.length],
+      polarity: polarities[i % polarities.length],
+      magnitude: (i % 3 + 1) as 1 | 2 | 3,
+      effect_id: `ce-full-${i}`,
+      effect_scopes: [{ effect_id: `ce-full-${i}`, project_id: 'P1' }],
+      interaction_count: 1,
+      evidence_count: 1,
+    }));
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
+      const search = new URL(request.url).searchParams;
+      expect(search.get('lod')).toBe('full');
+      expect(search.has('max_nodes')).toBe(false);
+      return HttpResponse.json({
+        graph: { nodes: largeNodes, edges: largeEdges, lod: 'full', clusters: [], truncated: false },
+        effects: [],
+        summary: {},
+        graph_version: 'gv-full-large',
+        truncated: false,
+        next_cursor: '',
+      });
+    }));
+    const user = userEvent.setup();
+    renderAt('/organizations/acme/insights/collaboration?lod=full');
+    const svg = await screen.findByTestId('collaboration-graph-svg');
+    expect(svg).not.toHaveTextContent('Clustered overview');
+    const atlas = screen.getByRole('button', { name: 'Atlas agent' });
+    expect(atlas).toBeVisible();
+    const originalViewBox = svg.getAttribute('viewBox');
+
+    atlas.focus();
+    await user.keyboard('{Enter}');
+    expect(svg.getAttribute('viewBox')).not.toBe(originalViewBox);
+    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
+    expect(screen.getByRole('button', { name: 'Atlas agent' })).toBeVisible();
+  });
+
   it('normalizes nullable collaboration response collections without crashing', async () => {
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
       graph: { nodes: null, edges: null },
