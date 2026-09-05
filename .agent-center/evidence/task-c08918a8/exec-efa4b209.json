@@ -1,0 +1,173 @@
+{
+  "task_id": "task-c08918a8",
+  "execution_id": "exec-efa4b209",
+  "reviewed_sha": "c761e3873fef199236650f6d2ae5452a5fe5ca67",
+  "base_sha": "ddfb87d47e8253fb2e4f22d014f497301fa4b7ec",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files -g '\"'!*node_modules*'\"' -g '\"'!*.git*'\"' | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse --show-toplevel \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"find docs/acceptance -maxdepth 2 -type f \\\\( -name 'verdict.json' -o -name 'REPORT.md' -o -name '*.md' \\\\) | sort | tail -80\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"rg -n \\\"T2182|verdict.json|METHOD_GATE_PASS|overlap predicate|fixture-manifest|graph_dom_ready|paint_settled\\\" . -g '\"'!node_modules'\"' -g '\"'!.git'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'ls -la \u0026\u0026 ls -la task-input/v1 \u0026\u0026 find task-input/v1 -maxdepth 3 -type f -print'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git remote -v \u0026\u0026 git log --oneline --decorate -5'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t2182-phase1-method-gate/{scripts,schemas,raw,logs} \u0026\u0026 true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc 'chmod +x docs/acceptance/t2182-phase1-method-gate/scripts/*.py \u0026\u0026 python3 docs/acceptance/t2182-phase1-method-gate/scripts/run_phase1_gate.py; code=$?; echo \"run_phase1_gate exit_code=$code\"; exit 0'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t2182-phase1-method-gate -maxdepth 3 -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t2182-phase1-method-gate/raw/fixture-gate-blocked.json \u0026\u0026 sed -n '1,220p' docs/acceptance/t2182-phase1-method-gate/raw/command-exit-codes.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t2182-phase1-method-gate -name verdict.json -print'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc 'for f in docs/acceptance/t2182-phase1-method-gate/*.json docs/acceptance/t2182-phase1-method-gate/raw/*.json docs/acceptance/t2182-phase1-method-gate/schemas/*.json; do python3 -m json.tool \"$f\" \u003e/dev/null || exit 1; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"git diff -- docs/acceptance/t2182-phase1-method-gate | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc \"python3 - \u003c\u003c'PY'\nimport json, pathlib, sys\nroot=pathlib.Path('docs/acceptance/t2182-phase1-method-gate')\nverdict=json.loads((root/'verdict.json').read_text())\nmissing=[p for p in verdict['raw_evidence']+[verdict['preflight']['log']] if not (root/p).exists()]\nprint('missing evidence paths:', missing)\nprint('root verdict count:', len(list(root.rglob('verdict.json'))))\nsys.exit(1 if missing or len(list(root.rglob('verdict.json'))) \"'!= 1 else 0)\nPY'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc 'for f in docs/acceptance/t2182-phase1-method-gate/*.json docs/acceptance/t2182-phase1-method-gate/raw/*.json docs/acceptance/t2182-phase1-method-gate/schemas/*.json; do python3 -m json.tool \"$f\" \u003e/dev/null || exit 1; done; echo json-ok'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc 'git add -A \u0026\u0026 git commit -m \"test(acceptance): record T2182 phase-one blocked gate\" \u0026\u0026 git push origin HEAD'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"git config --get-regexp '\"'^remote'\"\\\\.(origin|origin-push)\\\\.' \u0026\u0026 git status --short --branch \u0026\u0026 git rev-parse HEAD\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"git branch --show-current \u0026\u0026 git for-each-ref --format='%(refname:short) %(objectname)' refs/heads refs/remotes/origin refs/remotes/origin-push | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-c08918a8/exec-efa4b209'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"python3 - \u003c\u003c'PY'\nimport json, pathlib, sys\nroot=pathlib.Path('docs/acceptance/t2182-phase1-method-gate')\nverdict=json.loads((root/'verdict.json').read_text())\nmissing=[p for p in verdict['raw_evidence']+[verdict['preflight']['log']] if not (root/p).exists()]\ncount=len(list(root.rglob('verdict.json')))\nresult=verdict['result']\nproduct=verdict['product_verdict']\nprint(f'verdict_result={result}')\nprint(f'product_verdict={product}')\nprint(f'fixture_status={verdict[\\\"checks\\\"][\\\"fresh_fixture_via_official_api\\\"][\\\"status\\\"]}')\nprint(f'fixture_manifest_sha256={verdict[\\\"fixture_manifest_sha256\\\"]}')\nprint(f'run_root_verdict_count={count}')\nprint(f'missing_evidence_paths={missing}')\nif result \"'!= '\"'BLOCKED/NOT_RUN' or product \"'!= '\"'NOT_RUN' or count \"'!= 1 or missing:\n    sys.exit(1)\nPY'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc 'for f in docs/acceptance/t2182-phase1-method-gate/*.json docs/acceptance/t2182-phase1-method-gate/raw/*.json docs/acceptance/t2182-phase1-method-gate/schemas/*.json; do python3 -m json.tool \"$f\" \u003e/dev/null || exit 1; done; echo '\"'JSON_PARSE=pass'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'base=ddfb87d47e8253fb2e4f22d014f497301fa4b7ec\nhead=$(git rev-parse HEAD)\nbranch=$(git branch --show-current)\nprintf '\"'base=%s\\\\nhead=%s\\\\nbranch=%s\\\\n' \\\"\"'$base\" \"$head\" \"$branch\"\ngit merge-base --is-ancestor \"$base\" HEAD \u0026\u0026 echo '\"'HEAD_AHEAD_BASE=pass' || echo 'HEAD_AHEAD_BASE=fail'\nprintf 'ahead_count='; git rev-list --count \\\"\"'$base\"..HEAD\nprintf '\"'worktree_status='; if [ -z \\\"\"'$(git status --porcelain)\" ]; then echo clean; else echo dirty; git status --short; fi\nremote=$(git ls-remote origin-push \"refs/heads/$branch\" | awk '\"'{print \"'$1}'\"')\nprintf 'remote_ref=refs/heads/%s\\\\nremote_head=%s\\\\n' \\\"\"'$branch\" \"$remote\"\nif [ \"$remote\" = \"$head\" ]; then echo '\"'REMOTE_DELIVERY_REF=pass'; else echo 'REMOTE_DELIVERY_REF=fail'; fi\"",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-efa4b209/command_events.jsonl",
+  "command_event_digest": "sha256:f29393e2af926d26978650f603d1a2b5f19ea8b546948fba8d4ce35c207495e9",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "阶段一结果：`BLOCKED/NOT_RUN`。",
+  "artifact_digest": "sha256:3b9abf34f5fb9c1a0e8559324a5b5174d9304c994e12efa9c781f5fc46f975b1",
+  "path": ".agent-center/evidence/task-c08918a8/exec-efa4b209.json",
+  "branch": "ac-exec/task-c08918a8/exec-efa4b209"
+}
