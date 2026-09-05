@@ -1,0 +1,6 @@
+delivery preflight placeholder
+
+The final delivery preflight is performed after the artifact commit exists, so
+the authoritative HEAD/clean/push status is reported in the executor final
+message. This tracked file exists to keep the T2182 run-root verdict evidence
+paths non-dangling.

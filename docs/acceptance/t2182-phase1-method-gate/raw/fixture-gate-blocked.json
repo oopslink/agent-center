@@ -1,0 +1,34 @@
+{
+  "check": "fresh_fixture_via_official_api",
+  "checked_at": "2026-09-05T01:04:39.583843+00:00",
+  "environment": {
+    "agent_center_access": "not_available_by_contract",
+    "cwd": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-efa4b209/docs/acceptance/t2182-phase1-method-gate"
+  },
+  "fixture_manifest": {
+    "exists": false,
+    "path": "raw/fixture-manifest.json",
+    "sha256": null
+  },
+  "forbidden_fallbacks_not_used": [
+    "sqlite",
+    "agent-center database files",
+    "admin sockets",
+    "admin HTTP endpoints",
+    "worker tokens",
+    "mcp_config.runtime.json",
+    "process arguments",
+    "raw HTTP"
+  ],
+  "phase": "phase1_method_gate",
+  "reason": "Executor instructions explicitly forbid agent-center access and fallbacks; no official MCP/API credentials or tools are available inside this isolated workspace.",
+  "required_but_not_created": {
+    "agent_A": null,
+    "agent_B": null,
+    "event_effect_readback": null,
+    "task_initial_owner": null,
+    "task_reassigned_owner": null
+  },
+  "status": "BLOCKED",
+  "task": "T2182"
+}

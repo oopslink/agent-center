@@ -1,0 +1,38 @@
+{
+  "checked_at": "2026-09-05T01:04:39.587550+00:00",
+  "commands": [
+    {
+      "command": "/opt/miniconda3/bin/python3 scripts/phase1_fixture_gate.py",
+      "exit_code": 2,
+      "log": "logs/phase1-fixture-gate.log",
+      "name": "phase1-fixture-gate"
+    },
+    {
+      "command": "/opt/miniconda3/bin/python3 scripts/perf_timeline_selftest.py",
+      "exit_code": null,
+      "log": "logs/perf-timeline-selftest.log",
+      "name": "perf-timeline-selftest",
+      "reason": "phase1-fixture-gate exited 2; phase-one contract requires stopping at the first failed or blocked self-check.",
+      "status": "NOT_RUN"
+    },
+    {
+      "command": "/opt/miniconda3/bin/python3 scripts/overlap_predicate_selftest.py",
+      "exit_code": null,
+      "log": "logs/overlap-predicate-selftest.log",
+      "name": "overlap-predicate-selftest",
+      "reason": "phase1-fixture-gate exited 2; phase-one contract requires stopping at the first failed or blocked self-check.",
+      "status": "NOT_RUN"
+    },
+    {
+      "command": "/opt/miniconda3/bin/python3 scripts/preflight_verdict.py .",
+      "exit_code": null,
+      "log": "logs/preflight-verdict.log",
+      "name": "preflight-verdict",
+      "reason": "phase1-fixture-gate exited 2; phase-one contract requires stopping at the first failed or blocked self-check.",
+      "status": "NOT_RUN"
+    }
+  ],
+  "phase": "phase1_method_gate",
+  "result": "BLOCKED/NOT_RUN",
+  "task": "T2182"
+}

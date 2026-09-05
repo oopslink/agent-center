@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-center.local/schemas/t2182-phase1/verdict.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task",
+    "phase",
+    "result",
+    "product_verdict",
+    "frozen_inputs",
+    "checks",
+    "raw_evidence",
+    "fixture_manifest_sha256",
+    "preflight"
+  ],
+  "properties": {
+    "task": { "const": "T2182" },
+    "phase": { "const": "phase1_method_gate" },
+    "result": { "enum": ["METHOD_GATE_PASS", "BLOCKED/NOT_RUN"] },
+    "product_verdict": { "const": "NOT_RUN" },
+    "frozen_inputs": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "01M1QE0GKK0XA1C87J8TZVYP7K" },
+        { "const": "01M1QE1FAW8JKJ3QYPVYR7N207" },
+        { "const": "01M1QE1YRCPP669D73RKDCA2SQ" }
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fresh_fixture_via_official_api",
+        "playwright_performance_collector_boundary",
+        "unique_root_verdict_preflight",
+        "screen_space_overlap_predicate"
+      ],
+      "properties": {
+        "fresh_fixture_via_official_api": { "$ref": "#/$defs/check" },
+        "playwright_performance_collector_boundary": { "$ref": "#/$defs/check" },
+        "unique_root_verdict_preflight": { "$ref": "#/$defs/check" },
+        "screen_space_overlap_predicate": { "$ref": "#/$defs/check" }
+      }
+    },
+    "raw_evidence": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/relativePath" }
+    },
+    "fixture_manifest_sha256": {
+      "anyOf": [
+        { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        { "const": null }
+      ]
+    },
+    "preflight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["checked_at", "status", "log"],
+      "properties": {
+        "checked_at": { "type": "string" },
+        "status": { "enum": ["PASS", "FAIL", "NOT_RUN"] },
+        "log": { "$ref": "#/$defs/relativePath" }
+      }
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "evidence"],
+      "properties": {
+        "status": { "enum": ["PASS", "FAIL", "BLOCKED", "NOT_RUN"] },
+        "evidence": { "$ref": "#/$defs/relativePath" },
+        "reason": { "type": "string" }
+      }
+    },
+    "relativePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?!.*\\.\\.).+"
+    }
+  }
+}

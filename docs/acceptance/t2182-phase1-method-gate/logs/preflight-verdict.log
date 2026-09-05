@@ -1,0 +1,8 @@
+{
+  "check": "preflight-verdict",
+  "checked_at": "2026-09-05T01:04:39.587407+00:00",
+  "phase": "phase1_method_gate",
+  "reason": "phase1-fixture-gate exited 2; phase-one contract requires stopping at the first failed or blocked self-check.",
+  "status": "NOT_RUN",
+  "task": "T2182"
+}

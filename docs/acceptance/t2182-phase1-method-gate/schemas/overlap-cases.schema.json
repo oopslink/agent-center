@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-center.local/schemas/t2182-phase1/overlap-cases.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["stable_dom_ids", "cases"],
+  "properties": {
+    "stable_dom_ids": { "const": true },
+    "cases": {
+      "type": "array",
+      "minItems": 8,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "kind", "expected"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 },
+          "kind": {
+            "enum": [
+              "label_label",
+              "label_non_owner_node",
+              "out_of_bounds",
+              "unrelated_edge_crosses_label_text"
+            ]
+          },
+          "expected": { "type": "boolean" }
+        }
+      }
+    }
+  }
+}

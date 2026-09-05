@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-center.local/schemas/t2182-phase1/perf-timeline.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "t0_before_navigation",
+    "events",
+    "artifacts",
+    "interactions"
+  ],
+  "properties": {
+    "t0_before_navigation": { "type": "number", "minimum": 0 },
+    "events": {
+      "type": "array",
+      "minItems": 5,
+      "items": { "$ref": "#/$defs/event" },
+      "contains": { "properties": { "name": { "const": "paint_settled" } } }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trace", "har", "video"],
+      "properties": {
+        "trace": { "type": "string", "minLength": 1 },
+        "har": { "type": "string", "minLength": 1 },
+        "video": { "type": "string", "minLength": 1 }
+      }
+    },
+    "interactions": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["type", "timestamp", "viewBox"],
+        "properties": {
+          "type": { "enum": ["wheel", "drag"] },
+          "timestamp": { "type": "number", "minimum": 0 },
+          "viewBox": {
+            "type": "array",
+            "items": { "type": "number" },
+            "minItems": 4,
+            "maxItems": 4
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "timestamp"],
+      "properties": {
+        "name": {
+          "enum": [
+            "t0",
+            "request",
+            "response",
+            "graph_dom_ready",
+            "requestAnimationFrame_1",
+            "requestAnimationFrame_2",
+            "paint_settled"
+          ]
+        },
+        "timestamp": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}

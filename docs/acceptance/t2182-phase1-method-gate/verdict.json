@@ -1,0 +1,48 @@
+{
+  "task": "T2182",
+  "phase": "phase1_method_gate",
+  "result": "BLOCKED/NOT_RUN",
+  "product_verdict": "NOT_RUN",
+  "frozen_inputs": [
+    "01M1QE0GKK0XA1C87J8TZVYP7K",
+    "01M1QE1FAW8JKJ3QYPVYR7N207",
+    "01M1QE1YRCPP669D73RKDCA2SQ"
+  ],
+  "checks": {
+    "fresh_fixture_via_official_api": {
+      "status": "BLOCKED",
+      "evidence": "raw/fixture-gate-blocked.json",
+      "reason": "Executor isolation forbids agent-center access and no official MCP/API tool is available in this workspace."
+    },
+    "playwright_performance_collector_boundary": {
+      "status": "NOT_RUN",
+      "evidence": "raw/perf-timeline-selftest.json"
+    },
+    "unique_root_verdict_preflight": {
+      "status": "NOT_RUN",
+      "evidence": "raw/preflight-verdict.json"
+    },
+    "screen_space_overlap_predicate": {
+      "status": "NOT_RUN",
+      "evidence": "raw/overlap-predicate-selftest.json"
+    }
+  },
+  "raw_evidence": [
+    "raw/fixture-gate-blocked.json",
+    "raw/perf-timeline-selftest.json",
+    "raw/overlap-predicate-selftest.json",
+    "raw/preflight-verdict.json",
+    "raw/command-exit-codes.json",
+    "logs/phase1-fixture-gate.log",
+    "logs/perf-timeline-selftest.log",
+    "logs/overlap-predicate-selftest.log",
+    "logs/preflight-verdict.log",
+    "logs/delivery-preflight.log"
+  ],
+  "fixture_manifest_sha256": null,
+  "preflight": {
+    "checked_at": "PENDING",
+    "status": "NOT_RUN",
+    "log": "logs/delivery-preflight.log"
+  }
+}
