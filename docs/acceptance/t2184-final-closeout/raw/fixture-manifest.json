@@ -1,0 +1,64 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-05T03:41:50.797876Z",
+  "generator": {
+    "kind": "agent-center-mcp",
+    "agent_a": {
+      "display_name": "agent-center-dev2",
+      "agent_ref": "agent:agent-20d5e05c",
+      "runtime_agent_id": "01KTVBCSTHCBN1ZFGZQB6XTNW7"
+    },
+    "agent_b": {
+      "display_name": "agent-center-dev4",
+      "agent_ref": "agent:agent-35ac0e16",
+      "runtime_agent_id": "01KV83QGMSYCRG5C19YFNPHFQE"
+    }
+  },
+  "entity": {
+    "task_id": "task-bdcab70a",
+    "org_ref": "T2185",
+    "project_id": "project-c7073e48",
+    "title": "T2184 acceptance fixture: A→B reassignment",
+    "created_at": "2026-09-05T03:41:45.378155Z",
+    "updated_at": "2026-09-05T03:41:50.797876Z",
+    "initial_assignee": "agent:agent-20d5e05c",
+    "current_assignee": "agent:agent-35ac0e16",
+    "version": 3,
+    "status": "open"
+  },
+  "official_tool_responses": [
+    {
+      "tool": "get_my_profile",
+      "result": "agent:agent-20d5e05c / agent-center-dev2"
+    },
+    {
+      "tool": "find_org_agent",
+      "arguments": {"name": "agent-center-dev4"},
+      "result": {"assignee_ref": "agent:agent-35ac0e16", "worker_status": "online"}
+    },
+    {
+      "tool": "create_task",
+      "arguments": {"assignee": "agent:agent-20d5e05c", "dispatch": false, "dispatch_mode": "supervisor_inline"},
+      "result": {"task_id": "task-bdcab70a"}
+    },
+    {
+      "tool": "reassign_task",
+      "arguments": {"task_id": "task-bdcab70a", "assignee": "agent:agent-35ac0e16"},
+      "result": {"ok": true}
+    },
+    {
+      "tool": "get_task",
+      "arguments": {"task_id": "task-bdcab70a"},
+      "result": {"assignee": "agent:agent-35ac0e16", "status": "open", "version": 3, "updated_at": "2026-09-05T03:41:50.797876Z"}
+    }
+  ],
+  "forbidden_fallbacks_not_used": [
+    "agent-center database or SQLite inspection",
+    "admin socket",
+    "admin HTTP API",
+    "worker token",
+    "mcp_config.runtime.json",
+    "process arguments",
+    "mock or MSW"
+  ]
+}

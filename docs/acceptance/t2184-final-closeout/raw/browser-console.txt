@@ -1,0 +1,4 @@
+agent-browser errors: no entries
+agent-browser console: no entries
+Checked after authenticated direct navigation to:
+http://127.0.0.1:61301/organizations/org-808e96ea/insights/collaboration

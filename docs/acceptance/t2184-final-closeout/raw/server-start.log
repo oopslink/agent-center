@@ -1,0 +1,5 @@
+[server] admin token bootstrap: wrote /tmp/t2184-instance/bootstrap_token (not read or used by T2184)
+agent-center server: db=/tmp/t2184-instance/agent-center.db web=127.0.0.1:61301 admin=/tmp/t2184-instance/admin.sock (escalator running)
+admin tcp: 127.0.0.1:61303 (TLS, auto-generated)
+[server] webconsole progress watchdog: authorization: permission denied
+[server] webconsole progress wake drain: authorization: permission denied

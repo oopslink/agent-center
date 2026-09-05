@@ -1,0 +1,49 @@
+{
+  "task_id": "task-8bf8e839",
+  "org_ref": "T2184",
+  "fixed_product_sha": "6074ea621f178889bcfca5adca8cf27c3ad174da",
+  "fixed_product_ref": "ac-exec/task-340201c6/exec-7a7d087b",
+  "origin_main_before": "ddfb87d47e8253fb2e4f22d014f497301fa4b7ec",
+  "candidate_parent": "ddfb87d47e8253fb2e4f22d014f497301fa4b7ec",
+  "result": "BLOCKED",
+  "product_verdict": "NOT_RUN",
+  "merge_performed": false,
+  "fresh_main_smoke": "NOT_RUN",
+  "fixture_manifest_sha256": "412040f86f2b1d06d911ffe54322dded2602ac0a071aeae93c94257419884ff9",
+  "environment": {
+    "install_root": "/tmp/t2184-instance",
+    "web_origin": "http://127.0.0.1:61301",
+    "runtime_identity": "AGENT_CENTER_INVOCATION_ID=t2184-final-closeout",
+    "cookie_namespace": "ac_session@127.0.0.1",
+    "signed_in_organization_slug": "org-808e96ea",
+    "build_version": "evidence/t2184-final-closeout-6074ea62"
+  },
+  "preflight": {
+    "remote_candidate_exact_sha": "PASS",
+    "candidate_parent_equals_origin_main": "PASS",
+    "production_build": "PASS",
+    "authenticated_navigation_visible": "PASS",
+    "direct_collaboration_url_reachable": "PASS"
+  },
+  "hard_gates": {
+    "organization_graph_non_empty": "NOT_RUN",
+    "four_relation_types": "NOT_RUN",
+    "project_filter_and_clear": "NOT_RUN",
+    "zoom_pan_drag_fit_reset_focus": "NOT_RUN",
+    "evidence": "NOT_RUN",
+    "lod_cluster_truncated": "NOT_RUN",
+    "scale_117_nodes_250_edges": "NOT_RUN",
+    "readability_and_performance": "NOT_RUN"
+  },
+  "blocker": {
+    "kind": "missing_official_fixture_ingress",
+    "observed": "The isolated candidate instance has zero workers and the public Add Agent flow reports No compatible Runtime models with Create agent disabled. The official Agent Center MCP fixture exists in the live center, but no public import/event ingress is available to feed it into this isolated instance. Worker-token bootstrap is explicitly forbidden.",
+    "single_external_condition": "Provide the isolated fixed-SHA instance with one officially enrolled compatible worker/runtime through an owner-managed, non-token-exposing path, or provide a documented public fixture/event import endpoint that accepts the attached MCP-generated manifest.",
+    "evidence": [
+      "screenshots/02-insight-nav.png",
+      "screenshots/03-add-agent.png",
+      "screenshots/04-direct-url.png",
+      "raw/fixture-manifest.json"
+    ]
+  }
+}
