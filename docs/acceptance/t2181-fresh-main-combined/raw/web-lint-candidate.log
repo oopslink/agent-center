@@ -1,0 +1,11 @@
+
+> agent-center-web@0.1.0 lint /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-7a7d087b/web
+> eslint src
+
+
+/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-7a7d087b/web/src/components/WorkItemFilterBar.tsx
+  352:13  error  A checkbox is banned for entity multi-pick or a boolean setting (ux-standards §1a). Use EntityMultiSelect (dropdown + chips) for multi-pick, or a role="switch" toggle for a boolean. The only allowlisted checkboxes are table row-selection and destructive-action acknowledgment  no-restricted-syntax
+
+✖ 1 problem (1 error, 0 warnings)
+
+ ELIFECYCLE  Command failed with exit code 1.

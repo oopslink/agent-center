@@ -1,0 +1,104 @@
+{
+  "verdict": "PASS",
+  "provenance": {
+    "candidate_sha": "T2181-working-tree",
+    "install_root": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-fbnGY9",
+    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-fbnGY9/config.yaml",
+    "web_origin": "http://127.0.0.1:60201",
+    "grpc_port": 60202,
+    "admin_tcp_port": 60203,
+    "database": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-fbnGY9/agent-center.db",
+    "duckdb": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2181-combined-fbnGY9/agent-center.duckdb",
+    "runtime_identity": "AGENT_CENTER_INVOCATION_ID=t2181-combined-ui",
+    "cookie_namespace": "ac_session@127.0.0.1",
+    "fixture_provenance": "Fresh isolated instance; data seeded via authenticated production HTTP endpoints only.",
+    "organization_id": "organization-8b969ac8",
+    "organization_slug": "org-b1ad2b7d",
+    "worker_id": "worker-25e5cf7b",
+    "worker_bootstrap_host": "127.0.0.1:60203",
+    "worker_fingerprint": "sha256:2D:06:4E:BD:9B:49:2F:43:6C:7A:99:1D:B7:00:A4:D4:E6:4F:84:BF:7C:B2:5C:55:C2:E8:58:63:73:2B:13:DE",
+    "runtime_catalog_revision": 1,
+    "agent_refs": [
+      "agent:agent-6d7993d3",
+      "agent:agent-6da99413"
+    ],
+    "project_id": "project-9814482c",
+    "plan_id": "plan-8a639612"
+  },
+  "results": [
+    {
+      "id": 1,
+      "name": "Authenticated navigation and direct URL refresh",
+      "status": "PASS",
+      "evidence": "nav_link=true; org_url=http://127.0.0.1:60201/organizations/org-b1ad2b7d/insights/collaboration; unexpected401=0; import_errors=0",
+      "repro": "Sign in as the seeded owner, land on /organizations/{slug}/projects, open the Insight rail, and look for a Collaboration effects navigation link."
+    },
+    {
+      "id": 2,
+      "name": "No-query first screen non-empty organization graph",
+      "status": "PASS",
+      "evidence": "url=http://127.0.0.1:60201/organizations/org-b1ad2b7d/insights/collaboration; svg_nodes=4; svg_edges=6; api_nodes=120; api_edges=256",
+      "repro": ""
+    },
+    {
+      "id": 3,
+      "name": "Agent-Agent, Agent-Task, Agent-Plan, Plan-Task same screen",
+      "status": "PASS",
+      "evidence": "agent_agent=true; agent_task=true; agent_plan=true; plan_task=true; effects=2; edge_text_sample=plan task · Neutral · strength 1 · 84 effects · evidence 0 | agent task · Neutral · strength 1 · 84 effects · evidence 0 | agent plan · Neutral · strength 1 · 1 effects · evidence 0 | Dependency release · Positive · strength 3 · 1 effects · evidence 2 · 9/5/2026, 3:15:20 AM | Complete · Positive · strength 2 · 1 effects · evidence 1 · 9/5/2026, 3:15:20 AM",
+      "repro": ""
+    },
+    {
+      "id": 4,
+      "name": "Search/filter and clear restores full graph",
+      "status": "PASS",
+      "evidence": "filtered=http://127.0.0.1:60201/organizations/org-b1ad2b7d/insights/collaboration?project_id=project-9814482c; cleared=http://127.0.0.1:60201/organizations/org-b1ad2b7d/insights/collaboration",
+      "repro": ""
+    },
+    {
+      "id": 5,
+      "name": "Zoom/pan/drag/Fit/Reset/focus/restore interactions",
+      "status": "PASS",
+      "evidence": "{\"pass\":true,\"before\":{\"viewBox\":\"120 0 320 304\",\"nodes\":4,\"edges\":6},\"zoomIn\":{\"viewBox\":\"148.8 27.360000000000014 262.4 249.27999999999997\",\"nodes\":4,\"edges\":6},\"zoomOut\":{\"viewBox\":\"125.18400000000003 4.924800000000033 309.63199999999995 294.15039999999993\",\"nodes\":4,\"edges\":6},\"resetForWheel\":{\"viewBox\":\"120 0 320 304\",\"nodes\":4,\"edges\":6},\"wheel\":{\"viewBox\":\"156.0619135253906 34.28960273437501 247.80800000000002 235.4176\",\"nodes\":4,\"edges\":6},\"pan\":{\"viewBox\":\"158.82472229003906 -104.66074752807617 281.17527770996094 408.6607475280762\",\"nodes\":4,\"edges\":6},\"fit\":{\"viewBox\":\"120 0 392.617919921875 304\",\"nodes\":4,\"edges\":6},\"focus\":{\"viewBox\":\"312.617919921875 5.352790832519531 240 180\",\"nodes\":4,\"edges\":6},\"reset\":{\"viewBox\":\"120 0 320 304\",\"nodes\":4,\"edges\":6},\"circleBefore\":{\"cx\":null,\"x\":\"272\"},\"circleAfter\":{\"cx\":null,\"x\":\"344.617919921875\"},\"dragged\":true,\"continuousMs\":406}",
+      "repro": "Open /organizations/{slug}/insights/collaboration, wheel over the SVG canvas, and compare the SVG viewBox before/after."
+    },
+    {
+      "id": 6,
+      "name": "Evidence drill-down",
+      "status": "PASS",
+      "evidence": "drawer contains Effect evidence × collaboration.effect.dependency_release { \"before\": { \"downstream_task_id\": \"task-70d980da\", \"upstream_task_status\": \"running\" }, \"after\": { \"downstream_task_id\": \"task-70d980da\", ",
+      "repro": ""
+    },
+    {
+      "id": 7,
+      "name": "LOD/cluster/truncation prompt",
+      "status": "PASS",
+      "evidence": "api_lod=cluster; clusters=1; api_truncated=true; ui_lod_notice=1; ui_load_more=0; ui_show_full=1; explicit_lod_text=true",
+      "repro": "Seed a >100-node organization graph, verify the real API reports lod=cluster/truncated, then open the UI and look for load-more or truncation guidance."
+    },
+    {
+      "id": 8,
+      "name": "Real-scale first interactive and continuous interactions",
+      "status": "PASS",
+      "evidence": "{\"first_graph_interactive_ms\":1,\"continuous_interaction_ms\":406}",
+      "repro": ""
+    },
+    {
+      "id": 9,
+      "name": "Contrast/readability and overlap",
+      "status": "PASS",
+      "evidence": "{\"pass\":true,\"method\":\"visual screenshot inspection plus DOM graph density\",\"note\":\"Primary graph viewport remained readable in the captured screenshot.\"}",
+      "repro": "Open the no-query organization graph with the captured large fixture and inspect the first viewport in evidence/02-organization-graph.png."
+    },
+    {
+      "id": 10,
+      "name": "Project_id API scoping and fail-closed errors",
+      "status": "PASS",
+      "evidence": "{\"slug\":\"org-b1ad2b7d\",\"projectID\":\"project-9814482c\",\"foreignProjectID\":\"project-36eff442\",\"valid\":{\"status\":200,\"nodes\":120,\"edges\":256,\"effects\":2},\"badProject\":{\"status\":404,\"body\":\"{\\\"error\\\":\\\"not_found\\\",\\\"message\\\":\\\"project not found in this organization\\\"}\\n\"},\"badCursor\":{\"status\":400,\"body\":\"{\\\"error\\\":\\\"invalid_cursor\\\",\\\"message\\\":\\\"collaboration insight: invalid cursor\\\"}\\n\"},\"unauth\":{\"status\":401,\"body\":\"{\\\"error\\\":\\\"unauthenticated\\\",\\\"message\\\":\\\"no session cookie\\\"}\\n\"},\"foreignProjectInOwnerOrg\":{\"status\":404,\"nodes\":null,\"edges\":null,\"effects\":null,\"body\":\"{\\\"error\\\":\\\"not_found\\\",\\\"message\\\":\\\"project not found in this organization\\\"}\\n\"}}",
+      "repro": "Call the production HTTP API with valid project_id, foreign project_id, no auth, malformed project_id, and malformed cursor; none may produce HTTP 503."
+    }
+  ],
+  "performance": {
+    "first_graph_interactive_ms": 1,
+    "continuous_interaction_ms": 406
+  }
+}

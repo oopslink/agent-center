@@ -1,0 +1,12 @@
+ok  	github.com/oopslink/agent-center/internal/observability	0.385s
+ok  	github.com/oopslink/agent-center/internal/observability/collaborationeffect	1.460s
+ok  	github.com/oopslink/agent-center/internal/observability/escalator	1.697s
+ok  	github.com/oopslink/agent-center/internal/observability/peek	1.983s
+ok  	github.com/oopslink/agent-center/internal/observability/query	9.443s
+ok  	github.com/oopslink/agent-center/internal/observability/sqlite	5.183s
+ok  	github.com/oopslink/agent-center/internal/webconsole/api	45.122s
+ok  	github.com/oopslink/agent-center/internal/projectmanager	1.532s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/orchestration	1.656s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/orchestration/sqlite	2.615s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/service	5.527s
+ok  	github.com/oopslink/agent-center/internal/projectmanager/sqlite	10.052s

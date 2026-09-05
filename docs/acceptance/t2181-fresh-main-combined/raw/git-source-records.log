@@ -1,0 +1,61 @@
+fresh_main=ddfb87d47e8253fb2e4f22d014f497301fa4b7ec
+executor_branch=ac-exec/task-340201c6/exec-7a7d087b
+head_before_commit=ddfb87d47e8253fb2e4f22d014f497301fa4b7ec
+
+T2176 commit
+commit 1e14098b213d97087c3aa2fbda9a90f065c74a3e
+Author:     agent-center-dev4 <01KV83QGMSYCRG5C19YFNPHFQE@agent-center>
+AuthorDate: Sat Sep 5 02:20:50 2026 +0800
+Commit:     agent-center-dev4 <01KV83QGMSYCRG5C19YFNPHFQE@agent-center>
+CommitDate: Sat Sep 5 02:20:50 2026 +0800
+
+    fix(insights): close collaboration graph acceptance blockers
+
+T2179 commit
+commit 94945e8fb91b7e217e71ad393127a6232aa3f37e
+Author:     agent-center-dev3 <01KV01ZG5T332EYTFCVTNAZB9B@agent-center>
+AuthorDate: Sat Sep 5 02:51:07 2026 +0800
+Commit:     agent-center-dev3 <01KV01ZG5T332EYTFCVTNAZB9B@agent-center>
+CommitDate: Sat Sep 5 02:51:42 2026 +0800
+
+    fix(insights): scope collaboration graph project filters
+
+merge-base T2176
+ddfb87d47e8253fb2e4f22d014f497301fa4b7ec
+merge-base T2179
+ddfb87d47e8253fb2e4f22d014f497301fa4b7ec
+
+T2176 code diff
+ web/src/App.test.tsx                           |   1 +
+ web/src/AppLayout.insightnav.test.tsx          |   5 +
+ web/src/AppLayout.mobilenav.test.tsx           |   2 +
+ web/src/AppLayout.tsx                          |   3 +-
+ web/src/api/insights.ts                        |  15 ++-
+ web/src/i18n/locales/en/insights.json          |   3 +-
+ web/src/i18n/locales/zh/insights.json          |   3 +-
+ web/src/pages/InsightCollaboration.test.tsx    |  53 +++++++++-
+ web/src/pages/InsightCollaboration.tsx         | 139 ++++++++++++++++++++++---
+ web/src/shell/nav/InsightSecondaryNav.test.tsx |   2 +
+ 10 files changed, 201 insertions(+), 25 deletions(-)
+
+T2179 code diff
+ .../collaborationeffect/graph_sqlite.go            |  16 +-
+ .../collaborationeffect/query_test.go              |  48 ++++++
+ .../api/handlers_collaboration_insight_test.go     | 162 +++++++++++++++++++++
+ web/src/App.test.tsx                               |   1 +
+ web/src/AppLayout.insightnav.test.tsx              |   5 +
+ web/src/AppLayout.mobilenav.test.tsx               |   2 +
+ web/src/AppLayout.tsx                              |   3 +-
+ web/src/api/insights.ts                            |  15 +-
+ web/src/i18n/locales/en/insights.json              |   3 +-
+ web/src/i18n/locales/zh/insights.json              |   3 +-
+ web/src/pages/InsightCollaboration.test.tsx        |  53 ++++++-
+ web/src/pages/InsightCollaboration.tsx             | 139 ++++++++++++++++--
+ web/src/shell/nav/InsightSecondaryNav.test.tsx     |   2 +
+ 13 files changed, 421 insertions(+), 31 deletions(-)
+
+T2176 vs T2179 code diff
+ .../collaborationeffect/graph_sqlite.go            |  16 +-
+ .../collaborationeffect/query_test.go              |  48 ++++++
+ .../api/handlers_collaboration_insight_test.go     | 162 +++++++++++++++++++++
+ 3 files changed, 220 insertions(+), 6 deletions(-)

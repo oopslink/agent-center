@@ -1,0 +1,56 @@
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +649
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 649, reused 649, downloaded 0, added 100
+Progress: resolved 649, reused 649, downloaded 0, added 477
+Progress: resolved 649, reused 649, downloaded 0, added 648
+Progress: resolved 649, reused 649, downloaded 0, added 649, done
+
+dependencies:
++ @headlessui/react 2.2.10
++ @tanstack/react-query 5.100.14
++ highlight.js 11.11.1
++ i18next 26.3.4
++ i18next-browser-languagedetector 8.2.1
++ mermaid 11.16.1
++ react 19.2.6
++ react-dom 19.2.6
++ react-i18next 17.0.8
++ react-markdown 10.1.0
++ react-router-dom 7.15.1
++ remark-gfm 4.0.1
++ yaml 2.9.0
++ zustand 5.0.13
+
+devDependencies:
++ @testing-library/jest-dom 6.9.1
++ @testing-library/react 16.3.2
++ @testing-library/user-event 14.6.1
++ @types/react 19.2.15
++ @types/react-dom 19.2.3
++ @typescript-eslint/parser 8.60.1
++ @vitejs/plugin-react 4.7.0
++ @vitest/coverage-v8 2.1.9
++ autoprefixer 10.5.0
++ eslint 9.39.4
++ jsdom 25.0.1
++ msw 2.14.6
++ postcss 8.5.15
++ tailwindcss 3.4.19
++ typescript 5.9.3
++ vite 5.4.21
++ vitest 2.1.9
+
+Done in 3.6s using pnpm v10.31.0
+
+> agent-center-web@0.1.0 lint /private/tmp/t2181-main-lint-76317/web
+> eslint src
+
+
+/private/tmp/t2181-main-lint-76317/web/src/components/WorkItemFilterBar.tsx
+  352:13  error  A checkbox is banned for entity multi-pick or a boolean setting (ux-standards §1a). Use EntityMultiSelect (dropdown + chips) for multi-pick, or a role="switch" toggle for a boolean. The only allowlisted checkboxes are table row-selection and destructive-action acknowledgment  no-restricted-syntax
+
+✖ 1 problem (1 error, 0 warnings)
+
+ ELIFECYCLE  Command failed with exit code 1.
