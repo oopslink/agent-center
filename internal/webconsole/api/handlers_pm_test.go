@@ -64,6 +64,9 @@ func TestPM_NestedTaskFlow_EndToEnd(t *testing.T) {
 	if serr := agentsql.NewAgentRepo(db).Save(ctx, ag1); serr != nil {
 		t.Fatal(serr)
 	}
+	if _, err := deps.PM.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:AG1", Actor: caller}); err != nil {
+		t.Fatal(err)
+	}
 
 	// Assign the task to an Agent via HTTP.
 	resp = orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/tasks/"+tid+"/assign", `{"assignee":"agent:AG1"}`, sess)
@@ -105,6 +108,39 @@ func TestPM_NestedTaskFlow_EndToEnd(t *testing.T) {
 	}
 	if !foundCreator {
 		t.Fatalf("creator %s not synced as participant: %v", caller, conv.Participants())
+	}
+}
+
+func TestPM_AssignTask_NonProjectMemberRejected(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	sess := setupTestSession(t, db, deps)
+	s := newTestServer(t, deps)
+	defer s.Close()
+	ctx := context.Background()
+	caller := pm.IdentityRef("user:" + sess.IdentityID)
+
+	pid, err := deps.PM.CreateProject(ctx, pmservice.CreateProjectCommand{
+		OrganizationID: sess.OrgID, Name: "Acme", CreatedBy: caller,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tid, err := deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: caller})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resp := orgScopedPost(t, s.URL+"/api/projects/"+string(pid)+"/tasks/"+string(tid)+"/assign", `{"assignee":"user:not-a-member"}`, sess)
+	if resp.StatusCode != 422 {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("assign status=%d body=%s, want 422", resp.StatusCode, b)
+	}
+	var body map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["error"] != "assignee_not_project_member" {
+		t.Fatalf("error=%v want assignee_not_project_member", body["error"])
 	}
 }
 

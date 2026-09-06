@@ -34,7 +34,7 @@ func planSetup(t *testing.T) (*Service, *convsql.ConversationRepo, *pmsql.PlanRe
 		DB: db, Projects: pmsql.NewProjectRepo(db), Members: pmsql.NewProjectMemberRepo(db),
 		Issues: pmsql.NewIssueRepo(db), Tasks: tasks,
 		TaskSubs: pmsql.NewTaskSubscriberRepo(db), IssueSubs: pmsql.NewIssueSubscriberRepo(db),
-		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Plans: plans, Outbox: ob, IDGen: gen, Clock: clk,
+		CodeRepoRefs: pmsql.NewCodeRepoRefRepo(db), Plans: plans, Outbox: ob, AgentDir: allOrgDir("org-1"), IDGen: gen, Clock: clk,
 	})
 	taskProj := NewParticipantProjector(db, convRepo, applied, gen, clk)
 	planProj := NewPlanParticipantProjector(db, convRepo, plans, applied, gen, clk)
@@ -196,6 +196,9 @@ func TestSelectTaskIntoPlan_HumanAssignee_BecomesParticipant(t *testing.T) {
 	// Assign a HUMAN to the task (BatchUpdateTask assigns without the agent-membership
 	// grant, so no AgentDirectory is needed for a human).
 	human := "user:bob"
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: pm.IdentityRef(human), Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.BatchUpdateTask(ctx, tid, BatchTaskPatch{Assignee: &human}, "user:a"); err != nil {
 		t.Fatal(err)
 	}
@@ -219,6 +222,9 @@ func TestSelectTaskIntoPlan_AgentAssignee_BecomesParticipant(t *testing.T) {
 	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 	agent := "agent:007"
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: pm.IdentityRef(agent), Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.BatchUpdateTask(ctx, tid, BatchTaskPatch{Assignee: &agent}, "user:a"); err != nil {
 		t.Fatal(err)
 	}
@@ -242,6 +248,11 @@ func TestSelectTaskIntoPlan_Additive_RemoveDoesNotDropParticipant(t *testing.T) 
 	taskA, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "A", CreatedBy: "user:a"})
 	taskB, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "B", CreatedBy: "user:a"})
 	x, y := "user:x", "user:y"
+	for _, identity := range []string{x, y} {
+		if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: pm.IdentityRef(identity), Actor: "user:a"}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	if err := svc.BatchUpdateTask(ctx, taskA, BatchTaskPatch{Assignee: &x}, "user:a"); err != nil {
 		t.Fatal(err)
 	}
@@ -398,6 +409,9 @@ func TestPlanParticipantSync_Idempotent(t *testing.T) {
 	planID, _ := svc.CreatePlan(ctx, CreatePlanCommand{ProjectID: pid, Name: "Sprint", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "t", CreatedBy: "user:a"})
 	human := "user:bob"
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: pm.IdentityRef(human), Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.BatchUpdateTask(ctx, tid, BatchTaskPatch{Assignee: &human}, "user:a"); err != nil {
 		t.Fatal(err)
 	}
@@ -445,6 +459,9 @@ func TestAssignAfterSelect_SyncsPlanParticipant(t *testing.T) {
 	}
 
 	// Assign AFTER select → must emit participants_changed → assignee joins the plan conv.
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:bob", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.AssignTask(ctx, tid, "user:bob", "user:a"); err != nil {
 		t.Fatalf("AssignTask: %v", err)
 	}
@@ -464,6 +481,9 @@ func TestAssignTask_NoPlan_DoesNotEmitParticipantSync(t *testing.T) {
 	svc, _, _, _, _, ctx := planSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "loose", CreatedBy: "user:a"})
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:bob", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.AssignTask(ctx, tid, "user:bob", "user:a"); err != nil {
 		t.Fatalf("AssignTask on a plan-less task should succeed: %v", err)
 	}

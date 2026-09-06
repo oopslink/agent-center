@@ -37,6 +37,9 @@ func TestListTaskActionLogs_ReadsPersistedLifecycleWithPagination(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:c", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.AssignTask(ctx, tid, "agent:c", "user:a"); err != nil {
 		t.Fatal(err)
 	}

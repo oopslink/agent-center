@@ -128,6 +128,12 @@ func TestCompleteTaskRejectsReportedZeroDelivery(t *testing.T) {
 func TestReassign_DropsOldAssigneeFromSubscribers(t *testing.T) {
 	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:c", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 
 	_ = svc.AssignTask(ctx, tid, "user:b", "user:a")
@@ -188,6 +194,9 @@ func TestFailTask_TerminalWithReason(t *testing.T) {
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:AG1", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	_ = svc.AssignTask(ctx, tid, "agent:AG1", "user:a")
 	_ = svc.StartTask(ctx, tid, "user:a")
 
@@ -249,6 +258,9 @@ func TestRetryFailedTask_StandaloneFailedReopensWithHistory(t *testing.T) {
 	svc, ctx := taskActionLogReadSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:old", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.AssignTask(ctx, tid, "agent:old", "user:a"); err != nil {
 		t.Fatal(err)
 	}
@@ -283,6 +295,9 @@ func TestRetryFailedTask_StandaloneFailedReopensWithHistory(t *testing.T) {
 	if total != 3 || !seen[pm.TaskActionFailed] || !seen[pm.TaskActionRetried] {
 		t.Fatalf("retry must preserve failed log and append retried log: total=%d logs=%+v", total, logs)
 	}
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:new", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.AssignTask(ctx, tid, "agent:new", "user:a"); err != nil {
 		t.Fatalf("assign after retry: %v", err)
 	}
@@ -300,6 +315,9 @@ func TestRetryFailedTask_RejectsPlanBoundAndNonFailed(t *testing.T) {
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 
 	planBound, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "plan-bound", CreatedBy: "user:a"})
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:c", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.AssignTask(ctx, planBound, "agent:c", "user:a"); err != nil {
 		t.Fatal(err)
 	}
@@ -338,6 +356,9 @@ func TestRetryFailedTask_RejectsPlanBoundAndNonFailed(t *testing.T) {
 	for _, status := range []pm.TaskStatus{pm.TaskRunning, pm.TaskCompleted, pm.TaskDiscarded} {
 		tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: string(status), CreatedBy: "user:a"})
 		assignee := pm.IdentityRef("agent:" + string(status))
+		if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: assignee, Actor: "user:a"}); err != nil {
+			t.Fatal(err)
+		}
 		if err := svc.AssignTask(ctx, tid, assignee, "user:a"); err != nil {
 			t.Fatal(err)
 		}
@@ -408,6 +429,11 @@ func TestOffboardedAssignee_RetainedAsSubscriber(t *testing.T) {
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 
+	for _, identity := range []pm.IdentityRef{"agent:AG1", "agent:AG2", "agent:AG3"} {
+		if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: identity, Actor: "user:a"}); err != nil {
+			t.Fatal(err)
+		}
+	}
 	// Assign agent:AG1 → it joins the task Conversation.
 	_ = svc.AssignTask(ctx, tid, "agent:AG1", "user:a")
 	drain()
@@ -473,6 +499,9 @@ func TestUnassignReopen_Gating(t *testing.T) {
 	svc, _, ctx := flowSetup(t)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:AG1", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	_ = svc.AssignTask(ctx, tid, "agent:AG1", "user:a")
 
 	// non-member cannot unassign / reopen.

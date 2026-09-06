@@ -22,6 +22,7 @@ func (h *planAdvanceHarness) seedBacklogAssignedTask(t *testing.T, pid pm.Projec
 	if err != nil {
 		t.Fatal(err)
 	}
+	addMember(t, h, pid, pm.IdentityRef(assignee))
 	a := assignee
 	if err := h.svc.BatchUpdateTask(h.ctx, tid, BatchTaskPatch{Assignee: &a}, "user:a"); err != nil {
 		t.Fatal(err)

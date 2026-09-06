@@ -39,6 +39,7 @@ func activePlanGeneration(t *testing.T, h *planAdvanceHarness, planID pm.PlanID)
 func TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "g0", CreatedBy: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
@@ -124,6 +125,7 @@ func TestStartPlan_FreezesImmutableG0AndRequiresItAsFirstParent(t *testing.T) {
 func TestStartPlan_G0PersistenceFailureRollsBackActivation(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "g0-atomic", CreatedBy: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")
@@ -164,6 +166,7 @@ func TestStartPlan_G0PersistenceFailureRollsBackActivation(t *testing.T) {
 func TestStartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "start-race", CreatedBy: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
@@ -205,6 +208,7 @@ func TestStartPlan_ConcurrentUnbasedEvolutionCannotBootstrapGeneration(t *testin
 func TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "evolve-race", CreatedBy: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
@@ -264,6 +268,7 @@ func TestEvolvePlanGeneration_ConcurrentSiblingsOnlyOneActivates(t *testing.T) {
 func TestEvolvePlanGeneration_RunningAtomicDispatchIdempotencyAndSnapshot(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "evolve", CreatedBy: "user:a"})
 	h.drain(t)
 	a, b := h.startRunningPlanAB(t, pid, planID)
@@ -385,6 +390,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 	t.Run("supersede running node rejected", func(t *testing.T) {
 		h := planAdvanceSetup(t)
 		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+		addMember(t, h, pid, "user:c1")
 		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "supersede", CreatedBy: "user:a"})
 		h.drain(t)
 		a, _ := h.startRunningPlanAB(t, pid, planID)
@@ -407,6 +413,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 	t.Run("edge rewrite of dispatched dependent rejects whole request", func(t *testing.T) {
 		h := planAdvanceSetup(t)
 		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+		addMember(t, h, pid, "user:c1")
 		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "edge-conflict", CreatedBy: "user:a"})
 		h.drain(t)
 		a, _ := h.startRunningPlanAB(t, pid, planID)
@@ -445,6 +452,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 	t.Run("hold at gate with in flight downstream rejected", func(t *testing.T) {
 		h := planAdvanceSetup(t)
 		pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+		addMember(t, h, pid, "user:c1")
 		planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "hold", CreatedBy: "user:a"})
 		h.drain(t)
 		a, b := h.startRunningPlanAB(t, pid, planID)
@@ -473,6 +481,7 @@ func TestEvolvePlanGeneration_InFlightConflictDecisions(t *testing.T) {
 func TestEvolvePlanGeneration_SupersededOpenNodeIsDiscardedAndNotRunnable(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "supersede-open", CreatedBy: "user:a"})
 	h.drain(t)
 	_, b := h.startRunningPlanAB(t, pid, planID)
@@ -523,6 +532,7 @@ func TestEvolvePlanGeneration_SupersededOpenNodeIsDiscardedAndNotRunnable(t *tes
 func TestEvolvePlanGeneration_OwnerSupersedesBlockedDispatchedNodeAtomically(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "owner-supersede", CreatedBy: "user:a"})
 	h.drain(t)
 	a, b := h.startRunningPlanAB(t, pid, planID)
@@ -633,6 +643,7 @@ func TestEvolvePlanGeneration_OwnerSupersedesBlockedDispatchedNodeAtomically(t *
 func TestEvolvePlanGeneration_OwnerSupersedesCompletedTerminalNodeWithoutRemoveGate(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "owner-terminal-supersede", CreatedBy: "user:a"})
 	h.drain(t)
 	a, _ := h.startRunningPlanAB(t, pid, planID)
@@ -700,6 +711,7 @@ func TestEvolvePlanGeneration_OwnerSupersedesCompletedTerminalNodeWithoutRemoveG
 func TestEvolvePlanGeneration_OwnerSupersedesDiscardedTerminalNode(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "owner-discarded-supersede", CreatedBy: "user:a"})
 	h.drain(t)
 	a, _ := h.startRunningPlanAB(t, pid, planID)
@@ -750,6 +762,7 @@ func TestEvolvePlanGeneration_OwnerSupersedesDiscardedTerminalNode(t *testing.T)
 func TestEvolvePlanGeneration_NonOwnerCannotSupersedeSettledDispatchedNode(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Role: pm.RoleMember, Actor: "user:a"}); err != nil {
 		t.Fatal(err)
 	}
@@ -775,6 +788,7 @@ func TestEvolvePlanGeneration_NonOwnerCannotSupersedeSettledDispatchedNode(t *te
 func TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "connected-evolution", CreatedBy: "user:a"})
 	h.drain(t)
 	a, _ := h.startRunningPlanAB(t, pid, planID)
@@ -834,6 +848,7 @@ func TestEvolvePlanGeneration_RequiresNewRootBridgeOrDetached(t *testing.T) {
 func TestEvolvePlanGeneration_PausedSwitchesGenerationWithoutDispatch(t *testing.T) {
 	h := planAdvanceSetup(t)
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "paused", CreatedBy: "user:a"})
 	h.drain(t)
 	h.seedAssignedTask(t, pid, planID, "A", "user:a1")
@@ -870,6 +885,7 @@ func TestReopenPlan_AllowsFollowUpEvolutionAfterDone(t *testing.T) {
 	oh := orchestratorSetup(t)
 	h := oh.planAdvanceHarness
 	pid, _ := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	addMember(t, h, pid, "user:c1")
 	planID, _ := h.svc.CreatePlan(h.ctx, CreatePlanCommand{ProjectID: pid, Name: "reopen", CreatedBy: "user:a"})
 	h.drain(t)
 	a := h.seedAssignedTask(t, pid, planID, "A", "user:a1")

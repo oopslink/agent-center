@@ -119,6 +119,9 @@ func (s *Server) createTaskHandler(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, pm.ErrCrossOrgAssignee):
 			writeError(w, http.StatusUnprocessableEntity, "cross_org_assignee", err.Error())
 			return
+		case errors.Is(err, pm.ErrAssigneeNotProjectMember):
+			writeError(w, http.StatusUnprocessableEntity, "assignee_not_project_member", err.Error())
+			return
 		case errors.Is(err, pmservice.ErrBuiltinPoolMissing):
 			writeError(w, http.StatusNotImplemented, "builtin_pool_missing", err.Error())
 			return

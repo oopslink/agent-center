@@ -31,7 +31,7 @@ func dispatchedPoolTask(t *testing.T, h *planAdvanceHarness, org, projName strin
 
 func addMember(t *testing.T, h *planAdvanceHarness, pid pm.ProjectID, ref pm.IdentityRef) {
 	t.Helper()
-	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: ref, Actor: "user:a"}); err != nil {
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: ref, Actor: "user:a"}); err != nil && err != pm.ErrMemberExists {
 		t.Fatalf("AddProjectMember %s: %v", ref, err)
 	}
 }

@@ -46,6 +46,8 @@ func mapPMError(w http.ResponseWriter, err error) {
 		// T199/WS3 one-step create→assign: a cross-org agent assignee is a clear 422
 		// (not the opaque default 500), mirroring the agent create_task tool.
 		writeError(w, http.StatusUnprocessableEntity, "cross_org_assignee", err.Error())
+	case errors.Is(err, pm.ErrAssigneeNotProjectMember):
+		writeError(w, http.StatusUnprocessableEntity, "assignee_not_project_member", err.Error())
 	case errors.Is(err, pmservice.ErrBuiltinPoolMissing):
 		// dispatch=true into a project missing its built-in pool is a server-invariant
 		// breach (ADR-0047), surfaced as 501 (pm_not_wired class), not a user error.

@@ -86,6 +86,9 @@ func (h *planRemovalHarness) seedTaskInPlan(t *testing.T, pid pm.ProjectID, plan
 		t.Fatal(err)
 	}
 	if assignee != "" {
+		if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: pm.IdentityRef(assignee), Actor: "user:a"}); err != nil && err != pm.ErrMemberExists {
+			t.Fatal(err)
+		}
 		a := assignee
 		if err := h.svc.BatchUpdateTask(h.ctx, tid, BatchTaskPatch{Assignee: &a}, "user:a"); err != nil {
 			t.Fatal(err)

@@ -129,6 +129,7 @@ func TestBuiltinPool_SelectTaskAllowedWhileRunning(t *testing.T) {
 		t.Fatal(err)
 	}
 	a := "agent:bot"
+	addMember(t, h, pid, pm.IdentityRef(a))
 	if err := h.svc.BatchUpdateTask(h.ctx, tid, BatchTaskPatch{Assignee: &a}, "user:a"); err != nil {
 		t.Fatal(err)
 	}

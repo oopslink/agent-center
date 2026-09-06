@@ -313,6 +313,9 @@ func TestProductionRelay_AutoAdvance_OnTaskDone(t *testing.T) {
 		if terr != nil {
 			t.Fatalf("CreateTask(%s): %v", title, terr)
 		}
+		if _, merr := svc.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{ProjectID: pid, IdentityID: pm.IdentityRef(assignee), Actor: "user:a"}); merr != nil && merr != pm.ErrMemberExists {
+			t.Fatalf("AddProjectMember(%s): %v", assignee, merr)
+		}
 		a := assignee
 		if uerr := svc.BatchUpdateTask(ctx, tid, pmservice.BatchTaskPatch{Assignee: &a}, "user:a"); uerr != nil {
 			t.Fatalf("assign(%s): %v", title, uerr)
@@ -438,6 +441,9 @@ func TestProductionRelay_AgentCreatorFailureWake(t *testing.T) {
 		t.Fatalf("CreateTask: %v", err)
 	}
 	assignee := "user:x"
+	if _, err := svc.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{ProjectID: pid, IdentityID: pm.IdentityRef(assignee), Actor: "user:a"}); err != nil && err != pm.ErrMemberExists {
+		t.Fatalf("AddProjectMember: %v", err)
+	}
 	if err := svc.BatchUpdateTask(ctx, tid, pmservice.BatchTaskPatch{Assignee: &assignee}, "user:a"); err != nil {
 		t.Fatalf("assign: %v", err)
 	}

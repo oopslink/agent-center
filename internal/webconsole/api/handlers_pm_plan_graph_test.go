@@ -99,6 +99,9 @@ func TestPlanGraphAPI_StartedPlan_ServesEngineGraph(t *testing.T) {
 		if terr != nil {
 			t.Fatalf("CreateTask %s: %v", title, terr)
 		}
+		if _, merr := fx.deps.PM.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{ProjectID: pid, IdentityID: pm.IdentityRef(who), Actor: caller}); merr != nil && merr != pm.ErrMemberExists {
+			t.Fatal(merr)
+		}
 		a := who
 		if berr := fx.deps.PM.BatchUpdateTask(ctx, tid, pmservice.BatchTaskPatch{Assignee: &a}, caller); berr != nil {
 			t.Fatalf("assign %s: %v", title, berr)
@@ -232,6 +235,9 @@ func TestPlanStagesAPI_StagedPlan_ServesProjection(t *testing.T) {
 		t.Fatal(err)
 	}
 	who := "user:a1"
+	if _, err := fx.deps.PM.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{ProjectID: pid, IdentityID: pm.IdentityRef(who), Actor: caller}); err != nil && err != pm.ErrMemberExists {
+		t.Fatal(err)
+	}
 	if err := fx.deps.PM.BatchUpdateTask(ctx, tid, pmservice.BatchTaskPatch{Assignee: &who}, caller); err != nil {
 		t.Fatal(err)
 	}
@@ -358,6 +364,9 @@ func setupGenerationAPIPlan(t *testing.T, fx *planAPIFixture, sess testSession) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, memberErr := fx.deps.PM.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:c1", Actor: caller}); memberErr != nil && memberErr != pm.ErrMemberExists {
+		t.Fatal(memberErr)
+	}
 	planID, err := fx.deps.PM.CreatePlan(ctx, pmservice.CreatePlanCommand{ProjectID: pid, Name: "generations", CreatedBy: caller})
 	if err != nil {
 		t.Fatal(err)
@@ -367,6 +376,9 @@ func setupGenerationAPIPlan(t *testing.T, fx *planAPIFixture, sess testSession) 
 		id, createErr := fx.deps.PM.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: title, CreatedBy: caller})
 		if createErr != nil {
 			t.Fatal(createErr)
+		}
+		if _, memberErr := fx.deps.PM.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{ProjectID: pid, IdentityID: pm.IdentityRef(assignee), Actor: caller}); memberErr != nil && memberErr != pm.ErrMemberExists {
+			t.Fatal(memberErr)
 		}
 		if updateErr := fx.deps.PM.BatchUpdateTask(ctx, id, pmservice.BatchTaskPatch{Assignee: &assignee}, caller); updateErr != nil {
 			t.Fatal(updateErr)

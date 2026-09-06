@@ -41,9 +41,8 @@ func getBearer(t *testing.T, base, path, bearer string) (int, map[string]any) {
 	return resp.StatusCode, out
 }
 
-// seedMemberProject creates a project + task, assigns it to AG1 (which makes AG1
-// a ProjectMember via #5a and creates AG1's WorkItem via the projector). Returns
-// the project id + task id. AG1 is a member of this project after this returns.
+// seedMemberProject creates a project + task, makes AG1 a ProjectMember, and
+// assigns the task to AG1. Returns the project id + task id.
 func (f *writeToolsFixture) seedMemberProject(t *testing.T) (pm.ProjectID, string) {
 	t.Helper()
 	ctx := context.Background()
@@ -54,6 +53,7 @@ func (f *writeToolsFixture) seedMemberProject(t *testing.T) (pm.ProjectID, strin
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.addProjectMember(t, pid, pm.IdentityRef("agent:"+atAgent1))
 	tid, err := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{
 		ProjectID: pid, Title: "seed", CreatedBy: owner,
 	})
@@ -555,6 +555,7 @@ func TestAssignTask_AsMember_OK(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.addProjectMember(t, pid, "user:bob")
 	srv := f.server(t)
 
 	status, body := postBearer(t, srv.URL, "/admin/agent-tools/assign_task", "acat_w1",
@@ -568,6 +569,29 @@ func TestAssignTask_AsMember_OK(t *testing.T) {
 	}
 }
 
+func TestAssignTask_NonProjectMemberRejected(t *testing.T) {
+	f := newWriteToolsFixture(t)
+	f.addWorkerToken(t, "acat_w1", atWorker1)
+	pid, _ := f.seedMemberProject(t)
+	tid, err := f.pmSvc.CreateTask(context.Background(), pmservice.CreateTaskCommand{
+		ProjectID: pid, Title: "to assign", CreatedBy: pm.IdentityRef("user:owner"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	srv := f.server(t)
+
+	status, body := postBearer(t, srv.URL, "/admin/agent-tools/assign_task", "acat_w1",
+		map[string]any{"agent_id": atAgent1, "task_id": string(tid), "assignee": "user:not-member"})
+	if status != http.StatusUnprocessableEntity || body["error"] != "assignee_not_project_member" {
+		t.Fatalf("status=%d error=%v body=%v, want 422 assignee_not_project_member", status, body["error"], body)
+	}
+	tk, _ := f.pmSvc.GetTask(context.Background(), tid)
+	if got := string(tk.Assignee()); got != "" {
+		t.Fatalf("rejected assignment persisted assignee=%q", got)
+	}
+}
+
 func TestReassignTask_AsMember_OK(t *testing.T) {
 	f := newWriteToolsFixture(t)
 	f.addWorkerToken(t, "acat_w1", atWorker1)
@@ -575,6 +599,8 @@ func TestReassignTask_AsMember_OK(t *testing.T) {
 	tid, _ := f.pmSvc.CreateTask(context.Background(), pmservice.CreateTaskCommand{
 		ProjectID: pid, Title: "re", CreatedBy: pm.IdentityRef("user:owner"),
 	})
+	f.addProjectMember(t, pid, "user:bob")
+	f.addProjectMember(t, pid, "user:carol")
 	// First assignment so reassign re-targets an already-assigned task.
 	if err := f.pmSvc.AssignTask(context.Background(), tid, pm.IdentityRef("user:bob"), pm.IdentityRef("user:owner")); err != nil {
 		t.Fatal(err)
@@ -727,6 +753,7 @@ func TestGetTask_MemberNonAssignee_OK(t *testing.T) {
 		t.Fatal(err)
 	}
 	f.drain(t)
+	f.addProjectMember(t, pid, "user:bob")
 	if err := f.pmSvc.AssignTask(ctx, other, pm.IdentityRef("user:bob"), owner); err != nil {
 		t.Fatal(err)
 	}

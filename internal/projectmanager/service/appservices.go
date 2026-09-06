@@ -489,20 +489,19 @@ func (s *Service) TaskInAssignmentPool(ctx context.Context, taskID pm.TaskID) (b
 	return ok, err
 }
 
-// assignOnCreate assigns t to assignee in the caller's tx — the create-time
-// equivalent of AssignTask: it grants an AGENT assignee project membership
-// (cross-org guarded, idempotent), persists, emits pm.task.assigned (the
-// WorkItemProjector mints the queued WorkItem + wake), and — if t is already in a
-// plan (dispatched above) — additively joins the assignee to the plan
-// conversation. T199/WS3.
+// assignOnCreate assigns t to an existing project-member assignee in the
+// caller's tx — the create-time equivalent of AssignTask. It persists, emits
+// pm.task.assigned (the WorkItemProjector mints the queued WorkItem + wake), and
+// — if t is already in a plan (dispatched above) — additively joins the assignee
+// to the plan conversation. T199/WS3.
 func (s *Service) assignOnCreate(ctx context.Context, t *pm.Task, assignee pm.IdentityRef, now time.Time) error {
 	if err := assignee.Validate(); err != nil {
 		return err
 	}
-	if err := t.Assign(assignee, now); err != nil {
+	if err := s.requireAssigneeProjectMember(ctx, t, assignee); err != nil {
 		return err
 	}
-	if err := s.grantAgentProjectMembership(ctx, t, assignee, now); err != nil {
+	if err := t.Assign(assignee, now); err != nil {
 		return err
 	}
 	if err := s.tasks.Update(ctx, t); err != nil {

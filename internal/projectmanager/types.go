@@ -181,10 +181,11 @@ var (
 	// and the check moved to the application layer (Service.enforceConcurrencyCap),
 	// kept race-safe by the start tx's whole-tx replay. The agent must finish, block,
 	// or yield a running task first. A blocked task does NOT occupy a run slot.
-	ErrAgentHasActiveTask = errors.New("projectmanager: agent is at its running-task cap (no free run slot; finish, block, or yield a running task first)")
-	ErrVersionConflict    = errors.New("projectmanager: version conflict (optimistic lock)")
-	ErrEmptyProjectScope  = errors.New("projectmanager: project_id required (no global work items)")
-	ErrCrossOrgAssignee   = errors.New("projectmanager: assignee agent is not in the project's organization (OQ6: org membership is the prerequisite for project membership)")
+	ErrAgentHasActiveTask       = errors.New("projectmanager: agent is at its running-task cap (no free run slot; finish, block, or yield a running task first)")
+	ErrVersionConflict          = errors.New("projectmanager: version conflict (optimistic lock)")
+	ErrEmptyProjectScope        = errors.New("projectmanager: project_id required (no global work items)")
+	ErrCrossOrgAssignee         = errors.New("projectmanager: assignee agent is not in the project's organization (OQ6: org membership is the prerequisite for project membership)")
+	ErrAssigneeNotProjectMember = errors.New("projectmanager: assignee is not a member of this project")
 	// ErrAgentDirectoryUnavailable is returned (fail-closed) when an agent is
 	// assigned but no AgentDirectory is wired to verify the agent's org — a
 	// missing dependency must not silently bypass the cross-org guard.

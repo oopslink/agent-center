@@ -71,6 +71,7 @@ func TestCreateTask_Dispatch_WithAssignee_InAssigneeQueue(t *testing.T) {
 		t.Fatal(err)
 	}
 	pool := findBuiltinPlan(t, h, pid)
+	addMember(t, h, pid, "agent:dev1")
 
 	tid, err := h.svc.CreateTask(h.ctx, CreateTaskCommand{
 		ProjectID: pid, Title: "assigned+dispatched", CreatedBy: "user:a",
@@ -101,8 +102,7 @@ func TestCreateTask_Dispatch_WithAssignee_InAssigneeQueue(t *testing.T) {
 	if !containsTask(cl, tid) {
 		t.Fatalf("ListClaimableTasks(agent:dev1) missing %s", tid)
 	}
-	// The assign-on-create granted the agent project membership (#5a), so it can
-	// pass its own MCP write-gate for this project.
+	// The existing membership lets the agent pass its own write-gate for this project.
 	if _, merr := h.svc.GetTask(h.ctx, tid); merr != nil {
 		t.Fatalf("post-create GetTask: %v", merr)
 	}
@@ -116,6 +116,7 @@ func TestCreateTask_Assignee_NoDispatch_BacklogNotRunnable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	addMember(t, h, pid, "agent:dev1")
 	tid, err := h.svc.CreateTask(h.ctx, CreateTaskCommand{
 		ProjectID: pid, Title: "assigned backlog", CreatedBy: "user:a", Assignee: "agent:dev1",
 	})
@@ -157,6 +158,27 @@ func TestCreateTask_Plain_Backlog(t *testing.T) {
 	}
 	if err := h.svc.EnsureTaskRunnable(h.ctx, tid); !errors.Is(err, pm.ErrTaskNotRunnable) {
 		t.Fatalf("EnsureTaskRunnable = %v, want ErrTaskNotRunnable (backlog)", err)
+	}
+}
+
+func TestCreateTask_AssigneeMustBeProjectMember(t *testing.T) {
+	h := planAdvanceSetup(t)
+	pid, err := h.svc.CreateProject(h.ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = h.svc.CreateTask(h.ctx, CreateTaskCommand{
+		ProjectID: pid, Title: "non-member assignee", CreatedBy: "user:a", Assignee: "agent:dev1", Dispatch: true,
+	})
+	if !errors.Is(err, pm.ErrAssigneeNotProjectMember) {
+		t.Fatalf("CreateTask non-member assignee = %v, want ErrAssigneeNotProjectMember", err)
+	}
+	tasks, err := h.svc.ListProjectTasksForMember(h.ctx, pid, "user:a")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tasks) != 0 {
+		t.Fatalf("after rollback, project has %d tasks, want 0", len(tasks))
 	}
 }
 

@@ -110,22 +110,31 @@ func memberOf(t *testing.T, svc *Service, ctx context.Context, pid pm.ProjectID,
 	return n == 1
 }
 
-// TestAssignTask_GrantsAgentProjectMembership is the #5a acceptance: assigning an
-// agent in the project's org makes it a ProjectMember (so it passes the write-
-// gate), cross-org agents are rejected, the add is idempotent on re-assign, and
-// unassign does NOT remove the membership.
-func TestAssignTask_GrantsAgentProjectMembership(t *testing.T) {
+// TestAssignTask_AgentAssigneeMustAlreadyBeProjectMember pins the assignment
+// contract: assignment verifies agent org, then requires existing project
+// membership. It does not grant membership as a side effect.
+func TestAssignTask_AgentAssigneeMustAlreadyBeProjectMember(t *testing.T) {
 	dir := fakeAgentDir{"AG1": "org-1", "AG_OTHER": "org-2"}
 	svc, ctx := agentDirSetup(t, dir)
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	tid, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do", CreatedBy: "user:a"})
 
-	// 1) same-org agent → granted membership.
+	if err := svc.AssignTask(ctx, tid, "agent:AG1", "user:a"); err != pm.ErrAssigneeNotProjectMember {
+		t.Fatalf("assign non-member agent: want ErrAssigneeNotProjectMember, got %v", err)
+	}
+	if memberOf(t, svc, ctx, pid, "agent:AG1") {
+		t.Fatal("assignment must not grant agent:AG1 project membership")
+	}
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:AG1", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
+
+	// 1) same-org project member agent → assignment succeeds.
 	if err := svc.AssignTask(ctx, tid, "agent:AG1", "user:a"); err != nil {
 		t.Fatalf("assign agent:AG1: %v", err)
 	}
 	if !memberOf(t, svc, ctx, pid, "agent:AG1") {
-		t.Fatal("agent:AG1 should be a ProjectMember after assignment")
+		t.Fatal("agent:AG1 should remain a ProjectMember after assignment")
 	}
 
 	// 2) idempotent re-assign of the SAME agent (still assigned) → no error,
@@ -145,7 +154,7 @@ func TestAssignTask_GrantsAgentProjectMembership(t *testing.T) {
 		t.Fatal("unassign must NOT remove the agent's project membership")
 	}
 
-	// 4) the granted membership lets the agent pass the project write-gate as an
+	// 4) the existing membership lets the agent pass the project write-gate as an
 	// ACTOR. On a fresh task assigned to AG1, StartTask with actor=agent:AG1 must
 	// NOT be ErrNotMember.
 	tid2, _ := svc.CreateTask(ctx, CreateTaskCommand{ProjectID: pid, Title: "do2", CreatedBy: "user:a"})
@@ -213,9 +222,9 @@ func TestAssignTask_AgentAssignee_NilDirectory_FailsClosed(t *testing.T) {
 	}
 }
 
-// TestAssignTask_HumanAssigneeUnaffected: a `user:` assignee is never granted
-// membership by this branch (it is agent-only), even with the directory wired.
-func TestAssignTask_HumanAssigneeUnaffected(t *testing.T) {
+// TestAssignTask_HumanAssigneeMustAlreadyBeProjectMember mirrors the agent
+// contract for user assignees: assignment never creates membership implicitly.
+func TestAssignTask_HumanAssigneeMustAlreadyBeProjectMember(t *testing.T) {
 	svc, ctx := agentDirSetup(t, fakeAgentDir{"AG1": "org-1"})
 	pid, _ := svc.CreateProject(ctx, CreateProjectCommand{OrganizationID: "org-1", Name: "P", CreatedBy: "user:a"})
 	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:b", Actor: "user:a"}); err != nil {
@@ -229,13 +238,10 @@ func TestAssignTask_HumanAssigneeUnaffected(t *testing.T) {
 	if !memberOf(t, svc, ctx, pid, "user:b") {
 		t.Fatal("user:b membership should be intact and single")
 	}
-	// A user assignee that is NOT a member is not auto-granted (agent-only branch);
-	// but AssignTask only gates the ACTOR, so this just confirms no member row was
-	// created for a brand-new user assignee.
-	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "user:c", Actor: "user:a"}); err != nil {
-		t.Fatal(err)
+	if err := svc.AssignTask(ctx, tid, "user:c", "user:a"); err != pm.ErrAssigneeNotProjectMember {
+		t.Fatalf("assign non-member user:c: want ErrAssigneeNotProjectMember, got %v", err)
 	}
-	if err := svc.AssignTask(ctx, tid, "user:c", "user:a"); err != nil {
-		t.Fatalf("reassign user:c: %v", err)
+	if memberOf(t, svc, ctx, pid, "user:c") {
+		t.Fatal("assignment must not grant user:c project membership")
 	}
 }

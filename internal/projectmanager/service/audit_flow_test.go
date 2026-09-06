@@ -67,6 +67,9 @@ func TestAudit_TaskLifecycle(t *testing.T) {
 	}
 
 	// assigned
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:AG1", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := svc.AssignTask(ctx, tid, "agent:AG1", "user:a"); err != nil {
 		t.Fatal(err)
 	}
@@ -249,6 +252,9 @@ func TestAudit_NonBlocking(t *testing.T) {
 		t.Fatalf("CreateTask failed despite best-effort audit: %v", err)
 	}
 	// The mutation must have committed: assign then read it back.
+	if _, err := svc.AddProjectMember(ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:AG1", Actor: "user:a"}); err != nil {
+		t.Fatalf("AddProjectMember failed despite best-effort audit: %v", err)
+	}
 	if err := svc.AssignTask(ctx, tid, "agent:AG1", "user:a"); err != nil {
 		t.Fatalf("AssignTask failed despite best-effort audit: %v", err)
 	}

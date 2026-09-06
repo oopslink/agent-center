@@ -138,6 +138,7 @@ func setupStuckNodeWithDispatchMode(t *testing.T, assignee string, dispatchMode 
 	if err != nil {
 		t.Fatal(err)
 	}
+	addMember(t, h, pid, pm.IdentityRef(assignee))
 	a := assignee
 	if err := h.svc.BatchUpdateTask(ctx, tid, BatchTaskPatch{Assignee: &a}, "user:a"); err != nil {
 		t.Fatal(err)

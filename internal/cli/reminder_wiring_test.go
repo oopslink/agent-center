@@ -154,6 +154,9 @@ func memberProject(t *testing.T, svc *pmservice.Service, ctx context.Context, or
 	if err != nil {
 		t.Fatalf("CreateTask: %v", err)
 	}
+	if _, err := svc.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{ProjectID: pid, IdentityID: pm.IdentityRef("agent:" + agentID), Actor: "user:owner"}); err != nil && err != pm.ErrMemberExists {
+		t.Fatalf("AddProjectMember: %v", err)
+	}
 	if err := svc.AssignTask(ctx, tid, pm.IdentityRef("agent:"+agentID), "user:owner"); err != nil {
 		t.Fatalf("AssignTask: %v", err)
 	}

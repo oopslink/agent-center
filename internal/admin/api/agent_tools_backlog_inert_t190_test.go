@@ -138,6 +138,7 @@ func TestStartWork_Backlog_Unified_T190(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.addProjectMember(t, pid, pm.IdentityRef("agent:"+atAgent1))
 	f.drain(t)
 	if err := f.pmSvc.AssignTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1), owner); err != nil {
 		t.Fatal(err)

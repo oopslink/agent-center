@@ -105,6 +105,9 @@ func (h *f6Harness) runningTask(t *testing.T) pm.TaskID {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := h.svc.AddProjectMember(h.ctx, AddProjectMemberCommand{ProjectID: pid, IdentityID: "agent:AG1", Actor: "user:a"}); err != nil {
+		t.Fatal(err)
+	}
 	if err := h.svc.AssignTask(h.ctx, tid, "agent:AG1", "user:a"); err != nil {
 		t.Fatal(err)
 	}

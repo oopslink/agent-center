@@ -304,6 +304,11 @@ func seedAuditedTaskForAgent(t *testing.T, svc *pmservice.Service, assignee stri
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := svc.AddProjectMember(ctx, pmservice.AddProjectMemberCommand{
+		ProjectID: pid, IdentityID: pm.IdentityRef(assignee), Actor: "user:owner",
+	}); err != nil && err != pm.ErrMemberExists {
+		t.Fatal(err)
+	}
 	tid, err := svc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "audit me", CreatedBy: "user:owner"})
 	if err != nil {
 		t.Fatal(err)

@@ -249,11 +249,19 @@ func (f *writeToolsFixture) drain(t *testing.T) {
 	}
 }
 
-// seedRunningTask creates a project + task, assigns it to AG1 (granting it
-// project membership via the relay + creating the bound Conversation), then
-// Starts it (→ running). Returns the task id. The task's Assignee == agent:AG1
-// is what grants the agent its own-work scope (v2.14.0 F7 — AgentWorkItem
-// retired; ownership is Task.Assignee now).
+func (f *writeToolsFixture) addProjectMember(t *testing.T, pid pm.ProjectID, identity pm.IdentityRef) {
+	t.Helper()
+	if _, err := f.pmSvc.AddProjectMember(context.Background(), pmservice.AddProjectMemberCommand{
+		ProjectID: pid, IdentityID: identity, Actor: "user:owner",
+	}); err != nil && err != pm.ErrMemberExists {
+		t.Fatal(err)
+	}
+}
+
+// seedRunningTask creates a project + task, assigns it to AG1 (an explicit
+// project member), then Starts it (→ running). Returns the task id. The task's
+// Assignee == agent:AG1 is what grants the agent its own-work scope (v2.14.0 F7
+// — AgentWorkItem retired; ownership is Task.Assignee now).
 func (f *writeToolsFixture) seedRunningTask(t *testing.T) string {
 	t.Helper()
 	tid := f.seedOpenAssignedPoolTask(t)
@@ -276,6 +284,7 @@ func (f *writeToolsFixture) seedOpenAssignedPoolTask(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.addProjectMember(t, pid, pm.IdentityRef("agent:"+atAgent1))
 	tid, err := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{
 		ProjectID: pid, Title: "do the thing", CreatedBy: owner,
 	})
@@ -311,7 +320,7 @@ func (f *writeToolsFixture) seedOpenAssignedPoolTask(t *testing.T) string {
 	if err := f.pmSvc.AssignTask(ctx, tid, pm.IdentityRef("agent:"+atAgent1), owner); err != nil {
 		t.Fatal(err)
 	}
-	f.drain(t) // assign flow grants AG1 project membership + sets the assignee.
+	f.drain(t) // assign flow sets the assignee and updates task participants.
 	return string(tid)
 }
 
@@ -330,6 +339,7 @@ func (f *writeToolsFixture) seedRunningIntegrateTaskWithRepo(t *testing.T) strin
 	}); err != nil {
 		t.Fatal(err)
 	}
+	f.addProjectMember(t, pid, pm.IdentityRef("agent:"+atAgent1))
 	tid, err := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{
 		ProjectID: pid, Title: "integrate", CreatedBy: owner,
 	})
@@ -1024,6 +1034,7 @@ func (f *writeToolsFixture) seedStandaloneRunningTask(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	f.addProjectMember(t, pid, pm.IdentityRef("agent:"+atAgent1))
 	tid, err := f.pmSvc.CreateTask(ctx, pmservice.CreateTaskCommand{ProjectID: pid, Title: "standalone", CreatedBy: owner})
 	if err != nil {
 		t.Fatal(err)

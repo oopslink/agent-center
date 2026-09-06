@@ -185,6 +185,10 @@ func mapDomainError(w http.ResponseWriter, err error) {
 		errors.Is(err, pm.ErrInvalidStatus):
 		writeError(w, http.StatusUnprocessableEntity, "invalid_transition", err.Error())
 
+	// ---- assignee_not_project_member (422) ------------------------------
+	case errors.Is(err, pm.ErrAssigneeNotProjectMember):
+		writeError(w, http.StatusUnprocessableEntity, "assignee_not_project_member", err.Error())
+
 	// ---- derived_issue_project_mismatch (409) — T192: a task may only be derived
 	// from an Issue in its OWN project. A scope conflict, surfaced as 409. ----
 	case errors.Is(err, pm.ErrDerivedIssueProjectMismatch):
