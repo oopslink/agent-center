@@ -69,8 +69,8 @@ window.__MCP_TOOLS__ = {
         },
         {
           "name": "fork_executor",
-          "summary": "Supervisor-only dispatch control: fork one of your assigned runnable tasks into this same Agent's isolated executor.",
-          "description": "Supervisor-only dispatch control: fork one of your assigned runnable tasks into this same Agent's isolated executor. Use after a work_available nudge when the task should run as code/tooling work outside the resident supervisor session. fork_executor performs start/admission for an open task; do NOT call start_task first (an already-running task is tolerated for compatibility). Returns accepted when the fork command is durably enqueued; inspect list_task_executions/get_task_execution for actual executor progress and judge the result before complete_task. Do not use for supervisor_inline/control tasks you should handle in this session.",
+          "summary": "Supervisor-only runtime control: fork one of your assigned runnable tasks into this same Agent's isolated executor through the local agent-runtime socket.",
+          "description": "Supervisor-only runtime control: fork one of your assigned runnable tasks into this same Agent's isolated executor through the local agent-runtime socket. Use after list_my_execution_state/work_available when the task should run as code/tooling work outside the resident supervisor session. fork_executor performs start/admission for an open task; do NOT call start_task first (an already-running task is tolerated for compatibility). Returns the local runtime fork outcome (started/rejected/failed with executor_id when available); center only mirrors later state for UI/audit and is not the executor control plane. Judge the executor result from list_my_execution_state/get_task_execution before complete_task. Do not use for supervisor_inline/control tasks you should handle in this session.",
           "params": [
             {
               "name": "task_id",

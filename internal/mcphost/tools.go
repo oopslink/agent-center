@@ -18,7 +18,7 @@
 //   - discard_task                : {task_id, reason}
 //   - create_task                 : {project_id, title, description?, derived_from_issue?, assignee?, dispatch?, dispatch_mode?}
 //   - update_task                 : {task_id, title?, description?, clear_description?}
-//   - fork_executor               : {task_id, model?, context?}
+//   - fork_executor               : runtime-local {task_id, model?, context?}
 //   - get_task                    : {task_id}
 //   - get_issue                   : {issue_id}
 //   - verify_task                 : {task_id}
@@ -142,17 +142,32 @@ type forkExecutorArgs struct {
 
 func makeForkExecutor(cfg Config) mcp.ToolHandlerFor[forkExecutorArgs, any] {
 	return func(ctx context.Context, _ *mcp.CallToolRequest, args forkExecutorArgs) (*mcp.CallToolResult, any, error) {
-		body := map[string]any{
-			"agent_id": cfg.AgentID,
-			"task_id":  args.TaskID,
+		sock := strings.TrimSpace(cfg.RuntimeSocket)
+		if sock == "" {
+			return &mcp.CallToolResult{
+				IsError: true,
+				Content: []mcp.Content{&mcp.TextContent{Text: `{"error":"runtime_socket_unavailable","message":"AC_MCP_RUNTIME_SOCKET is not set; cannot fork executor through the local agent runtime"}`}},
+			}, nil, nil
 		}
-		if args.Model != "" {
-			body["model"] = args.Model
+		res, err := agentcontrol.NewClient(sock, 5*time.Second).ForkExecutor(ctx, agentcontrol.ForkExecutorRequest{
+			TaskID:  args.TaskID,
+			Model:   args.Model,
+			Context: args.Context,
+		})
+		if err != nil {
+			return &mcp.CallToolResult{
+				IsError: true,
+				Content: []mcp.Content{&mcp.TextContent{Text: `{"error":"runtime_fork_executor_unavailable","message":` + quoteJSONString(err.Error()) + `}`}},
+			}, nil, nil
 		}
-		if args.Context != "" {
-			body["context"] = args.Context
+		raw, err := json.Marshal(res)
+		if err != nil {
+			return nil, nil, err
 		}
-		return callAdmin(ctx, cfg, "fork_executor", body)
+		return &mcp.CallToolResult{
+			IsError: !res.OK,
+			Content: []mcp.Content{&mcp.TextContent{Text: adminToolResultText(raw)}},
+		}, nil, nil
 	}
 }
 

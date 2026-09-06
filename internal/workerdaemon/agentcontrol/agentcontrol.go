@@ -30,6 +30,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/concurrency"
@@ -48,6 +49,10 @@ const (
 	concurrencyPath = "/concurrency"
 	// executionStatePath exposes the supervisor-local task/executor/mapping view.
 	executionStatePath = "/execution-state"
+	// forkExecutorPath is the supervisor-local executor fork entry. It is deliberately
+	// runtime-local: the center may mirror the resulting state, but it is not the
+	// control plane for spawning this agent's executors.
+	forkExecutorPath = "/fork-executor"
 )
 
 // HealthResponse is the body of a GET /health probe: the agent id this process serves.
@@ -120,6 +125,30 @@ type AgentSnapshotter interface {
 // center heartbeat.
 type ExecutionStateSnapshotter interface {
 	SnapshotExecutionState(ctx context.Context) (concurrency.ExecutionStateSnapshot, error)
+}
+
+type ForkExecutorRequest struct {
+	TaskID  string `json:"task_id"`
+	Model   string `json:"model,omitempty"`
+	Context string `json:"context,omitempty"`
+}
+
+type ForkExecutorResponse struct {
+	OK            bool   `json:"ok"`
+	Status        string `json:"status"`
+	TaskID        string `json:"task_id"`
+	ExecutorID    string `json:"executor_id,omitempty"`
+	Model         string `json:"model,omitempty"`
+	CLI           string `json:"cli,omitempty"`
+	CommandStatus string `json:"command_status,omitempty"`
+	Reason        string `json:"reason,omitempty"`
+	Detail        string `json:"detail,omitempty"`
+	LocalRuntime  bool   `json:"local_runtime"`
+}
+
+// ForkExecutor exposes the supervisor-local executor spawn entry.
+type ForkExecutor interface {
+	ForkExecutor(ctx context.Context, req ForkExecutorRequest) (ForkExecutorResponse, error)
 }
 
 // HandlerFunc adapts a function to Handler.
@@ -197,6 +226,7 @@ func NewServer(sockPath, agentID string, h Handler, log func(format string, args
 	mux.HandleFunc(healthPath, s.serveHealth)
 	mux.HandleFunc(concurrencyPath, s.serveConcurrency)
 	mux.HandleFunc(executionStatePath, s.serveExecutionState)
+	mux.HandleFunc(forkExecutorPath, s.serveForkExecutor)
 	s.srv = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	return s, nil
 }
@@ -278,6 +308,53 @@ func (s *Server) serveExecutionState(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(snap)
+}
+
+func (s *Server) serveForkExecutor(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	forker, ok := s.handler.(ForkExecutor)
+	if !ok {
+		http.Error(w, "handler does not expose fork_executor", http.StatusServiceUnavailable)
+		return
+	}
+	var req ForkExecutorRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad fork_executor json: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	req.TaskID = strings.TrimSpace(req.TaskID)
+	req.Model = strings.TrimSpace(req.Model)
+	if req.TaskID == "" {
+		http.Error(w, "task_id required", http.StatusBadRequest)
+		return
+	}
+	res, err := forker.ForkExecutor(r.Context(), req)
+	if err != nil {
+		http.Error(w, "fork_executor failed: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	res.TaskID = req.TaskID
+	res.LocalRuntime = true
+	if res.Status == "" {
+		res.Status = res.CommandStatus
+	}
+	if res.Status == "" && res.ExecutorID != "" {
+		res.Status = "started"
+	}
+	if res.Status == "" {
+		res.Status = "accepted"
+	}
+	res.OK = res.Status != "failed" && res.Status != "rejected"
+	w.Header().Set("Content-Type", "application/json")
+	code := http.StatusOK
+	if !res.OK {
+		code = http.StatusConflict
+	}
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(res)
 }
 
 func executablePath() string {
@@ -450,6 +527,35 @@ func (c *Client) SnapshotExecutionState(ctx context.Context) (concurrency.Execut
 		return concurrency.ExecutionStateSnapshot{}, fmt.Errorf("agentcontrol: execution state: decode: %w", err)
 	}
 	return snap, nil
+}
+
+// ForkExecutor asks the local agent runtime to spawn an isolated executor.
+func (c *Client) ForkExecutor(ctx context.Context, req ForkExecutorRequest) (ForkExecutorResponse, error) {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return ForkExecutorResponse{}, fmt.Errorf("agentcontrol: marshal fork_executor: %w", err)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://agent"+forkExecutorPath, bytes.NewReader(body))
+	if err != nil {
+		return ForkExecutorResponse{}, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		return ForkExecutorResponse{}, fmt.Errorf("agentcontrol: fork_executor: %w", err)
+	}
+	defer resp.Body.Close()
+	var out ForkExecutorResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return ForkExecutorResponse{}, fmt.Errorf("agentcontrol: fork_executor: decode: %w", err)
+	}
+	if resp.StatusCode/100 != 2 {
+		if out.Detail != "" {
+			return out, fmt.Errorf("agentcontrol: fork_executor: agent returned %s: %s", resp.Status, out.Detail)
+		}
+		return out, fmt.Errorf("agentcontrol: fork_executor: agent returned %s", resp.Status)
+	}
+	return out, nil
 }
 
 // removeSocket unlinks a unix socket path, ignoring a missing file.

@@ -36,12 +36,23 @@ func TestForkExecutorTool_StatesAdmissionContract(t *testing.T) {
 
 type executionStateHandler struct {
 	snap concurrency.ExecutionStateSnapshot
+	fork agentcontrol.ForkExecutorResponse
 }
 
 func (h executionStateHandler) Handle(context.Context, agentcontrol.Command) error { return nil }
 
 func (h executionStateHandler) SnapshotExecutionState(context.Context) (concurrency.ExecutionStateSnapshot, error) {
 	return h.snap, nil
+}
+
+func (h executionStateHandler) ForkExecutor(_ context.Context, req agentcontrol.ForkExecutorRequest) (agentcontrol.ForkExecutorResponse, error) {
+	res := h.fork
+	res.TaskID = req.TaskID
+	if res.Status == "" {
+		res.Status = "started"
+	}
+	res.LocalRuntime = true
+	return res, nil
 }
 
 func TestListMyExecutionState_ReadsRuntimeSocket(t *testing.T) {
@@ -80,6 +91,60 @@ func TestListMyExecutionState_ReadsRuntimeSocket(t *testing.T) {
 	}
 	if len(body.ActiveTasks) != 1 || body.ActiveTasks[0].RequiredNextAction != concurrency.NextActionRepairNonDelivery {
 		t.Fatalf("active_tasks = %+v", body.ActiveTasks)
+	}
+}
+
+func TestForkExecutor_ReadsRuntimeSocket(t *testing.T) {
+	sock := fmt.Sprintf("/tmp/ac-mcp-fork-exec-%d.sock", os.Getpid())
+	_ = os.Remove(sock)
+	srv, err := agentcontrol.NewServer(sock, "agent-1", executionStateHandler{
+		fork: agentcontrol.ForkExecutorResponse{
+			OK:            true,
+			Status:        "started",
+			ExecutorID:    "exec-1",
+			Model:         "gpt-5-codex",
+			CLI:           "codex",
+			CommandStatus: "started",
+			LocalRuntime:  true,
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+	defer func() { _ = srv.Close(context.Background()); _ = os.Remove(sock) }()
+	go func() { _ = srv.Serve() }()
+
+	admin := &fakeAdmin{}
+	cs := connect(t, Config{AgentID: "agent-1", Admin: admin, RuntimeSocket: sock})
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name: "fork_executor",
+		Arguments: map[string]any{
+			"task_id": "task-1",
+			"model":   "gpt-5-codex",
+			"context": "use runtime",
+		},
+	})
+	if err != nil {
+		t.Fatalf("call fork_executor: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("fork_executor returned IsError; content=%v", res.Content)
+	}
+	var body struct {
+		OK           bool   `json:"ok"`
+		Status       string `json:"status"`
+		TaskID       string `json:"task_id"`
+		ExecutorID   string `json:"executor_id"`
+		LocalRuntime bool   `json:"local_runtime"`
+	}
+	if err := json.Unmarshal([]byte(textContent(t, res)), &body); err != nil {
+		t.Fatalf("decode result: %v", err)
+	}
+	if !body.OK || body.Status != "started" || body.TaskID != "task-1" || body.ExecutorID != "exec-1" || !body.LocalRuntime {
+		t.Fatalf("fork response = %+v", body)
+	}
+	if len(admin.calls) != 0 || admin.gotTool != "" {
+		t.Fatalf("fork_executor must not call center admin; got tool=%q calls=%v", admin.gotTool, admin.calls)
 	}
 }
 

@@ -572,6 +572,55 @@ func (h agentControlHandler) SnapshotExecutionState(ctx context.Context) (concur
 	return h.rt.SnapshotExecutionState(ctx)
 }
 
+func (h agentControlHandler) ForkExecutor(ctx context.Context, req agentcontrol.ForkExecutorRequest) (agentcontrol.ForkExecutorResponse, error) {
+	if h.rt == nil {
+		return agentcontrol.ForkExecutorResponse{
+			OK:            false,
+			Status:        "failed",
+			TaskID:        req.TaskID,
+			CommandStatus: "failed",
+			Reason:        "runtime_unavailable",
+			Detail:        "agent runtime is not attached",
+			LocalRuntime:  true,
+		}, nil
+	}
+	res, err := h.rt.SpawnExecutor(ctx, agentruntime.SpawnRequest{
+		TaskID:  req.TaskID,
+		Model:   req.Model,
+		Context: req.Context,
+	})
+	if err != nil {
+		return agentcontrol.ForkExecutorResponse{}, err
+	}
+	if res == nil {
+		return agentcontrol.ForkExecutorResponse{
+			OK:           true,
+			Status:       "accepted",
+			TaskID:       req.TaskID,
+			LocalRuntime: true,
+		}, nil
+	}
+	status := strings.TrimSpace(res.CommandStatus)
+	if status == "" && strings.TrimSpace(res.ExecutorID) != "" {
+		status = "started"
+	}
+	if status == "" {
+		status = "accepted"
+	}
+	return agentcontrol.ForkExecutorResponse{
+		OK:            status != "failed" && status != "rejected",
+		Status:        status,
+		TaskID:        req.TaskID,
+		ExecutorID:    res.ExecutorID,
+		Model:         res.Model,
+		CLI:           res.CLI,
+		CommandStatus: res.CommandStatus,
+		Reason:        res.Reason,
+		Detail:        res.Detail,
+		LocalRuntime:  true,
+	}, nil
+}
+
 // Handle decodes cmd.Payload — the RAW center command payload the worker proxied
 // verbatim — using the SAME daemon payload types + converters the in-process path
 // used, and dispatches to the matching runtime method. Reusing the daemon's decoders
