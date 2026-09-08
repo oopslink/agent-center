@@ -1,0 +1,141 @@
+{
+  "task": "T2169 Insight semantic and information-architecture independent acceptance",
+  "verdict": "BLOCKED",
+  "reviewed_candidate_ref": "refs/heads/ac-exec/task-54483391/exec-eab25743",
+  "reviewed_sha": "180edce16ffd102571914a2f5b55300b03509828",
+  "candidate_ref_readback": {
+    "remote": "origin",
+    "ls_remote_sha": "180edce16ffd102571914a2f5b55300b03509828",
+    "expected_sha": "180edce16ffd102571914a2f5b55300b03509828",
+    "reachable": true,
+    "drift": false
+  },
+  "baseline": {
+    "origin_main_sha": "9cd47759fc25bbd34423425aa937a6e93f6eb085",
+    "candidate_merge_base_with_origin_main": "b942af983755639d74b24c5f41bfb47a523b749c",
+    "note": "Candidate is reachable and exact, but is based on b942af98 while origin/main had advanced to 9cd47759 at review time."
+  },
+  "reason": "The production-like isolated instance could not create the required real agent data. `install test-instance --with-agent` failed while creating the agent because runtime model `claude-opus-4-8` was not configured, then the capture path fell back to seed-only data with 0 agents and 0 TaskExecution rows. The task contract requires real multi Agent/Project/TaskExecution data covering low coverage, no data, partial data, normal data, and failed/recovery states, plus drilldown reconciliation. Those hard gates were not runnable in this workspace, so the only allowed conclusion is BLOCKED, not PASS or REJECT.",
+  "hard_gates": [
+    {
+      "id": 1,
+      "name": "Low coverage/no data semantic display",
+      "status": "blocked",
+      "evidence": "No-data overview captured; low-coverage and partial-coverage cases were unavailable because no real TaskExecution/slot observation data could be produced."
+    },
+    {
+      "id": 2,
+      "name": "Internal outcome/quality enums translated",
+      "status": "blocked",
+      "evidence": "Execution list had 0 rows, so outcome/quality states could not be inspected against real failed/recovered executions."
+    },
+    {
+      "id": 3,
+      "name": "Readable seconds/windows/freshness",
+      "status": "partial",
+      "evidence": "24h window and fresh badge visible in seed pages; execution-duration samples were absent, so full duration/freshness coverage was not possible."
+    },
+    {
+      "id": 4,
+      "name": "Overview to Agent/Project to TaskExecution information architecture",
+      "status": "partial",
+      "evidence": "Overview scope map and execution filter context were visible in seed pages, but drilldown/return-context with real agent/project execution rows could not be exercised."
+    },
+    {
+      "id": 5,
+      "name": "Rankings include samples/window/coverage/methodology",
+      "status": "blocked",
+      "evidence": "No ranking rows with real execution samples existed; could not verify sample/window/coverage wording against non-empty leaderboards."
+    }
+  ],
+  "regression_gates": [
+    {
+      "command": "go test ./internal/insight ./internal/webconsole/api -run 'Insights|Insight' -count=1",
+      "exit_code": 0
+    },
+    {
+      "command": "cd web && pnpm exec vitest run src/utils/insightPresentation.test.ts src/pages/InsightOverview.test.tsx src/pages/InsightAgents.test.tsx src/pages/InsightProjects.test.tsx src/components/WorkItemFilterBar.test.tsx src/pages/OrgWorkItems.test.tsx",
+      "exit_code": 0,
+      "tests": "102 passed"
+    },
+    {
+      "command": "cd web && pnpm test",
+      "exit_code": 0,
+      "tests": "1920 passed"
+    },
+    {
+      "command": "cd web && pnpm run typecheck",
+      "exit_code": 0
+    },
+    {
+      "command": "cd web && pnpm run lint",
+      "exit_code": 0
+    },
+    {
+      "command": "make lint-spa-tsc",
+      "exit_code": 0
+    },
+    {
+      "command": "make lint-no-raw-colors-spa",
+      "exit_code": 0
+    },
+    {
+      "command": "go test ./internal/webconsole/api -run 'Collaboration|Authorization|Insight' -count=1",
+      "exit_code": 0
+    },
+    {
+      "command": "make build",
+      "exit_code": 0
+    },
+    {
+      "command": "node --check tests/e2e/v2/capture-i53-insight-semantics.mjs",
+      "exit_code": 0
+    }
+  ],
+  "production_like_probe": {
+    "instance_type": "agent-center install test-instance",
+    "attempted_with_agent": true,
+    "with_agent_result": "blocked: runtime_model_not_found for claude-opus-4-8",
+    "fallback_capture_mode": "with-seed",
+    "fallback_data": {
+      "agents_count": 0,
+      "projects_count": 1,
+      "executions_count": 0,
+      "overview_completed_executions": 0,
+      "overview_slot_coverage_ratio": null,
+      "overview_freshness_state": "fresh",
+      "console_errors": 0
+    },
+    "auth_fail_closed": {
+      "no_cookie_insight_overview_status": 401,
+      "body": "{\"error\":\"unauthenticated\",\"message\":\"no session cookie\"}"
+    },
+    "collaboration_graph_probe": {
+      "status": 200,
+      "nodes": 1,
+      "edges": 0,
+      "graph_version_present": true
+    }
+  },
+  "evidence": {
+    "report": "docs/acceptance/t2169-insight-independent/REPORT.md",
+    "current_capture_results": "docs/acceptance/t2169-insight-independent/current-capture/RESULTS.json",
+    "current_capture_screenshots": [
+      "docs/acceptance/t2169-insight-independent/current-capture/01-overview.png",
+      "docs/acceptance/t2169-insight-independent/current-capture/02-executions.png",
+      "docs/acceptance/t2169-insight-independent/current-capture/04-agents.png",
+      "docs/acceptance/t2169-insight-independent/current-capture/05-projects.png"
+    ],
+    "current_capture_video": "docs/acceptance/t2169-insight-independent/current-capture/page@4696dc120fb2b4e668b32d27d1417155.webm",
+    "har": "docs/acceptance/t2169-insight-independent/har-probe/insight-pages.har",
+    "api_probes": "docs/acceptance/t2169-insight-independent/har-probe/api-probes.json",
+    "console": "docs/acceptance/t2169-insight-independent/har-probe/console.json",
+    "har_probe_screenshots": [
+      "docs/acceptance/t2169-insight-independent/har-probe/overview.png",
+      "docs/acceptance/t2169-insight-independent/har-probe/executions.png",
+      "docs/acceptance/t2169-insight-independent/har-probe/agents.png",
+      "docs/acceptance/t2169-insight-independent/har-probe/projects.png",
+      "docs/acceptance/t2169-insight-independent/har-probe/collaboration.png"
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "t2169-har",
+  "prefix": "/Users/oopslink/.agent-center-test/t2169-har",
+  "web_url": "http://127.0.0.1:50970",
+  "server_port": 50971,
+  "admin_port": 50972,
+  "admin_bootstrap_token": "acat_xwV1BwXxqUTLihgBAzQ8_hoXY-lUx9q5SxSXVakENFM",
+  "workers": [
+    {
+      "id": "test-t2169-har-w1",
+      "prefix": "/Users/oopslink/.agent-center-test/t2169-har/worker-1"
+    }
+  ],
+  "web_login": "seeded ✓ — sign in at web_url with the credentials in `signin`",
+  "entity_ids": "seeded ✓ — see `entity_refs` (org/project/channel)",
+  "workers_note": "workers are workforce-enrolled (token exchanged) + running, but NOT org-enrolled yet — control-connect 409s until a tenant org is seeded (--with-seed, #257)",
+  "signin": {
+    "org_slug": "org-f35f710e",
+    "display_name": "Owner t2169-har",
+    "email": "owner@acme-t2169-har.test",
+    "passcode": "SeedPass1!"
+  },
+  "entity_refs": {
+    "org_id": "organization-80671651",
+    "project_id": "project-1f642d4e",
+    "channel_id": "channel-eb0b8077"
+  }
+}
