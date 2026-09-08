@@ -65,12 +65,19 @@ func Open(ctx context.Context, sqlite *sql.DB, path string, ttl time.Duration) (
 	}
 	duck, err := sql.Open("duckdb", path)
 	if err != nil {
-		return nil, err
+		s := &Service{sqlite: sqlite, path: path, ttl: ttl}
+		if rerr := s.rebuildLocked(ctx); rerr != nil {
+			return nil, fmt.Errorf("insight open duckdb: %w; rebuild: %v", err, rerr)
+		}
+		_ = os.Chmod(path, 0o600)
+		return s, nil
 	}
 	s := &Service{sqlite: sqlite, duck: duck, path: path, ttl: ttl}
 	if err := s.ensureSchema(ctx); err != nil {
-		_ = duck.Close()
-		return nil, err
+		if rerr := s.rebuildLocked(ctx); rerr != nil {
+			_ = duck.Close()
+			return nil, fmt.Errorf("insight open schema: %w; rebuild: %v", err, rerr)
+		}
 	}
 	_ = os.Chmod(path, 0o600)
 	return s, nil
@@ -348,6 +355,7 @@ func (s *Service) rebuildLocked(ctx context.Context) error {
 	}
 	tmp := s.path + ".rebuild"
 	_ = os.Remove(tmp)
+	_ = os.Remove(tmp + ".wal")
 	duck, err := sql.Open("duckdb", tmp)
 	if err != nil {
 		return err
@@ -384,9 +392,12 @@ func (s *Service) rebuildLocked(ctx context.Context) error {
 	if old != nil {
 		_ = old.Close()
 	}
+	_ = os.Remove(oldPath)
+	_ = os.Remove(oldPath + ".wal")
 	if err := os.Rename(tmp, oldPath); err != nil {
 		return err
 	}
+	_ = os.Remove(tmp + ".wal")
 	s.path = oldPath
 	s.duck, err = sql.Open("duckdb", oldPath)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +15,31 @@ import (
 	"github.com/oopslink/agent-center/internal/idgen"
 	"github.com/oopslink/agent-center/internal/persistence"
 )
+
+func TestInsightOpen_RebuildsCorruptDerivedStore(t *testing.T) {
+	ctx := context.Background()
+	db := migratedSQLite(t)
+	seedDims(t, db, "org-1")
+	path := t.TempDir() + "/insight.duckdb"
+	if err := os.WriteFile(path, []byte("not a duckdb database"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path+".wal", []byte("stale wal"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	svc, err := Open(ctx, db, path, time.Minute)
+	if err != nil {
+		t.Fatalf("Open should rebuild corrupt derived store: %v", err)
+	}
+	defer svc.Close()
+	if got, err := os.ReadFile(path + ".wal"); err == nil && string(got) == "stale wal" {
+		t.Fatal("stale wal content still exists after rebuild")
+	}
+	if _, err := svc.Overview(ctx, "org-1", time.Now().UTC()); err != nil {
+		t.Fatalf("overview after rebuild: %v", err)
+	}
+}
 
 func TestInsightReplay_IdempotentLateEventsBoundariesQuantilesAndRebuild(t *testing.T) {
 	ctx := context.Background()
