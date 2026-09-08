@@ -1,0 +1,461 @@
+{
+  "task_id": "task-2d58c63f",
+  "execution_id": "exec-c38f07b3",
+  "reviewed_sha": "579931a1f8854b1ae30f055ca3a0d79024657c2c",
+  "base_sha": "9cd47759fc25bbd34423425aa937a6e93f6eb085",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files -g '\"'!*node_modules*'\"' | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc \"rg --files | rg '(\"'^|/)(Makefile|package.json|go.mod|pnpm-lock.yaml|docker-compose|compose|install|agent-center|insight|e2e|playwright)'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"find docs/acceptance -maxdepth 3 -iname '*2202*' -o -iname '*2169*' -o -iname '*insight*' | sort | head -200\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"rg -n \\\"T2169|t2169|T2202|t2202|task-a37cc2cc|runtime_model_not_found|claude-opus-4-8|Insight|insight\\\" . -g '\"'!node_modules'\"' -g '\"'!vendor'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git branch -a --contains 180edce16ffd102571914a2f5b55300b03509828 || true \u0026\u0026 git branch -a --contains d85a95ec4cb3aad8f4ca48707c28f68ad0f1262c || true \u0026\u0026 git show --stat --oneline --decorate -s 180edce16ffd102571914a2f5b55300b03509828 d85a95ec4cb3aad8f4ca48707c28f68ad0f1262c || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate --graph --max-count=40 --all --simplify-by-decoration'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate 180edce16ffd102571914a2f5b55300b03509828 -- \u0026\u0026 git show --name-only --oneline d85a95ec4cb3aad8f4ca48707c28f68ad0f1262c --'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"find docs/acceptance -maxdepth 2 -type f | rg 't2202|a37cc2cc|t2169|54483391|eab25743|632dccaa' || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc \"sed -n '1,240p' Makefile \u0026\u0026 sed -n '1,260p' internal/cli/install_instance_test.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"git show d85a95ec4cb3aad8f4ca48707c28f68ad0f1262c:.agent-center/evidence/task-a37cc2cc/exec-632dccaa.json | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"rg -n \\\"install test-instance|test-instance|with-agent|runtime_model|model catalog|catalog|runtime-model|models\\\" cmd internal scripts docs README.md -g '\"'!vendor'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"git show 180edce16ffd102571914a2f5b55300b03509828:tests/e2e/v2/capture-i53-insight-semantics.mjs | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"git show 180edce16ffd102571914a2f5b55300b03509828:docs/acceptance/i53-insight-semantics/REPORT.md | sed -n '1,260p' \u0026\u0026 git show 180edce16ffd102571914a2f5b55300b03509828:docs/acceptance/i53-insight-semantics/after/RESULTS.json | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/cli/test_instance_agent.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/cli/handlers_test_instance.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' internal/cli/test_instance_seed.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"rg -n \\\"ai-runtime|AIRuntime|runtime catalog|runtime_model_not_found|model was not found|claude-opus-4-8|gpt-5\\\" internal/cli internal/webconsole/api internal/runtime internal/airuntime internal/mcphost cmd -g '*.go'\"",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"git show 180edce16ffd102571914a2f5b55300b03509828:web/package.json | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"rg -n \\\"members/agent|admintoken/mint-enroll|agents/.*/start|POST /api/orgs|worker_id|insights/v2|projects/.*/tasks|dispatch\\\" internal/webconsole/api web/src/api tests/e2e/v2 -g '\"'!node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc 'if [ -d /tmp/t2169-candidate/.git ]; then git -C /tmp/t2169-candidate rev-parse HEAD; else git worktree add /tmp/t2169-candidate 180edce16ffd102571914a2f5b55300b03509828; fi'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t2169-insight-hard-gates/raw docs/acceptance/t2169-insight-hard-gates/screenshots docs/acceptance/t2169-insight-hard-gates/har'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc 'make build'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc 'set -o pipefail\nID=t2169-hard-$(date +%H%M%S)\nOUTDIR=/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-c38f07b3/docs/acceptance/t2169-insight-hard-gates/raw\nprintf '\"'%s' \\\"\"'$ID\" \u003e \"$OUTDIR/instance-id.txt\"\n/tmp/t2169-candidate/bin/agent-center install test-instance --id \"$ID\" --with-seed --workers 1 --output json 2\u003e \"$OUTDIR/01-install-with-seed.stderr\" | tee \"$OUTDIR/01-install-with-seed.json\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"node \u003c\u003c'NODE'\nconst fs = require('fs');\nconst path = 'docs/acceptance/t2169-insight-hard-gates/raw';\nconst pack = JSON.parse(fs.readFileSync(\"'`${path}/01-install-with-seed.json`, '\"'utf8'));\nconst base = pack.web_url;\nconst org = pack.signin.org_slug;\nasync function req(label, url, opts={}) {\n  const res = await fetch(url, opts);\n  const text = await res.text();\n  fs.writeFileSync(\"'`${path}/${label}.status.txt`, `${res.status}'\"\\\\n\"'${[...res.headers].map(([k,v])=\u003e`${k}: ${v}`).join('\"'\\\\n')}\\\\n\"'`);\n  fs.writeFileSync(`${path}/${label}.body.txt`, text);\n  return {res, text};\n}\n(async () =\u003e {\n  const signin = await req('\"'02-signin', \"'`${base}/api/auth/signin`, {method:'\"'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({display_name: pack.signin.display_name, passcode: pack.signin.passcode, org_slug: org})});\n  const cookie = signin.res.headers.get('set-cookie')?.match(/ac_session=[\"'^;]+/)?.[0];\n  if (!cookie) throw new Error('\"'missing ac_session');\n  fs.writeFileSync(\"'`${path}/session-cookie.redacted.txt`, '\"'ac_session=\u003credacted\u003e\\\\n');\n  const H = {'content-type':'application/json', cookie};\n  await req('03-ai-runtime-before', \"'`${base}/api/orgs/${org}/ai-runtime`, {headers:H});\n  const before = JSON.parse(fs.readFileSync(`${path}/03-ai-runtime-before.body.txt`, '\"'utf8'));\n  const rev = before.revision ?? before.catalog?.revision ?? 0;\n  const payload = {expected_revision: rev, value: {key:'claude-opus-4-8', model_key:'claude-opus-4-8', display_name:'Claude Opus 4.8', compatible_cli_keys:['claude-code'], default_parameters:{}, enabled:true}};\n  await req('04-create-runtime-model-claude-opus-4-8', \"'`${base}/api/orgs/${org}/ai-runtime/models`, {method:'\"'POST', headers:H, body:JSON.stringify(payload)});\n  await req('05-ai-runtime-after-model', \"'`${base}/api/orgs/${org}/ai-runtime`, {headers:H});\n})();\nNODE'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"for f in docs/acceptance/t2169-insight-hard-gates/raw/03-ai-runtime-before.body.txt docs/acceptance/t2169-insight-hard-gates/raw/04-create-runtime-model-claude-opus-4-8.status.txt docs/acceptance/t2169-insight-hard-gates/raw/04-create-runtime-model-claude-opus-4-8.body.txt docs/acceptance/t2169-insight-hard-gates/raw/05-ai-runtime-after-model.body.txt; do printf '\\\\n### %s\\\\n' \\\"\"'$f\"; sed -n '\"'1,220p' \\\"\"'$f\"; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"rg -n \\\"func InstallWorker|install worker|bootstrap|fingerprint|token\\\" internal/cli -g '*.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"/tmp/t2169-candidate/bin/agent-center install worker --help | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"node \u003c\u003c'NODE'\nconst fs = require('fs');\nconst path = 'docs/acceptance/t2169-insight-hard-gates/raw';\nconst pack = JSON.parse(fs.readFileSync(\"'`${path}/01-install-with-seed.json`, '\"'utf8'));\nconst base = pack.web_url;\nconst org = pack.signin.org_slug;\nasync function req(label, url, opts={}) {\n  const res = await fetch(url, opts);\n  const text = await res.text();\n  fs.writeFileSync(\"'`${path}/${label}.status.txt`, `${res.status}'\"\\\\n\"'${[...res.headers].map(([k,v])=\u003e`${k}: ${v}`).join('\"'\\\\n')}\\\\n\"'`);\n  fs.writeFileSync(`${path}/${label}.body.txt`, text);\n  return {res, text};\n}\n(async () =\u003e {\n  const signin = await fetch(`${base}/api/auth/signin`, {method:'\"'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({display_name: pack.signin.display_name, passcode: pack.signin.passcode, org_slug: org})});\n  const cookie = signin.headers.get('set-cookie')?.match(/ac_session=[\"'^;]+/)?.[0];\n  if (!cookie) throw new Error('\"'missing ac_session');\n  const H = {'content-type':'application/json', cookie};\n  const mint = await req('06-mint-org-enroll-worker', \"'`${base}/api/orgs/${org}/admintoken/mint-enroll`, {method:'\"'POST', headers:H, body: JSON.stringify({name:'t2169-hard-worker'})});\n  if (\"'!mint.res.ok) throw new Error(`mint failed ${mint.res.status} ${mint.text}`);\n  const body = JSON.parse(mint.text);\n  fs.writeFileSync('\"'/tmp/t2169-mint.json', JSON.stringify(body, null, 2));\n  const redacted = {...body, token: '[REDACTED_SECRET]'};\n  fs.writeFileSync(\"'`${path}/06-mint-org-enroll-worker.redacted.json`, JSON.stringify(redacted, null, 2));\n})();\nNODE\nnode -e \"const m=require('\"'/tmp/t2169-mint.json'); console.log(JSON.stringify({worker_id:m.worker_id, bootstrap_host:m.bootstrap_host, fingerprint:m.fingerprint}))\\\"\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"node \u003c\u003c'NODE' \u003e /tmp/t2169-worker-install-args.sh\nconst m=require('/tmp/t2169-mint.json');\nfunction q(s){return \"'`'\"'\"'${String(s).replaceAll(\"'\"'\\\", \\\"'\\\\\\\\''\\\")}'\"'`;}\nconsole.log(`TOKEN=[REDACTED_SECRET]\nconsole.log(`FINGERPRINT=${q(m.fingerprint)}`);\nconsole.log(`BOOTSTRAP=${q('\"'tcp://'+m.bootstrap_host)}\"'`);\nconsole.log(`WORKER_ID=${q(m.worker_id)}`);\nNODE\n. /tmp/t2169-worker-install-args.sh\nPREFIX=\"$(node -e \"const p=require('\"'./docs/acceptance/t2169-insight-hard-gates/raw/01-install-with-seed.json'); process.stdout.write(p.prefix+'/worker-org')\\\")\\\"\n/tmp/t2169-candidate/bin/agent-center install worker --prefix \\\"\"'$PREFIX\" --worker-id \"$WORKER_ID\" --worker-name t2169-hard-worker --bootstrap \"$BOOTSTRAP\" --server-fingerprint \"$FINGERPRINT\" --token \"$TOKEN\" --service \u003e docs/acceptance/t2169-insight-hard-gates/raw/07-install-org-worker.stdout.txt 2\u003e docs/acceptance/t2169-insight-hard-gates/raw/07-install-org-worker.stderr.txt\nprintf '\"'%s\\\\n' \\\"\"'$PREFIX\" \u003e docs/acceptance/t2169-insight-hard-gates/raw/org-worker-prefix.txt\nprintf '\"'%s\\\\n' \\\"\"'$WORKER_ID\" \u003e docs/acceptance/t2169-insight-hard-gates/raw/org-worker-id.txt\nsed -n '\"'1,200p' docs/acceptance/t2169-insight-hard-gates/raw/07-install-org-worker.stdout.txt\nsed -n '1,200p' docs/acceptance/t2169-insight-hard-gates/raw/07-install-org-worker.stderr.txt\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"node \u003c\u003c'NODE'\nconst fs = require('fs');\nconst path = 'docs/acceptance/t2169-insight-hard-gates/raw';\nconst pack = JSON.parse(fs.readFileSync(\"'`${path}/01-install-with-seed.json`, '\"'utf8'));\nconst workerId = fs.readFileSync(\"'`${path}/org-worker-id.txt`, '\"'utf8').trim();\nconst base = pack.web_url;\nconst org = pack.signin.org_slug;\nconst project = pack.entity_refs.project_id;\nasync function save(label, res) {\n  const text = await res.text();\n  fs.writeFileSync(\"'`${path}/${label}.status.txt`, `${res.status}'\"\\\\n\"'${[...res.headers].map(([k,v])=\u003e`${k}: ${v}`).join('\"'\\\\n')}\\\\n\"'`);\n  fs.writeFileSync(`${path}/${label}.body.txt`, text);\n  let json=null; try { json = text ? JSON.parse(text) : null; } catch {}\n  return {ok: res.ok, status: res.status, text, json};\n}\nasync function main(){\n  const signin = await fetch(`${base}/api/auth/signin`, {method:'\"'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({display_name: pack.signin.display_name, passcode: pack.signin.passcode, org_slug: org})});\n  const cookie = signin.headers.get('set-cookie')?.match(/ac_session=[\"'^;]+/)?.[0];\n  if (!cookie) throw new Error('\"'missing ac_session');\n  const H = {'content-type':'application/json', cookie};\n  await save('08-workers-before-agent', await fetch(\"'`${base}/api/orgs/${org}/workers`, {headers:H}));\n  const created=[];\n  for (let i=1;i\u003c=3;i++) {\n    const name = `T2169 Hard Gate Agent ${i}`;\n    const create = await save(`09-create-agent-${i}`, await fetch(`${base}/api/orgs/${org}/members/agent`, {method:'\"'POST', headers:H, body: JSON.stringify({display_name:name, role:'member', cli:'claude-code', model:'claude-opus-4-8', worker_id:workerId})}));\n    if (\"'!create.ok) continue;\n    created.push({i,name});\n  }\n  const list = await save('\"'10-agents-after-create', await fetch(\"'`${base}/api/orgs/${org}/agents`, {headers:H}));\n  const agents = list.json?.agents || [];\n  const targets = created.map(c =\u003e {\n    const a = agents.find(x =\u003e x.name === c.name);\n    return {...c, id:a?.id, member:a?.identity_member_id || a?.id};\n  }).filter(a=\u003ea.id);\n  fs.writeFileSync(`${path}/created-agents.json`, JSON.stringify(targets, null, 2));\n  for (const a of targets) {\n    await save(`11-start-agent-${a.i}`, await fetch(`${base}/api/orgs/${org}/agents/${a.id}/start`, {method:'\"'POST', headers:H, body:'{}'}));\n  }\n  await save('12-agents-after-start', await fetch(\"'`${base}/api/orgs/${org}/agents`, {headers:H}));\n  const tasks=[];\n  const titles = ['\"'normal coverage success probe','low coverage failure probe','recovery retry probe','partial coverage queue probe','ranking sample probe','freshness window probe'];\n  for (let t=0;t\u003ctitles.length;t++) {\n    const a = targets[t % Math.max(1, targets.length)];\n    const body = {title:\"'`T2169 ${titles[t]}`, description:'\"'Run pwd and echo T2169 hard-gate fixture provenance. Keep the response short.', assignee:\"'`agent:${a?.member}`, dispatch:true};\n    const r = await save(`13-create-dispatch-task-${t+1}`, await fetch(`${base}/api/orgs/${org}/projects/${project}/tasks`, {method:'\"'POST', headers:H, body: JSON.stringify(body)}));\n    tasks.push({n:t+1, status:r.status, id:r.json?.id, assignee: body.assignee, title: body.title, body:r.json});\n  }\n  fs.writeFileSync(\"'`${path}/created-tasks.json`, JSON.stringify(tasks, null, 2));\n  for (let j=0;j\u003c24;j++) {\n    await new Promise(r=\u003esetTimeout(r, 5000));\n    const execs = await save(`14-poll-executions-${String(j+1).padStart(2,'\"'0')}\"'`, await fetch(`${base}/api/orgs/${org}/insights/executions?window=24h\u0026limit=100`, {headers:H}));\n    const overview = await save(`15-poll-overview-${String(j+1).padStart(2,'\"'0')}\"'`, await fetch(`${base}/api/orgs/${org}/insights/overview?window=24h`, {headers:H}));\n    const count = execs.json?.executions?.length || 0;\n    const completed = overview.json?.summary?.completed_executions || 0;\n    const failed = overview.json?.summary?.failed_executions || 0;\n    console.log(JSON.stringify({poll:j+1,count,completed,failed,freshness:overview.json?.freshness?.state}));\n    if (count \u003e= 3 \u0026\u0026 (completed + failed) \u003e= 3) break;\n  }\n  await save('\"'16-final-v2-overview', await fetch(\"'`${base}/api/orgs/${org}/insights/v2/overview?window=24h`, {headers:H}));\n  await save('\"'17-final-v2-agents', await fetch(\"'`${base}/api/orgs/${org}/insights/v2/agents?window=24h`, {headers:H}));\n  await save('\"'18-final-v2-projects', await fetch(\"'`${base}/api/orgs/${org}/insights/v2/projects?window=24h`, {headers:H}));\n  await save('\"'19-final-executions', await fetch(\"'`${base}/api/orgs/${org}/insights/executions?window=24h\u0026limit=100`, {headers:H}));\n}\nmain().catch(e =\u003e { console.error(e); process.exit(1); });\nNODE'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc 'ID=$(cat docs/acceptance/t2169-insight-hard-gates/raw/instance-id.txt); find \"$HOME/.agent-center-test/$ID\" -maxdepth 4 -type f | sort | rg '\"'(log|config.yaml|worker-token|fingerprint|stdout|stderr)'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc \"for f in docs/acceptance/t2169-insight-hard-gates/raw/{08-workers-before-agent,09-create-agent-1,09-create-agent-2,09-create-agent-3,10-agents-after-create,11-start-agent-1,11-start-agent-2,11-start-agent-3,12-agents-after-start,13-create-dispatch-task-1,13-create-dispatch-task-2,13-create-dispatch-task-3,19-final-executions}.body.txt; do printf '\\\\n### %s\\\\n' \\\"\"'$f\"; sed -n '\"'1,220p' \\\"\"'$f\"; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc 'ID=$(cat docs/acceptance/t2169-insight-hard-gates/raw/instance-id.txt); /tmp/t2169-candidate/bin/agent-center list-test-instances --output json \u003e docs/acceptance/t2169-insight-hard-gates/raw/20-list-test-instances.json 2\u003e docs/acceptance/t2169-insight-hard-gates/raw/20-list-test-instances.stderr; sed -n '\"'1,220p' docs/acceptance/t2169-insight-hard-gates/raw/20-list-test-instances.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_50",
+      "command": "/bin/zsh -lc 'for n in 4 5 6; do for ext in status body; do f=docs/acceptance/t2169-insight-hard-gates/raw/13-create-dispatch-task-$n.$ext.txt; printf '\"'\\\\n### %s\\\\n' \\\"\"'$f\"; sed -n '\"'1,180p' \\\"\"'$f\"; done; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc 'ID=$(cat docs/acceptance/t2169-insight-hard-gates/raw/instance-id.txt); cp \"$HOME/.agent-center-test/$ID/center/logs/com.agent-center.center.test-$ID.out.log\" docs/acceptance/t2169-insight-hard-gates/raw/21-center.out.log; cp \"$HOME/.agent-center-test/$ID/center/logs/com.agent-center.center.test-$ID.err.log\" docs/acceptance/t2169-insight-hard-gates/raw/21-center.err.log; cp \"$HOME/.agent-center-test/$ID/worker-org/logs/com.agent-center.worker.$(cat docs/acceptance/t2169-insight-hard-gates/raw/org-worker-id.txt).out.log\" docs/acceptance/t2169-insight-hard-gates/raw/22-worker-org.out.log; cp \"$HOME/.agent-center-test/$ID/worker-org/logs/com.agent-center.worker.$(cat docs/acceptance/t2169-insight-hard-gates/raw/org-worker-id.txt).err.log\" docs/acceptance/t2169-insight-hard-gates/raw/22-worker-org.err.log; for f in docs/acceptance/t2169-insight-hard-gates/raw/21-center.err.log docs/acceptance/t2169-insight-hard-gates/raw/22-worker-org.err.log docs/acceptance/t2169-insight-hard-gates/raw/22-worker-org.out.log; do printf '\"'\\\\n### %s\\\\n' \\\"\"'$f\"; tail -200 \"$f\"; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc \"for f in docs/acceptance/t2169-insight-hard-gates/raw/16-final-v2-overview.body.txt docs/acceptance/t2169-insight-hard-gates/raw/17-final-v2-agents.body.txt docs/acceptance/t2169-insight-hard-gates/raw/18-final-v2-projects.body.txt; do printf '\\\\n### %s\\\\n' \\\"\"'$f\"; sed -n '\"'1,260p' \\\"\"'$f\"; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc \"rg -n \\\"start_task|claim|task_execution|TaskExecution|executor.start|execution_id|dispatch:pull|fork\\\" internal/mcphost internal/admin internal/webconsole internal/agentruntime -g '*.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_55",
+      "command": "/bin/zsh -lc \"rg -n \\\"fork_executor|ForkExecutor|executor fork|fork executor|start_task|work_available|agent.work_available\\\" cmd internal web tests -g '\"'!node_modules'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/mcphost/orchestration_tools.go \u0026\u0026 sed -n '1,220p' internal/cli/handlers_executor.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_60",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2169-insight-hard-gates/capture-hard-gates.mjs \u003e docs/acceptance/t2169-insight-hard-gates/raw/23-ui-capture.stdout.txt 2\u003e docs/acceptance/t2169-insight-hard-gates/raw/23-ui-capture.stderr.txt; code=$?; echo $code \u003e docs/acceptance/t2169-insight-hard-gates/raw/23-ui-capture.exitcode; cat docs/acceptance/t2169-insight-hard-gates/raw/23-ui-capture.exitcode; sed -n '\"'1,200p' docs/acceptance/t2169-insight-hard-gates/raw/23-ui-capture.stderr.txt; sed -n '1,220p' docs/acceptance/t2169-insight-hard-gates/raw/23-ui-capture-summary.json\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc 'ls /tmp/t2169-candidate/tests/e2e/v2/node_modules/@playwright/test /tmp/t2169-candidate/tests/e2e/v2/node_modules/playwright 2\u003e/dev/null || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc \"sed -n '1,40p' /tmp/t2169-candidate/tests/e2e/v2/package.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc 'pnpm install --frozen-lockfile'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_68",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2169-insight-hard-gates/capture-hard-gates.mjs \u003e docs/acceptance/t2169-insight-hard-gates/raw/24-ui-capture-rerun.stdout.txt 2\u003e docs/acceptance/t2169-insight-hard-gates/raw/24-ui-capture-rerun.stderr.txt; code=$?; echo $code \u003e docs/acceptance/t2169-insight-hard-gates/raw/24-ui-capture-rerun.exitcode; cat docs/acceptance/t2169-insight-hard-gates/raw/24-ui-capture-rerun.exitcode; sed -n '\"'1,160p' docs/acceptance/t2169-insight-hard-gates/raw/24-ui-capture-rerun.stderr.txt; sed -n '1,220p' docs/acceptance/t2169-insight-hard-gates/raw/23-ui-capture-summary.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_70",
+      "command": "/bin/zsh -lc \"node \u003c\u003c'NODE'\nconst fs = require('fs');\nconst path = 'docs/acceptance/t2169-insight-hard-gates/raw';\nconst pack = JSON.parse(fs.readFileSync(\"'`${path}/01-install-with-seed.json`, '\"'utf8'));\nconst tasks = JSON.parse(fs.readFileSync(\"'`${path}/created-tasks.json`, '\"'utf8'));\nconst base = pack.web_url;\nconst org = pack.signin.org_slug;\nasync function save(label, res) {\n  const text = await res.text();\n  fs.writeFileSync(\"'`${path}/${label}.status.txt`, `${res.status}'\"\\\\n\"'${[...res.headers].map(([k,v])=\u003e`${k}: ${v}`).join('\"'\\\\n')}\\\\n\"'`);\n  fs.writeFileSync(`${path}/${label}.body.txt`, text);\n  return {ok: res.ok, status: res.status, text};\n}\n(async()=\u003e{\n  const signin = await fetch(`${base}/api/auth/signin`, {method:'\"'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({display_name: pack.signin.display_name, passcode: pack.signin.passcode, org_slug: org})});\n  const cookie = signin.headers.get('set-cookie')?.match(/ac_session=[\"'^;]+/)?.[0];\n  const H = {'\"'content-type':'application/json', cookie};\n  await save('25-final-workers', await fetch(\"'`${base}/api/orgs/${org}/workers`, {headers:H}));\n  await save('\"'26-final-agents', await fetch(\"'`${base}/api/orgs/${org}/agents`, {headers:H}));\n  for (const t of tasks) {\n    if (!t.id) continue;\n    await save(`27-task-${t.n}-${t.id}`, await fetch(`${base}/api/orgs/${org}/projects/${pack.entity_refs.project_id}/tasks/${t.id}`, {headers:H}));\n  }\n})();\nNODE\nfind docs/acceptance/t2169-insight-hard-gates -type f -not -name SHA256SUMS -print0 | sort -z | xargs -0 shasum -a 256 \u003e docs/acceptance/t2169-insight-hard-gates/SHA256SUMS\nsed -n '\"'1,80p' docs/acceptance/t2169-insight-hard-gates/SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc 'ID=$(cat docs/acceptance/t2169-insight-hard-gates/raw/instance-id.txt)\n/tmp/t2169-candidate/bin/agent-center uninstall test-instance --id \"$ID\" --yes \u003e docs/acceptance/t2169-insight-hard-gates/raw/28-uninstall-test-instance.stdout.txt 2\u003e docs/acceptance/t2169-insight-hard-gates/raw/28-uninstall-test-instance.stderr.txt; code=$?; echo $code \u003e docs/acceptance/t2169-insight-hard-gates/raw/28-uninstall-test-instance.exitcode\ncat docs/acceptance/t2169-insight-hard-gates/raw/28-uninstall-test-instance.exitcode\nsed -n '\"'1,220p' docs/acceptance/t2169-insight-hard-gates/raw/28-uninstall-test-instance.stdout.txt\n/tmp/t2169-candidate/bin/agent-center list-test-instances --output json \u003e docs/acceptance/t2169-insight-hard-gates/raw/29-list-test-instances-after-uninstall.json 2\u003e docs/acceptance/t2169-insight-hard-gates/raw/29-list-test-instances-after-uninstall.stderr\nsed -n '1,220p' docs/acceptance/t2169-insight-hard-gates/raw/29-list-test-instances-after-uninstall.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_74",
+      "command": "/bin/zsh -lc \"find docs/acceptance/t2169-insight-hard-gates -type f | sort | wc -l \u0026\u0026 rg -n \\\"ac_session=|admin_bootstrap_token|\\\\\\\"token\\\\\\\"\\\\s*:|acat_\\\" docs/acceptance/t2169-insight-hard-gates -g '\"'!*.png'\"' -g '\"'!*.har'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t2169-insight-hard-gates/raw/28-uninstall-test-instance.stderr.txt \u0026\u0026 /tmp/t2169-candidate/bin/agent-center uninstall test-instance --help | sed -n '1,160p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_76",
+      "command": "/bin/zsh -lc 'ID=$(cat docs/acceptance/t2169-insight-hard-gates/raw/instance-id.txt)\n/tmp/t2169-candidate/bin/agent-center uninstall test-instance --id \"$ID\" \u003e docs/acceptance/t2169-insight-hard-gates/raw/30-uninstall-test-instance-rerun.stdout.txt 2\u003e docs/acceptance/t2169-insight-hard-gates/raw/30-uninstall-test-instance-rerun.stderr.txt; code=$?; echo $code \u003e docs/acceptance/t2169-insight-hard-gates/raw/30-uninstall-test-instance-rerun.exitcode\ncat docs/acceptance/t2169-insight-hard-gates/raw/30-uninstall-test-instance-rerun.exitcode\nsed -n '\"'1,220p' docs/acceptance/t2169-insight-hard-gates/raw/30-uninstall-test-instance-rerun.stdout.txt\n/tmp/t2169-candidate/bin/agent-center list-test-instances --output json \u003e docs/acceptance/t2169-insight-hard-gates/raw/31-list-test-instances-after-rerun.json 2\u003e docs/acceptance/t2169-insight-hard-gates/raw/31-list-test-instances-after-rerun.stderr\nsed -n '1,220p' docs/acceptance/t2169-insight-hard-gates/raw/31-list-test-instances-after-rerun.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc \"node \u003c\u003c'NODE'\nconst fs = require('fs');\nconst files = [\n  'docs/acceptance/t2169-insight-hard-gates/raw/01-install-with-seed.json',\n  'docs/acceptance/t2169-insight-hard-gates/raw/06-mint-org-enroll-worker.body.txt',\n];\nfor (const f of files) {\n  const raw = fs.readFileSync(f, 'utf8');\n  const data = JSON.parse(raw);\n  if ('admin_bootstrap_token' in data) data.admin_bootstrap_token = '\u003credacted\u003e';\n  if ('token' in data) data.token = '[REDACTED_SECRET]';\n  fs.writeFileSync(f, JSON.stringify(data, null, 2) + '\\\\n');\n}\nfor (const f of fs.readdirSync('docs/acceptance/t2169-insight-hard-gates/raw')) {\n  const p = 'docs/acceptance/t2169-insight-hard-gates/raw/' + f;\n  if (\"'!fs.statSync(p).isFile()) continue;\n  let s = fs.readFileSync(p, '\"'utf8');\n  s = s.replace(/ac_session=[\"'^;'\"\\\\n]+/g, 'ac_session=\u003credacted\u003e');\n  s = s.replace(/\\\"token\\\"\\\\s*:\\\\s*\\\"acat_[\"'^\"]+\"/g, '\"'\\\"token\\\":\\\"\u003credacted\u003e\\\"');\n  s = s.replace(/\\\"admin_bootstrap_token\\\"\\\\s*:\\\\s*\\\"acat_[\"'^\"]+\"/g, '\"'\\\"admin_bootstrap_token\\\":\\\"\u003credacted\u003e\\\"');\n  fs.writeFileSync(p, s);\n}\nconst har = 'docs/acceptance/t2169-insight-hard-gates/har/insight-hard-gates.har';\nif (fs.existsSync(har)) {\n  let s = fs.readFileSync(har, 'utf8');\n  s = s.replace(/ac_session=[\"'^;'\"\\\\\\\"\\\\\\\\]+/g, 'ac_session=\u003credacted\u003e');\n  s = s.replace(/eyJhbGciOiJIUzI1Ni[\"'^'\"\\\\\\\";\\\\\\\\]*/g, '\u003cjwt-redacted\u003e');\n  fs.writeFileSync(har, s);\n}\nNODE\nrg -n \\\"ac_session=ey|admin_bootstrap_token.*acat_|\\\\\\\"token\\\\\\\"\\\\s*:\\\\s*\\\\\\\"acat_|acat_\\\" docs/acceptance/t2169-insight-hard-gates -g '\"'!*.png'\"' || true\nfind docs/acceptance/t2169-insight-hard-gates -type f -not -name SHA256SUMS -print0 | sort -z | xargs -0 shasum -a 256 \u003e docs/acceptance/t2169-insight-hard-gates/SHA256SUMS\nsed -n '1,50p' docs/acceptance/t2169-insight-hard-gates/SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_79",
+      "command": "/bin/zsh -lc \"for f in docs/acceptance/t2169-insight-hard-gates/raw/25-final-workers.body.txt docs/acceptance/t2169-insight-hard-gates/raw/26-final-agents.body.txt docs/acceptance/t2169-insight-hard-gates/raw/27-task-1-task-60dff24a.body.txt docs/acceptance/t2169-insight-hard-gates/raw/27-task-6-task-fa48670d.body.txt; do printf '\\\\n### %s\\\\n' \\\"\"'$f\"; sed -n '\"'1,220p' \\\"\"'$f\"; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_80",
+      "command": "/bin/zsh -lc \"git rev-parse 180edce16ffd102571914a2f5b55300b03509828 \u0026\u0026 git rev-parse ac-exec/task-54483391/exec-eab25743 \u0026\u0026 git rev-parse d85a95ec4cb3aad8f4ca48707c28f68ad0f1262c \u0026\u0026 git show -s --format='%H %s' d85a95ec4cb3aad8f4ca48707c28f68ad0f1262c\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc \"ls -lh docs/acceptance/t2169-insight-hard-gates/screenshots docs/acceptance/t2169-insight-hard-gates/har | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_83",
+      "command": "/bin/zsh -lc 'set -o pipefail\nOUT=docs/acceptance/t2169-insight-hard-gates/raw\nID=t2169-codex-$(date +%H%M%S)\nprintf '\"'%s' \\\"\"'$ID\" \u003e \"$OUT/codex-instance-id.txt\"\n/tmp/t2169-candidate/bin/agent-center install test-instance --id \"$ID\" --with-seed --workers 0 --output json \u003e \"$OUT/32-codex-install-with-seed.json\" 2\u003e \"$OUT/32-codex-install-with-seed.stderr\"\nnode \u003c\u003c'\"'NODE'\nconst fs = require('fs');\nconst path = 'docs/acceptance/t2169-insight-hard-gates/raw';\nconst pack = JSON.parse(fs.readFileSync(\"'`${path}/32-codex-install-with-seed.json`, '\"'utf8'));\nconst base = pack.web_url, org = pack.signin.org_slug;\nasync function save(label, res) { const text=await res.text(); fs.writeFileSync(\"'`${path}/${label}.status.txt`, `${res.status}'\"\\\\n\"'${[...res.headers].map(([k,v])=\u003e`${k}: ${v}`).join('\"'\\\\n')}\\\\n\"'`); fs.writeFileSync(`${path}/${label}.body.txt`, text); let json=null; try{json=JSON.parse(text)}catch{}; return {ok:res.ok,status:res.status,text,json}; }\n(async()=\u003e{\n const signin = await fetch(`${base}/api/auth/signin`, {method:'\"'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({display_name:pack.signin.display_name, passcode:pack.signin.passcode, org_slug:org})});\n const cookie = signin.headers.get('set-cookie')?.match(/ac_session=[\"'^;]+/)?.[0];\n const H={'\"'content-type':'application/json', cookie};\n const before = await save('33-codex-ai-runtime-before', await fetch(\"'`${base}/api/orgs/${org}/ai-runtime`, {headers:H}));\n await save('\"'34-codex-create-model', await fetch(\"'`${base}/api/orgs/${org}/ai-runtime/models`, {method:'\"'POST', headers:H, body:JSON.stringify({expected_revision: before.json.revision ?? 0, value:{key:'gpt-5-codex', model_key:'gpt-5-codex', display_name:'GPT-5 Codex', compatible_cli_keys:['codex'], default_parameters:{}, enabled:true}})}));\n const mint = await save('35-codex-mint-worker', await fetch(\"'`${base}/api/orgs/${org}/admintoken/mint-enroll`, {method:'\"'POST', headers:H, body:JSON.stringify({name:'t2169-codex-worker'})}));\n fs.writeFileSync('/tmp/t2169-codex-mint.json', JSON.stringify(mint.json));\n fs.writeFileSync(\"'`${path}/35-codex-mint-worker.redacted.json`, JSON.stringify({...mint.json, token:'\"'\u003credacted\u003e'}, null, 2));\n})();\nNODE\nnode \u003c\u003c'NODE' \u003e /tmp/t2169-codex-env.sh\nconst fs=require('fs'); const m=JSON.parse(fs.readFileSync('/tmp/t2169-codex-mint.json','utf8')); function q(s){return \"'`'\"'\"'${String(s).replaceAll(\"'\"'\\\", \\\"'\\\\\\\\''\\\")}'\"'`}; console.log(`TOKEN=[REDACTED_SECRET]'\"\\\\nFINGERPRINT=\"'${q(m.fingerprint)}'\"\\\\nBOOTSTRAP=\"'${q('\"'tcp://'+m.bootstrap_host)}\\\\nWORKER_ID=\"'${q(m.worker_id)}`)\nNODE\n. /tmp/t2169-codex-env.sh\nPREFIX=\"$(node -e \"const p=require('\"'./docs/acceptance/t2169-insight-hard-gates/raw/32-codex-install-with-seed.json'); process.stdout.write(p.prefix+'/worker-org')\\\")\\\"\n/tmp/t2169-candidate/bin/agent-center install worker --prefix \\\"\"'$PREFIX\" --worker-id \"$WORKER_ID\" --worker-name t2169-codex-worker --bootstrap \"$BOOTSTRAP\" --server-fingerprint \"$FINGERPRINT\" --token \"$TOKEN\" --service \u003e \"$OUT/36-codex-install-worker.stdout.txt\" 2\u003e \"$OUT/36-codex-install-worker.stderr.txt\"\nnode \u003c\u003c'\"'NODE'\nconst fs=require('fs'); const path='docs/acceptance/t2169-insight-hard-gates/raw'; const pack=JSON.parse(fs.readFileSync(\"'`${path}/32-codex-install-with-seed.json`,'\"'utf8')); const workerId=JSON.parse(fs.readFileSync('/tmp/t2169-codex-mint.json','utf8')).worker_id; const base=pack.web_url, org=pack.signin.org_slug, project=pack.entity_refs.project_id;\nasync function save(label,res){const text=await res.text(); fs.writeFileSync(\"'`${path}/${label}.status.txt`,`${res.status}'\"\\\\n\"'${[...res.headers].map(([k,v])=\u003e`${k}: ${v}`).join('\"'\\\\n')}\\\\n\"'`); fs.writeFileSync(`${path}/${label}.body.txt`,text); let json=null; try{json=JSON.parse(text)}catch{}; return {ok:res.ok,status:res.status,text,json};}\n(async()=\u003e{const signin=await fetch(`${base}/api/auth/signin`,{method:'\"'POST',headers:{'content-type':'application/json'},body:JSON.stringify({display_name:pack.signin.display_name,passcode:pack.signin.passcode,org_slug:org})}); const cookie=signin.headers.get('set-cookie')?.match(/ac_session=[\"'^;]+/)?.[0]; const H={'\"'content-type':'application/json', cookie};\n await save('37-codex-create-agent', await fetch(\"'`${base}/api/orgs/${org}/members/agent`,{method:'\"'POST',headers:H,body:JSON.stringify({display_name:'T2169 Codex Agent',role:'member',cli:'codex',model:'gpt-5-codex',worker_id:workerId})}));\n const agents=await save('38-codex-agents-after-create', await fetch(\"'`${base}/api/orgs/${org}/agents`,{headers:H})); const a=agents.json.agents.find(x=\u003ex.name==='\"'T2169 Codex Agent'); await save('39-codex-start-agent', await fetch(\"'`${base}/api/orgs/${org}/agents/${a.id}/start`,{method:'\"'POST',headers:H,body:'{}'}));\n await save('40-codex-create-task', await fetch(\"'`${base}/api/orgs/${org}/projects/${project}/tasks`,{method:'\"'POST',headers:H,body:JSON.stringify({title:'T2169 codex execution probe',description:'Run pwd and echo t2169-codex',assignee:\"'`agent:${a.identity_member_id||a.id}`,dispatch:true})}));\n for(let i=1;i\u003c=12;i++){await new Promise(r=\u003esetTimeout(r,5000)); const e=await save(`41-codex-poll-executions-${String(i).padStart(2,'\"'0')}\"'`, await fetch(`${base}/api/orgs/${org}/insights/executions?window=24h\u0026limit=50`,{headers:H})); console.log(JSON.stringify({i,count:e.json?.executions?.length||0})); if ((e.json?.executions?.length||0)\u003e0) break;}\n await save('\"'42-codex-final-agents', await fetch(\"'`${base}/api/orgs/${org}/agents`,{headers:H}));\n})();\nNODE\nCODEX_ID=$(cat \"$OUT/codex-instance-id.txt\")\n/tmp/t2169-candidate/bin/agent-center uninstall test-instance --id \"$CODEX_ID\" \u003e \"$OUT/43-codex-uninstall.stdout.txt\" 2\u003e \"$OUT/43-codex-uninstall.stderr.txt\"; echo $? \u003e \"$OUT/43-codex-uninstall.exitcode\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_87",
+      "command": "/bin/zsh -lc \"rg -n \\\"ac_session=ey|admin_bootstrap_token.*acat_|\\\\\\\"token\\\\\\\"\\\\s*:\\\\s*\\\\\\\"acat_|acat_\\\" docs/acceptance/t2169-insight-hard-gates -g '\"'!*.png'\"' -g '\"'!*.har'\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_86",
+      "command": "/bin/zsh -lc 'CODEX_ID=$(cat docs/acceptance/t2169-insight-hard-gates/raw/codex-instance-id.txt); sed -n '\"'1,120p' docs/acceptance/t2169-insight-hard-gates/raw/42-codex-final-agents.body.txt; sed -n '1,120p' docs/acceptance/t2169-insight-hard-gates/raw/43-codex-uninstall.stdout.txt; cat docs/acceptance/t2169-insight-hard-gates/raw/43-codex-uninstall.exitcode; /tmp/t2169-candidate/bin/agent-center list-test-instances --output json \u003e docs/acceptance/t2169-insight-hard-gates/raw/44-list-after-codex-uninstall.json 2\u003e docs/acceptance/t2169-insight-hard-gates/raw/44-list-after-codex-uninstall.stderr; sed -n '1,120p' docs/acceptance/t2169-insight-hard-gates/raw/44-list-after-codex-uninstall.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc \"node \u003c\u003c'NODE'\nconst fs = require('fs');\nfor (const f of ['docs/acceptance/t2169-insight-hard-gates/raw/32-codex-install-with-seed.json','docs/acceptance/t2169-insight-hard-gates/raw/35-codex-mint-worker.body.txt']) {\n  const data = JSON.parse(fs.readFileSync(f, 'utf8'));\n  if ('admin_bootstrap_token' in data) data.admin_bootstrap_token = '\u003credacted\u003e';\n  if ('token' in data) data.token = '[REDACTED_SECRET]';\n  fs.writeFileSync(f, JSON.stringify(data, null, 2) + '\\\\n');\n}\nfor (const f of fs.readdirSync('docs/acceptance/t2169-insight-hard-gates/raw')) {\n  const p = 'docs/acceptance/t2169-insight-hard-gates/raw/' + f;\n  if (\"'!fs.statSync(p).isFile()) continue;\n  let s = fs.readFileSync(p, '\"'utf8');\n  s = s.replace(/ac_session=[\"'^;'\"\\\\n]+/g, 'ac_session=\u003credacted\u003e');\n  s = s.replace(/\\\"token\\\"\\\\s*:\\\\s*\\\"acat_[\"'^\"]+\"/g, '\"'\\\"token\\\":\\\"\u003credacted\u003e\\\"');\n  s = s.replace(/\\\"admin_bootstrap_token\\\"\\\\s*:\\\\s*\\\"acat_[\"'^\"]+\"/g, '\"'\\\"admin_bootstrap_token\\\":\\\"\u003credacted\u003e\\\"');\n  fs.writeFileSync(p, s);\n}\nNODE\nrg -n \\\"ac_session=ey|admin_bootstrap_token.*acat_|\\\\\\\"token\\\\\\\"\\\\s*:\\\\s*\\\\\\\"acat_|acat_\\\" docs/acceptance/t2169-insight-hard-gates -g '\"'!*.png'\"' -g '\"'!*.har'\"' || true\nlaunchctl list | rg 'worker-(c1a2d1de|a9367ba6)|test-t2169' || true\nfind docs/acceptance/t2169-insight-hard-gates -type f -not -name SHA256SUMS -print0 | sort -z | xargs -0 shasum -a 256 \u003e docs/acceptance/t2169-insight-hard-gates/SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_91",
+      "command": "/bin/zsh -lc '{\n  launchctl bootout gui/$(id -u)/com.agent-center.worker.worker-c1a2d1de\n  echo \"bootout worker-c1a2d1de exit=$?\"\n  launchctl bootout gui/$(id -u)/com.agent-center.worker.worker-a9367ba6\n  echo \"bootout worker-a9367ba6 exit=$?\"\n  launchctl list | rg '\"'worker-(c1a2d1de|a9367ba6)|test-t2169' || true\n} \u003e docs/acceptance/t2169-insight-hard-gates/raw/45-cleanup-org-worker-labels.stdout.txt 2\u003e docs/acceptance/t2169-insight-hard-gates/raw/45-cleanup-org-worker-labels.stderr.txt\nsed -n '1,120p' docs/acceptance/t2169-insight-hard-gates/raw/45-cleanup-org-worker-labels.stdout.txt\nsed -n '1,120p' docs/acceptance/t2169-insight-hard-gates/raw/45-cleanup-org-worker-labels.stderr.txt\nfind docs/acceptance/t2169-insight-hard-gates -type f -not -name SHA256SUMS -print0 | sort -z | xargs -0 shasum -a 256 \u003e docs/acceptance/t2169-insight-hard-gates/SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_93",
+      "command": "/bin/zsh -lc '{\n  launchctl bootout gui/$(id -u)/com.agent-center.worker.worker-a9367ba6\n  echo \"second bootout worker-a9367ba6 exit=$?\"\n  sleep 2\n  launchctl list | rg '\"'worker-(c1a2d1de|a9367ba6)|test-t2169' || true\n} \u003e docs/acceptance/t2169-insight-hard-gates/raw/46-cleanup-org-worker-labels-second.stdout.txt 2\u003e docs/acceptance/t2169-insight-hard-gates/raw/46-cleanup-org-worker-labels-second.stderr.txt\nsed -n '1,120p' docs/acceptance/t2169-insight-hard-gates/raw/46-cleanup-org-worker-labels-second.stdout.txt\nsed -n '1,120p' docs/acceptance/t2169-insight-hard-gates/raw/46-cleanup-org-worker-labels-second.stderr.txt\nfind docs/acceptance/t2169-insight-hard-gates -type f -not -name SHA256SUMS -print0 | sort -z | xargs -0 shasum -a 256 \u003e docs/acceptance/t2169-insight-hard-gates/SHA256SUMS\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_97",
+      "command": "/bin/zsh -lc \"rg -n \\\"ac_session=ey|admin_bootstrap_token.*acat_|\\\\\\\"token\\\\\\\"\\\\s*:\\\\s*\\\\\\\"acat_|acat_[A-Za-z0-9_-]+|eyJhbGciOiJIUzI1Ni\\\" docs/acceptance/t2169-insight-hard-gates -g '\"'!*.png'\"' || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_98",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t2169-insight-hard-gates -type f -not -name SHA256SUMS -print0 | sort -z | xargs -0 shasum -a 256 \u003e docs/acceptance/t2169-insight-hard-gates/SHA256SUMS \u0026\u0026 shasum -a 256 -c docs/acceptance/t2169-insight-hard-gates/SHA256SUMS'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_99",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_100",
+      "command": "/bin/zsh -lc \"node -e \\\"JSON.parse(require('fs').readFileSync('docs/acceptance/t2169-insight-hard-gates/verdict.json','utf8')); console.log('verdict json ok')\\\" \u0026\u0026 node --check docs/acceptance/t2169-insight-hard-gates/capture-hard-gates.mjs\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_103",
+      "command": "/bin/zsh -lc 'rm /tmp/t2169-mint.json /tmp/t2169-worker-install-args.sh /tmp/t2169-codex-mint.json /tmp/t2169-codex-env.sh'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_104",
+      "command": "/bin/zsh -lc 'git add docs/acceptance/t2169-insight-hard-gates'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_105",
+      "command": "/bin/zsh -lc 'git commit -m \"chore(evidence): record t2169 insight hard gate block\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_107",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-2d58c63f/exec-c38f07b3'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_109",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-list --count origin/main..HEAD \u0026\u0026 git diff --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_111",
+      "command": "/bin/zsh -lc \"node -e \\\"JSON.parse(require('fs').readFileSync('docs/acceptance/t2169-insight-hard-gates/verdict.json','utf8')); console.log('verdict json ok')\\\" \u0026\u0026 node --check docs/acceptance/t2169-insight-hard-gates/capture-hard-gates.mjs \u0026\u0026 shasum -a 256 -c docs/acceptance/t2169-insight-hard-gates/SHA256SUMS \u003e/tmp/t2169-shasum-check.out \u0026\u0026 tail -1 /tmp/t2169-shasum-check.out \u0026\u0026 rg -n \\\"ac_session=ey|admin_bootstrap_token.*acat_|\\\\\\\"token\\\\\\\"\\\\s*:\\\\s*\\\\\\\"acat_|acat_[A-Za-z0-9_-]+|eyJhbGciOiJIUzI1Ni\\\" docs/acceptance/t2169-insight-hard-gates -g '\"'!*.png'\"' || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_112",
+      "command": "/bin/zsh -lc \"/tmp/t2169-candidate/bin/agent-center list-test-instances --output json \u0026\u0026 launchctl list | rg 'worker-(c1a2d1de|a9367ba6)|test-t2169' || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_110",
+      "command": "/bin/zsh -lc 'REMOTE=$(git ls-remote origin-push refs/heads/ac-exec/task-2d58c63f/exec-c38f07b3 | awk '\"'{print \"'$1}'\"'); LOCAL=\"'$(git rev-parse HEAD); printf '\"'local=%s\\\\nremote=%s\\\\nmatch=%s\\\\n' \\\"\"'$LOCAL\" \"$REMOTE\" \"$(test \"$LOCAL\" = \"$REMOTE\" \u0026\u0026 echo yes || echo no)\"'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-c38f07b3/command_events.jsonl",
+  "command_event_digest": "sha256:1a4b037698921771e97a9417795c34af229596c76615b3de270d284ee903a444",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "Completed T2169/T2203 evidence run and delivered commit `579931a1f8854b1ae30f055ca3a0d79024657c2c` to `origin-push/ac-exec/task-2d58c63f/exec-c38f07b3`.",
+  "artifact_digest": "sha256:a981e34332dc9b3ca4b63411cef6263d6a864a2ac19c5b75873ad4edab6f85cf",
+  "path": ".agent-center/evidence/task-2d58c63f/exec-c38f07b3.json",
+  "branch": "ac-exec/task-2d58c63f/exec-c38f07b3"
+}
