@@ -65,19 +65,36 @@ func Open(ctx context.Context, sqlite *sql.DB, path string, ttl time.Duration) (
 	}
 	duck, err := sql.Open("duckdb", path)
 	if err != nil {
-		s := &Service{sqlite: sqlite, path: path, ttl: ttl}
-		if rerr := s.rebuildLocked(ctx); rerr != nil {
-			return nil, fmt.Errorf("insight open duckdb: %w; rebuild: %v", err, rerr)
+		s, rerr := openFreshStore(ctx, sqlite, path, ttl)
+		if rerr != nil {
+			return nil, fmt.Errorf("insight open duckdb: %w; reset derived store: %v", err, rerr)
 		}
-		_ = os.Chmod(path, 0o600)
 		return s, nil
 	}
 	s := &Service{sqlite: sqlite, duck: duck, path: path, ttl: ttl}
 	if err := s.ensureSchema(ctx); err != nil {
-		if rerr := s.rebuildLocked(ctx); rerr != nil {
-			_ = duck.Close()
-			return nil, fmt.Errorf("insight open schema: %w; rebuild: %v", err, rerr)
+		_ = duck.Close()
+		fresh, rerr := openFreshStore(ctx, sqlite, path, ttl)
+		if rerr != nil {
+			return nil, fmt.Errorf("insight open schema: %w; reset derived store: %v", err, rerr)
 		}
+		return fresh, nil
+	}
+	_ = os.Chmod(path, 0o600)
+	return s, nil
+}
+
+func openFreshStore(ctx context.Context, sqlite *sql.DB, path string, ttl time.Duration) (*Service, error) {
+	_ = os.Remove(path)
+	_ = os.Remove(path + ".wal")
+	duck, err := sql.Open("duckdb", path)
+	if err != nil {
+		return nil, err
+	}
+	s := &Service{sqlite: sqlite, duck: duck, path: path, ttl: ttl}
+	if err := s.ensureSchema(ctx); err != nil {
+		_ = duck.Close()
+		return nil, err
 	}
 	_ = os.Chmod(path, 0o600)
 	return s, nil
