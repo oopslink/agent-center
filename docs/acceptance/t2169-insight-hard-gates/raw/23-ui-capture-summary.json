@@ -1,0 +1,25 @@
+{
+  "shots": [
+    {
+      "name": "01-overview",
+      "url": "http://127.0.0.1:53851/organizations/org-c9313356/insights/overview",
+      "file": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-c38f07b3/docs/acceptance/t2169-insight-hard-gates/screenshots/01-overview.png"
+    },
+    {
+      "name": "02-agents",
+      "url": "http://127.0.0.1:53851/organizations/org-c9313356/insights/agents",
+      "file": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-c38f07b3/docs/acceptance/t2169-insight-hard-gates/screenshots/02-agents.png"
+    },
+    {
+      "name": "03-projects",
+      "url": "http://127.0.0.1:53851/organizations/org-c9313356/insights/projects",
+      "file": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-c38f07b3/docs/acceptance/t2169-insight-hard-gates/screenshots/03-projects.png"
+    },
+    {
+      "name": "04-executions",
+      "url": "http://127.0.0.1:53851/organizations/org-c9313356/insights/executions?window=24h",
+      "file": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-c38f07b3/docs/acceptance/t2169-insight-hard-gates/screenshots/04-executions.png"
+    }
+  ],
+  "consoleEvents": []
+}

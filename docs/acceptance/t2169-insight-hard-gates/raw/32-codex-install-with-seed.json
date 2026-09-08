@@ -1,0 +1,23 @@
+{
+  "id": "t2169-codex-195806",
+  "prefix": "/Users/oopslink/.agent-center-test/t2169-codex-195806",
+  "web_url": "http://127.0.0.1:55473",
+  "server_port": 55474,
+  "admin_port": 55475,
+  "admin_bootstrap_token": "<redacted>",
+  "workers": null,
+  "web_login": "seeded ✓ — sign in at web_url with the credentials in `signin`",
+  "entity_ids": "seeded ✓ — see `entity_refs` (org/project/channel)",
+  "workers_note": "workers are workforce-enrolled (token exchanged) + running, but NOT org-enrolled yet — control-connect 409s until a tenant org is seeded (--with-seed, #257)",
+  "signin": {
+    "org_slug": "org-cd3442aa",
+    "display_name": "Owner t2169-codex-195806",
+    "email": "owner@acme-t2169-codex-195806.test",
+    "passcode": "SeedPass1!"
+  },
+  "entity_refs": {
+    "org_id": "organization-e9c5657e",
+    "project_id": "project-be493193",
+    "channel_id": "channel-b844205b"
+  }
+}

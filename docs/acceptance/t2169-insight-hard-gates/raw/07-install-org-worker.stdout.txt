@@ -1,0 +1,14 @@
+agent-center install worker:
+  prefix:        /Users/oopslink/.agent-center-test/t2169-hard-195120/worker-org
+  user-mode:     true
+  worker-id:     worker-c1a2d1de
+  bootstrap:     tcp://127.0.0.1:53853
+  state:         fresh
+  waiting for daemon to connect...
+
+✓ AgentCenter worker HEAD-180edce1 installed + connected
+  worker-id: worker-c1a2d1de
+  bootstrap: tcp://127.0.0.1:53853
+  service:   com.agent-center.worker.worker-c1a2d1de (launchd)
+  config:    /Users/oopslink/.agent-center-test/t2169-hard-195120/worker-org/etc/config.yaml
+  Visible now in the Web Console Fleet view.

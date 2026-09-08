@@ -1,0 +1,5 @@
+[server] admin token bootstrap: wrote /Users/oopslink/.agent-center-test/t2169-hard-195120/center/var/bootstrap_token (scope=* owner=system:bootstrap)
+agent-center server: db=/Users/oopslink/.agent-center-test/t2169-hard-195120/center/var/agent-center.db web=127.0.0.1:53851 admin=/Users/oopslink/.agent-center-test/t2169-hard-195120/center/var/admin.sock (escalator running)
+  admin tcp:  127.0.0.1:53853 (TLS, auto-generated)
+              cert valid until 2027-09-08 (364 days)
+              fingerprint: sha256:24:46:D6:BE:BB:D8:B4:25:76:54:DE:5A:91:F0:6E:12:6C:AE:56:44:16:EE:7C:EC:F8:7A:A6:8D:BE:5D:72:04

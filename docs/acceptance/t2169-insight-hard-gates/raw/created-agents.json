@@ -1,0 +1,20 @@
+[
+  {
+    "i": 1,
+    "name": "T2169 Hard Gate Agent 1",
+    "id": "agent-193eb381",
+    "member": "agent-193eb381"
+  },
+  {
+    "i": 2,
+    "name": "T2169 Hard Gate Agent 2",
+    "id": "agent-b84767b1",
+    "member": "agent-b84767b1"
+  },
+  {
+    "i": 3,
+    "name": "T2169 Hard Gate Agent 3",
+    "id": "agent-fb56079b",
+    "member": "agent-fb56079b"
+  }
+]

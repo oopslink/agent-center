@@ -1,0 +1,3 @@
+  $ launchctl bootout gui/501 /Users/oopslink/Library/LaunchAgents/com.agent-center.center.test-t2169-hard-195120.plist
+  $ launchctl bootout gui/501 /Users/oopslink/Library/LaunchAgents/com.agent-center.worker.test-t2169-hard-195120-w1.plist
+✓ test-instance t2169-hard-195120 torn down (labels booted out + /Users/oopslink/.agent-center-test/t2169-hard-195120 removed)

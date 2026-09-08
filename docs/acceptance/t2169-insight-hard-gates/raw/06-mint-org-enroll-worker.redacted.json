@@ -1,0 +1,9 @@
+{
+  "id": "01M20DRQPFDDYSW4CRZQPED8CC",
+  "token": "<redacted>",
+  "expires_at": "2026-09-08T12:22:00.975633Z",
+  "fingerprint": "sha256:24:46:D6:BE:BB:D8:B4:25:76:54:DE:5A:91:F0:6E:12:6C:AE:56:44:16:EE:7C:EC:F8:7A:A6:8D:BE:5D:72:04",
+  "bootstrap_host": "127.0.0.1:53853",
+  "worker_id": "worker-c1a2d1de",
+  "worker_name": "t2169-hard-worker"
+}

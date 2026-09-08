@@ -1,0 +1,5 @@
+200
+content-length: 32
+content-type: application/json
+date: Tue, 08 Sep 2026 11:51:38 GMT
+set-cookie: ac_session=<redacted>; Path=/; Max-Age=604800; HttpOnly; SameSite=Lax

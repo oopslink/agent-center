@@ -1,0 +1,1 @@
+{"entry":{"id":"01M20DR1VX87JB609KC2C54ZM9","key":"claude-opus-4-8","model_key":"claude-opus-4-8","display_name":"Claude Opus 4.8","compatible_cli_keys":["claude-code"],"default_parameters":{},"enabled":true,"created_at":"2026-09-08T11:51:38.621527Z","updated_at":"2026-09-08T11:51:38.621527Z"},"revision":1}

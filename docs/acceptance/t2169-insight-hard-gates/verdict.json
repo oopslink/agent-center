@@ -1,0 +1,49 @@
+{
+  "verdict": "BLOCKED",
+  "task": "T2169 Insight hard-gate revalidation under T2203/T2202 unblock contract",
+  "reviewed_product_sha": "180edce16ffd102571914a2f5b55300b03509828",
+  "reviewed_product_ref": "ac-exec/task-54483391/exec-eab25743",
+  "reviewed_sha_drift": false,
+  "referenced_t2202_evidence": {
+    "ref": "ac-exec/task-a37cc2cc/exec-632dccaa",
+    "commit": "d85a95ec4cb3aad8f4ca48707c28f68ad0f1262c",
+    "note": "local Git object is present; its embedded evidence JSON records reviewed_sha=39fc032aa2bbecdcbb807cc3cd626f1e6b24f615, so this run independently re-bound the product SHA to 180edce16ffd102571914a2f5b55300b03509828."
+  },
+  "blocked_reason": "The original runtime_model_not_found blocker was resolved through the official AI Runtime catalog API, but the isolated executor cannot complete the production TaskExecution fixture because Agent supervisors require valid runtime credentials and/or the supervisor-only fork_executor MCP path. The task contract explicitly forbids this executor from using Agent Center MCP/control-plane tools, worker tokens, admin endpoints, or raw admin HTTP as a fallback.",
+  "unblock_attempts": [
+    {
+      "path": "claude-code/claude-opus-4-8",
+      "result": "catalog model created and read back; 3 Agents started; 6 dispatched Tasks created; no TaskExecution rows after 24 polls",
+      "blocking_evidence": "final agent activity reported OAuth session expired; worker log also showed work_available requires explicit fork_executor"
+    },
+    {
+      "path": "codex/gpt-5-codex",
+      "result": "catalog model created; 1 Agent loaded with mcp=preflight_ok; 1 dispatched Task created; no TaskExecution rows after 12 polls",
+      "blocking_evidence": "task remained pending and current executor has no permitted fork_executor MCP/control-plane capability"
+    }
+  ],
+  "product_hard_gates": {
+    "unknown_or_insufficient_coverage": "NOT_RUN",
+    "internal_enum_userization": "NOT_RUN",
+    "seconds_window_freshness_readability": "NOT_RUN",
+    "overview_agent_project_taskexecution_drilldown_context": "NOT_RUN",
+    "ranking_sample_window_coverage_methodology": "NOT_RUN"
+  },
+  "not_rejected": true,
+  "evidence_root": "docs/acceptance/t2169-insight-hard-gates",
+  "fixture_provenance": {
+    "primary_instance": "t2169-hard-195120",
+    "primary_org": "org-c9313356",
+    "primary_project": "project-cab2c62b",
+    "primary_agents": ["agent-193eb381", "agent-b84767b1", "agent-fb56079b"],
+    "primary_tasks": ["task-60dff24a", "task-f89f4161", "task-9ad7758a", "task-31f09cad", "task-fd780acc", "task-fa48670d"],
+    "secondary_instance": "t2169-codex-195806",
+    "secondary_org": "org-6fb9b0d1",
+    "secondary_agent": "agent-a16f4502"
+  },
+  "cleanup": {
+    "test_instances_uninstalled": true,
+    "remaining_test_instances": "null",
+    "manual_org_worker_labels_booted_out": true
+  }
+}

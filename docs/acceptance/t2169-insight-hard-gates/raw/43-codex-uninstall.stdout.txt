@@ -1,0 +1,2 @@
+  $ launchctl bootout gui/501 /Users/oopslink/Library/LaunchAgents/com.agent-center.center.test-t2169-codex-195806.plist
+✓ test-instance t2169-codex-195806 torn down (labels booted out + /Users/oopslink/.agent-center-test/t2169-codex-195806 removed)

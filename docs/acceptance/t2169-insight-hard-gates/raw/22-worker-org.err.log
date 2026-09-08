@@ -1,0 +1,67 @@
+[worker] enrolled + persisted long-term token to /Users/oopslink/.agent-center-test/t2169-hard-195120/worker-org/var/worker-token
+[worker] reported 3 probed capabilities
+[worker] controller: reconciled 0 desired-running agent(s) at boot
+[worker] worker running in controller mode (process-per-agent)
+[worker] starting: worker_id=worker-c1a2d1de target=tcp://127.0.0.1:53853 poll=1s overrides=0
+[worker] control loop started worker_id=worker-c1a2d1de
+[worker] control: connected worker_id=worker-c1a2d1de resume_offset=0
+[worker] agentlauncher: launched agent=01M20DSWA5W3FJ1G8RWB4C2J1F pid=80091
+[worker] controller: runtime transport failed agent=01M20DSWA5W3FJ1G8RWB4C2J1F command=agent.reconcile offset=1: agentcontrol: deliver type=agent.reconcile: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-9aa3dd8e7a2b671e.sock: connect: no such file or directory; recycling runtime and retrying once
+[worker] workercontroller: recycle agent=01M20DSWA5W3FJ1G8RWB4C2J1F after runtime transport failure
+[worker] agentlauncher: launched agent=01M20DSWA5W3FJ1G8RWB4C2J1F pid=80092
+[worker] controller: RUNTIME-PARKED — command id=01M20DSX48BK3KTNF3S4R5M6K4 offset=1 type=agent.reconcile agent=01M20DSWA5W3FJ1G8RWB4C2J1F remained runtime-unreachable after recycle+retry; SKIPPING it so the worker cursor can advance: agentcontrol: deliver type=agent.reconcile: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-9aa3dd8e7a2b671e.sock: connect: no such file or directory
+[worker] agentlauncher: launched agent=01M20DSWA7R65CA7SSW501FR51 pid=80093
+[worker] controller: runtime transport failed agent=01M20DSWA7R65CA7SSW501FR51 command=agent.reconcile offset=2: agentcontrol: deliver type=agent.reconcile: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-af4a1790462f9988.sock: connect: no such file or directory; recycling runtime and retrying once
+[worker] workercontroller: recycle agent=01M20DSWA7R65CA7SSW501FR51 after runtime transport failure
+[worker] agentlauncher: launched agent=01M20DSWA7R65CA7SSW501FR51 pid=80094
+[worker] controller: RUNTIME-PARKED — command id=01M20DSX4AXQWS993ADQJFC83P offset=2 type=agent.reconcile agent=01M20DSWA7R65CA7SSW501FR51 remained runtime-unreachable after recycle+retry; SKIPPING it so the worker cursor can advance: agentcontrol: deliver type=agent.reconcile: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-af4a1790462f9988.sock: connect: no such file or directory
+[worker] agentlauncher: launched agent=01M20DSWA9Q5FVK1ERR2G1H1H3 pid=80095
+[worker] controller: runtime transport failed agent=01M20DSWA9Q5FVK1ERR2G1H1H3 command=agent.reconcile offset=3: agentcontrol: deliver type=agent.reconcile: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-dd6bc079d05aa670.sock: connect: no such file or directory; recycling runtime and retrying once
+[worker] workercontroller: recycle agent=01M20DSWA9Q5FVK1ERR2G1H1H3 after runtime transport failure
+[worker] agentlauncher: launched agent=01M20DSWA9Q5FVK1ERR2G1H1H3 pid=80096
+[worker] controller: RUNTIME-PARKED — command id=01M20DSX4DW3SZCQHVD9W3EH57 offset=3 type=agent.reconcile agent=01M20DSWA9Q5FVK1ERR2G1H1H3 remained runtime-unreachable after recycle+retry; SKIPPING it so the worker cursor can advance: agentcontrol: deliver type=agent.reconcile: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-dd6bc079d05aa670.sock: connect: no such file or directory
+[worker] controller: runtime transport failed agent=01M20DSWA5W3FJ1G8RWB4C2J1F command=agent.work_available offset=4: agentcontrol: deliver type=agent.work_available: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-9aa3dd8e7a2b671e.sock: connect: no such file or directory; recycling runtime and retrying once
+[worker] workercontroller: recycle agent=01M20DSWA5W3FJ1G8RWB4C2J1F after runtime transport failure
+[worker] agentlauncher: launched agent=01M20DSWA5W3FJ1G8RWB4C2J1F pid=80097
+[worker] controller: RUNTIME-PARKED — command id=01M20DSX4N9ERSB480QXSGK2AP offset=4 type=agent.work_available agent=01M20DSWA5W3FJ1G8RWB4C2J1F remained runtime-unreachable after recycle+retry; SKIPPING it so the worker cursor can advance: agentcontrol: deliver type=agent.work_available: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-9aa3dd8e7a2b671e.sock: connect: no such file or directory
+[worker] controller: runtime transport failed agent=01M20DSWA7R65CA7SSW501FR51 command=agent.work_available offset=5: agentcontrol: deliver type=agent.work_available: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-af4a1790462f9988.sock: connect: no such file or directory; recycling runtime and retrying once
+[worker] workercontroller: recycle agent=01M20DSWA7R65CA7SSW501FR51 after runtime transport failure
+[worker] agentlauncher: launched agent=01M20DSWA7R65CA7SSW501FR51 pid=80099
+[worker] controller: RUNTIME-PARKED — command id=01M20DSX4Z1W1H644RPZRDYA6T offset=5 type=agent.work_available agent=01M20DSWA7R65CA7SSW501FR51 remained runtime-unreachable after recycle+retry; SKIPPING it so the worker cursor can advance: agentcontrol: deliver type=agent.work_available: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-af4a1790462f9988.sock: connect: no such file or directory
+[worker] controller: runtime transport failed agent=01M20DSWA9Q5FVK1ERR2G1H1H3 command=agent.work_available offset=6: agentcontrol: deliver type=agent.work_available: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-dd6bc079d05aa670.sock: connect: no such file or directory; recycling runtime and retrying once
+[worker] workercontroller: recycle agent=01M20DSWA9Q5FVK1ERR2G1H1H3 after runtime transport failure
+[worker] agentlauncher: launched agent=01M20DSWA9Q5FVK1ERR2G1H1H3 pid=80100
+[worker] controller: RUNTIME-PARKED — command id=01M20DSX5354JMG7QEW8JKBKXZ offset=6 type=agent.work_available agent=01M20DSWA9Q5FVK1ERR2G1H1H3 remained runtime-unreachable after recycle+retry; SKIPPING it so the worker cursor can advance: agentcontrol: deliver type=agent.work_available: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-dd6bc079d05aa670.sock: connect: no such file or directory
+[worker] controller: runtime transport failed agent=01M20DSWA5W3FJ1G8RWB4C2J1F command=agent.work_available offset=7: agentcontrol: deliver type=agent.work_available: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-9aa3dd8e7a2b671e.sock: connect: no such file or directory; recycling runtime and retrying once
+[worker] workercontroller: recycle agent=01M20DSWA5W3FJ1G8RWB4C2J1F after runtime transport failure
+[worker] agentlauncher: launched agent=01M20DSWA5W3FJ1G8RWB4C2J1F pid=80101
+[worker] controller: RUNTIME-PARKED — command id=01M20DSX59E8SFK802Q6ATSS8W offset=7 type=agent.work_available agent=01M20DSWA5W3FJ1G8RWB4C2J1F remained runtime-unreachable after recycle+retry; SKIPPING it so the worker cursor can advance: agentcontrol: deliver type=agent.work_available: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-9aa3dd8e7a2b671e.sock: connect: no such file or directory
+[worker] controller: runtime transport failed agent=01M20DSWA7R65CA7SSW501FR51 command=agent.work_available offset=8: agentcontrol: deliver type=agent.work_available: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-af4a1790462f9988.sock: connect: no such file or directory; recycling runtime and retrying once
+[worker] workercontroller: recycle agent=01M20DSWA7R65CA7SSW501FR51 after runtime transport failure
+[worker] agentlauncher: launched agent=01M20DSWA7R65CA7SSW501FR51 pid=80102
+[worker] controller: RUNTIME-PARKED — command id=01M20DSX5E865CXJ3VHQ6MMNPV offset=8 type=agent.work_available agent=01M20DSWA7R65CA7SSW501FR51 remained runtime-unreachable after recycle+retry; SKIPPING it so the worker cursor can advance: agentcontrol: deliver type=agent.work_available: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-af4a1790462f9988.sock: connect: no such file or directory
+[worker] controller: runtime transport failed agent=01M20DSWA9Q5FVK1ERR2G1H1H3 command=agent.work_available offset=9: agentcontrol: deliver type=agent.work_available: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-dd6bc079d05aa670.sock: connect: no such file or directory; recycling runtime and retrying once
+[worker] workercontroller: recycle agent=01M20DSWA9Q5FVK1ERR2G1H1H3 after runtime transport failure
+[worker] agentlauncher: launched agent=01M20DSWA9Q5FVK1ERR2G1H1H3 pid=80103
+[worker] controller: RUNTIME-PARKED — command id=01M20DSX5J45PG7EJ3RXEGM5W4 offset=9 type=agent.work_available agent=01M20DSWA9Q5FVK1ERR2G1H1H3 remained runtime-unreachable after recycle+retry; SKIPPING it so the worker cursor can advance: agentcontrol: deliver type=agent.work_available: Post "http://agent/control": dial unix /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-dd6bc079d05aa670.sock: connect: no such file or directory
+[agent-runtime 01M20DSWA7R65CA7SSW501FR51] boot-session decide agent=01M20DSWA7R65CA7SSW501FR51 probe=1 desired-running=true action=2
+[agent-runtime 01M20DSWA5W3FJ1G8RWB4C2J1F] boot-session decide agent=01M20DSWA5W3FJ1G8RWB4C2J1F probe=1 desired-running=true action=2
+[agent-runtime 01M20DSWA9Q5FVK1ERR2G1H1H3] boot-session decide agent=01M20DSWA9Q5FVK1ERR2G1H1H3 probe=1 desired-running=true action=2
+[agent-runtime 01M20DSWA5W3FJ1G8RWB4C2J1F] started agent=01M20DSWA5W3FJ1G8RWB4C2J1F version=2 epoch=0 generation=1 fork=true resume=false home=/Users/oopslink/.agent-center-test/t2169-hard-195120/worker-org/var/agents/01M20DSWA5W3FJ1G8RWB4C2J1F
+[agent-runtime 01M20DSWA5W3FJ1G8RWB4C2J1F] boot-session relaunch agent=01M20DSWA5W3FJ1G8RWB4C2J1F resume=false version=2
+[agent-runtime 01M20DSWA5W3FJ1G8RWB4C2J1F] agent-runtime agent=01M20DSWA5W3FJ1G8RWB4C2J1F serving control at /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-9aa3dd8e7a2b671e.sock
+[agent-runtime 01M20DSWA5W3FJ1G8RWB4C2J1F] agent=01M20DSWA5W3FJ1G8RWB4C2J1F installed-skills reported (100 skills)
+[agent-runtime 01M20DSWA7R65CA7SSW501FR51] started agent=01M20DSWA7R65CA7SSW501FR51 version=2 epoch=0 generation=1 fork=true resume=false home=/Users/oopslink/.agent-center-test/t2169-hard-195120/worker-org/var/agents/01M20DSWA7R65CA7SSW501FR51
+[agent-runtime 01M20DSWA7R65CA7SSW501FR51] boot-session relaunch agent=01M20DSWA7R65CA7SSW501FR51 resume=false version=2
+[agent-runtime 01M20DSWA7R65CA7SSW501FR51] agent-runtime agent=01M20DSWA7R65CA7SSW501FR51 serving control at /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-af4a1790462f9988.sock
+[agent-runtime 01M20DSWA7R65CA7SSW501FR51] agent=01M20DSWA7R65CA7SSW501FR51 installed-skills reported (100 skills)
+[agent-runtime 01M20DSWA9Q5FVK1ERR2G1H1H3] started agent=01M20DSWA9Q5FVK1ERR2G1H1H3 version=2 epoch=0 generation=1 fork=true resume=false home=/Users/oopslink/.agent-center-test/t2169-hard-195120/worker-org/var/agents/01M20DSWA9Q5FVK1ERR2G1H1H3
+[agent-runtime 01M20DSWA9Q5FVK1ERR2G1H1H3] boot-session relaunch agent=01M20DSWA9Q5FVK1ERR2G1H1H3 resume=false version=2
+[agent-runtime 01M20DSWA9Q5FVK1ERR2G1H1H3] agent-runtime agent=01M20DSWA9Q5FVK1ERR2G1H1H3 serving control at /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/acw-7d1d396bd4c4/acs-dd6bc079d05aa670.sock
+[agent-runtime 01M20DSWA9Q5FVK1ERR2G1H1H3] agent=01M20DSWA9Q5FVK1ERR2G1H1H3 installed-skills reported (100 skills)
+[agent-runtime 01M20DSWA5W3FJ1G8RWB4C2J1F] SUPERVISOR-WAKE route=NotifyWorkAvailable(agent.work_available) agent_namespace=01M20DSWA5W3FJ1G8RWB4C2J1F task_id=task-60dff24a — injected supervisor dispatch nudge; executor fork requires explicit fork_executor
+[agent-runtime 01M20DSWA7R65CA7SSW501FR51] SUPERVISOR-WAKE route=NotifyWorkAvailable(agent.work_available) agent_namespace=01M20DSWA7R65CA7SSW501FR51 task_id=task-f89f4161 — injected supervisor dispatch nudge; executor fork requires explicit fork_executor
+[agent-runtime 01M20DSWA9Q5FVK1ERR2G1H1H3] SUPERVISOR-WAKE route=NotifyWorkAvailable(agent.work_available) agent_namespace=01M20DSWA9Q5FVK1ERR2G1H1H3 task_id=task-9ad7758a — injected supervisor dispatch nudge; executor fork requires explicit fork_executor
+[agent-runtime 01M20DSWA5W3FJ1G8RWB4C2J1F] L2 agent=01M20DSWA5W3FJ1G8RWB4C2J1F is_error turn with NO in-flight WorkItem (subtype="success") — surfaced as warning, not silently dropped
+[agent-runtime 01M20DSWA9Q5FVK1ERR2G1H1H3] L2 agent=01M20DSWA9Q5FVK1ERR2G1H1H3 is_error turn with NO in-flight WorkItem (subtype="success") — surfaced as warning, not silently dropped
+[agent-runtime 01M20DSWA7R65CA7SSW501FR51] L2 agent=01M20DSWA7R65CA7SSW501FR51 is_error turn with NO in-flight WorkItem (subtype="success") — surfaced as warning, not silently dropped

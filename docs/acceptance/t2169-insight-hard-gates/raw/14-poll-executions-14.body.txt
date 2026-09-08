@@ -1,0 +1,1 @@
+{"window":{"kind":"rolling","duration":"24h","start":"2026-09-07T11:53:48.935041Z","end":"2026-09-08T11:53:48.935041Z"},"as_of":"2026-09-08T11:53:48.935041Z","refreshed_at":"2026-09-08T11:53:23.324996Z","freshness":{"state":"fresh","age_ms":25610,"threshold_ms":120000},"executions":null}
