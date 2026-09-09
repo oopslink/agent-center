@@ -1,57 +1,80 @@
 # Collaboration Insight Redesign Evidence
 
 Date: 2026-09-09.
-Workspace base: `origin/main@9cd47759fc25bbd34423425aa937a6e93f6eb085`.
-Prototype URL during capture: `http://127.0.0.1:4177/index.html`.
+Workspace base: `origin/main@512d1181264a706155266fa658566146b2ae58c6`.
+Prior reusable delivery: `origin/ac-exec/task-39d72e32/exec-e5de8dfb@43177ded3e8ed2eff3fd37ba33ade3653d23d5f7`.
 
-## Browser Capture Environment
+## What Was Repaired
 
-- Local server: `python3 -m http.server 4177 --bind 127.0.0.1`
-- Browser: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
-- Capture mode: `--headless=new --disable-gpu --window-size=1440,900 --virtual-time-budget=2500`
-- Note: Chrome emitted macOS `CVDisplayLinkCreateWithCGDisplay failed` warnings
-  during headless capture, but exited 0 and wrote PNG/DOM artifacts.
+- Project, Agent, and Window filters now change the actual fixture graph
+  node/edge set. Clear restores the active dimension's global graph.
+- View switching preserves compatible filters, selection, and viewport; visible
+  HUD/detail text explains incompatible selection clearing.
+- Node and edge hover/select use geometric hit-testing. Focus and
+  expand/collapse act on the selected node, not a fixed first node.
+- Canvas pan and node drag are separate pointer states. Dragged nodes are pinned
+  and keep coordinates across redraws.
+- Wheel zoom drives observable LOD: labels hide at low zoom and selected/heavy
+  labels remain visible; unrelated edges are dimmed under focus/selection.
+- Evidence is bound to the selected real edge fixture and includes relation,
+  effect, direction, occurrence time, effect/project scope, and event payloads.
 
-## Prototype Measurements
+## Repeatable Benchmark
 
-These numbers are from the static prototype measurement panel, not the production
-SPA. They validate the proposed LOD/cluster/rendering approach and provide a
-repeatable harness for later implementation comparison.
-
-| Artifact | View | Requested scale | Rendered nodes | Rendered edges | First interactive | Draw p95 | FPS estimate | Heap | Budget | Result |
-|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| `raw/network-100.json` | Collaboration network | 100 | 100 | 120 | 101 ms | 6.0 ms | 60 | 1 MB | 16 ms | PASS |
-| `raw/impact-500.json` | Task impact | 500 | 500 | 600 | 116 ms | 6.6 ms | 60 | 1 MB | 24 ms | PASS |
-| `raw/lineage-2200.json` | Plan path | 2200 | 422 | 900 | 133 ms | 17.5 ms | 57 | 2 MB | 40 ms | PASS |
-
-The 2k+ case is intentionally rendered as a clustered global view. This is the
-required behavior for organization-scale first paint; explicit focus/expand can
-load a local neighborhood after the first interactive frame.
-
-## Screenshots
-
-- `screenshots/network-100.png`
-- `screenshots/impact-500.png`
-- `screenshots/lineage-2200.png`
-
-## Interaction Evidence
-
-`raw/interaction-evidence-snapshot.txt` was captured after opening the prototype,
-activating Focus, and opening Evidence. The snapshot includes the graph controls,
-view tabs, shared filters, and Evidence dialog controls.
-
-## Commands
+Command:
 
 ```sh
 node --check docs/design/features/collaboration-insight-redesign/prototype/prototype.js
-python3 -m http.server 4177 --bind 127.0.0.1
-agent-browser open 'http://127.0.0.1:4177/index.html?view=network&scale=100'
-agent-browser wait 1000
-agent-browser snapshot -i
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --no-first-run --no-default-browser-check --window-size=1440,900 --virtual-time-budget=2500 --screenshot=docs/design/features/collaboration-insight-redesign/evidence/screenshots/network-100.png 'http://127.0.0.1:4177/index.html?view=network&scale=100'
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --no-first-run --no-default-browser-check --window-size=1440,900 --virtual-time-budget=2500 --screenshot=docs/design/features/collaboration-insight-redesign/evidence/screenshots/impact-500.png 'http://127.0.0.1:4177/index.html?view=impact&scale=500'
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --no-first-run --no-default-browser-check --window-size=1440,900 --virtual-time-budget=2500 --screenshot=docs/design/features/collaboration-insight-redesign/evidence/screenshots/lineage-2200.png 'http://127.0.0.1:4177/index.html?view=lineage&scale=2200'
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --no-first-run --no-default-browser-check --window-size=1440,900 --dump-dom 'http://127.0.0.1:4177/index.html?view=network&scale=100' > docs/design/features/collaboration-insight-redesign/evidence/raw/network-100-dom.html
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --no-first-run --no-default-browser-check --window-size=1440,900 --dump-dom 'http://127.0.0.1:4177/index.html?view=impact&scale=500' > docs/design/features/collaboration-insight-redesign/evidence/raw/impact-500-dom.html
-"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --no-first-run --no-default-browser-check --window-size=1440,900 --dump-dom 'http://127.0.0.1:4177/index.html?view=lineage&scale=2200' > docs/design/features/collaboration-insight-redesign/evidence/raw/lineage-2200-dom.html
+node --check docs/design/features/collaboration-insight-redesign/evidence/run-benchmarks.mjs
+node docs/design/features/collaboration-insight-redesign/evidence/run-benchmarks.mjs
 ```
+
+Exit code: `0`.
+
+The script serves `prototype/index.html` locally, opens headless Chrome through
+CDP, and runs both `mode=baseline` and `mode=prototype` at 100, 500, and 2200
+requested scale. Each run measures first interactive, idle redraw, continuous
+pan, wheel zoom, node drag, view switching, filter response, and heap memory.
+
+Raw artifacts:
+
+- Timelines: `raw/baseline-100-timeline.json`,
+  `raw/baseline-500-timeline.json`, `raw/baseline-2200-timeline.json`,
+  `raw/prototype-100-timeline.json`, `raw/prototype-500-timeline.json`,
+  `raw/prototype-2200-timeline.json`.
+- Summary: `raw/benchmark-summary.json` and `raw/benchmark-summary.csv`.
+- Screenshots: `screenshots/baseline-100.png`, `screenshots/baseline-500.png`,
+  `screenshots/baseline-2200.png`, `screenshots/prototype-100.png`,
+  `screenshots/prototype-500.png`, `screenshots/prototype-2200.png`.
+- Script: `run-benchmarks.mjs`.
+
+## Results
+
+| Mode | Scale | TTI ms | Idle p95 ms | Pan wall ms | Zoom wall ms | Drag wall ms | Switch wall ms | Filter wall ms | Heap MB | Assertions |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
+| Current DOM/SVG baseline | 100 | 35 | 2.4 | 1043.91 | 412.4 | 160.11 | 84.76 | 83.42 | 2 | PASS |
+| Current DOM/SVG baseline | 500 | 8 | 3.7 | 1320.64 | 519.19 | 230.3 | 90.02 | 87.78 | 7 | PASS |
+| Current DOM/SVG baseline | 2200 | 11 | 14.1 | 1056.96 | 722.83 | 136.28 | 114.05 | 107.74 | 25 | PASS |
+| Prototype Canvas interaction | 100 | 6 | 7.2 | 1287.72 | 1137.43 | 155.33 | 82.14 | 81.72 | 20 | PASS |
+| Prototype Canvas interaction | 500 | 7 | 3.1 | 1581.74 | 1057.27 | 237.48 | 86.92 | 85.12 | 11 | PASS |
+| Prototype Canvas interaction | 2200 | 10 | 7.5 | 1442.34 | 802.36 | 323.21 | 90.88 | 88.22 | 26 | PASS |
+
+Prototype assertion keys in `benchmark-summary.json`:
+
+- `project-filter-changes`
+- `agent-filter-changes`
+- `window-filter-changes`
+- `clear-restores-current-view`
+- `selected-edge-evidence-bound`
+- `expand-changes-neighborhood`
+- `pin-unpin-state-changes`
+- `view-switch-explains-context`
+
+## Interpretation
+
+The baseline is a real browser DOM/SVG page path using the current Collaboration
+Insight rendering constraints: retained SVG elements, SVG text labels, and
+viewBox viewport changes. The prototype is the repaired Canvas interaction path.
+The evidence is not a production implementation verdict; it freezes the
+interaction contract and performance measurement method for the developer who
+implements the production Graph.

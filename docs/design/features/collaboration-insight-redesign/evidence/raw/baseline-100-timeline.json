@@ -1,0 +1,183 @@
+{
+  "url": "http://127.0.0.1:4187/index.html?mode=baseline&view=network&scale=100",
+  "mode": "baseline",
+  "scale": 100,
+  "generated_at": "2026-09-09T09:04:13.244Z",
+  "timeline": [
+    {
+      "label": "tti",
+      "wall_ms": 81.23,
+      "metrics": {
+        "mode": "baseline",
+        "view": "network",
+        "layout": "community",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 52,
+        "rendered_edges": 45,
+        "first_interactive_ms": 35,
+        "draw_ms_last": 2.4,
+        "draw_ms_p95": 2.4,
+        "js_heap_mb": 2
+      }
+    },
+    {
+      "label": "idle-render",
+      "wall_ms": 96.05,
+      "metrics": {
+        "mode": "baseline",
+        "view": "network",
+        "layout": "community",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 52,
+        "rendered_edges": 45,
+        "first_interactive_ms": 35,
+        "draw_ms_last": 1,
+        "draw_ms_p95": 2.4,
+        "js_heap_mb": 1
+      }
+    },
+    {
+      "label": "continuous-pan",
+      "wall_ms": 1043.91,
+      "metrics": {
+        "mode": "baseline",
+        "view": "network",
+        "layout": "community",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 52,
+        "rendered_edges": 45,
+        "first_interactive_ms": 35,
+        "draw_ms_last": 1,
+        "draw_ms_p95": 2.4,
+        "js_heap_mb": 1
+      }
+    },
+    {
+      "label": "wheel-zoom",
+      "wall_ms": 412.4,
+      "metrics": {
+        "mode": "baseline",
+        "view": "network",
+        "layout": "community",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 52,
+        "rendered_edges": 45,
+        "first_interactive_ms": 35,
+        "draw_ms_last": 1,
+        "draw_ms_p95": 2.4,
+        "js_heap_mb": 1
+      }
+    },
+    {
+      "label": "node-drag",
+      "wall_ms": 160.11,
+      "metrics": {
+        "mode": "baseline",
+        "view": "network",
+        "layout": "community",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 52,
+        "rendered_edges": 45,
+        "first_interactive_ms": 35,
+        "draw_ms_last": 1,
+        "draw_ms_p95": 2.4,
+        "js_heap_mb": 1
+      }
+    },
+    {
+      "label": "view-switch",
+      "wall_ms": 84.76,
+      "metrics": {
+        "mode": "baseline",
+        "view": "network",
+        "layout": "community",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 52,
+        "rendered_edges": 45,
+        "first_interactive_ms": 35,
+        "draw_ms_last": 1,
+        "draw_ms_p95": 2.4,
+        "js_heap_mb": 1
+      }
+    },
+    {
+      "label": "filter-response",
+      "wall_ms": 83.42,
+      "metrics": {
+        "mode": "baseline",
+        "view": "lineage",
+        "layout": "hierarchical DAG",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "Alpha",
+          "agent": "agent:atlas"
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 6,
+        "rendered_edges": 4,
+        "first_interactive_ms": 35,
+        "draw_ms_last": 0.2,
+        "draw_ms_p95": 1.2,
+        "js_heap_mb": 2
+      }
+    }
+  ],
+  "assertions": {
+    "pass": true,
+    "results": {
+      "baselineMeasured": true
+    }
+  },
+  "exit_code": 0
+}

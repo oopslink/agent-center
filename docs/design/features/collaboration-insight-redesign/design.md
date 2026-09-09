@@ -188,16 +188,23 @@ not a blind library swap.
 
 - Default first screen renders only Collaboration network, not all dimensions.
 - Each view answers exactly one primary question and has its own default layout.
-- Switching view preserves time/Project/Agent filters and selected context where
-  the selected entity participates in the target view.
-- Clear filters restores the active dimension's global graph.
-- Search locate, focus, restore, one-hop expand/collapse, drag pinning, mini-map
+- Project, Agent, and Window filters change the actual node/edge set; clearing
+  filters restores the active dimension's global graph.
+- Switching view preserves compatible time/Project/Agent filters, selected
+  context, viewport, and return context. Incompatible selected context is
+  explained visibly before it is cleared.
+- Search locate, real node/edge hit-testing, hover/select, selection-driven
+  focus, restore, one-hop/two-hop expand/collapse, drag pinning, mini-map
   navigation, and keyboard operations are usable.
+- Node drag and canvas pan are separate interactions. Dragging a node pins it;
+  reset/unpin clears local pin state without changing server facts.
 - Default graph shows bounded labels; hover/select reveals related edge labels
   and fades unrelated edges.
 - Evidence drawer opens from graph selection, list selection, and keyboard, and
-  loads by existing effect/project scopes.
-- 100/500/2k+ fixture measurements record first interactive time, pan/zoom/drag
-  frame cost, rendered element counts, and heap memory.
+  loads by the selected edge's existing effect/project scopes. It displays
+  relation, effect/polarity, direction, occurrence time, and evidence event IDs.
+- 100/500/2k+ fixture measurements record current DOM/SVG baseline and prototype
+  first interactive time, idle render, continuous pan, wheel zoom, node drag,
+  view switching, filter response, rendered element counts, and heap memory.
 - Implementation states which code is reused, which API fields are additive, and
   confirms no attribution facts are rewritten.

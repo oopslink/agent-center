@@ -1,0 +1,34 @@
+2026-09-09 Collaboration Insight redesign repair evidence
+
+Base:
+git rev-parse origin/main
+512d11812675b65b7b41e14111d422c0ce64924c
+
+Prior delivery:
+origin/ac-exec/task-39d72e32/exec-e5de8dfb@43177ded3e8ed2eff3fd37ba33ade3653d23d5f7
+
+Commands:
+node --check docs/design/features/collaboration-insight-redesign/prototype/prototype.js
+exit code: 0
+
+node --check docs/design/features/collaboration-insight-redesign/evidence/run-benchmarks.mjs
+exit code: 0
+
+node docs/design/features/collaboration-insight-redesign/evidence/run-benchmarks.mjs
+exit code: 0
+
+Generated raw evidence:
+raw/benchmark-summary.json
+raw/benchmark-summary.csv
+raw/baseline-100-timeline.json
+raw/baseline-500-timeline.json
+raw/baseline-2200-timeline.json
+raw/prototype-100-timeline.json
+raw/prototype-500-timeline.json
+raw/prototype-2200-timeline.json
+screenshots/baseline-100.png
+screenshots/baseline-500.png
+screenshots/baseline-2200.png
+screenshots/prototype-100.png
+screenshots/prototype-500.png
+screenshots/prototype-2200.png

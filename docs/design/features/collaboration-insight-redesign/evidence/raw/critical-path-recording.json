@@ -1,0 +1,44 @@
+{
+  "name": "collaboration-redesign-critical-path",
+  "generated_at": "2026-09-09T00:00:00.000Z",
+  "page": "prototype/index.html?mode=prototype&view=network&scale=2200",
+  "source_script": "../run-benchmarks.mjs",
+  "frames": [
+    {
+      "step": "load",
+      "action": "open prototype 2k+ network view",
+      "evidence": "prototype-2200-timeline.json: tti",
+      "screenshot": "../screenshots/prototype-2200.png"
+    },
+    {
+      "step": "pan",
+      "action": "dispatch mousePressed, 18 mouseMoved events, mouseReleased on canvas background",
+      "evidence": "prototype-2200-timeline.json: continuous-pan"
+    },
+    {
+      "step": "zoom",
+      "action": "dispatch eight wheel events with alternating deltaY to exercise LOD",
+      "evidence": "prototype-2200-timeline.json: wheel-zoom"
+    },
+    {
+      "step": "drag",
+      "action": "hit-test sampled real node, drag it by 70x38 px, pin coordinates",
+      "evidence": "prototype-2200-timeline.json: node-drag"
+    },
+    {
+      "step": "switch",
+      "action": "switch network -> impact -> lineage while preserving compatible context",
+      "evidence": "prototype-2200-timeline.json: view-switch"
+    },
+    {
+      "step": "filter",
+      "action": "apply Project Alpha, Agent agent:atlas, Window 24h",
+      "evidence": "prototype-2200-timeline.json: filter-response"
+    },
+    {
+      "step": "assert",
+      "action": "run window.collaborationPrototype.assertPrototype()",
+      "evidence": "benchmark-summary.json: prototype assertions PASS"
+    }
+  ]
+}

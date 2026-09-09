@@ -104,6 +104,13 @@ i.edge.neutral { border-color: var(--neutral); border-top-style: dotted; }
 }
 #graph { width: 100%; height: 100%; min-height: 620px; display: block; cursor: grab; }
 #graph:active { cursor: grabbing; }
+.baseline-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  background: var(--surface);
+}
 #minimap {
   position: absolute;
   right: 14px;

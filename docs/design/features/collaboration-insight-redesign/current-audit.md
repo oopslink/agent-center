@@ -4,7 +4,7 @@
 
 Audited `web/src/pages/InsightCollaboration.tsx`,
 `web/src/api/insights.ts`, `web/src/pages/InsightCollaboration.test.tsx`, and
-the server/client route contract on `origin/main@9cd47759fc25bbd34423425aa937a6e93f6eb085`.
+the server/client route contract on `origin/main@512d1181264a706155266fa658566146b2ae58c6`.
 
 ## What Works Today
 
@@ -37,6 +37,15 @@ the server/client route contract on `origin/main@9cd47759fc25bbd34423425aa937a6e
 6. Evidence is preserved but visually tied to edge-list buttons below the graph;
    the graph itself does not provide enough progressive disclosure before the
    drawer opens.
+
+## Baseline Measurement Method
+
+The frozen prototype package includes `mode=baseline`, a DOM/SVG renderer driven
+by the same deterministic collaboration fixtures and current page constraints:
+retained SVG node/edge/label elements, viewport updates through SVG viewBox, and
+no Canvas/WebGL culling path. It is benchmarked by the same Chrome/CDP script as
+the improved prototype, at 100/500/2200 requested scale, so timing deltas are
+from a real browser page rather than isolated Canvas redraw functions.
 
 ## Rendering Bottlenecks
 

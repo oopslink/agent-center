@@ -1,0 +1,210 @@
+{
+  "url": "http://127.0.0.1:4187/index.html?mode=prototype&view=network&scale=100",
+  "mode": "prototype",
+  "scale": 100,
+  "generated_at": "2026-09-09T09:04:23.077Z",
+  "timeline": [
+    {
+      "label": "tti",
+      "wall_ms": 83.1,
+      "metrics": {
+        "mode": "prototype",
+        "view": "network",
+        "layout": "community",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 52,
+        "rendered_edges": 45,
+        "first_interactive_ms": 6,
+        "draw_ms_last": 0.5,
+        "draw_ms_p95": 7.2,
+        "js_heap_mb": 26
+      }
+    },
+    {
+      "label": "idle-render",
+      "wall_ms": 137.63,
+      "metrics": {
+        "mode": "prototype",
+        "view": "network",
+        "layout": "community",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 52,
+        "rendered_edges": 45,
+        "first_interactive_ms": 6,
+        "draw_ms_last": 0.4,
+        "draw_ms_p95": 7.2,
+        "js_heap_mb": 26
+      }
+    },
+    {
+      "label": "continuous-pan",
+      "wall_ms": 1287.72,
+      "metrics": {
+        "mode": "prototype",
+        "view": "network",
+        "layout": "community",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 52,
+        "rendered_edges": 45,
+        "first_interactive_ms": 6,
+        "draw_ms_last": 0.4,
+        "draw_ms_p95": 0.7,
+        "js_heap_mb": 18
+      }
+    },
+    {
+      "label": "wheel-zoom",
+      "wall_ms": 1137.43,
+      "metrics": {
+        "mode": "prototype",
+        "view": "network",
+        "layout": "community",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 52,
+        "rendered_edges": 45,
+        "first_interactive_ms": 6,
+        "draw_ms_last": 0.3,
+        "draw_ms_p95": 0.7,
+        "js_heap_mb": 19
+      }
+    },
+    {
+      "label": "node-drag",
+      "wall_ms": 155.33,
+      "metrics": {
+        "mode": "prototype",
+        "view": "network",
+        "layout": "community",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 52,
+        "rendered_edges": 45,
+        "first_interactive_ms": 6,
+        "draw_ms_last": 0.6,
+        "draw_ms_p95": 0.7,
+        "js_heap_mb": 19
+      }
+    },
+    {
+      "label": "view-switch",
+      "wall_ms": 82.14,
+      "metrics": {
+        "mode": "prototype",
+        "view": "lineage",
+        "layout": "hierarchical DAG",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 51,
+        "rendered_edges": 42,
+        "first_interactive_ms": 6,
+        "draw_ms_last": 0.3,
+        "draw_ms_p95": 0.7,
+        "js_heap_mb": 20
+      }
+    },
+    {
+      "label": "filter-response",
+      "wall_ms": 81.72,
+      "metrics": {
+        "mode": "prototype",
+        "view": "lineage",
+        "layout": "hierarchical DAG",
+        "requested_scale": 100,
+        "filters": {
+          "window": "24h",
+          "project": "Alpha",
+          "agent": "agent:atlas"
+        },
+        "selected": null,
+        "focus": null,
+        "depth": 0,
+        "rendered_nodes": 51,
+        "rendered_edges": 42,
+        "first_interactive_ms": 6,
+        "draw_ms_last": 0.3,
+        "draw_ms_p95": 0.7,
+        "js_heap_mb": 20
+      }
+    }
+  ],
+  "assertions": {
+    "pass": true,
+    "results": {
+      "project-filter-changes": true,
+      "agent-filter-changes": true,
+      "window-filter-changes": true,
+      "clear-restores-current-view": true,
+      "selected-edge-evidence-bound": true,
+      "expand-changes-neighborhood": true,
+      "pin-unpin-state-changes": true,
+      "view-switch-explains-context": true
+    },
+    "metrics": {
+      "mode": "prototype",
+      "view": "lineage",
+      "layout": "hierarchical DAG",
+      "requested_scale": 100,
+      "filters": {
+        "window": "24h",
+        "project": "Alpha",
+        "agent": "agent:atlas"
+      },
+      "selected": null,
+      "focus": null,
+      "depth": 0,
+      "rendered_nodes": 51,
+      "rendered_edges": 42,
+      "first_interactive_ms": 6,
+      "draw_ms_last": 0.3,
+      "draw_ms_p95": 0.7,
+      "js_heap_mb": 20
+    }
+  },
+  "exit_code": 0
+}

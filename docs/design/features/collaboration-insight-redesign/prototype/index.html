@@ -15,8 +15,8 @@
       </div>
       <div class="filters" aria-label="Shared filters">
         <label>Window <select id="window"><option>24h</option><option>7d</option><option>30d</option></select></label>
-        <label>Project <select id="project"><option value="">All projects</option><option>Alpha</option><option>Runtime</option></select></label>
-        <label>Agent <select id="agent"><option value="">All agents</option><option>agent:atlas</option><option>agent:forge</option></select></label>
+        <label>Project <select id="project"><option value="">All projects</option><option>Alpha</option><option>Runtime</option><option>Console</option><option>Ops</option></select></label>
+        <label>Agent <select id="agent"><option value="">All agents</option><option>agent:atlas</option><option>agent:forge</option><option>agent:signal</option><option>agent:delta</option><option>agent:nova</option><option>agent:orbit</option></select></label>
         <button id="clear">Clear</button>
       </div>
     </header>
@@ -49,6 +49,7 @@
         <div class="button-row">
           <button id="expand">Expand</button>
           <button id="collapse">Collapse</button>
+          <button id="unpin">Unpin</button>
         </div>
         <label class="check"><input id="clusters" type="checkbox" checked> Cluster quiet neighborhoods</label>
         <label class="check"><input id="lod" type="checkbox" checked> Zoom-level labels</label>
