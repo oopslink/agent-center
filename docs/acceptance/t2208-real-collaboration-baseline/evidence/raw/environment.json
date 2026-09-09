@@ -1,0 +1,78 @@
+{
+  "task": "T2208 independent real Collaboration baseline and assertion audit",
+  "build_sha": "512d1181264a706155266fa658566146b2ae58c6",
+  "origin_main_sha_after_fresh_fetch": "512d1181264a706155266fa658566146b2ae58c6",
+  "recorded_main_base": "512d1181264a706155266fa658566146b2ae58c6",
+  "design_asset_ref": "ac-exec/task-3283cdb8/exec-5f769ab7",
+  "design_asset_sha": "d851459ad5913c07c47b82335f6f37b15aba3503",
+  "instance_root": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2208-real-collab-zgDrUy",
+  "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2208-real-collab-zgDrUy/config.yaml",
+  "real_origin": "http://127.0.0.1:56665",
+  "prototype_origin": "http://127.0.0.1:56668",
+  "ports": {
+    "web": 56665,
+    "grpc": 56666,
+    "admin": 56667,
+    "proto": 56668
+  },
+  "viewport": {
+    "width": 1440,
+    "height": 920
+  },
+  "runtime": {
+    "node": "v25.6.0",
+    "platform": "darwin",
+    "arch": "arm64",
+    "cpu_model": "Apple M5",
+    "cpu_count": 10,
+    "total_memory_mb": 24576,
+    "free_memory_mb_at_start": 1957
+  },
+  "auth_data_provenance": "Fresh isolated binary instance; owner signup plus all projects/plans/tasks/agents seeded through authenticated public Web Console HTTP APIs.",
+  "no_bypass": "No SQLite/admin socket/admin HTTP/worker token/MCP/DB path used by this harness.",
+  "organization_slug": "org-b75278c6",
+  "organization_id": "organization-f119e9b0",
+  "owner_login": "t2208-owner-mttx9xk7",
+  "seeded_projects": {
+    "100": {
+      "project_id": "project-aa7e024c",
+      "plan_id": "plan-caad111a",
+      "requested_tasks": 100,
+      "agents": [
+        "agent:agent-d4400648",
+        "agent:agent-6e1ac7cc",
+        "agent:agent-b736901f",
+        "agent:agent-9e9eb72d",
+        "agent:agent-45082911",
+        "agent:agent-cdae9be8"
+      ]
+    },
+    "500": {
+      "project_id": "project-65443e36",
+      "plan_id": "plan-15cfb00c",
+      "requested_tasks": 500,
+      "agents": [
+        "agent:agent-d4400648",
+        "agent:agent-6e1ac7cc",
+        "agent:agent-b736901f",
+        "agent:agent-9e9eb72d",
+        "agent:agent-45082911",
+        "agent:agent-cdae9be8"
+      ]
+    },
+    "2200": {
+      "project_id": "project-79a575cb",
+      "plan_id": "plan-82e0c6f8",
+      "requested_tasks": 2200,
+      "agents": [
+        "agent:agent-d4400648",
+        "agent:agent-6e1ac7cc",
+        "agent:agent-b736901f",
+        "agent:agent-9e9eb72d",
+        "agent:agent-45082911",
+        "agent:agent-cdae9be8"
+      ]
+    }
+  },
+  "browser_version": "148.0.7778.96"
+}

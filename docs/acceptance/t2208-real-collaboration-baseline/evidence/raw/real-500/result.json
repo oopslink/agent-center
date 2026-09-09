@@ -1,0 +1,167 @@
+{
+  "tier": 500,
+  "kind": "real",
+  "url": "http://127.0.0.1:56665/organizations/org-b75278c6/insights/collaboration?project_id=project-65443e36&lod=full",
+  "api": {
+    "requested_scale": 500,
+    "visible_full": {
+      "status": 200,
+      "nodes": 509,
+      "edges": 1014,
+      "effects": 13,
+      "lod": "full",
+      "graph_truncated": false,
+      "response_truncated": false,
+      "next_cursor": ""
+    },
+    "product_default": {
+      "status": 200,
+      "nodes": 509,
+      "edges": 1014,
+      "effects": 13,
+      "lod": "full",
+      "graph_truncated": false,
+      "response_truncated": false,
+      "next_cursor": ""
+    },
+    "clustered_90": {
+      "status": 200,
+      "nodes": 90,
+      "edges": 1014,
+      "effects": 13,
+      "lod": "cluster",
+      "graph_truncated": true,
+      "response_truncated": true,
+      "next_cursor": ""
+    },
+    "next_cursor": "",
+    "truncated": false
+  },
+  "tti_ms": 364,
+  "quiet_render": {
+    "p50_ms": 25,
+    "p95_ms": 40.700000286102295,
+    "samples": [
+      16.799999713897705,
+      16.90000009536743,
+      21.699999809265137,
+      22.90000009536743,
+      23.09999990463257,
+      23.40000009536743,
+      25,
+      25.09999990463257,
+      26.59999990463257,
+      26.700000286102295,
+      26.90000009536743,
+      40.700000286102295
+    ]
+  },
+  "interactions": {
+    "pan": {
+      "verdict": "PASS",
+      "ms": 4429,
+      "before": "-15 0 755 41058",
+      "after": "-100.39114043355325 -49.903846701674084 755 41058"
+    },
+    "wheel_zoom": {
+      "verdict": "PASS",
+      "ms": 1943,
+      "before": "-100.39114043355325 -49.903846701674084 755 41058",
+      "after": "15.251782733021969 201.42361515179988 584.672 1232"
+    },
+    "node_drag": {
+      "verdict": "PASS",
+      "ms": 3646,
+      "before": {
+        "cx": "65",
+        "cy": "70",
+        "x": null,
+        "y": null
+      },
+      "after": {
+        "cx": "129.16432189941406",
+        "cy": "91.38810729980469",
+        "x": null,
+        "y": null
+      }
+    },
+    "neighborhood_focus": {
+      "verdict": "PASS",
+      "before": "-15 0 755 41058",
+      "after": "9.164321899414062 1.3881072998046875 240 180"
+    },
+    "visible_counts": {
+      "nodes": 509,
+      "edges": 1014
+    }
+  },
+  "filters": {
+    "response_ms": 313,
+    "agent_ref": "agent:agent-d4400648",
+    "before": {
+      "viewBox": "9.164321899414062 1.3881072998046875 240 180",
+      "nodes": 509,
+      "edges": 1014
+    },
+    "after": {
+      "viewBox": "-15 0 755 6946",
+      "nodes": 87,
+      "edges": 171
+    },
+    "expected_id_set_sample": [
+      "agent:agent-d4400648",
+      "plan:plan-15cfb00c",
+      "project:project-65443e36",
+      "task:task-03e53565",
+      "task:task-045695d1",
+      "task:task-051cf813",
+      "task:task-0667bd38",
+      "task:task-09680cd0",
+      "task:task-0a8561ba",
+      "task:task-0e57c0c2",
+      "task:task-1401cb7e",
+      "task:task-15b04d98",
+      "task:task-162b9e98",
+      "task:task-1685b2af",
+      "task:task-190e0d22",
+      "task:task-1b6eeb65",
+      "task:task-229ab7d3",
+      "task:task-2fb1e076",
+      "task:task-3a53b010",
+      "task:task-3ae4cd63",
+      "task:task-4131398a",
+      "task:task-414fd01b",
+      "task:task-417f71e5",
+      "task:task-44dfd3f7",
+      "task:task-47ade174",
+      "task:task-49dfc3d3",
+      "task:task-4ecc46ba",
+      "task:task-4ee93372",
+      "task:task-500adafc",
+      "task:task-52f530cb"
+    ],
+    "verdict": "PASS"
+  },
+  "contextState": {
+    "verdict": "PASS",
+    "selected_source": "edge button with evidence > 0",
+    "filter_values": {
+      "project_id": "project-65443e36",
+      "agent_ref": "agent:agent-d4400648",
+      "lod": "full"
+    },
+    "viewport": {
+      "viewBox": "-15 0 755 6946",
+      "nodes": 87,
+      "edges": 171
+    },
+    "drawer_excerpt": "Effect evidence\n×\n\ncollaboration.effect.reassign\n\n{\n  \"before\": {\n    \"assignee\": \"agent:agent-cdae9be8\"\n  },\n  \"after\": {\n    \"assignee\": \"agent:agent-d4400648\"\n  }\n}\npm.audit_recorded\n9/9/2026, 5:55:26 PM\n\nuser:user-808ae57a\n\n{\n  \"actor_ref\": \"user:user-808ae57a\",\n  \"audit_id\": \"01M22SG00WK9JQJ9GRHVGCK9TS\",\n  \"change_type\": \"reassigned\",\n  \"field\": \"assignee\",\n  \"from_value\": \"agent:agent-cdae9be8\",\n  \"object_id\": \"task-81a65a41\",\n  \"object_type\": \"task\",\n  \"to_value\": \"agent:agent-d4400648\"\n}"
+  },
+  "memory": {
+    "usedJSHeapSize": 44700000,
+    "totalJSHeapSize": 91700000,
+    "js_heap_mb": 43
+  },
+  "longTasks": [],
+  "evidence_dir": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-500"
+}

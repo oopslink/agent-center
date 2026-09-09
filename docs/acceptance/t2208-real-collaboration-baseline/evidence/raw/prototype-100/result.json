@@ -1,0 +1,182 @@
+{
+  "tier": 100,
+  "kind": "prototype",
+  "url": "http://127.0.0.1:56668/index.html?scale=100",
+  "tti_ms": 55,
+  "quiet_render": {
+    "p50_ms": 25.700000286102295,
+    "p95_ms": 33.59999990463257,
+    "samples": [
+      11.299999713897705,
+      16.899999618530273,
+      16.899999618530273,
+      23.40000009536743,
+      24.40000009536743,
+      25.299999713897705,
+      25.700000286102295,
+      26.700000286102295,
+      31.40000009536743,
+      32.700000286102295,
+      33,
+      33.59999990463257
+    ]
+  },
+  "strict": {
+    "project_filter": {
+      "verdict": "PASS",
+      "expected_edge_ids": [
+        "edge:network:0",
+        "edge:network:10",
+        "edge:network:102",
+        "edge:network:106",
+        "edge:network:110",
+        "edge:network:113",
+        "edge:network:116",
+        "edge:network:117",
+        "edge:network:13",
+        "edge:network:18",
+        "edge:network:2",
+        "edge:network:24",
+        "edge:network:25",
+        "edge:network:27",
+        "edge:network:28",
+        "edge:network:31",
+        "edge:network:33",
+        "edge:network:35",
+        "edge:network:41",
+        "edge:network:45",
+        "edge:network:46",
+        "edge:network:50",
+        "edge:network:51",
+        "edge:network:7",
+        "edge:network:77",
+        "edge:network:78",
+        "edge:network:83",
+        "edge:network:87",
+        "edge:network:92",
+        "edge:network:93",
+        "edge:network:96",
+        "edge:network:97"
+      ],
+      "count": 32
+    },
+    "agent_filter": {
+      "verdict": "PASS",
+      "expected_edge_ids": [
+        "edge:network:0",
+        "edge:network:10",
+        "edge:network:110",
+        "edge:network:116",
+        "edge:network:117",
+        "edge:network:13",
+        "edge:network:24",
+        "edge:network:27",
+        "edge:network:45",
+        "edge:network:51",
+        "edge:network:93",
+        "edge:network:96"
+      ],
+      "count": 12
+    },
+    "window_filter": {
+      "verdict": "PASS",
+      "expected_edge_ids": [
+        "edge:network:0",
+        "edge:network:10",
+        "edge:network:110",
+        "edge:network:116",
+        "edge:network:117",
+        "edge:network:13",
+        "edge:network:24",
+        "edge:network:27",
+        "edge:network:45",
+        "edge:network:51",
+        "edge:network:93",
+        "edge:network:96"
+      ],
+      "count": 12,
+      "changed_from_prior_filter": false
+    },
+    "neighborhood_expand": {
+      "verdict": "PASS",
+      "selected_id": "agent:36",
+      "one_hop_nodes": [
+        "agent:36",
+        "agent:63",
+        "agent:65",
+        "agent:94"
+      ],
+      "two_hop_added_nodes": [
+        "agent:48",
+        "agent:88"
+      ],
+      "one_count": 4,
+      "two_count": 6
+    },
+    "selected_context": {
+      "verdict": "PASS",
+      "selected_id": "edge:network:0",
+      "filter_values": {
+        "window": "24h",
+        "project": "Alpha",
+        "agent": "agent:atlas"
+      },
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1
+      }
+    },
+    "view_switch_context": {
+      "verdict": "PASS",
+      "prior_edge_id": "edge:network:0",
+      "after_selection": null,
+      "notice": "edge:network:0 does not participate in impact; selection was cleared explicitly. Filters and viewport were preserved."
+    }
+  },
+  "interactions": {
+    "wheel_zoom": {
+      "verdict": "PASS",
+      "ms": 570,
+      "before": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1
+      },
+      "after": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1.12
+      }
+    },
+    "pan": {
+      "verdict": "REJECT",
+      "ms": 457,
+      "before": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1.12
+      },
+      "after": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1.12
+      }
+    },
+    "node_drag": {
+      "verdict": "PASS",
+      "ms": 177,
+      "pinned_before": [],
+      "pinned_after": [
+        "agent:0"
+      ]
+    }
+  },
+  "memory": {
+    "usedJSHeapSize": 10000000,
+    "totalJSHeapSize": 10000000,
+    "js_heap_mb": 10
+  },
+  "longTasks": [],
+  "evidence_dir": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/prototype-100"
+}
