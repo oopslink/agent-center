@@ -1,0 +1,545 @@
+{
+  "task_id": "task-cd21115f",
+  "execution_id": "exec-391551e1",
+  "reviewed_sha": "f00fc488a71ef869947c7435fcbe1cb449795c2b",
+  "base_sha": "512d1181264a706155266fa658566146b2ae58c6",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"pwd \u0026\u0026 rg --files -g 'README.md' -g 'manifest.json' -g 'package.json' -g 'pnpm-lock.yaml' -g 'yarn.lock' -g 'package-lock.json' -g '.git' -g '.openai/hosting.json'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git remote -v \u0026\u0026 git rev-parse HEAD \u0026\u0026 git branch --show-current'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'rg -n \"InsightCollaboration|insights/collaboration|Collaboration\" .'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc \"find . -path './.git' -prune -o -path './node_modules' -prune -o -path './web/node_modules' -prune -o -path './tests/e2e/v2/node_modules' -prune -o -iname '*3283cdb8*' -o -iname '*5f769ab7*' -o -iname '*collaboration*' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc \"find task-input/v1 -maxdepth 4 -type f -print -exec shasum -a 256 {} \\\\;\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc 'git fetch origin main --prune \u0026\u0026 git rev-parse origin/main \u0026\u0026 git rev-parse HEAD \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' task-input/v1/checkpoint.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc \"find docs -path './docs/releases' -prune -o -path '*t2208*' -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'find docs/acceptance -maxdepth 3 -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_14",
+      "command": "/bin/zsh -lc \"find docs -path '*3283cdb8*' -o -path '*5f769ab7*' -o -path '*d851459*'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"find . -path './.git' -prune -o -path './node_modules' -prune -o -path './web/node_modules' -prune -o -path './tests/e2e/v2/node_modules' -prune -o -type f \\\\( -iname '*.har' -o -iname '*.webm' -o -iname '*.zip' -o -iname '*.json' -o -iname '*.csv' \\\\) -print | head -300\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"git show --name-only --format='' d851459ad5913c07c47b82335f6f37b15aba3503 | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc 'git ls-tree -r --name-only d851459ad5913c07c47b82335f6f37b15aba3503 | rg -n \"(collaboration|prototype|t2208|t2205|performance|evidence|baseline|har|trace|webm|json|csv|html|svg|png)\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc 'git fetch origin ac-exec/task-3283cdb8/exec-5f769ab7 \u0026\u0026 git cat-file -t d851459ad5913c07c47b82335f6f37b15aba3503 \u0026\u0026 git show --stat --oneline --no-renames d851459ad5913c07c47b82335f6f37b15aba3503 --'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/design/features/collaboration-insight-redesign/evidence/run-benchmarks.mjs\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_22",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/design/features/collaboration-insight-redesign/evidence/REPORT.md\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/acceptance/t2181-fresh-main-combined/run-collaboration-graph-acceptance.mjs\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc 'cat package.json 2\u003e/dev/null || true; cat web/package.json; cat tests/e2e/v2/package.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_27",
+      "command": "/bin/zsh -lc \"sed -n '320,620p' web/src/pages/InsightCollaboration.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc \"sed -n '620,900p' docs/acceptance/t2181-fresh-main-combined/run-collaboration-graph-acceptance.mjs\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_29",
+      "command": "/bin/zsh -lc \"sed -n '260,620p' docs/acceptance/t2181-fresh-main-combined/run-collaboration-graph-acceptance.mjs\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"git show d851459ad5913c07c47b82335f6f37b15aba3503:docs/design/features/collaboration-insight-redesign/prototype/index.html | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"git show d851459ad5913c07c47b82335f6f37b15aba3503:.agent-center/evidence/task-3283cdb8/exec-5f769ab7.json | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' Makefile\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"ls -la \u0026\u0026 find . -maxdepth 2 -name 'Makefile' -o -name 'go.mod' -o -name 'go.work'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_34",
+      "command": "/bin/zsh -lc \"sed -n '1,140p' web/src/pages/InsightCollaboration.tsx\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_35",
+      "command": "/bin/zsh -lc \"git show d851459ad5913c07c47b82335f6f37b15aba3503:docs/design/features/collaboration-insight-redesign/prototype/prototype.js | sed -n '1,280p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_36",
+      "command": "/bin/zsh -lc \"sed -n '1,280p' internal/webconsole/api/handlers_collaboration_insight.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/observability/collaborationeffect/query.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' internal/observability/collaborationeffect/graph_sqlite.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_39",
+      "command": "/bin/zsh -lc \"rg -n \\\"collaboration-effects|MaxNodes|Limit|truncated|lod|cursor\\\" internal/observability internal/webconsole internal/admin -g '*.go'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc 'make build'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc \"sed -n '240,330p' internal/observability/collaborationeffect/query.go \u0026\u0026 rg -n \\\"func addStaticEdge|semanticEdge\\\" internal/observability/collaborationeffect/query.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_44",
+      "command": "/bin/zsh -lc \"git show d851459ad5913c07c47b82335f6f37b15aba3503:docs/design/features/collaboration-insight-redesign/prototype/prototype.js | sed -n '280,620p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_45",
+      "command": "/bin/zsh -lc \"git show d851459ad5913c07c47b82335f6f37b15aba3503:docs/design/features/collaboration-insight-redesign/prototype/prototype.js | sed -n '620,760p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_46",
+      "command": "/bin/zsh -lc 'pnpm --dir tests/e2e/v2 install --frozen-lockfile'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_48",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t2208-real-collaboration-baseline'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc 'node --check docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_56",
+      "command": "/bin/zsh -lc \"rg -n \\\"project.*member|members.*project|/members|ProjectMember|AddProjectMember|project members\\\" internal web/src/api docs/acceptance -g '*.go' -g '*.ts' -g '*.tsx' -g '*.mjs'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_57",
+      "command": "/bin/zsh -lc 'rg -n \"members\" internal/webconsole/api/handlers_pm* internal/webconsole/api/server.go web/src/api/projects.ts'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc \"sed -n '580,650p' internal/webconsole/api/handlers_pm.go\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_59",
+      "command": "/bin/zsh -lc \"sed -n '146,160p' web/src/api/projects.ts\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_63",
+      "command": "/bin/zsh -lc 'node --check docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc \"find docs/acceptance/t2208-real-collaboration-baseline/evidence -maxdepth 3 -type f | sort | sed -n '1,180p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc \"ls -lt /tmp | head -20 \u0026\u0026 find /tmp -maxdepth 1 -type d -name 't2208-real-collab-*' -print | tail -3 | xargs -I{} sh -c 'echo {}; ls -la {} | sed -n \\\"1,80p\\\"'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_72",
+      "command": "/bin/zsh -lc \"find /private/tmp -maxdepth 1 -type d -name 't2208-real-collab-*' -print | tail -5 | while read d; do echo \\\"\"'$d\"; ls -la \"$d\" | sed -n '\"'1,60p'; done\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 130
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc 'node --check docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_83",
+      "command": "/bin/zsh -lc 'tail -40 docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/seed-progress.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_86",
+      "command": "/bin/zsh -lc \"find docs/acceptance/t2208-real-collaboration-baseline/evidence/raw -maxdepth 2 -type f | sort | sed -n '1,160p'; tail -20 docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/seed-progress.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_90",
+      "command": "/bin/zsh -lc \"find docs/acceptance/t2208-real-collaboration-baseline/evidence/raw -maxdepth 2 -type f | sort | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_79",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_93",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/acceptance/t2208-real-collaboration-baseline/REPORT.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_94",
+      "command": "/bin/zsh -lc 'find docs/acceptance/t2208-real-collaboration-baseline/evidence/raw -maxdepth 2 -type f | sort'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_95",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst v=require('./docs/acceptance/t2208-real-collaboration-baseline/evidence/verdict.json');\nconsole.log('verdict', v.verdict);\nfor (const r of v.audit) console.log(r.gate, r.verdict);\nfor (const r of [...v.realResults,...v.protoResults]) console.log(r.kind, r.tier, r.tti_ms, r.quiet_render.p95_ms, r.memory?.js_heap_mb, r.longTasks?.length, r.evidence_dir);\nNODE\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_96",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_99",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nfor (const tier of [100,500,2200]) {\n const r=require(\"'`./docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-${tier}/result.json`);\n console.log('\"'\\\\nreal', tier);\n console.log('interactions', r.interactions);\n console.log('filters', r.filters.verdict, r.filters.before, r.filters.after, r.filters.expected_id_set_sample.slice(0,5));\n console.log('context', r.contextState.verdict, r.contextState.reason || r.contextState.drawer_excerpt?.slice(0,80));\n}\nNODE\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_98",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nfor (const tier of [100,500,2200]) {\n const r=require(\"'`./docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/prototype-${tier}/result.json`);\n console.log('\"'\\\\nproto', tier);\n console.log(JSON.stringify(r.strict, null, 2));\n console.log('interactions', r.interactions);\n}\nNODE\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_100",
+      "command": "/bin/zsh -lc 'du -sh docs/acceptance/t2208-real-collaboration-baseline'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_104",
+      "command": "/bin/zsh -lc 'node --check docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_105",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_114",
+      "command": "/bin/zsh -lc 'node --check docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_115",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_119",
+      "command": "/bin/zsh -lc \"rg -n \\\"signin|login|passcode|auth/signup|auth/\\\" internal/webconsole/api web/src/pages web/src/api -g '*.go' -g '*.tsx' -g '*.ts' | head -120\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_123",
+      "command": "/bin/zsh -lc 'node --check docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_124",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_129",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' docs/acceptance/t2208-real-collaboration-baseline/REPORT.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_130",
+      "command": "/bin/zsh -lc \"find docs/acceptance/t2208-real-collaboration-baseline/evidence/raw -maxdepth 2 -type f | sort | wc -l \u0026\u0026 find docs/acceptance/t2208-real-collaboration-baseline/evidence/raw -maxdepth 2 -type f \\\\( -name 'trace.zip' -o -name 'network.har' -o -name '*.webm' -o -name 'console.json' -o -name 'network.json' -o -name 'result.json' \\\\) | sort\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_131",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst v=require('./docs/acceptance/t2208-real-collaboration-baseline/evidence/verdict.json');\nconsole.log('verdict', v.verdict);\nfor (const r of v.audit) console.log(r.gate, r.verdict);\nfor (const r of [...v.realResults,...v.protoResults]) console.log(r.kind, r.tier, r.tti_ms, Math.round(r.quiet_render.p95_ms), r.memory?.js_heap_mb, r.longTasks?.length, r.evidence_dir);\nNODE\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_132",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_134",
+      "command": "/bin/zsh -lc 'node --check docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs \u003e docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/node-check.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_135",
+      "command": "/bin/zsh -lc '(git rev-parse HEAD; git rev-parse origin/main; git status --short; du -sh docs/acceptance/t2208-real-collaboration-baseline; find docs/acceptance/t2208-real-collaboration-baseline/evidence/raw -maxdepth 2 -type f | sort | wc -l) \u003e docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/evidence-precommit.log 2\u003e\u00261'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_136",
+      "command": "/bin/zsh -lc 'git diff --stat -- docs/acceptance/t2208-real-collaboration-baseline'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_138",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_139",
+      "command": "/bin/zsh -lc \"find docs/acceptance/t2208-real-collaboration-baseline -maxdepth 3 -type f | sort | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_141",
+      "command": "/bin/zsh -lc 'git add -A docs/acceptance/t2208-real-collaboration-baseline \u0026\u0026 git commit -m \"chore(evidence): add real collaboration baseline audit\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_143",
+      "command": "/bin/zsh -lc 'git push origin HEAD'",
+      "exit_status": 128
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_145",
+      "command": "/bin/zsh -lc \"git config --get-regexp 'remote\\\\..*'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_146",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-list --count 512d1181264a706155266fa658566146b2ae58c6..HEAD'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_148",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:refs/heads/ac-exec/task-cd21115f/exec-391551e1'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_151",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst v=require('./docs/acceptance/t2208-real-collaboration-baseline/evidence/verdict.json');\nif (v.verdict \"'!== '\"'PASS') process.exit(2);\nconst missing=[];\nfor (const r of [...v.realResults,...v.protoResults]) {\n  for (const name of ['trace.zip','network.har','console.json','result.json']) {\n    const fs=require('fs'), path=require('path');\n    if (\"'!fs.existsSync(path.join(r.evidence_dir, name))) missing.push(path.join(r.evidence_dir, name));\n  }\n}\nif (missing.length) { console.error(missing.join('\"'\\\\n')); process.exit(3); }\nconsole.log('verdict PASS, artifact checks PASS');\nNODE\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_152",
+      "command": "/bin/zsh -lc \"git show --stat --oneline --no-renames HEAD -- docs/acceptance/t2208-real-collaboration-baseline | sed -n '1,120p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_150",
+      "command": "/bin/zsh -lc 'git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git rev-list --count 512d1181264a706155266fa658566146b2ae58c6..HEAD \u0026\u0026 git ls-remote origin-push refs/heads/ac-exec/task-cd21115f/exec-391551e1'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-391551e1/command_events.jsonl",
+  "command_event_digest": "sha256:15c3526900048d77a2ba10251e41fc1cf0b457e90acfd39e7a6b0001e83f26f0",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "Completed the independent real Collaboration baseline audit.",
+  "artifact_digest": "sha256:48840f5c1d62fb30669791f2d071c70b8f32dec44da3ac656c929c03f3168c4e",
+  "path": ".agent-center/evidence/task-cd21115f/exec-391551e1.json",
+  "branch": "ac-exec/task-cd21115f/exec-391551e1"
+}
