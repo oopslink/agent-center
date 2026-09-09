@@ -46,6 +46,8 @@
 | 0057 | [Team Memory 通过 Proposal/Promotion 受控写入](0057-controlled-team-memory-writes.md) | Accepted |
 | 0058 | [统一权限契约](0058-unified-permission-contract.md) | Accepted |
 | 0059 | [Team Role 直接拥有 RAM Roles](0059-team-role-owns-ram-roles.md) | Accepted |
+| 0060 | [Collaboration Effect is an Observability Projection](0060-collaboration-effect-is-observability-projection.md) | Accepted |
+| 0061 | [Collaboration Insight Uses Dimensional Graph Views](0061-collaboration-insight-dimensional-graph-ui.md) | Proposed |
 
 ## 规则提示
 
