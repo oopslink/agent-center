@@ -1,0 +1,3 @@
+REJECT /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-7f44327f/docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/missing-agent.json
+FAIL real_100_agent_filter: injected missing agent from expected set
+FAIL all_gate_summary: gate failed

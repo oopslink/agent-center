@@ -1,0 +1,2021 @@
+{
+  "verdict": "PASS",
+  "provenance": {
+    "task": "T2208 independent real Collaboration baseline and assertion audit",
+    "build_sha": "512d1181264a706155266fa658566146b2ae58c6",
+    "origin_main_sha_after_fresh_fetch": "512d1181264a706155266fa658566146b2ae58c6",
+    "recorded_main_base": "512d1181264a706155266fa658566146b2ae58c6",
+    "design_asset_ref": "ac-exec/task-3283cdb8/exec-5f769ab7",
+    "design_asset_sha": "d851459ad5913c07c47b82335f6f37b15aba3503",
+    "instance_root": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2208-real-collab-zgDrUy",
+    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/t2208-real-collab-zgDrUy/config.yaml",
+    "real_origin": "http://127.0.0.1:56665",
+    "prototype_origin": "http://127.0.0.1:56668",
+    "ports": {
+      "web": 56665,
+      "grpc": 56666,
+      "admin": 56667,
+      "proto": 56668
+    },
+    "viewport": {
+      "width": 1440,
+      "height": 920
+    },
+    "runtime": {
+      "node": "v25.6.0",
+      "platform": "darwin",
+      "arch": "arm64",
+      "cpu_model": "Apple M5",
+      "cpu_count": 10,
+      "total_memory_mb": 24576,
+      "free_memory_mb_at_start": 1957
+    },
+    "auth_data_provenance": "Fresh isolated binary instance; owner signup plus all projects/plans/tasks/agents seeded through authenticated public Web Console HTTP APIs.",
+    "no_bypass": "No SQLite/admin socket/admin HTTP/worker token/MCP/DB path used by this harness.",
+    "organization_slug": "org-b75278c6",
+    "organization_id": "organization-f119e9b0",
+    "owner_login": "t2208-owner-mttx9xk7",
+    "seeded_projects": {
+      "100": {
+        "project_id": "project-aa7e024c",
+        "plan_id": "plan-caad111a",
+        "requested_tasks": 100,
+        "agents": [
+          "agent:agent-d4400648",
+          "agent:agent-6e1ac7cc",
+          "agent:agent-b736901f",
+          "agent:agent-9e9eb72d",
+          "agent:agent-45082911",
+          "agent:agent-cdae9be8"
+        ]
+      },
+      "500": {
+        "project_id": "project-65443e36",
+        "plan_id": "plan-15cfb00c",
+        "requested_tasks": 500,
+        "agents": [
+          "agent:agent-d4400648",
+          "agent:agent-6e1ac7cc",
+          "agent:agent-b736901f",
+          "agent:agent-9e9eb72d",
+          "agent:agent-45082911",
+          "agent:agent-cdae9be8"
+        ]
+      },
+      "2200": {
+        "project_id": "project-79a575cb",
+        "plan_id": "plan-82e0c6f8",
+        "requested_tasks": 2200,
+        "agents": [
+          "agent:agent-d4400648",
+          "agent:agent-6e1ac7cc",
+          "agent:agent-b736901f",
+          "agent:agent-9e9eb72d",
+          "agent:agent-45082911",
+          "agent:agent-cdae9be8"
+        ]
+      }
+    },
+    "browser_version": "148.0.7778.96"
+  },
+  "realResults": [
+    {
+      "tier": 100,
+      "kind": "real",
+      "url": "http://127.0.0.1:56665/organizations/org-b75278c6/insights/collaboration?project_id=project-aa7e024c&lod=full",
+      "api": {
+        "requested_scale": 100,
+        "visible_full": {
+          "status": 200,
+          "nodes": 109,
+          "edges": 214,
+          "effects": 13,
+          "lod": "full",
+          "graph_truncated": false,
+          "response_truncated": false,
+          "next_cursor": ""
+        },
+        "product_default": {
+          "status": 200,
+          "nodes": 109,
+          "edges": 214,
+          "effects": 13,
+          "lod": "full",
+          "graph_truncated": false,
+          "response_truncated": false,
+          "next_cursor": ""
+        },
+        "clustered_90": {
+          "status": 200,
+          "nodes": 90,
+          "edges": 214,
+          "effects": 13,
+          "lod": "cluster",
+          "graph_truncated": true,
+          "response_truncated": true,
+          "next_cursor": ""
+        },
+        "next_cursor": "",
+        "truncated": false
+      },
+      "tti_ms": 204,
+      "quiet_render": {
+        "p50_ms": 24.699999809265137,
+        "p95_ms": 32.59999990463257,
+        "samples": [
+          10.599999904632568,
+          16.800000190734863,
+          17.09999990463257,
+          17.800000190734863,
+          24.40000009536743,
+          24.59999990463257,
+          24.699999809265137,
+          24.800000190734863,
+          24.90000009536743,
+          26.899999618530273,
+          31.90000009536743,
+          32.59999990463257
+        ]
+      },
+      "interactions": {
+        "pan": {
+          "verdict": "PASS",
+          "ms": 330,
+          "before": "-15 0 755 8258",
+          "after": "-100.39114043355325 -49.897011777018896 755 8258"
+        },
+        "wheel_zoom": {
+          "verdict": "PASS",
+          "ms": 1693,
+          "before": "-100.39114043355325 -49.897011777018896 755 8258",
+          "after": "15.251795623647013 169.66364274326904 584.672 1232"
+        },
+        "node_drag": {
+          "verdict": "PASS",
+          "ms": 230,
+          "before": {
+            "cx": "65",
+            "cy": "70",
+            "x": null,
+            "y": null
+          },
+          "after": {
+            "cx": "129.16437530517578",
+            "cy": "91.38813018798828",
+            "x": null,
+            "y": null
+          }
+        },
+        "neighborhood_focus": {
+          "verdict": "PASS",
+          "before": "-15 0 755 8258",
+          "after": "9.164375305175781 1.3881301879882812 240 180"
+        },
+        "visible_counts": {
+          "nodes": 109,
+          "edges": 214
+        }
+      },
+      "filters": {
+        "response_ms": 164,
+        "agent_ref": "agent:agent-d4400648",
+        "before": {
+          "viewBox": "9.164375305175781 1.3881301879882812 240 180",
+          "nodes": 109,
+          "edges": 214
+        },
+        "after": {
+          "viewBox": "-15 0 755 1452",
+          "nodes": 20,
+          "edges": 37
+        },
+        "expected_id_set_sample": [
+          "agent:agent-d4400648",
+          "plan:plan-caad111a",
+          "project:project-aa7e024c",
+          "task:task-02ecad95",
+          "task:task-1919ab19",
+          "task:task-252ecc3a",
+          "task:task-3361d046",
+          "task:task-4b165ee2",
+          "task:task-59957dd1",
+          "task:task-6eba2f0e",
+          "task:task-6f955583",
+          "task:task-76b887ec",
+          "task:task-7b037495",
+          "task:task-7ff25374",
+          "task:task-8f94c2e9",
+          "task:task-8ff7df5c",
+          "task:task-a9e5f60b",
+          "task:task-b440f9e3",
+          "task:task-cc83b0f0",
+          "task:task-d6fd7c6f"
+        ],
+        "verdict": "PASS"
+      },
+      "contextState": {
+        "verdict": "PASS",
+        "selected_source": "edge button with evidence > 0",
+        "filter_values": {
+          "project_id": "project-aa7e024c",
+          "agent_ref": "agent:agent-d4400648",
+          "lod": "full"
+        },
+        "viewport": {
+          "viewBox": "-15 0 755 1452",
+          "nodes": 20,
+          "edges": 37
+        },
+        "drawer_excerpt": "Effect evidence\n×\n\ncollaboration.effect.reassign\n\n{\n  \"before\": {\n    \"assignee\": \"agent:agent-cdae9be8\"\n  },\n  \"after\": {\n    \"assignee\": \"agent:agent-d4400648\"\n  }\n}\npm.audit_recorded\n9/9/2026, 5:55:09 PM\n\nuser:user-808ae57a\n\n{\n  \"actor_ref\": \"user:user-808ae57a\",\n  \"audit_id\": \"01M22SFF3KH8NQ12XTXXX3Q77C\",\n  \"change_type\": \"reassigned\",\n  \"field\": \"assignee\",\n  \"from_value\": \"agent:agent-cdae9be8\",\n  \"object_id\": \"task-1919ab19\",\n  \"object_type\": \"task\",\n  \"to_value\": \"agent:agent-d4400648\"\n}"
+      },
+      "memory": {
+        "usedJSHeapSize": 18200000,
+        "totalJSHeapSize": 33100000,
+        "js_heap_mb": 17
+      },
+      "longTasks": [],
+      "evidence_dir": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-100"
+    },
+    {
+      "tier": 500,
+      "kind": "real",
+      "url": "http://127.0.0.1:56665/organizations/org-b75278c6/insights/collaboration?project_id=project-65443e36&lod=full",
+      "api": {
+        "requested_scale": 500,
+        "visible_full": {
+          "status": 200,
+          "nodes": 509,
+          "edges": 1014,
+          "effects": 13,
+          "lod": "full",
+          "graph_truncated": false,
+          "response_truncated": false,
+          "next_cursor": ""
+        },
+        "product_default": {
+          "status": 200,
+          "nodes": 509,
+          "edges": 1014,
+          "effects": 13,
+          "lod": "full",
+          "graph_truncated": false,
+          "response_truncated": false,
+          "next_cursor": ""
+        },
+        "clustered_90": {
+          "status": 200,
+          "nodes": 90,
+          "edges": 1014,
+          "effects": 13,
+          "lod": "cluster",
+          "graph_truncated": true,
+          "response_truncated": true,
+          "next_cursor": ""
+        },
+        "next_cursor": "",
+        "truncated": false
+      },
+      "tti_ms": 364,
+      "quiet_render": {
+        "p50_ms": 25,
+        "p95_ms": 40.700000286102295,
+        "samples": [
+          16.799999713897705,
+          16.90000009536743,
+          21.699999809265137,
+          22.90000009536743,
+          23.09999990463257,
+          23.40000009536743,
+          25,
+          25.09999990463257,
+          26.59999990463257,
+          26.700000286102295,
+          26.90000009536743,
+          40.700000286102295
+        ]
+      },
+      "interactions": {
+        "pan": {
+          "verdict": "PASS",
+          "ms": 4429,
+          "before": "-15 0 755 41058",
+          "after": "-100.39114043355325 -49.903846701674084 755 41058"
+        },
+        "wheel_zoom": {
+          "verdict": "PASS",
+          "ms": 1943,
+          "before": "-100.39114043355325 -49.903846701674084 755 41058",
+          "after": "15.251782733021969 201.42361515179988 584.672 1232"
+        },
+        "node_drag": {
+          "verdict": "PASS",
+          "ms": 3646,
+          "before": {
+            "cx": "65",
+            "cy": "70",
+            "x": null,
+            "y": null
+          },
+          "after": {
+            "cx": "129.16432189941406",
+            "cy": "91.38810729980469",
+            "x": null,
+            "y": null
+          }
+        },
+        "neighborhood_focus": {
+          "verdict": "PASS",
+          "before": "-15 0 755 41058",
+          "after": "9.164321899414062 1.3881072998046875 240 180"
+        },
+        "visible_counts": {
+          "nodes": 509,
+          "edges": 1014
+        }
+      },
+      "filters": {
+        "response_ms": 313,
+        "agent_ref": "agent:agent-d4400648",
+        "before": {
+          "viewBox": "9.164321899414062 1.3881072998046875 240 180",
+          "nodes": 509,
+          "edges": 1014
+        },
+        "after": {
+          "viewBox": "-15 0 755 6946",
+          "nodes": 87,
+          "edges": 171
+        },
+        "expected_id_set_sample": [
+          "agent:agent-d4400648",
+          "plan:plan-15cfb00c",
+          "project:project-65443e36",
+          "task:task-03e53565",
+          "task:task-045695d1",
+          "task:task-051cf813",
+          "task:task-0667bd38",
+          "task:task-09680cd0",
+          "task:task-0a8561ba",
+          "task:task-0e57c0c2",
+          "task:task-1401cb7e",
+          "task:task-15b04d98",
+          "task:task-162b9e98",
+          "task:task-1685b2af",
+          "task:task-190e0d22",
+          "task:task-1b6eeb65",
+          "task:task-229ab7d3",
+          "task:task-2fb1e076",
+          "task:task-3a53b010",
+          "task:task-3ae4cd63",
+          "task:task-4131398a",
+          "task:task-414fd01b",
+          "task:task-417f71e5",
+          "task:task-44dfd3f7",
+          "task:task-47ade174",
+          "task:task-49dfc3d3",
+          "task:task-4ecc46ba",
+          "task:task-4ee93372",
+          "task:task-500adafc",
+          "task:task-52f530cb"
+        ],
+        "verdict": "PASS"
+      },
+      "contextState": {
+        "verdict": "PASS",
+        "selected_source": "edge button with evidence > 0",
+        "filter_values": {
+          "project_id": "project-65443e36",
+          "agent_ref": "agent:agent-d4400648",
+          "lod": "full"
+        },
+        "viewport": {
+          "viewBox": "-15 0 755 6946",
+          "nodes": 87,
+          "edges": 171
+        },
+        "drawer_excerpt": "Effect evidence\n×\n\ncollaboration.effect.reassign\n\n{\n  \"before\": {\n    \"assignee\": \"agent:agent-cdae9be8\"\n  },\n  \"after\": {\n    \"assignee\": \"agent:agent-d4400648\"\n  }\n}\npm.audit_recorded\n9/9/2026, 5:55:26 PM\n\nuser:user-808ae57a\n\n{\n  \"actor_ref\": \"user:user-808ae57a\",\n  \"audit_id\": \"01M22SG00WK9JQJ9GRHVGCK9TS\",\n  \"change_type\": \"reassigned\",\n  \"field\": \"assignee\",\n  \"from_value\": \"agent:agent-cdae9be8\",\n  \"object_id\": \"task-81a65a41\",\n  \"object_type\": \"task\",\n  \"to_value\": \"agent:agent-d4400648\"\n}"
+      },
+      "memory": {
+        "usedJSHeapSize": 44700000,
+        "totalJSHeapSize": 91700000,
+        "js_heap_mb": 43
+      },
+      "longTasks": [],
+      "evidence_dir": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-500"
+    },
+    {
+      "tier": 2200,
+      "kind": "real",
+      "url": "http://127.0.0.1:56665/organizations/org-b75278c6/insights/collaboration?project_id=project-79a575cb&lod=full",
+      "api": {
+        "requested_scale": 2200,
+        "visible_full": {
+          "status": 200,
+          "nodes": 2208,
+          "edges": 4413,
+          "effects": 12,
+          "lod": "full",
+          "graph_truncated": false,
+          "response_truncated": false,
+          "next_cursor": ""
+        },
+        "product_default": {
+          "status": 200,
+          "nodes": 2208,
+          "edges": 4413,
+          "effects": 12,
+          "lod": "full",
+          "graph_truncated": false,
+          "response_truncated": false,
+          "next_cursor": ""
+        },
+        "clustered_90": {
+          "status": 200,
+          "nodes": 90,
+          "edges": 4413,
+          "effects": 12,
+          "lod": "cluster",
+          "graph_truncated": true,
+          "response_truncated": true,
+          "next_cursor": ""
+        },
+        "next_cursor": "",
+        "truncated": false
+      },
+      "tti_ms": 749,
+      "quiet_render": {
+        "p50_ms": 24.09999990463257,
+        "p95_ms": 232.30000019073486,
+        "samples": [
+          16.700000286102295,
+          16.800000190734863,
+          17.199999809265137,
+          17.59999990463257,
+          17.799999713897705,
+          24,
+          24.09999990463257,
+          24.59999990463257,
+          24.800000190734863,
+          24.800000190734863,
+          26,
+          232.30000019073486
+        ]
+      },
+      "interactions": {
+        "pan": {
+          "verdict": "PASS",
+          "ms": 83164,
+          "before": "-15 0 755 180458",
+          "after": "-100.39114043355325 -49.905176984423036 755 180458"
+        },
+        "wheel_zoom": {
+          "verdict": "PASS",
+          "ms": 6974,
+          "before": "-100.39114043355325 -49.905176984423036 755 180458",
+          "after": "15.251775848256386 207.6004683088461 584.672 1232"
+        },
+        "node_drag": {
+          "verdict": "PASS",
+          "ms": 63485,
+          "before": {
+            "cx": "65",
+            "cy": "70",
+            "x": null,
+            "y": null
+          },
+          "after": {
+            "cx": "129.16431427001953",
+            "cy": "91.38810729980469",
+            "x": null,
+            "y": null
+          }
+        },
+        "neighborhood_focus": {
+          "verdict": "PASS",
+          "before": "-15 0 755 180458",
+          "after": "9.164314270019531 1.3881072998046875 240 180"
+        },
+        "visible_counts": {
+          "nodes": 2208,
+          "edges": 4413
+        }
+      },
+      "filters": {
+        "response_ms": 1062,
+        "agent_ref": "agent:agent-d4400648",
+        "before": {
+          "viewBox": "9.164314270019531 1.3881072998046875 240 180",
+          "nodes": 2208,
+          "edges": 4413
+        },
+        "after": {
+          "viewBox": "-15 0 755 30152",
+          "nodes": 370,
+          "edges": 737
+        },
+        "expected_id_set_sample": [
+          "agent:agent-d4400648",
+          "plan:plan-82e0c6f8",
+          "project:project-79a575cb",
+          "task:task-0040de8d",
+          "task:task-011a74f5",
+          "task:task-011b3fe2",
+          "task:task-01b93529",
+          "task:task-035fb976",
+          "task:task-03c411ee",
+          "task:task-03c48c87",
+          "task:task-05e763b3",
+          "task:task-071e2933",
+          "task:task-07630630",
+          "task:task-08791324",
+          "task:task-08d366d6",
+          "task:task-09005a73",
+          "task:task-099773b7",
+          "task:task-0a0b82e9",
+          "task:task-0a8affaa",
+          "task:task-0aa36c57",
+          "task:task-0aa62903",
+          "task:task-0ab53423",
+          "task:task-0aec77b3",
+          "task:task-0b62d91c",
+          "task:task-0b9dad24",
+          "task:task-0bf3a4c5",
+          "task:task-0c29df07",
+          "task:task-0c94c92b",
+          "task:task-0d4957b2",
+          "task:task-0de10e5f"
+        ],
+        "verdict": "PASS"
+      },
+      "contextState": {
+        "verdict": "PASS",
+        "selected_source": "edge button with evidence > 0",
+        "filter_values": {
+          "project_id": "project-79a575cb",
+          "agent_ref": "agent:agent-d4400648",
+          "lod": "full"
+        },
+        "viewport": {
+          "viewBox": "-15 0 755 30152",
+          "nodes": 370,
+          "edges": 737
+        },
+        "drawer_excerpt": "Effect evidence\n×\n\ncollaboration.effect.reassign\n\n{\n  \"before\": {\n    \"assignee\": \"agent:agent-cdae9be8\"\n  },\n  \"after\": {\n    \"assignee\": \"agent:agent-d4400648\"\n  }\n}\npm.audit_recorded\n9/9/2026, 5:59:45 PM\n\nuser:user-808ae57a\n\n{\n  \"actor_ref\": \"user:user-808ae57a\",\n  \"audit_id\": \"01M22SQWKXDZZVYSFA51AEYARC\",\n  \"change_type\": \"reassigned\",\n  \"field\": \"assignee\",\n  \"from_value\": \"agent:agent-cdae9be8\",\n  \"object_id\": \"task-a68ab713\",\n  \"object_type\": \"task\",\n  \"to_value\": \"agent:agent-d4400648\"\n}"
+      },
+      "memory": {
+        "usedJSHeapSize": 19300000,
+        "totalJSHeapSize": 103000000,
+        "js_heap_mb": 18
+      },
+      "longTasks": [
+        {
+          "name": "self",
+          "startTime": 194.60000038146973,
+          "duration": 63
+        },
+        {
+          "name": "self",
+          "startTime": 383.6000003814697,
+          "duration": 53
+        }
+      ],
+      "evidence_dir": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-2200"
+    }
+  ],
+  "protoResults": [
+    {
+      "tier": 100,
+      "kind": "prototype",
+      "url": "http://127.0.0.1:56668/index.html?scale=100",
+      "tti_ms": 55,
+      "quiet_render": {
+        "p50_ms": 25.700000286102295,
+        "p95_ms": 33.59999990463257,
+        "samples": [
+          11.299999713897705,
+          16.899999618530273,
+          16.899999618530273,
+          23.40000009536743,
+          24.40000009536743,
+          25.299999713897705,
+          25.700000286102295,
+          26.700000286102295,
+          31.40000009536743,
+          32.700000286102295,
+          33,
+          33.59999990463257
+        ]
+      },
+      "strict": {
+        "project_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:0",
+            "edge:network:10",
+            "edge:network:102",
+            "edge:network:106",
+            "edge:network:110",
+            "edge:network:113",
+            "edge:network:116",
+            "edge:network:117",
+            "edge:network:13",
+            "edge:network:18",
+            "edge:network:2",
+            "edge:network:24",
+            "edge:network:25",
+            "edge:network:27",
+            "edge:network:28",
+            "edge:network:31",
+            "edge:network:33",
+            "edge:network:35",
+            "edge:network:41",
+            "edge:network:45",
+            "edge:network:46",
+            "edge:network:50",
+            "edge:network:51",
+            "edge:network:7",
+            "edge:network:77",
+            "edge:network:78",
+            "edge:network:83",
+            "edge:network:87",
+            "edge:network:92",
+            "edge:network:93",
+            "edge:network:96",
+            "edge:network:97"
+          ],
+          "count": 32
+        },
+        "agent_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:0",
+            "edge:network:10",
+            "edge:network:110",
+            "edge:network:116",
+            "edge:network:117",
+            "edge:network:13",
+            "edge:network:24",
+            "edge:network:27",
+            "edge:network:45",
+            "edge:network:51",
+            "edge:network:93",
+            "edge:network:96"
+          ],
+          "count": 12
+        },
+        "window_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:0",
+            "edge:network:10",
+            "edge:network:110",
+            "edge:network:116",
+            "edge:network:117",
+            "edge:network:13",
+            "edge:network:24",
+            "edge:network:27",
+            "edge:network:45",
+            "edge:network:51",
+            "edge:network:93",
+            "edge:network:96"
+          ],
+          "count": 12,
+          "changed_from_prior_filter": false
+        },
+        "neighborhood_expand": {
+          "verdict": "PASS",
+          "selected_id": "agent:36",
+          "one_hop_nodes": [
+            "agent:36",
+            "agent:63",
+            "agent:65",
+            "agent:94"
+          ],
+          "two_hop_added_nodes": [
+            "agent:48",
+            "agent:88"
+          ],
+          "one_count": 4,
+          "two_count": 6
+        },
+        "selected_context": {
+          "verdict": "PASS",
+          "selected_id": "edge:network:0",
+          "filter_values": {
+            "window": "24h",
+            "project": "Alpha",
+            "agent": "agent:atlas"
+          },
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1
+          }
+        },
+        "view_switch_context": {
+          "verdict": "PASS",
+          "prior_edge_id": "edge:network:0",
+          "after_selection": null,
+          "notice": "edge:network:0 does not participate in impact; selection was cleared explicitly. Filters and viewport were preserved."
+        }
+      },
+      "interactions": {
+        "wheel_zoom": {
+          "verdict": "PASS",
+          "ms": 570,
+          "before": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1
+          },
+          "after": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1.12
+          }
+        },
+        "pan": {
+          "verdict": "REJECT",
+          "ms": 457,
+          "before": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1.12
+          },
+          "after": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1.12
+          }
+        },
+        "node_drag": {
+          "verdict": "PASS",
+          "ms": 177,
+          "pinned_before": [],
+          "pinned_after": [
+            "agent:0"
+          ]
+        }
+      },
+      "memory": {
+        "usedJSHeapSize": 10000000,
+        "totalJSHeapSize": 10000000,
+        "js_heap_mb": 10
+      },
+      "longTasks": [],
+      "evidence_dir": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/prototype-100"
+    },
+    {
+      "tier": 500,
+      "kind": "prototype",
+      "url": "http://127.0.0.1:56668/index.html?scale=500",
+      "tti_ms": 72,
+      "quiet_render": {
+        "p50_ms": 23.100000381469727,
+        "p95_ms": 25.399999618530273,
+        "samples": [
+          14.599999904632568,
+          16.5,
+          16.5,
+          16.800000190734863,
+          18.199999809265137,
+          18.40000009536743,
+          23.100000381469727,
+          23.399999618530273,
+          24.700000286102295,
+          25,
+          25.300000190734863,
+          25.399999618530273
+        ]
+      },
+      "strict": {
+        "project_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:0",
+            "edge:network:100",
+            "edge:network:101",
+            "edge:network:104",
+            "edge:network:106",
+            "edge:network:107",
+            "edge:network:109",
+            "edge:network:11",
+            "edge:network:110",
+            "edge:network:116",
+            "edge:network:118",
+            "edge:network:119",
+            "edge:network:120",
+            "edge:network:121",
+            "edge:network:122",
+            "edge:network:123",
+            "edge:network:130",
+            "edge:network:138",
+            "edge:network:140",
+            "edge:network:142",
+            "edge:network:146",
+            "edge:network:148",
+            "edge:network:151",
+            "edge:network:152",
+            "edge:network:153",
+            "edge:network:159",
+            "edge:network:167",
+            "edge:network:170",
+            "edge:network:171",
+            "edge:network:175",
+            "edge:network:177",
+            "edge:network:179",
+            "edge:network:18",
+            "edge:network:186",
+            "edge:network:187",
+            "edge:network:188",
+            "edge:network:196",
+            "edge:network:20",
+            "edge:network:202",
+            "edge:network:208",
+            "edge:network:217",
+            "edge:network:222",
+            "edge:network:230",
+            "edge:network:237",
+            "edge:network:243",
+            "edge:network:248",
+            "edge:network:25",
+            "edge:network:256",
+            "edge:network:260",
+            "edge:network:261"
+          ],
+          "count": 156
+        },
+        "agent_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:0",
+            "edge:network:101",
+            "edge:network:104",
+            "edge:network:116",
+            "edge:network:120",
+            "edge:network:142",
+            "edge:network:153",
+            "edge:network:167",
+            "edge:network:170",
+            "edge:network:171",
+            "edge:network:177",
+            "edge:network:179",
+            "edge:network:186",
+            "edge:network:188",
+            "edge:network:196",
+            "edge:network:222",
+            "edge:network:230",
+            "edge:network:261",
+            "edge:network:271",
+            "edge:network:292",
+            "edge:network:306",
+            "edge:network:323",
+            "edge:network:335",
+            "edge:network:342",
+            "edge:network:347",
+            "edge:network:355",
+            "edge:network:358",
+            "edge:network:363",
+            "edge:network:38",
+            "edge:network:384",
+            "edge:network:394",
+            "edge:network:397",
+            "edge:network:410",
+            "edge:network:412",
+            "edge:network:437",
+            "edge:network:445",
+            "edge:network:449",
+            "edge:network:45",
+            "edge:network:465",
+            "edge:network:476",
+            "edge:network:487",
+            "edge:network:50",
+            "edge:network:502",
+            "edge:network:508",
+            "edge:network:51",
+            "edge:network:535",
+            "edge:network:550",
+            "edge:network:566",
+            "edge:network:571",
+            "edge:network:58"
+          ],
+          "count": 53
+        },
+        "window_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:0",
+            "edge:network:101",
+            "edge:network:104",
+            "edge:network:116",
+            "edge:network:120",
+            "edge:network:142",
+            "edge:network:153",
+            "edge:network:167",
+            "edge:network:170",
+            "edge:network:171",
+            "edge:network:177",
+            "edge:network:179",
+            "edge:network:186",
+            "edge:network:188",
+            "edge:network:196",
+            "edge:network:222",
+            "edge:network:230",
+            "edge:network:261",
+            "edge:network:271",
+            "edge:network:292",
+            "edge:network:306",
+            "edge:network:323",
+            "edge:network:335",
+            "edge:network:342",
+            "edge:network:347",
+            "edge:network:355",
+            "edge:network:358",
+            "edge:network:363",
+            "edge:network:38",
+            "edge:network:384",
+            "edge:network:394",
+            "edge:network:397",
+            "edge:network:410",
+            "edge:network:412",
+            "edge:network:437",
+            "edge:network:445",
+            "edge:network:449",
+            "edge:network:45",
+            "edge:network:465",
+            "edge:network:476",
+            "edge:network:487",
+            "edge:network:50",
+            "edge:network:502",
+            "edge:network:508",
+            "edge:network:51",
+            "edge:network:535",
+            "edge:network:550",
+            "edge:network:566",
+            "edge:network:571",
+            "edge:network:58"
+          ],
+          "count": 53,
+          "changed_from_prior_filter": false
+        },
+        "neighborhood_expand": {
+          "verdict": "PASS",
+          "selected_id": "agent:0",
+          "one_hop_nodes": [
+            "agent:0",
+            "agent:204"
+          ],
+          "two_hop_added_nodes": [
+            "agent:383"
+          ],
+          "one_count": 2,
+          "two_count": 3
+        },
+        "selected_context": {
+          "verdict": "PASS",
+          "selected_id": "edge:network:0",
+          "filter_values": {
+            "window": "24h",
+            "project": "Alpha",
+            "agent": "agent:atlas"
+          },
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1
+          }
+        },
+        "view_switch_context": {
+          "verdict": "PASS",
+          "prior_edge_id": "edge:network:0",
+          "after_selection": null,
+          "notice": "edge:network:0 does not participate in impact; selection was cleared explicitly. Filters and viewport were preserved."
+        }
+      },
+      "interactions": {
+        "wheel_zoom": {
+          "verdict": "PASS",
+          "ms": 605,
+          "before": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1
+          },
+          "after": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1.12
+          }
+        },
+        "pan": {
+          "verdict": "REJECT",
+          "ms": 491,
+          "before": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1.12
+          },
+          "after": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1.12
+          }
+        },
+        "node_drag": {
+          "verdict": "PASS",
+          "ms": 219,
+          "pinned_before": [],
+          "pinned_after": [
+            "agent:12"
+          ]
+        }
+      },
+      "memory": {
+        "usedJSHeapSize": 10000000,
+        "totalJSHeapSize": 10000000,
+        "js_heap_mb": 10
+      },
+      "longTasks": [],
+      "evidence_dir": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/prototype-500"
+    },
+    {
+      "tier": 2200,
+      "kind": "prototype",
+      "url": "http://127.0.0.1:56668/index.html?scale=2200",
+      "tti_ms": 125,
+      "quiet_render": {
+        "p50_ms": 25,
+        "p95_ms": 33.5,
+        "samples": [
+          8.899999618530273,
+          16.90000009536743,
+          24.5,
+          24.699999809265137,
+          24.90000009536743,
+          24.90000009536743,
+          25,
+          25.09999990463257,
+          25.100000381469727,
+          26,
+          33,
+          33.5
+        ]
+      },
+      "strict": {
+        "project_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:10",
+            "edge:network:1000",
+            "edge:network:1001",
+            "edge:network:1009",
+            "edge:network:1011",
+            "edge:network:1012",
+            "edge:network:1018",
+            "edge:network:1019",
+            "edge:network:102",
+            "edge:network:1020",
+            "edge:network:1021",
+            "edge:network:1036",
+            "edge:network:1037",
+            "edge:network:1041",
+            "edge:network:1048",
+            "edge:network:106",
+            "edge:network:1063",
+            "edge:network:1066",
+            "edge:network:1067",
+            "edge:network:1072",
+            "edge:network:1073",
+            "edge:network:108",
+            "edge:network:1094",
+            "edge:network:1095",
+            "edge:network:1110",
+            "edge:network:112",
+            "edge:network:1123",
+            "edge:network:1125",
+            "edge:network:1138",
+            "edge:network:1142",
+            "edge:network:1144",
+            "edge:network:1148",
+            "edge:network:1150",
+            "edge:network:1156",
+            "edge:network:1159",
+            "edge:network:1163",
+            "edge:network:1169",
+            "edge:network:117",
+            "edge:network:1172",
+            "edge:network:1177",
+            "edge:network:1187",
+            "edge:network:1197",
+            "edge:network:1213",
+            "edge:network:1226",
+            "edge:network:1232",
+            "edge:network:1233",
+            "edge:network:1240",
+            "edge:network:1248",
+            "edge:network:125",
+            "edge:network:1250"
+          ],
+          "count": 525
+        },
+        "agent_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:1001",
+            "edge:network:1008",
+            "edge:network:1009",
+            "edge:network:1011",
+            "edge:network:1012",
+            "edge:network:102",
+            "edge:network:1036",
+            "edge:network:1048",
+            "edge:network:1063",
+            "edge:network:1067",
+            "edge:network:1072",
+            "edge:network:109",
+            "edge:network:1094",
+            "edge:network:1095",
+            "edge:network:1106",
+            "edge:network:1125",
+            "edge:network:1144",
+            "edge:network:1156",
+            "edge:network:1167",
+            "edge:network:1177",
+            "edge:network:1196",
+            "edge:network:1213",
+            "edge:network:1232",
+            "edge:network:1235",
+            "edge:network:125",
+            "edge:network:1250",
+            "edge:network:126",
+            "edge:network:1264",
+            "edge:network:1269",
+            "edge:network:1279",
+            "edge:network:1286",
+            "edge:network:1287",
+            "edge:network:129",
+            "edge:network:1292",
+            "edge:network:1303",
+            "edge:network:1308",
+            "edge:network:1313",
+            "edge:network:1322",
+            "edge:network:1340",
+            "edge:network:1344",
+            "edge:network:1365",
+            "edge:network:1392",
+            "edge:network:1409",
+            "edge:network:1419",
+            "edge:network:1458",
+            "edge:network:1469",
+            "edge:network:1478",
+            "edge:network:1479",
+            "edge:network:149",
+            "edge:network:1498"
+          ],
+          "count": 241
+        },
+        "window_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:1001",
+            "edge:network:1008",
+            "edge:network:1009",
+            "edge:network:1011",
+            "edge:network:1012",
+            "edge:network:102",
+            "edge:network:1036",
+            "edge:network:1048",
+            "edge:network:1063",
+            "edge:network:1067",
+            "edge:network:1072",
+            "edge:network:109",
+            "edge:network:1094",
+            "edge:network:1095",
+            "edge:network:1106",
+            "edge:network:1125",
+            "edge:network:1144",
+            "edge:network:1156",
+            "edge:network:1167",
+            "edge:network:1177",
+            "edge:network:1196",
+            "edge:network:1213",
+            "edge:network:1232",
+            "edge:network:1235",
+            "edge:network:125",
+            "edge:network:1250",
+            "edge:network:126",
+            "edge:network:1264",
+            "edge:network:1269",
+            "edge:network:1279",
+            "edge:network:1286",
+            "edge:network:1287",
+            "edge:network:129",
+            "edge:network:1292",
+            "edge:network:1303",
+            "edge:network:1308",
+            "edge:network:1313",
+            "edge:network:1322",
+            "edge:network:1340",
+            "edge:network:1344",
+            "edge:network:1365",
+            "edge:network:1392",
+            "edge:network:1409",
+            "edge:network:1419",
+            "edge:network:1458",
+            "edge:network:1469",
+            "edge:network:1478",
+            "edge:network:1479",
+            "edge:network:149",
+            "edge:network:1498"
+          ],
+          "count": 241,
+          "changed_from_prior_filter": false
+        },
+        "neighborhood_expand": {
+          "verdict": "PASS",
+          "selected_id": "agent:12",
+          "one_hop_nodes": [
+            "agent:12",
+            "agent:1608",
+            "agent:1635",
+            "agent:433",
+            "agent:828"
+          ],
+          "two_hop_added_nodes": [
+            "agent:399"
+          ],
+          "one_count": 5,
+          "two_count": 6
+        },
+        "selected_context": {
+          "verdict": "PASS",
+          "selected_id": "edge:network:6",
+          "filter_values": {
+            "window": "24h",
+            "project": "Alpha",
+            "agent": "agent:atlas"
+          },
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1
+          }
+        },
+        "view_switch_context": {
+          "verdict": "PASS",
+          "prior_edge_id": "edge:network:6",
+          "after_selection": null,
+          "notice": "edge:network:6 does not participate in impact; selection was cleared explicitly. Filters and viewport were preserved."
+        }
+      },
+      "interactions": {
+        "wheel_zoom": {
+          "verdict": "PASS",
+          "ms": 769,
+          "before": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1
+          },
+          "after": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1.12
+          }
+        },
+        "pan": {
+          "verdict": "REJECT",
+          "ms": 624,
+          "before": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1.12
+          },
+          "after": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1.12
+          }
+        },
+        "node_drag": {
+          "verdict": "PASS",
+          "ms": 302,
+          "pinned_before": [],
+          "pinned_after": [
+            "agent:0"
+          ]
+        }
+      },
+      "memory": {
+        "usedJSHeapSize": 10000000,
+        "totalJSHeapSize": 10600000,
+        "js_heap_mb": 10
+      },
+      "longTasks": [
+        {
+          "name": "self",
+          "startTime": 22.59999990463257,
+          "duration": 79
+        }
+      ],
+      "evidence_dir": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/prototype-2200"
+    }
+  ],
+  "audit": [
+    {
+      "gate": "scale-100-real-page",
+      "verdict": "PASS",
+      "evidence": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-100/result.json",
+      "detail": {
+        "requested_scale": 100,
+        "visible_full": {
+          "status": 200,
+          "nodes": 109,
+          "edges": 214,
+          "effects": 13,
+          "lod": "full",
+          "graph_truncated": false,
+          "response_truncated": false,
+          "next_cursor": ""
+        },
+        "product_default": {
+          "status": 200,
+          "nodes": 109,
+          "edges": 214,
+          "effects": 13,
+          "lod": "full",
+          "graph_truncated": false,
+          "response_truncated": false,
+          "next_cursor": ""
+        },
+        "clustered_90": {
+          "status": 200,
+          "nodes": 90,
+          "edges": 214,
+          "effects": 13,
+          "lod": "cluster",
+          "graph_truncated": true,
+          "response_truncated": true,
+          "next_cursor": ""
+        },
+        "next_cursor": "",
+        "truncated": false
+      }
+    },
+    {
+      "gate": "scale-100-prototype",
+      "verdict": "PASS",
+      "evidence": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/prototype-100/result.json",
+      "detail": {
+        "project_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:0",
+            "edge:network:10",
+            "edge:network:102",
+            "edge:network:106",
+            "edge:network:110",
+            "edge:network:113",
+            "edge:network:116",
+            "edge:network:117",
+            "edge:network:13",
+            "edge:network:18",
+            "edge:network:2",
+            "edge:network:24",
+            "edge:network:25",
+            "edge:network:27",
+            "edge:network:28",
+            "edge:network:31",
+            "edge:network:33",
+            "edge:network:35",
+            "edge:network:41",
+            "edge:network:45",
+            "edge:network:46",
+            "edge:network:50",
+            "edge:network:51",
+            "edge:network:7",
+            "edge:network:77",
+            "edge:network:78",
+            "edge:network:83",
+            "edge:network:87",
+            "edge:network:92",
+            "edge:network:93",
+            "edge:network:96",
+            "edge:network:97"
+          ],
+          "count": 32
+        },
+        "agent_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:0",
+            "edge:network:10",
+            "edge:network:110",
+            "edge:network:116",
+            "edge:network:117",
+            "edge:network:13",
+            "edge:network:24",
+            "edge:network:27",
+            "edge:network:45",
+            "edge:network:51",
+            "edge:network:93",
+            "edge:network:96"
+          ],
+          "count": 12
+        },
+        "window_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:0",
+            "edge:network:10",
+            "edge:network:110",
+            "edge:network:116",
+            "edge:network:117",
+            "edge:network:13",
+            "edge:network:24",
+            "edge:network:27",
+            "edge:network:45",
+            "edge:network:51",
+            "edge:network:93",
+            "edge:network:96"
+          ],
+          "count": 12,
+          "changed_from_prior_filter": false
+        },
+        "neighborhood_expand": {
+          "verdict": "PASS",
+          "selected_id": "agent:36",
+          "one_hop_nodes": [
+            "agent:36",
+            "agent:63",
+            "agent:65",
+            "agent:94"
+          ],
+          "two_hop_added_nodes": [
+            "agent:48",
+            "agent:88"
+          ],
+          "one_count": 4,
+          "two_count": 6
+        },
+        "selected_context": {
+          "verdict": "PASS",
+          "selected_id": "edge:network:0",
+          "filter_values": {
+            "window": "24h",
+            "project": "Alpha",
+            "agent": "agent:atlas"
+          },
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1
+          }
+        },
+        "view_switch_context": {
+          "verdict": "PASS",
+          "prior_edge_id": "edge:network:0",
+          "after_selection": null,
+          "notice": "edge:network:0 does not participate in impact; selection was cleared explicitly. Filters and viewport were preserved."
+        }
+      }
+    },
+    {
+      "gate": "scale-500-real-page",
+      "verdict": "PASS",
+      "evidence": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-500/result.json",
+      "detail": {
+        "requested_scale": 500,
+        "visible_full": {
+          "status": 200,
+          "nodes": 509,
+          "edges": 1014,
+          "effects": 13,
+          "lod": "full",
+          "graph_truncated": false,
+          "response_truncated": false,
+          "next_cursor": ""
+        },
+        "product_default": {
+          "status": 200,
+          "nodes": 509,
+          "edges": 1014,
+          "effects": 13,
+          "lod": "full",
+          "graph_truncated": false,
+          "response_truncated": false,
+          "next_cursor": ""
+        },
+        "clustered_90": {
+          "status": 200,
+          "nodes": 90,
+          "edges": 1014,
+          "effects": 13,
+          "lod": "cluster",
+          "graph_truncated": true,
+          "response_truncated": true,
+          "next_cursor": ""
+        },
+        "next_cursor": "",
+        "truncated": false
+      }
+    },
+    {
+      "gate": "scale-500-prototype",
+      "verdict": "PASS",
+      "evidence": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/prototype-500/result.json",
+      "detail": {
+        "project_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:0",
+            "edge:network:100",
+            "edge:network:101",
+            "edge:network:104",
+            "edge:network:106",
+            "edge:network:107",
+            "edge:network:109",
+            "edge:network:11",
+            "edge:network:110",
+            "edge:network:116",
+            "edge:network:118",
+            "edge:network:119",
+            "edge:network:120",
+            "edge:network:121",
+            "edge:network:122",
+            "edge:network:123",
+            "edge:network:130",
+            "edge:network:138",
+            "edge:network:140",
+            "edge:network:142",
+            "edge:network:146",
+            "edge:network:148",
+            "edge:network:151",
+            "edge:network:152",
+            "edge:network:153",
+            "edge:network:159",
+            "edge:network:167",
+            "edge:network:170",
+            "edge:network:171",
+            "edge:network:175",
+            "edge:network:177",
+            "edge:network:179",
+            "edge:network:18",
+            "edge:network:186",
+            "edge:network:187",
+            "edge:network:188",
+            "edge:network:196",
+            "edge:network:20",
+            "edge:network:202",
+            "edge:network:208",
+            "edge:network:217",
+            "edge:network:222",
+            "edge:network:230",
+            "edge:network:237",
+            "edge:network:243",
+            "edge:network:248",
+            "edge:network:25",
+            "edge:network:256",
+            "edge:network:260",
+            "edge:network:261"
+          ],
+          "count": 156
+        },
+        "agent_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:0",
+            "edge:network:101",
+            "edge:network:104",
+            "edge:network:116",
+            "edge:network:120",
+            "edge:network:142",
+            "edge:network:153",
+            "edge:network:167",
+            "edge:network:170",
+            "edge:network:171",
+            "edge:network:177",
+            "edge:network:179",
+            "edge:network:186",
+            "edge:network:188",
+            "edge:network:196",
+            "edge:network:222",
+            "edge:network:230",
+            "edge:network:261",
+            "edge:network:271",
+            "edge:network:292",
+            "edge:network:306",
+            "edge:network:323",
+            "edge:network:335",
+            "edge:network:342",
+            "edge:network:347",
+            "edge:network:355",
+            "edge:network:358",
+            "edge:network:363",
+            "edge:network:38",
+            "edge:network:384",
+            "edge:network:394",
+            "edge:network:397",
+            "edge:network:410",
+            "edge:network:412",
+            "edge:network:437",
+            "edge:network:445",
+            "edge:network:449",
+            "edge:network:45",
+            "edge:network:465",
+            "edge:network:476",
+            "edge:network:487",
+            "edge:network:50",
+            "edge:network:502",
+            "edge:network:508",
+            "edge:network:51",
+            "edge:network:535",
+            "edge:network:550",
+            "edge:network:566",
+            "edge:network:571",
+            "edge:network:58"
+          ],
+          "count": 53
+        },
+        "window_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:0",
+            "edge:network:101",
+            "edge:network:104",
+            "edge:network:116",
+            "edge:network:120",
+            "edge:network:142",
+            "edge:network:153",
+            "edge:network:167",
+            "edge:network:170",
+            "edge:network:171",
+            "edge:network:177",
+            "edge:network:179",
+            "edge:network:186",
+            "edge:network:188",
+            "edge:network:196",
+            "edge:network:222",
+            "edge:network:230",
+            "edge:network:261",
+            "edge:network:271",
+            "edge:network:292",
+            "edge:network:306",
+            "edge:network:323",
+            "edge:network:335",
+            "edge:network:342",
+            "edge:network:347",
+            "edge:network:355",
+            "edge:network:358",
+            "edge:network:363",
+            "edge:network:38",
+            "edge:network:384",
+            "edge:network:394",
+            "edge:network:397",
+            "edge:network:410",
+            "edge:network:412",
+            "edge:network:437",
+            "edge:network:445",
+            "edge:network:449",
+            "edge:network:45",
+            "edge:network:465",
+            "edge:network:476",
+            "edge:network:487",
+            "edge:network:50",
+            "edge:network:502",
+            "edge:network:508",
+            "edge:network:51",
+            "edge:network:535",
+            "edge:network:550",
+            "edge:network:566",
+            "edge:network:571",
+            "edge:network:58"
+          ],
+          "count": 53,
+          "changed_from_prior_filter": false
+        },
+        "neighborhood_expand": {
+          "verdict": "PASS",
+          "selected_id": "agent:0",
+          "one_hop_nodes": [
+            "agent:0",
+            "agent:204"
+          ],
+          "two_hop_added_nodes": [
+            "agent:383"
+          ],
+          "one_count": 2,
+          "two_count": 3
+        },
+        "selected_context": {
+          "verdict": "PASS",
+          "selected_id": "edge:network:0",
+          "filter_values": {
+            "window": "24h",
+            "project": "Alpha",
+            "agent": "agent:atlas"
+          },
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1
+          }
+        },
+        "view_switch_context": {
+          "verdict": "PASS",
+          "prior_edge_id": "edge:network:0",
+          "after_selection": null,
+          "notice": "edge:network:0 does not participate in impact; selection was cleared explicitly. Filters and viewport were preserved."
+        }
+      }
+    },
+    {
+      "gate": "scale-2200-real-page",
+      "verdict": "PASS",
+      "evidence": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-2200/result.json",
+      "detail": {
+        "requested_scale": 2200,
+        "visible_full": {
+          "status": 200,
+          "nodes": 2208,
+          "edges": 4413,
+          "effects": 12,
+          "lod": "full",
+          "graph_truncated": false,
+          "response_truncated": false,
+          "next_cursor": ""
+        },
+        "product_default": {
+          "status": 200,
+          "nodes": 2208,
+          "edges": 4413,
+          "effects": 12,
+          "lod": "full",
+          "graph_truncated": false,
+          "response_truncated": false,
+          "next_cursor": ""
+        },
+        "clustered_90": {
+          "status": 200,
+          "nodes": 90,
+          "edges": 4413,
+          "effects": 12,
+          "lod": "cluster",
+          "graph_truncated": true,
+          "response_truncated": true,
+          "next_cursor": ""
+        },
+        "next_cursor": "",
+        "truncated": false
+      }
+    },
+    {
+      "gate": "scale-2200-prototype",
+      "verdict": "PASS",
+      "evidence": "docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/prototype-2200/result.json",
+      "detail": {
+        "project_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:10",
+            "edge:network:1000",
+            "edge:network:1001",
+            "edge:network:1009",
+            "edge:network:1011",
+            "edge:network:1012",
+            "edge:network:1018",
+            "edge:network:1019",
+            "edge:network:102",
+            "edge:network:1020",
+            "edge:network:1021",
+            "edge:network:1036",
+            "edge:network:1037",
+            "edge:network:1041",
+            "edge:network:1048",
+            "edge:network:106",
+            "edge:network:1063",
+            "edge:network:1066",
+            "edge:network:1067",
+            "edge:network:1072",
+            "edge:network:1073",
+            "edge:network:108",
+            "edge:network:1094",
+            "edge:network:1095",
+            "edge:network:1110",
+            "edge:network:112",
+            "edge:network:1123",
+            "edge:network:1125",
+            "edge:network:1138",
+            "edge:network:1142",
+            "edge:network:1144",
+            "edge:network:1148",
+            "edge:network:1150",
+            "edge:network:1156",
+            "edge:network:1159",
+            "edge:network:1163",
+            "edge:network:1169",
+            "edge:network:117",
+            "edge:network:1172",
+            "edge:network:1177",
+            "edge:network:1187",
+            "edge:network:1197",
+            "edge:network:1213",
+            "edge:network:1226",
+            "edge:network:1232",
+            "edge:network:1233",
+            "edge:network:1240",
+            "edge:network:1248",
+            "edge:network:125",
+            "edge:network:1250"
+          ],
+          "count": 525
+        },
+        "agent_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:1001",
+            "edge:network:1008",
+            "edge:network:1009",
+            "edge:network:1011",
+            "edge:network:1012",
+            "edge:network:102",
+            "edge:network:1036",
+            "edge:network:1048",
+            "edge:network:1063",
+            "edge:network:1067",
+            "edge:network:1072",
+            "edge:network:109",
+            "edge:network:1094",
+            "edge:network:1095",
+            "edge:network:1106",
+            "edge:network:1125",
+            "edge:network:1144",
+            "edge:network:1156",
+            "edge:network:1167",
+            "edge:network:1177",
+            "edge:network:1196",
+            "edge:network:1213",
+            "edge:network:1232",
+            "edge:network:1235",
+            "edge:network:125",
+            "edge:network:1250",
+            "edge:network:126",
+            "edge:network:1264",
+            "edge:network:1269",
+            "edge:network:1279",
+            "edge:network:1286",
+            "edge:network:1287",
+            "edge:network:129",
+            "edge:network:1292",
+            "edge:network:1303",
+            "edge:network:1308",
+            "edge:network:1313",
+            "edge:network:1322",
+            "edge:network:1340",
+            "edge:network:1344",
+            "edge:network:1365",
+            "edge:network:1392",
+            "edge:network:1409",
+            "edge:network:1419",
+            "edge:network:1458",
+            "edge:network:1469",
+            "edge:network:1478",
+            "edge:network:1479",
+            "edge:network:149",
+            "edge:network:1498"
+          ],
+          "count": 241
+        },
+        "window_filter": {
+          "verdict": "PASS",
+          "expected_edge_ids": [
+            "edge:network:1001",
+            "edge:network:1008",
+            "edge:network:1009",
+            "edge:network:1011",
+            "edge:network:1012",
+            "edge:network:102",
+            "edge:network:1036",
+            "edge:network:1048",
+            "edge:network:1063",
+            "edge:network:1067",
+            "edge:network:1072",
+            "edge:network:109",
+            "edge:network:1094",
+            "edge:network:1095",
+            "edge:network:1106",
+            "edge:network:1125",
+            "edge:network:1144",
+            "edge:network:1156",
+            "edge:network:1167",
+            "edge:network:1177",
+            "edge:network:1196",
+            "edge:network:1213",
+            "edge:network:1232",
+            "edge:network:1235",
+            "edge:network:125",
+            "edge:network:1250",
+            "edge:network:126",
+            "edge:network:1264",
+            "edge:network:1269",
+            "edge:network:1279",
+            "edge:network:1286",
+            "edge:network:1287",
+            "edge:network:129",
+            "edge:network:1292",
+            "edge:network:1303",
+            "edge:network:1308",
+            "edge:network:1313",
+            "edge:network:1322",
+            "edge:network:1340",
+            "edge:network:1344",
+            "edge:network:1365",
+            "edge:network:1392",
+            "edge:network:1409",
+            "edge:network:1419",
+            "edge:network:1458",
+            "edge:network:1469",
+            "edge:network:1478",
+            "edge:network:1479",
+            "edge:network:149",
+            "edge:network:1498"
+          ],
+          "count": 241,
+          "changed_from_prior_filter": false
+        },
+        "neighborhood_expand": {
+          "verdict": "PASS",
+          "selected_id": "agent:12",
+          "one_hop_nodes": [
+            "agent:12",
+            "agent:1608",
+            "agent:1635",
+            "agent:433",
+            "agent:828"
+          ],
+          "two_hop_added_nodes": [
+            "agent:399"
+          ],
+          "one_count": 5,
+          "two_count": 6
+        },
+        "selected_context": {
+          "verdict": "PASS",
+          "selected_id": "edge:network:6",
+          "filter_values": {
+            "window": "24h",
+            "project": "Alpha",
+            "agent": "agent:atlas"
+          },
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1
+          }
+        },
+        "view_switch_context": {
+          "verdict": "PASS",
+          "prior_edge_id": "edge:network:6",
+          "after_selection": null,
+          "notice": "edge:network:6 does not participate in impact; selection was cleared explicitly. Filters and viewport were preserved."
+        }
+      }
+    },
+    {
+      "gate": "T2208-neighborhood-expand",
+      "verdict": "PASS",
+      "evidence": "prototype-*/result.json",
+      "detail": "Strict audit requires two-hop target set to add IDs and grow; equality is REJECT."
+    },
+    {
+      "gate": "T2208-window-project-agent-filters",
+      "verdict": "PASS",
+      "evidence": "real-*/result.json and prototype-*/result.json",
+      "detail": "Prototype validates expected edge ID sets; real page validates filtered API ID/edge set for agent_ref plus project_id."
+    },
+    {
+      "gate": "T2208-selected-context",
+      "verdict": "PASS",
+      "evidence": "real-*/result.json and prototype-*/result.json",
+      "detail": "Selected IDs, filter values, viewport/camera, and drawer state captured."
+    },
+    {
+      "gate": "T2208-view-switch",
+      "verdict": "PASS",
+      "evidence": "prototype-*/result.json",
+      "detail": "Real page has no dimensional view switch control, so product verdict is N/A and not counted as failure."
+    },
+    {
+      "gate": "T2208-real-view-switch",
+      "verdict": "N/A",
+      "evidence": "web/src/pages/InsightCollaboration.tsx real DOM captures",
+      "detail": "Current production page exposes one Collaboration graph view plus filters; no Network/Impact/Lineage switch exists."
+    },
+    {
+      "gate": "performance-evidence-complete",
+      "verdict": "PASS",
+      "evidence": "raw/*/{trace.zip,network.har,page.webm,console.json,result.json}",
+      "detail": "TTI, quiet render, pan, wheel zoom, drag, filter response, memory, long tasks captured per tier."
+    }
+  ]
+}

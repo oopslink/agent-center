@@ -1,0 +1,5618 @@
+[
+  {
+    "at": "2026-09-09T09:55:07.822Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 8,
+    "total": 100,
+    "elapsed_ms": 31
+  },
+  {
+    "at": "2026-09-09T09:55:07.854Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 16,
+    "total": 100,
+    "elapsed_ms": 63
+  },
+  {
+    "at": "2026-09-09T09:55:07.889Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 24,
+    "total": 100,
+    "elapsed_ms": 98
+  },
+  {
+    "at": "2026-09-09T09:55:07.926Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 32,
+    "total": 100,
+    "elapsed_ms": 135
+  },
+  {
+    "at": "2026-09-09T09:55:07.958Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 40,
+    "total": 100,
+    "elapsed_ms": 167
+  },
+  {
+    "at": "2026-09-09T09:55:07.989Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 48,
+    "total": 100,
+    "elapsed_ms": 198
+  },
+  {
+    "at": "2026-09-09T09:55:08.030Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 56,
+    "total": 100,
+    "elapsed_ms": 239
+  },
+  {
+    "at": "2026-09-09T09:55:08.067Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 64,
+    "total": 100,
+    "elapsed_ms": 276
+  },
+  {
+    "at": "2026-09-09T09:55:08.107Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 72,
+    "total": 100,
+    "elapsed_ms": 316
+  },
+  {
+    "at": "2026-09-09T09:55:08.161Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 80,
+    "total": 100,
+    "elapsed_ms": 370
+  },
+  {
+    "at": "2026-09-09T09:55:08.207Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 88,
+    "total": 100,
+    "elapsed_ms": 416
+  },
+  {
+    "at": "2026-09-09T09:55:08.252Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 96,
+    "total": 100,
+    "elapsed_ms": 461
+  },
+  {
+    "at": "2026-09-09T09:55:08.263Z",
+    "tier": 100,
+    "phase": "tasks",
+    "completed": 100,
+    "total": 100,
+    "elapsed_ms": 472
+  },
+  {
+    "at": "2026-09-09T09:55:08.291Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 8,
+    "total": 100,
+    "elapsed_ms": 500
+  },
+  {
+    "at": "2026-09-09T09:55:08.337Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 16,
+    "total": 100,
+    "elapsed_ms": 546
+  },
+  {
+    "at": "2026-09-09T09:55:08.389Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 24,
+    "total": 100,
+    "elapsed_ms": 598
+  },
+  {
+    "at": "2026-09-09T09:55:08.448Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 32,
+    "total": 100,
+    "elapsed_ms": 657
+  },
+  {
+    "at": "2026-09-09T09:55:08.508Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 40,
+    "total": 100,
+    "elapsed_ms": 717
+  },
+  {
+    "at": "2026-09-09T09:55:08.553Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 48,
+    "total": 100,
+    "elapsed_ms": 762
+  },
+  {
+    "at": "2026-09-09T09:55:08.600Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 56,
+    "total": 100,
+    "elapsed_ms": 809
+  },
+  {
+    "at": "2026-09-09T09:55:08.663Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 64,
+    "total": 100,
+    "elapsed_ms": 872
+  },
+  {
+    "at": "2026-09-09T09:55:08.732Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 72,
+    "total": 100,
+    "elapsed_ms": 941
+  },
+  {
+    "at": "2026-09-09T09:55:08.816Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 80,
+    "total": 100,
+    "elapsed_ms": 1025
+  },
+  {
+    "at": "2026-09-09T09:55:08.882Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 88,
+    "total": 100,
+    "elapsed_ms": 1091
+  },
+  {
+    "at": "2026-09-09T09:55:08.967Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 96,
+    "total": 100,
+    "elapsed_ms": 1176
+  },
+  {
+    "at": "2026-09-09T09:55:09.010Z",
+    "tier": 100,
+    "phase": "plan-membership",
+    "completed": 100,
+    "total": 100,
+    "elapsed_ms": 1219
+  },
+  {
+    "at": "2026-09-09T09:55:09.356Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 8,
+    "total": 500,
+    "elapsed_ms": 79
+  },
+  {
+    "at": "2026-09-09T09:55:09.404Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 16,
+    "total": 500,
+    "elapsed_ms": 127
+  },
+  {
+    "at": "2026-09-09T09:55:09.478Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 24,
+    "total": 500,
+    "elapsed_ms": 201
+  },
+  {
+    "at": "2026-09-09T09:55:09.561Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 32,
+    "total": 500,
+    "elapsed_ms": 284
+  },
+  {
+    "at": "2026-09-09T09:55:09.620Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 40,
+    "total": 500,
+    "elapsed_ms": 343
+  },
+  {
+    "at": "2026-09-09T09:55:09.680Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 48,
+    "total": 500,
+    "elapsed_ms": 403
+  },
+  {
+    "at": "2026-09-09T09:55:09.728Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 56,
+    "total": 500,
+    "elapsed_ms": 451
+  },
+  {
+    "at": "2026-09-09T09:55:09.792Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 64,
+    "total": 500,
+    "elapsed_ms": 515
+  },
+  {
+    "at": "2026-09-09T09:55:09.847Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 72,
+    "total": 500,
+    "elapsed_ms": 570
+  },
+  {
+    "at": "2026-09-09T09:55:09.896Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 80,
+    "total": 500,
+    "elapsed_ms": 619
+  },
+  {
+    "at": "2026-09-09T09:55:09.962Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 88,
+    "total": 500,
+    "elapsed_ms": 685
+  },
+  {
+    "at": "2026-09-09T09:55:10.019Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 96,
+    "total": 500,
+    "elapsed_ms": 742
+  },
+  {
+    "at": "2026-09-09T09:55:10.085Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 104,
+    "total": 500,
+    "elapsed_ms": 808
+  },
+  {
+    "at": "2026-09-09T09:55:10.142Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 112,
+    "total": 500,
+    "elapsed_ms": 865
+  },
+  {
+    "at": "2026-09-09T09:55:10.192Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 120,
+    "total": 500,
+    "elapsed_ms": 915
+  },
+  {
+    "at": "2026-09-09T09:55:10.256Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 128,
+    "total": 500,
+    "elapsed_ms": 979
+  },
+  {
+    "at": "2026-09-09T09:55:10.390Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 136,
+    "total": 500,
+    "elapsed_ms": 1113
+  },
+  {
+    "at": "2026-09-09T09:55:10.462Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 144,
+    "total": 500,
+    "elapsed_ms": 1185
+  },
+  {
+    "at": "2026-09-09T09:55:10.572Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 152,
+    "total": 500,
+    "elapsed_ms": 1295
+  },
+  {
+    "at": "2026-09-09T09:55:10.620Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 160,
+    "total": 500,
+    "elapsed_ms": 1343
+  },
+  {
+    "at": "2026-09-09T09:55:10.729Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 168,
+    "total": 500,
+    "elapsed_ms": 1452
+  },
+  {
+    "at": "2026-09-09T09:55:10.796Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 176,
+    "total": 500,
+    "elapsed_ms": 1519
+  },
+  {
+    "at": "2026-09-09T09:55:10.865Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 184,
+    "total": 500,
+    "elapsed_ms": 1588
+  },
+  {
+    "at": "2026-09-09T09:55:10.946Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 192,
+    "total": 500,
+    "elapsed_ms": 1669
+  },
+  {
+    "at": "2026-09-09T09:55:11.043Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 200,
+    "total": 500,
+    "elapsed_ms": 1766
+  },
+  {
+    "at": "2026-09-09T09:55:11.091Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 208,
+    "total": 500,
+    "elapsed_ms": 1814
+  },
+  {
+    "at": "2026-09-09T09:55:11.137Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 216,
+    "total": 500,
+    "elapsed_ms": 1860
+  },
+  {
+    "at": "2026-09-09T09:55:11.184Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 224,
+    "total": 500,
+    "elapsed_ms": 1907
+  },
+  {
+    "at": "2026-09-09T09:55:11.265Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 232,
+    "total": 500,
+    "elapsed_ms": 1988
+  },
+  {
+    "at": "2026-09-09T09:55:11.347Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 240,
+    "total": 500,
+    "elapsed_ms": 2070
+  },
+  {
+    "at": "2026-09-09T09:55:11.434Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 248,
+    "total": 500,
+    "elapsed_ms": 2157
+  },
+  {
+    "at": "2026-09-09T09:55:11.475Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 256,
+    "total": 500,
+    "elapsed_ms": 2198
+  },
+  {
+    "at": "2026-09-09T09:55:11.520Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 264,
+    "total": 500,
+    "elapsed_ms": 2243
+  },
+  {
+    "at": "2026-09-09T09:55:11.563Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 272,
+    "total": 500,
+    "elapsed_ms": 2286
+  },
+  {
+    "at": "2026-09-09T09:55:11.632Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 280,
+    "total": 500,
+    "elapsed_ms": 2355
+  },
+  {
+    "at": "2026-09-09T09:55:11.678Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 288,
+    "total": 500,
+    "elapsed_ms": 2401
+  },
+  {
+    "at": "2026-09-09T09:55:11.737Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 296,
+    "total": 500,
+    "elapsed_ms": 2460
+  },
+  {
+    "at": "2026-09-09T09:55:11.843Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 304,
+    "total": 500,
+    "elapsed_ms": 2566
+  },
+  {
+    "at": "2026-09-09T09:55:11.921Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 312,
+    "total": 500,
+    "elapsed_ms": 2644
+  },
+  {
+    "at": "2026-09-09T09:55:12.002Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 320,
+    "total": 500,
+    "elapsed_ms": 2725
+  },
+  {
+    "at": "2026-09-09T09:55:12.068Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 328,
+    "total": 500,
+    "elapsed_ms": 2791
+  },
+  {
+    "at": "2026-09-09T09:55:12.424Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 336,
+    "total": 500,
+    "elapsed_ms": 3147
+  },
+  {
+    "at": "2026-09-09T09:55:12.489Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 344,
+    "total": 500,
+    "elapsed_ms": 3212
+  },
+  {
+    "at": "2026-09-09T09:55:12.597Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 352,
+    "total": 500,
+    "elapsed_ms": 3320
+  },
+  {
+    "at": "2026-09-09T09:55:12.656Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 360,
+    "total": 500,
+    "elapsed_ms": 3379
+  },
+  {
+    "at": "2026-09-09T09:55:12.784Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 368,
+    "total": 500,
+    "elapsed_ms": 3507
+  },
+  {
+    "at": "2026-09-09T09:55:12.889Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 376,
+    "total": 500,
+    "elapsed_ms": 3612
+  },
+  {
+    "at": "2026-09-09T09:55:12.965Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 384,
+    "total": 500,
+    "elapsed_ms": 3688
+  },
+  {
+    "at": "2026-09-09T09:55:13.097Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 392,
+    "total": 500,
+    "elapsed_ms": 3820
+  },
+  {
+    "at": "2026-09-09T09:55:13.304Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 400,
+    "total": 500,
+    "elapsed_ms": 4027
+  },
+  {
+    "at": "2026-09-09T09:55:13.352Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 408,
+    "total": 500,
+    "elapsed_ms": 4075
+  },
+  {
+    "at": "2026-09-09T09:55:13.396Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 416,
+    "total": 500,
+    "elapsed_ms": 4119
+  },
+  {
+    "at": "2026-09-09T09:55:13.439Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 424,
+    "total": 500,
+    "elapsed_ms": 4162
+  },
+  {
+    "at": "2026-09-09T09:55:13.478Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 432,
+    "total": 500,
+    "elapsed_ms": 4201
+  },
+  {
+    "at": "2026-09-09T09:55:13.525Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 440,
+    "total": 500,
+    "elapsed_ms": 4248
+  },
+  {
+    "at": "2026-09-09T09:55:13.570Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 448,
+    "total": 500,
+    "elapsed_ms": 4293
+  },
+  {
+    "at": "2026-09-09T09:55:13.613Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 456,
+    "total": 500,
+    "elapsed_ms": 4336
+  },
+  {
+    "at": "2026-09-09T09:55:13.657Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 464,
+    "total": 500,
+    "elapsed_ms": 4380
+  },
+  {
+    "at": "2026-09-09T09:55:13.700Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 472,
+    "total": 500,
+    "elapsed_ms": 4423
+  },
+  {
+    "at": "2026-09-09T09:55:13.763Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 480,
+    "total": 500,
+    "elapsed_ms": 4486
+  },
+  {
+    "at": "2026-09-09T09:55:13.823Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 488,
+    "total": 500,
+    "elapsed_ms": 4546
+  },
+  {
+    "at": "2026-09-09T09:55:13.884Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 496,
+    "total": 500,
+    "elapsed_ms": 4607
+  },
+  {
+    "at": "2026-09-09T09:55:13.902Z",
+    "tier": 500,
+    "phase": "tasks",
+    "completed": 500,
+    "total": 500,
+    "elapsed_ms": 4625
+  },
+  {
+    "at": "2026-09-09T09:55:13.958Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 8,
+    "total": 500,
+    "elapsed_ms": 4681
+  },
+  {
+    "at": "2026-09-09T09:55:14.038Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 16,
+    "total": 500,
+    "elapsed_ms": 4761
+  },
+  {
+    "at": "2026-09-09T09:55:14.092Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 24,
+    "total": 500,
+    "elapsed_ms": 4815
+  },
+  {
+    "at": "2026-09-09T09:55:14.158Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 32,
+    "total": 500,
+    "elapsed_ms": 4881
+  },
+  {
+    "at": "2026-09-09T09:55:14.222Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 40,
+    "total": 500,
+    "elapsed_ms": 4945
+  },
+  {
+    "at": "2026-09-09T09:55:14.384Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 48,
+    "total": 500,
+    "elapsed_ms": 5107
+  },
+  {
+    "at": "2026-09-09T09:55:14.471Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 56,
+    "total": 500,
+    "elapsed_ms": 5194
+  },
+  {
+    "at": "2026-09-09T09:55:14.526Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 64,
+    "total": 500,
+    "elapsed_ms": 5249
+  },
+  {
+    "at": "2026-09-09T09:55:14.583Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 72,
+    "total": 500,
+    "elapsed_ms": 5306
+  },
+  {
+    "at": "2026-09-09T09:55:14.642Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 80,
+    "total": 500,
+    "elapsed_ms": 5365
+  },
+  {
+    "at": "2026-09-09T09:55:14.714Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 88,
+    "total": 500,
+    "elapsed_ms": 5437
+  },
+  {
+    "at": "2026-09-09T09:55:14.807Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 96,
+    "total": 500,
+    "elapsed_ms": 5530
+  },
+  {
+    "at": "2026-09-09T09:55:14.920Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 104,
+    "total": 500,
+    "elapsed_ms": 5643
+  },
+  {
+    "at": "2026-09-09T09:55:15.012Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 112,
+    "total": 500,
+    "elapsed_ms": 5735
+  },
+  {
+    "at": "2026-09-09T09:55:15.094Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 120,
+    "total": 500,
+    "elapsed_ms": 5817
+  },
+  {
+    "at": "2026-09-09T09:55:15.177Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 128,
+    "total": 500,
+    "elapsed_ms": 5900
+  },
+  {
+    "at": "2026-09-09T09:55:15.272Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 136,
+    "total": 500,
+    "elapsed_ms": 5995
+  },
+  {
+    "at": "2026-09-09T09:55:15.380Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 144,
+    "total": 500,
+    "elapsed_ms": 6103
+  },
+  {
+    "at": "2026-09-09T09:55:15.489Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 152,
+    "total": 500,
+    "elapsed_ms": 6212
+  },
+  {
+    "at": "2026-09-09T09:55:15.599Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 160,
+    "total": 500,
+    "elapsed_ms": 6322
+  },
+  {
+    "at": "2026-09-09T09:55:15.715Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 168,
+    "total": 500,
+    "elapsed_ms": 6438
+  },
+  {
+    "at": "2026-09-09T09:55:15.864Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 176,
+    "total": 500,
+    "elapsed_ms": 6587
+  },
+  {
+    "at": "2026-09-09T09:55:16.016Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 184,
+    "total": 500,
+    "elapsed_ms": 6739
+  },
+  {
+    "at": "2026-09-09T09:55:16.170Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 192,
+    "total": 500,
+    "elapsed_ms": 6893
+  },
+  {
+    "at": "2026-09-09T09:55:16.340Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 200,
+    "total": 500,
+    "elapsed_ms": 7063
+  },
+  {
+    "at": "2026-09-09T09:55:16.509Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 208,
+    "total": 500,
+    "elapsed_ms": 7232
+  },
+  {
+    "at": "2026-09-09T09:55:16.659Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 216,
+    "total": 500,
+    "elapsed_ms": 7382
+  },
+  {
+    "at": "2026-09-09T09:55:16.834Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 224,
+    "total": 500,
+    "elapsed_ms": 7557
+  },
+  {
+    "at": "2026-09-09T09:55:17.018Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 232,
+    "total": 500,
+    "elapsed_ms": 7741
+  },
+  {
+    "at": "2026-09-09T09:55:17.172Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 240,
+    "total": 500,
+    "elapsed_ms": 7895
+  },
+  {
+    "at": "2026-09-09T09:55:17.372Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 248,
+    "total": 500,
+    "elapsed_ms": 8095
+  },
+  {
+    "at": "2026-09-09T09:55:17.568Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 256,
+    "total": 500,
+    "elapsed_ms": 8291
+  },
+  {
+    "at": "2026-09-09T09:55:17.765Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 264,
+    "total": 500,
+    "elapsed_ms": 8488
+  },
+  {
+    "at": "2026-09-09T09:55:17.993Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 272,
+    "total": 500,
+    "elapsed_ms": 8716
+  },
+  {
+    "at": "2026-09-09T09:55:18.215Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 280,
+    "total": 500,
+    "elapsed_ms": 8938
+  },
+  {
+    "at": "2026-09-09T09:55:18.427Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 288,
+    "total": 500,
+    "elapsed_ms": 9150
+  },
+  {
+    "at": "2026-09-09T09:55:18.649Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 296,
+    "total": 500,
+    "elapsed_ms": 9372
+  },
+  {
+    "at": "2026-09-09T09:55:18.884Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 304,
+    "total": 500,
+    "elapsed_ms": 9607
+  },
+  {
+    "at": "2026-09-09T09:55:19.114Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 312,
+    "total": 500,
+    "elapsed_ms": 9837
+  },
+  {
+    "at": "2026-09-09T09:55:19.348Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 320,
+    "total": 500,
+    "elapsed_ms": 10071
+  },
+  {
+    "at": "2026-09-09T09:55:19.599Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 328,
+    "total": 500,
+    "elapsed_ms": 10322
+  },
+  {
+    "at": "2026-09-09T09:55:19.888Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 336,
+    "total": 500,
+    "elapsed_ms": 10611
+  },
+  {
+    "at": "2026-09-09T09:55:20.170Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 344,
+    "total": 500,
+    "elapsed_ms": 10893
+  },
+  {
+    "at": "2026-09-09T09:55:20.427Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 352,
+    "total": 500,
+    "elapsed_ms": 11150
+  },
+  {
+    "at": "2026-09-09T09:55:20.707Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 360,
+    "total": 500,
+    "elapsed_ms": 11430
+  },
+  {
+    "at": "2026-09-09T09:55:21.011Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 368,
+    "total": 500,
+    "elapsed_ms": 11734
+  },
+  {
+    "at": "2026-09-09T09:55:21.248Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 376,
+    "total": 500,
+    "elapsed_ms": 11971
+  },
+  {
+    "at": "2026-09-09T09:55:21.514Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 384,
+    "total": 500,
+    "elapsed_ms": 12237
+  },
+  {
+    "at": "2026-09-09T09:55:21.808Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 392,
+    "total": 500,
+    "elapsed_ms": 12531
+  },
+  {
+    "at": "2026-09-09T09:55:22.090Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 400,
+    "total": 500,
+    "elapsed_ms": 12813
+  },
+  {
+    "at": "2026-09-09T09:55:22.371Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 408,
+    "total": 500,
+    "elapsed_ms": 13094
+  },
+  {
+    "at": "2026-09-09T09:55:22.689Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 416,
+    "total": 500,
+    "elapsed_ms": 13412
+  },
+  {
+    "at": "2026-09-09T09:55:23.046Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 424,
+    "total": 500,
+    "elapsed_ms": 13769
+  },
+  {
+    "at": "2026-09-09T09:55:23.371Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 432,
+    "total": 500,
+    "elapsed_ms": 14094
+  },
+  {
+    "at": "2026-09-09T09:55:23.676Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 440,
+    "total": 500,
+    "elapsed_ms": 14399
+  },
+  {
+    "at": "2026-09-09T09:55:24.033Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 448,
+    "total": 500,
+    "elapsed_ms": 14756
+  },
+  {
+    "at": "2026-09-09T09:55:24.362Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 456,
+    "total": 500,
+    "elapsed_ms": 15085
+  },
+  {
+    "at": "2026-09-09T09:55:24.731Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 464,
+    "total": 500,
+    "elapsed_ms": 15454
+  },
+  {
+    "at": "2026-09-09T09:55:25.123Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 472,
+    "total": 500,
+    "elapsed_ms": 15846
+  },
+  {
+    "at": "2026-09-09T09:55:25.457Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 480,
+    "total": 500,
+    "elapsed_ms": 16180
+  },
+  {
+    "at": "2026-09-09T09:55:25.815Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 488,
+    "total": 500,
+    "elapsed_ms": 16538
+  },
+  {
+    "at": "2026-09-09T09:55:26.176Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 496,
+    "total": 500,
+    "elapsed_ms": 16899
+  },
+  {
+    "at": "2026-09-09T09:55:26.344Z",
+    "tier": 500,
+    "phase": "plan-membership",
+    "completed": 500,
+    "total": 500,
+    "elapsed_ms": 17067
+  },
+  {
+    "at": "2026-09-09T09:55:29.458Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 8,
+    "total": 2200,
+    "elapsed_ms": 45
+  },
+  {
+    "at": "2026-09-09T09:55:29.518Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 16,
+    "total": 2200,
+    "elapsed_ms": 105
+  },
+  {
+    "at": "2026-09-09T09:55:29.600Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 24,
+    "total": 2200,
+    "elapsed_ms": 187
+  },
+  {
+    "at": "2026-09-09T09:55:29.664Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 32,
+    "total": 2200,
+    "elapsed_ms": 251
+  },
+  {
+    "at": "2026-09-09T09:55:29.724Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 40,
+    "total": 2200,
+    "elapsed_ms": 311
+  },
+  {
+    "at": "2026-09-09T09:55:29.773Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 48,
+    "total": 2200,
+    "elapsed_ms": 360
+  },
+  {
+    "at": "2026-09-09T09:55:29.820Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 56,
+    "total": 2200,
+    "elapsed_ms": 407
+  },
+  {
+    "at": "2026-09-09T09:55:29.867Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 64,
+    "total": 2200,
+    "elapsed_ms": 454
+  },
+  {
+    "at": "2026-09-09T09:55:30.141Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 72,
+    "total": 2200,
+    "elapsed_ms": 728
+  },
+  {
+    "at": "2026-09-09T09:55:30.227Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 80,
+    "total": 2200,
+    "elapsed_ms": 814
+  },
+  {
+    "at": "2026-09-09T09:55:30.293Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 88,
+    "total": 2200,
+    "elapsed_ms": 880
+  },
+  {
+    "at": "2026-09-09T09:55:30.352Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 96,
+    "total": 2200,
+    "elapsed_ms": 939
+  },
+  {
+    "at": "2026-09-09T09:55:30.440Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 104,
+    "total": 2200,
+    "elapsed_ms": 1027
+  },
+  {
+    "at": "2026-09-09T09:55:30.552Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 112,
+    "total": 2200,
+    "elapsed_ms": 1139
+  },
+  {
+    "at": "2026-09-09T09:55:30.664Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 120,
+    "total": 2200,
+    "elapsed_ms": 1251
+  },
+  {
+    "at": "2026-09-09T09:55:30.777Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 128,
+    "total": 2200,
+    "elapsed_ms": 1364
+  },
+  {
+    "at": "2026-09-09T09:55:30.826Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 136,
+    "total": 2200,
+    "elapsed_ms": 1413
+  },
+  {
+    "at": "2026-09-09T09:55:30.874Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 144,
+    "total": 2200,
+    "elapsed_ms": 1461
+  },
+  {
+    "at": "2026-09-09T09:55:30.960Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 152,
+    "total": 2200,
+    "elapsed_ms": 1547
+  },
+  {
+    "at": "2026-09-09T09:55:31.047Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 160,
+    "total": 2200,
+    "elapsed_ms": 1634
+  },
+  {
+    "at": "2026-09-09T09:55:31.130Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 168,
+    "total": 2200,
+    "elapsed_ms": 1717
+  },
+  {
+    "at": "2026-09-09T09:55:31.179Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 176,
+    "total": 2200,
+    "elapsed_ms": 1766
+  },
+  {
+    "at": "2026-09-09T09:55:31.232Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 184,
+    "total": 2200,
+    "elapsed_ms": 1819
+  },
+  {
+    "at": "2026-09-09T09:55:31.289Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 192,
+    "total": 2200,
+    "elapsed_ms": 1876
+  },
+  {
+    "at": "2026-09-09T09:55:31.354Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 200,
+    "total": 2200,
+    "elapsed_ms": 1941
+  },
+  {
+    "at": "2026-09-09T09:55:31.404Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 208,
+    "total": 2200,
+    "elapsed_ms": 1991
+  },
+  {
+    "at": "2026-09-09T09:55:31.450Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 216,
+    "total": 2200,
+    "elapsed_ms": 2037
+  },
+  {
+    "at": "2026-09-09T09:55:31.501Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 224,
+    "total": 2200,
+    "elapsed_ms": 2088
+  },
+  {
+    "at": "2026-09-09T09:55:31.564Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 232,
+    "total": 2200,
+    "elapsed_ms": 2151
+  },
+  {
+    "at": "2026-09-09T09:55:31.677Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 240,
+    "total": 2200,
+    "elapsed_ms": 2264
+  },
+  {
+    "at": "2026-09-09T09:55:31.740Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 248,
+    "total": 2200,
+    "elapsed_ms": 2327
+  },
+  {
+    "at": "2026-09-09T09:55:31.828Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 256,
+    "total": 2200,
+    "elapsed_ms": 2415
+  },
+  {
+    "at": "2026-09-09T09:55:31.880Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 264,
+    "total": 2200,
+    "elapsed_ms": 2467
+  },
+  {
+    "at": "2026-09-09T09:55:31.930Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 272,
+    "total": 2200,
+    "elapsed_ms": 2517
+  },
+  {
+    "at": "2026-09-09T09:55:32.020Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 280,
+    "total": 2200,
+    "elapsed_ms": 2607
+  },
+  {
+    "at": "2026-09-09T09:55:32.084Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 288,
+    "total": 2200,
+    "elapsed_ms": 2671
+  },
+  {
+    "at": "2026-09-09T09:55:32.148Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 296,
+    "total": 2200,
+    "elapsed_ms": 2735
+  },
+  {
+    "at": "2026-09-09T09:55:32.217Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 304,
+    "total": 2200,
+    "elapsed_ms": 2804
+  },
+  {
+    "at": "2026-09-09T09:55:32.429Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 312,
+    "total": 2200,
+    "elapsed_ms": 3016
+  },
+  {
+    "at": "2026-09-09T09:55:32.494Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 320,
+    "total": 2200,
+    "elapsed_ms": 3081
+  },
+  {
+    "at": "2026-09-09T09:55:32.572Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 328,
+    "total": 2200,
+    "elapsed_ms": 3159
+  },
+  {
+    "at": "2026-09-09T09:55:32.625Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 336,
+    "total": 2200,
+    "elapsed_ms": 3212
+  },
+  {
+    "at": "2026-09-09T09:55:32.688Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 344,
+    "total": 2200,
+    "elapsed_ms": 3275
+  },
+  {
+    "at": "2026-09-09T09:55:32.758Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 352,
+    "total": 2200,
+    "elapsed_ms": 3345
+  },
+  {
+    "at": "2026-09-09T09:55:32.846Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 360,
+    "total": 2200,
+    "elapsed_ms": 3433
+  },
+  {
+    "at": "2026-09-09T09:55:32.907Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 368,
+    "total": 2200,
+    "elapsed_ms": 3494
+  },
+  {
+    "at": "2026-09-09T09:55:32.964Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 376,
+    "total": 2200,
+    "elapsed_ms": 3551
+  },
+  {
+    "at": "2026-09-09T09:55:33.026Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 384,
+    "total": 2200,
+    "elapsed_ms": 3613
+  },
+  {
+    "at": "2026-09-09T09:55:33.088Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 392,
+    "total": 2200,
+    "elapsed_ms": 3675
+  },
+  {
+    "at": "2026-09-09T09:55:33.153Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 400,
+    "total": 2200,
+    "elapsed_ms": 3740
+  },
+  {
+    "at": "2026-09-09T09:55:33.217Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 408,
+    "total": 2200,
+    "elapsed_ms": 3804
+  },
+  {
+    "at": "2026-09-09T09:55:33.297Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 416,
+    "total": 2200,
+    "elapsed_ms": 3884
+  },
+  {
+    "at": "2026-09-09T09:55:33.364Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 424,
+    "total": 2200,
+    "elapsed_ms": 3951
+  },
+  {
+    "at": "2026-09-09T09:55:33.428Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 432,
+    "total": 2200,
+    "elapsed_ms": 4015
+  },
+  {
+    "at": "2026-09-09T09:55:33.539Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 440,
+    "total": 2200,
+    "elapsed_ms": 4126
+  },
+  {
+    "at": "2026-09-09T09:55:33.602Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 448,
+    "total": 2200,
+    "elapsed_ms": 4189
+  },
+  {
+    "at": "2026-09-09T09:55:33.683Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 456,
+    "total": 2200,
+    "elapsed_ms": 4270
+  },
+  {
+    "at": "2026-09-09T09:55:33.745Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 464,
+    "total": 2200,
+    "elapsed_ms": 4332
+  },
+  {
+    "at": "2026-09-09T09:55:33.796Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 472,
+    "total": 2200,
+    "elapsed_ms": 4383
+  },
+  {
+    "at": "2026-09-09T09:55:33.859Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 480,
+    "total": 2200,
+    "elapsed_ms": 4446
+  },
+  {
+    "at": "2026-09-09T09:55:33.942Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 488,
+    "total": 2200,
+    "elapsed_ms": 4529
+  },
+  {
+    "at": "2026-09-09T09:55:34.040Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 496,
+    "total": 2200,
+    "elapsed_ms": 4627
+  },
+  {
+    "at": "2026-09-09T09:55:34.097Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 504,
+    "total": 2200,
+    "elapsed_ms": 4684
+  },
+  {
+    "at": "2026-09-09T09:55:34.161Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 512,
+    "total": 2200,
+    "elapsed_ms": 4748
+  },
+  {
+    "at": "2026-09-09T09:55:34.267Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 520,
+    "total": 2200,
+    "elapsed_ms": 4854
+  },
+  {
+    "at": "2026-09-09T09:55:34.402Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 528,
+    "total": 2200,
+    "elapsed_ms": 4989
+  },
+  {
+    "at": "2026-09-09T09:55:34.489Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 536,
+    "total": 2200,
+    "elapsed_ms": 5076
+  },
+  {
+    "at": "2026-09-09T09:55:34.553Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 544,
+    "total": 2200,
+    "elapsed_ms": 5140
+  },
+  {
+    "at": "2026-09-09T09:55:34.616Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 552,
+    "total": 2200,
+    "elapsed_ms": 5203
+  },
+  {
+    "at": "2026-09-09T09:55:34.674Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 560,
+    "total": 2200,
+    "elapsed_ms": 5261
+  },
+  {
+    "at": "2026-09-09T09:55:34.727Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 568,
+    "total": 2200,
+    "elapsed_ms": 5314
+  },
+  {
+    "at": "2026-09-09T09:55:34.835Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 576,
+    "total": 2200,
+    "elapsed_ms": 5422
+  },
+  {
+    "at": "2026-09-09T09:55:34.919Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 584,
+    "total": 2200,
+    "elapsed_ms": 5506
+  },
+  {
+    "at": "2026-09-09T09:55:34.983Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 592,
+    "total": 2200,
+    "elapsed_ms": 5570
+  },
+  {
+    "at": "2026-09-09T09:55:35.116Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 600,
+    "total": 2200,
+    "elapsed_ms": 5703
+  },
+  {
+    "at": "2026-09-09T09:55:35.161Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 608,
+    "total": 2200,
+    "elapsed_ms": 5748
+  },
+  {
+    "at": "2026-09-09T09:55:35.224Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 616,
+    "total": 2200,
+    "elapsed_ms": 5811
+  },
+  {
+    "at": "2026-09-09T09:55:35.330Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 624,
+    "total": 2200,
+    "elapsed_ms": 5917
+  },
+  {
+    "at": "2026-09-09T09:55:35.376Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 632,
+    "total": 2200,
+    "elapsed_ms": 5963
+  },
+  {
+    "at": "2026-09-09T09:55:35.424Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 640,
+    "total": 2200,
+    "elapsed_ms": 6011
+  },
+  {
+    "at": "2026-09-09T09:55:35.475Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 648,
+    "total": 2200,
+    "elapsed_ms": 6062
+  },
+  {
+    "at": "2026-09-09T09:55:35.561Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 656,
+    "total": 2200,
+    "elapsed_ms": 6148
+  },
+  {
+    "at": "2026-09-09T09:55:35.669Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 664,
+    "total": 2200,
+    "elapsed_ms": 6256
+  },
+  {
+    "at": "2026-09-09T09:55:35.753Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 672,
+    "total": 2200,
+    "elapsed_ms": 6340
+  },
+  {
+    "at": "2026-09-09T09:55:35.800Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 680,
+    "total": 2200,
+    "elapsed_ms": 6387
+  },
+  {
+    "at": "2026-09-09T09:55:35.861Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 688,
+    "total": 2200,
+    "elapsed_ms": 6448
+  },
+  {
+    "at": "2026-09-09T09:55:35.945Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 696,
+    "total": 2200,
+    "elapsed_ms": 6532
+  },
+  {
+    "at": "2026-09-09T09:55:36.001Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 704,
+    "total": 2200,
+    "elapsed_ms": 6588
+  },
+  {
+    "at": "2026-09-09T09:55:36.066Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 712,
+    "total": 2200,
+    "elapsed_ms": 6653
+  },
+  {
+    "at": "2026-09-09T09:55:36.171Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 720,
+    "total": 2200,
+    "elapsed_ms": 6758
+  },
+  {
+    "at": "2026-09-09T09:55:36.247Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 728,
+    "total": 2200,
+    "elapsed_ms": 6834
+  },
+  {
+    "at": "2026-09-09T09:55:36.299Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 736,
+    "total": 2200,
+    "elapsed_ms": 6886
+  },
+  {
+    "at": "2026-09-09T09:55:36.359Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 744,
+    "total": 2200,
+    "elapsed_ms": 6946
+  },
+  {
+    "at": "2026-09-09T09:55:36.427Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 752,
+    "total": 2200,
+    "elapsed_ms": 7014
+  },
+  {
+    "at": "2026-09-09T09:55:36.496Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 760,
+    "total": 2200,
+    "elapsed_ms": 7083
+  },
+  {
+    "at": "2026-09-09T09:55:36.580Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 768,
+    "total": 2200,
+    "elapsed_ms": 7167
+  },
+  {
+    "at": "2026-09-09T09:55:36.641Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 776,
+    "total": 2200,
+    "elapsed_ms": 7228
+  },
+  {
+    "at": "2026-09-09T09:55:36.679Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 784,
+    "total": 2200,
+    "elapsed_ms": 7266
+  },
+  {
+    "at": "2026-09-09T09:55:36.789Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 792,
+    "total": 2200,
+    "elapsed_ms": 7376
+  },
+  {
+    "at": "2026-09-09T09:55:36.859Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 800,
+    "total": 2200,
+    "elapsed_ms": 7446
+  },
+  {
+    "at": "2026-09-09T09:55:36.924Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 808,
+    "total": 2200,
+    "elapsed_ms": 7511
+  },
+  {
+    "at": "2026-09-09T09:55:36.975Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 816,
+    "total": 2200,
+    "elapsed_ms": 7562
+  },
+  {
+    "at": "2026-09-09T09:55:37.109Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 824,
+    "total": 2200,
+    "elapsed_ms": 7696
+  },
+  {
+    "at": "2026-09-09T09:55:37.222Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 832,
+    "total": 2200,
+    "elapsed_ms": 7809
+  },
+  {
+    "at": "2026-09-09T09:55:37.310Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 840,
+    "total": 2200,
+    "elapsed_ms": 7897
+  },
+  {
+    "at": "2026-09-09T09:55:37.347Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 848,
+    "total": 2200,
+    "elapsed_ms": 7934
+  },
+  {
+    "at": "2026-09-09T09:55:37.413Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 856,
+    "total": 2200,
+    "elapsed_ms": 8000
+  },
+  {
+    "at": "2026-09-09T09:55:37.461Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 864,
+    "total": 2200,
+    "elapsed_ms": 8048
+  },
+  {
+    "at": "2026-09-09T09:55:37.560Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 872,
+    "total": 2200,
+    "elapsed_ms": 8147
+  },
+  {
+    "at": "2026-09-09T09:55:37.623Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 880,
+    "total": 2200,
+    "elapsed_ms": 8210
+  },
+  {
+    "at": "2026-09-09T09:55:37.732Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 888,
+    "total": 2200,
+    "elapsed_ms": 8319
+  },
+  {
+    "at": "2026-09-09T09:55:37.784Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 896,
+    "total": 2200,
+    "elapsed_ms": 8371
+  },
+  {
+    "at": "2026-09-09T09:55:37.846Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 904,
+    "total": 2200,
+    "elapsed_ms": 8433
+  },
+  {
+    "at": "2026-09-09T09:55:37.952Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 912,
+    "total": 2200,
+    "elapsed_ms": 8539
+  },
+  {
+    "at": "2026-09-09T09:55:38.007Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 920,
+    "total": 2200,
+    "elapsed_ms": 8594
+  },
+  {
+    "at": "2026-09-09T09:55:38.065Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 928,
+    "total": 2200,
+    "elapsed_ms": 8652
+  },
+  {
+    "at": "2026-09-09T09:55:38.113Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 936,
+    "total": 2200,
+    "elapsed_ms": 8700
+  },
+  {
+    "at": "2026-09-09T09:55:38.220Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 944,
+    "total": 2200,
+    "elapsed_ms": 8807
+  },
+  {
+    "at": "2026-09-09T09:55:38.305Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 952,
+    "total": 2200,
+    "elapsed_ms": 8892
+  },
+  {
+    "at": "2026-09-09T09:55:38.364Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 960,
+    "total": 2200,
+    "elapsed_ms": 8951
+  },
+  {
+    "at": "2026-09-09T09:55:38.420Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 968,
+    "total": 2200,
+    "elapsed_ms": 9007
+  },
+  {
+    "at": "2026-09-09T09:55:38.486Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 976,
+    "total": 2200,
+    "elapsed_ms": 9073
+  },
+  {
+    "at": "2026-09-09T09:55:38.529Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 984,
+    "total": 2200,
+    "elapsed_ms": 9116
+  },
+  {
+    "at": "2026-09-09T09:55:38.591Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 992,
+    "total": 2200,
+    "elapsed_ms": 9178
+  },
+  {
+    "at": "2026-09-09T09:55:38.641Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1000,
+    "total": 2200,
+    "elapsed_ms": 9228
+  },
+  {
+    "at": "2026-09-09T09:55:38.701Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1008,
+    "total": 2200,
+    "elapsed_ms": 9288
+  },
+  {
+    "at": "2026-09-09T09:55:38.785Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1016,
+    "total": 2200,
+    "elapsed_ms": 9372
+  },
+  {
+    "at": "2026-09-09T09:55:38.842Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1024,
+    "total": 2200,
+    "elapsed_ms": 9429
+  },
+  {
+    "at": "2026-09-09T09:55:38.903Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1032,
+    "total": 2200,
+    "elapsed_ms": 9490
+  },
+  {
+    "at": "2026-09-09T09:55:38.961Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1040,
+    "total": 2200,
+    "elapsed_ms": 9548
+  },
+  {
+    "at": "2026-09-09T09:55:39.020Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1048,
+    "total": 2200,
+    "elapsed_ms": 9607
+  },
+  {
+    "at": "2026-09-09T09:55:39.232Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1056,
+    "total": 2200,
+    "elapsed_ms": 9819
+  },
+  {
+    "at": "2026-09-09T09:55:39.287Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1064,
+    "total": 2200,
+    "elapsed_ms": 9874
+  },
+  {
+    "at": "2026-09-09T09:55:39.347Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1072,
+    "total": 2200,
+    "elapsed_ms": 9934
+  },
+  {
+    "at": "2026-09-09T09:55:39.413Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1080,
+    "total": 2200,
+    "elapsed_ms": 10000
+  },
+  {
+    "at": "2026-09-09T09:55:39.521Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1088,
+    "total": 2200,
+    "elapsed_ms": 10108
+  },
+  {
+    "at": "2026-09-09T09:55:39.583Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1096,
+    "total": 2200,
+    "elapsed_ms": 10170
+  },
+  {
+    "at": "2026-09-09T09:55:39.649Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1104,
+    "total": 2200,
+    "elapsed_ms": 10236
+  },
+  {
+    "at": "2026-09-09T09:55:39.717Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1112,
+    "total": 2200,
+    "elapsed_ms": 10304
+  },
+  {
+    "at": "2026-09-09T09:55:39.780Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1120,
+    "total": 2200,
+    "elapsed_ms": 10367
+  },
+  {
+    "at": "2026-09-09T09:55:39.840Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1128,
+    "total": 2200,
+    "elapsed_ms": 10427
+  },
+  {
+    "at": "2026-09-09T09:55:39.902Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1136,
+    "total": 2200,
+    "elapsed_ms": 10489
+  },
+  {
+    "at": "2026-09-09T09:55:40.009Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1144,
+    "total": 2200,
+    "elapsed_ms": 10596
+  },
+  {
+    "at": "2026-09-09T09:55:40.096Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1152,
+    "total": 2200,
+    "elapsed_ms": 10683
+  },
+  {
+    "at": "2026-09-09T09:55:40.155Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1160,
+    "total": 2200,
+    "elapsed_ms": 10742
+  },
+  {
+    "at": "2026-09-09T09:55:40.238Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1168,
+    "total": 2200,
+    "elapsed_ms": 10825
+  },
+  {
+    "at": "2026-09-09T09:55:40.300Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1176,
+    "total": 2200,
+    "elapsed_ms": 10887
+  },
+  {
+    "at": "2026-09-09T09:55:40.364Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1184,
+    "total": 2200,
+    "elapsed_ms": 10951
+  },
+  {
+    "at": "2026-09-09T09:55:40.448Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1192,
+    "total": 2200,
+    "elapsed_ms": 11035
+  },
+  {
+    "at": "2026-09-09T09:55:40.505Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1200,
+    "total": 2200,
+    "elapsed_ms": 11092
+  },
+  {
+    "at": "2026-09-09T09:55:40.586Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1208,
+    "total": 2200,
+    "elapsed_ms": 11173
+  },
+  {
+    "at": "2026-09-09T09:55:40.635Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1216,
+    "total": 2200,
+    "elapsed_ms": 11222
+  },
+  {
+    "at": "2026-09-09T09:55:40.695Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1224,
+    "total": 2200,
+    "elapsed_ms": 11282
+  },
+  {
+    "at": "2026-09-09T09:55:40.758Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1232,
+    "total": 2200,
+    "elapsed_ms": 11345
+  },
+  {
+    "at": "2026-09-09T09:55:40.809Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1240,
+    "total": 2200,
+    "elapsed_ms": 11396
+  },
+  {
+    "at": "2026-09-09T09:55:40.851Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1248,
+    "total": 2200,
+    "elapsed_ms": 11438
+  },
+  {
+    "at": "2026-09-09T09:55:40.915Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1256,
+    "total": 2200,
+    "elapsed_ms": 11502
+  },
+  {
+    "at": "2026-09-09T09:55:41.001Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1264,
+    "total": 2200,
+    "elapsed_ms": 11588
+  },
+  {
+    "at": "2026-09-09T09:55:41.122Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1272,
+    "total": 2200,
+    "elapsed_ms": 11709
+  },
+  {
+    "at": "2026-09-09T09:55:41.211Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1280,
+    "total": 2200,
+    "elapsed_ms": 11798
+  },
+  {
+    "at": "2026-09-09T09:55:41.273Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1288,
+    "total": 2200,
+    "elapsed_ms": 11860
+  },
+  {
+    "at": "2026-09-09T09:55:41.337Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1296,
+    "total": 2200,
+    "elapsed_ms": 11924
+  },
+  {
+    "at": "2026-09-09T09:55:41.401Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1304,
+    "total": 2200,
+    "elapsed_ms": 11988
+  },
+  {
+    "at": "2026-09-09T09:55:41.483Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1312,
+    "total": 2200,
+    "elapsed_ms": 12070
+  },
+  {
+    "at": "2026-09-09T09:55:41.532Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1320,
+    "total": 2200,
+    "elapsed_ms": 12119
+  },
+  {
+    "at": "2026-09-09T09:55:41.597Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1328,
+    "total": 2200,
+    "elapsed_ms": 12184
+  },
+  {
+    "at": "2026-09-09T09:55:41.704Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1336,
+    "total": 2200,
+    "elapsed_ms": 12291
+  },
+  {
+    "at": "2026-09-09T09:55:41.839Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1344,
+    "total": 2200,
+    "elapsed_ms": 12426
+  },
+  {
+    "at": "2026-09-09T09:55:41.901Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1352,
+    "total": 2200,
+    "elapsed_ms": 12488
+  },
+  {
+    "at": "2026-09-09T09:55:41.966Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1360,
+    "total": 2200,
+    "elapsed_ms": 12553
+  },
+  {
+    "at": "2026-09-09T09:55:42.022Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1368,
+    "total": 2200,
+    "elapsed_ms": 12609
+  },
+  {
+    "at": "2026-09-09T09:55:42.069Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1376,
+    "total": 2200,
+    "elapsed_ms": 12656
+  },
+  {
+    "at": "2026-09-09T09:55:42.130Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1384,
+    "total": 2200,
+    "elapsed_ms": 12717
+  },
+  {
+    "at": "2026-09-09T09:55:42.199Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1392,
+    "total": 2200,
+    "elapsed_ms": 12786
+  },
+  {
+    "at": "2026-09-09T09:55:42.264Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1400,
+    "total": 2200,
+    "elapsed_ms": 12851
+  },
+  {
+    "at": "2026-09-09T09:55:42.324Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1408,
+    "total": 2200,
+    "elapsed_ms": 12911
+  },
+  {
+    "at": "2026-09-09T09:55:42.406Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1416,
+    "total": 2200,
+    "elapsed_ms": 12993
+  },
+  {
+    "at": "2026-09-09T09:55:42.489Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1424,
+    "total": 2200,
+    "elapsed_ms": 13076
+  },
+  {
+    "at": "2026-09-09T09:55:42.577Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1432,
+    "total": 2200,
+    "elapsed_ms": 13164
+  },
+  {
+    "at": "2026-09-09T09:55:42.662Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1440,
+    "total": 2200,
+    "elapsed_ms": 13249
+  },
+  {
+    "at": "2026-09-09T09:55:42.769Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1448,
+    "total": 2200,
+    "elapsed_ms": 13356
+  },
+  {
+    "at": "2026-09-09T09:55:42.830Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1456,
+    "total": 2200,
+    "elapsed_ms": 13417
+  },
+  {
+    "at": "2026-09-09T09:55:42.893Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1464,
+    "total": 2200,
+    "elapsed_ms": 13480
+  },
+  {
+    "at": "2026-09-09T09:55:42.959Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1472,
+    "total": 2200,
+    "elapsed_ms": 13546
+  },
+  {
+    "at": "2026-09-09T09:55:43.068Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1480,
+    "total": 2200,
+    "elapsed_ms": 13655
+  },
+  {
+    "at": "2026-09-09T09:55:43.152Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1488,
+    "total": 2200,
+    "elapsed_ms": 13739
+  },
+  {
+    "at": "2026-09-09T09:55:43.260Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1496,
+    "total": 2200,
+    "elapsed_ms": 13847
+  },
+  {
+    "at": "2026-09-09T09:55:43.324Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1504,
+    "total": 2200,
+    "elapsed_ms": 13911
+  },
+  {
+    "at": "2026-09-09T09:55:43.434Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1512,
+    "total": 2200,
+    "elapsed_ms": 14021
+  },
+  {
+    "at": "2026-09-09T09:55:43.498Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1520,
+    "total": 2200,
+    "elapsed_ms": 14085
+  },
+  {
+    "at": "2026-09-09T09:55:43.561Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1528,
+    "total": 2200,
+    "elapsed_ms": 14148
+  },
+  {
+    "at": "2026-09-09T09:55:43.697Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1536,
+    "total": 2200,
+    "elapsed_ms": 14284
+  },
+  {
+    "at": "2026-09-09T09:55:43.746Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1544,
+    "total": 2200,
+    "elapsed_ms": 14333
+  },
+  {
+    "at": "2026-09-09T09:55:43.855Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1552,
+    "total": 2200,
+    "elapsed_ms": 14442
+  },
+  {
+    "at": "2026-09-09T09:55:43.926Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1560,
+    "total": 2200,
+    "elapsed_ms": 14513
+  },
+  {
+    "at": "2026-09-09T09:55:43.982Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1568,
+    "total": 2200,
+    "elapsed_ms": 14569
+  },
+  {
+    "at": "2026-09-09T09:55:44.068Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1576,
+    "total": 2200,
+    "elapsed_ms": 14655
+  },
+  {
+    "at": "2026-09-09T09:55:44.131Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1584,
+    "total": 2200,
+    "elapsed_ms": 14718
+  },
+  {
+    "at": "2026-09-09T09:55:44.218Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1592,
+    "total": 2200,
+    "elapsed_ms": 14805
+  },
+  {
+    "at": "2026-09-09T09:55:44.274Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1600,
+    "total": 2200,
+    "elapsed_ms": 14861
+  },
+  {
+    "at": "2026-09-09T09:55:44.357Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1608,
+    "total": 2200,
+    "elapsed_ms": 14944
+  },
+  {
+    "at": "2026-09-09T09:55:44.441Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1616,
+    "total": 2200,
+    "elapsed_ms": 15028
+  },
+  {
+    "at": "2026-09-09T09:55:44.547Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1624,
+    "total": 2200,
+    "elapsed_ms": 15134
+  },
+  {
+    "at": "2026-09-09T09:55:44.602Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1632,
+    "total": 2200,
+    "elapsed_ms": 15189
+  },
+  {
+    "at": "2026-09-09T09:55:44.649Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1640,
+    "total": 2200,
+    "elapsed_ms": 15236
+  },
+  {
+    "at": "2026-09-09T09:55:44.700Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1648,
+    "total": 2200,
+    "elapsed_ms": 15287
+  },
+  {
+    "at": "2026-09-09T09:55:44.784Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1656,
+    "total": 2200,
+    "elapsed_ms": 15371
+  },
+  {
+    "at": "2026-09-09T09:55:44.852Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1664,
+    "total": 2200,
+    "elapsed_ms": 15439
+  },
+  {
+    "at": "2026-09-09T09:55:44.934Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1672,
+    "total": 2200,
+    "elapsed_ms": 15521
+  },
+  {
+    "at": "2026-09-09T09:55:44.997Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1680,
+    "total": 2200,
+    "elapsed_ms": 15584
+  },
+  {
+    "at": "2026-09-09T09:55:45.048Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1688,
+    "total": 2200,
+    "elapsed_ms": 15635
+  },
+  {
+    "at": "2026-09-09T09:55:45.133Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1696,
+    "total": 2200,
+    "elapsed_ms": 15720
+  },
+  {
+    "at": "2026-09-09T09:55:45.217Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1704,
+    "total": 2200,
+    "elapsed_ms": 15804
+  },
+  {
+    "at": "2026-09-09T09:55:45.291Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1712,
+    "total": 2200,
+    "elapsed_ms": 15878
+  },
+  {
+    "at": "2026-09-09T09:55:45.348Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1720,
+    "total": 2200,
+    "elapsed_ms": 15935
+  },
+  {
+    "at": "2026-09-09T09:55:45.435Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1728,
+    "total": 2200,
+    "elapsed_ms": 16022
+  },
+  {
+    "at": "2026-09-09T09:55:45.491Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1736,
+    "total": 2200,
+    "elapsed_ms": 16078
+  },
+  {
+    "at": "2026-09-09T09:55:45.558Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1744,
+    "total": 2200,
+    "elapsed_ms": 16145
+  },
+  {
+    "at": "2026-09-09T09:55:45.611Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1752,
+    "total": 2200,
+    "elapsed_ms": 16198
+  },
+  {
+    "at": "2026-09-09T09:55:45.720Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1760,
+    "total": 2200,
+    "elapsed_ms": 16307
+  },
+  {
+    "at": "2026-09-09T09:55:45.802Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1768,
+    "total": 2200,
+    "elapsed_ms": 16389
+  },
+  {
+    "at": "2026-09-09T09:55:45.891Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1776,
+    "total": 2200,
+    "elapsed_ms": 16478
+  },
+  {
+    "at": "2026-09-09T09:55:45.939Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1784,
+    "total": 2200,
+    "elapsed_ms": 16526
+  },
+  {
+    "at": "2026-09-09T09:55:45.990Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1792,
+    "total": 2200,
+    "elapsed_ms": 16577
+  },
+  {
+    "at": "2026-09-09T09:55:46.055Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1800,
+    "total": 2200,
+    "elapsed_ms": 16642
+  },
+  {
+    "at": "2026-09-09T09:55:46.119Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1808,
+    "total": 2200,
+    "elapsed_ms": 16706
+  },
+  {
+    "at": "2026-09-09T09:55:46.177Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1816,
+    "total": 2200,
+    "elapsed_ms": 16764
+  },
+  {
+    "at": "2026-09-09T09:55:46.265Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1824,
+    "total": 2200,
+    "elapsed_ms": 16852
+  },
+  {
+    "at": "2026-09-09T09:55:46.378Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1832,
+    "total": 2200,
+    "elapsed_ms": 16965
+  },
+  {
+    "at": "2026-09-09T09:55:46.439Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1840,
+    "total": 2200,
+    "elapsed_ms": 17026
+  },
+  {
+    "at": "2026-09-09T09:55:46.540Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1848,
+    "total": 2200,
+    "elapsed_ms": 17127
+  },
+  {
+    "at": "2026-09-09T09:55:46.653Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1856,
+    "total": 2200,
+    "elapsed_ms": 17240
+  },
+  {
+    "at": "2026-09-09T09:55:46.762Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1864,
+    "total": 2200,
+    "elapsed_ms": 17349
+  },
+  {
+    "at": "2026-09-09T09:55:46.825Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1872,
+    "total": 2200,
+    "elapsed_ms": 17412
+  },
+  {
+    "at": "2026-09-09T09:55:46.906Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1880,
+    "total": 2200,
+    "elapsed_ms": 17493
+  },
+  {
+    "at": "2026-09-09T09:55:46.971Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1888,
+    "total": 2200,
+    "elapsed_ms": 17558
+  },
+  {
+    "at": "2026-09-09T09:55:47.020Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1896,
+    "total": 2200,
+    "elapsed_ms": 17607
+  },
+  {
+    "at": "2026-09-09T09:55:47.068Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1904,
+    "total": 2200,
+    "elapsed_ms": 17655
+  },
+  {
+    "at": "2026-09-09T09:55:47.120Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1912,
+    "total": 2200,
+    "elapsed_ms": 17707
+  },
+  {
+    "at": "2026-09-09T09:55:47.181Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1920,
+    "total": 2200,
+    "elapsed_ms": 17768
+  },
+  {
+    "at": "2026-09-09T09:55:47.288Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1928,
+    "total": 2200,
+    "elapsed_ms": 17875
+  },
+  {
+    "at": "2026-09-09T09:55:47.426Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1936,
+    "total": 2200,
+    "elapsed_ms": 18013
+  },
+  {
+    "at": "2026-09-09T09:55:47.565Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1944,
+    "total": 2200,
+    "elapsed_ms": 18152
+  },
+  {
+    "at": "2026-09-09T09:55:47.648Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1952,
+    "total": 2200,
+    "elapsed_ms": 18235
+  },
+  {
+    "at": "2026-09-09T09:55:47.698Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1960,
+    "total": 2200,
+    "elapsed_ms": 18285
+  },
+  {
+    "at": "2026-09-09T09:55:47.754Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1968,
+    "total": 2200,
+    "elapsed_ms": 18341
+  },
+  {
+    "at": "2026-09-09T09:55:47.836Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1976,
+    "total": 2200,
+    "elapsed_ms": 18423
+  },
+  {
+    "at": "2026-09-09T09:55:47.884Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1984,
+    "total": 2200,
+    "elapsed_ms": 18471
+  },
+  {
+    "at": "2026-09-09T09:55:47.937Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 1992,
+    "total": 2200,
+    "elapsed_ms": 18524
+  },
+  {
+    "at": "2026-09-09T09:55:48.035Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2000,
+    "total": 2200,
+    "elapsed_ms": 18622
+  },
+  {
+    "at": "2026-09-09T09:55:48.098Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2008,
+    "total": 2200,
+    "elapsed_ms": 18685
+  },
+  {
+    "at": "2026-09-09T09:55:48.202Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2016,
+    "total": 2200,
+    "elapsed_ms": 18789
+  },
+  {
+    "at": "2026-09-09T09:55:48.261Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2024,
+    "total": 2200,
+    "elapsed_ms": 18848
+  },
+  {
+    "at": "2026-09-09T09:55:48.386Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2032,
+    "total": 2200,
+    "elapsed_ms": 18973
+  },
+  {
+    "at": "2026-09-09T09:55:48.448Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2040,
+    "total": 2200,
+    "elapsed_ms": 19035
+  },
+  {
+    "at": "2026-09-09T09:55:48.510Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2048,
+    "total": 2200,
+    "elapsed_ms": 19097
+  },
+  {
+    "at": "2026-09-09T09:55:48.647Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2056,
+    "total": 2200,
+    "elapsed_ms": 19234
+  },
+  {
+    "at": "2026-09-09T09:55:48.780Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2064,
+    "total": 2200,
+    "elapsed_ms": 19367
+  },
+  {
+    "at": "2026-09-09T09:55:48.843Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2072,
+    "total": 2200,
+    "elapsed_ms": 19430
+  },
+  {
+    "at": "2026-09-09T09:55:48.886Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2080,
+    "total": 2200,
+    "elapsed_ms": 19473
+  },
+  {
+    "at": "2026-09-09T09:55:48.923Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2088,
+    "total": 2200,
+    "elapsed_ms": 19510
+  },
+  {
+    "at": "2026-09-09T09:55:48.989Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2096,
+    "total": 2200,
+    "elapsed_ms": 19576
+  },
+  {
+    "at": "2026-09-09T09:55:49.096Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2104,
+    "total": 2200,
+    "elapsed_ms": 19683
+  },
+  {
+    "at": "2026-09-09T09:55:49.179Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2112,
+    "total": 2200,
+    "elapsed_ms": 19766
+  },
+  {
+    "at": "2026-09-09T09:55:49.361Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2120,
+    "total": 2200,
+    "elapsed_ms": 19948
+  },
+  {
+    "at": "2026-09-09T09:55:49.417Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2128,
+    "total": 2200,
+    "elapsed_ms": 20004
+  },
+  {
+    "at": "2026-09-09T09:55:49.550Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2136,
+    "total": 2200,
+    "elapsed_ms": 20137
+  },
+  {
+    "at": "2026-09-09T09:55:49.647Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2144,
+    "total": 2200,
+    "elapsed_ms": 20234
+  },
+  {
+    "at": "2026-09-09T09:55:49.694Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2152,
+    "total": 2200,
+    "elapsed_ms": 20281
+  },
+  {
+    "at": "2026-09-09T09:55:49.757Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2160,
+    "total": 2200,
+    "elapsed_ms": 20344
+  },
+  {
+    "at": "2026-09-09T09:55:49.915Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2168,
+    "total": 2200,
+    "elapsed_ms": 20502
+  },
+  {
+    "at": "2026-09-09T09:55:49.966Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2176,
+    "total": 2200,
+    "elapsed_ms": 20553
+  },
+  {
+    "at": "2026-09-09T09:55:50.075Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2184,
+    "total": 2200,
+    "elapsed_ms": 20662
+  },
+  {
+    "at": "2026-09-09T09:55:50.123Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2192,
+    "total": 2200,
+    "elapsed_ms": 20710
+  },
+  {
+    "at": "2026-09-09T09:55:50.255Z",
+    "tier": 2200,
+    "phase": "tasks",
+    "completed": 2200,
+    "total": 2200,
+    "elapsed_ms": 20842
+  },
+  {
+    "at": "2026-09-09T09:55:50.304Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 8,
+    "total": 2200,
+    "elapsed_ms": 20891
+  },
+  {
+    "at": "2026-09-09T09:55:50.351Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 16,
+    "total": 2200,
+    "elapsed_ms": 20938
+  },
+  {
+    "at": "2026-09-09T09:55:50.411Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 24,
+    "total": 2200,
+    "elapsed_ms": 20998
+  },
+  {
+    "at": "2026-09-09T09:55:50.475Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 32,
+    "total": 2200,
+    "elapsed_ms": 21062
+  },
+  {
+    "at": "2026-09-09T09:55:50.532Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 40,
+    "total": 2200,
+    "elapsed_ms": 21119
+  },
+  {
+    "at": "2026-09-09T09:55:50.619Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 48,
+    "total": 2200,
+    "elapsed_ms": 21206
+  },
+  {
+    "at": "2026-09-09T09:55:50.688Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 56,
+    "total": 2200,
+    "elapsed_ms": 21275
+  },
+  {
+    "at": "2026-09-09T09:55:50.903Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 64,
+    "total": 2200,
+    "elapsed_ms": 21490
+  },
+  {
+    "at": "2026-09-09T09:55:50.993Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 72,
+    "total": 2200,
+    "elapsed_ms": 21580
+  },
+  {
+    "at": "2026-09-09T09:55:51.082Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 80,
+    "total": 2200,
+    "elapsed_ms": 21669
+  },
+  {
+    "at": "2026-09-09T09:55:51.175Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 88,
+    "total": 2200,
+    "elapsed_ms": 21762
+  },
+  {
+    "at": "2026-09-09T09:55:51.295Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 96,
+    "total": 2200,
+    "elapsed_ms": 21882
+  },
+  {
+    "at": "2026-09-09T09:55:51.387Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 104,
+    "total": 2200,
+    "elapsed_ms": 21974
+  },
+  {
+    "at": "2026-09-09T09:55:51.486Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 112,
+    "total": 2200,
+    "elapsed_ms": 22073
+  },
+  {
+    "at": "2026-09-09T09:55:51.591Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 120,
+    "total": 2200,
+    "elapsed_ms": 22178
+  },
+  {
+    "at": "2026-09-09T09:55:51.719Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 128,
+    "total": 2200,
+    "elapsed_ms": 22306
+  },
+  {
+    "at": "2026-09-09T09:55:51.829Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 136,
+    "total": 2200,
+    "elapsed_ms": 22416
+  },
+  {
+    "at": "2026-09-09T09:55:51.968Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 144,
+    "total": 2200,
+    "elapsed_ms": 22555
+  },
+  {
+    "at": "2026-09-09T09:55:52.090Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 152,
+    "total": 2200,
+    "elapsed_ms": 22677
+  },
+  {
+    "at": "2026-09-09T09:55:52.225Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 160,
+    "total": 2200,
+    "elapsed_ms": 22812
+  },
+  {
+    "at": "2026-09-09T09:55:52.363Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 168,
+    "total": 2200,
+    "elapsed_ms": 22950
+  },
+  {
+    "at": "2026-09-09T09:55:52.516Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 176,
+    "total": 2200,
+    "elapsed_ms": 23103
+  },
+  {
+    "at": "2026-09-09T09:55:52.663Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 184,
+    "total": 2200,
+    "elapsed_ms": 23250
+  },
+  {
+    "at": "2026-09-09T09:55:52.824Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 192,
+    "total": 2200,
+    "elapsed_ms": 23411
+  },
+  {
+    "at": "2026-09-09T09:55:53.003Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 200,
+    "total": 2200,
+    "elapsed_ms": 23590
+  },
+  {
+    "at": "2026-09-09T09:55:53.158Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 208,
+    "total": 2200,
+    "elapsed_ms": 23745
+  },
+  {
+    "at": "2026-09-09T09:55:53.317Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 216,
+    "total": 2200,
+    "elapsed_ms": 23904
+  },
+  {
+    "at": "2026-09-09T09:55:53.486Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 224,
+    "total": 2200,
+    "elapsed_ms": 24073
+  },
+  {
+    "at": "2026-09-09T09:55:53.669Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 232,
+    "total": 2200,
+    "elapsed_ms": 24256
+  },
+  {
+    "at": "2026-09-09T09:55:53.868Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 240,
+    "total": 2200,
+    "elapsed_ms": 24455
+  },
+  {
+    "at": "2026-09-09T09:55:54.085Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 248,
+    "total": 2200,
+    "elapsed_ms": 24672
+  },
+  {
+    "at": "2026-09-09T09:55:54.298Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 256,
+    "total": 2200,
+    "elapsed_ms": 24885
+  },
+  {
+    "at": "2026-09-09T09:55:54.539Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 264,
+    "total": 2200,
+    "elapsed_ms": 25126
+  },
+  {
+    "at": "2026-09-09T09:55:54.782Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 272,
+    "total": 2200,
+    "elapsed_ms": 25369
+  },
+  {
+    "at": "2026-09-09T09:55:54.976Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 280,
+    "total": 2200,
+    "elapsed_ms": 25563
+  },
+  {
+    "at": "2026-09-09T09:55:55.223Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 288,
+    "total": 2200,
+    "elapsed_ms": 25810
+  },
+  {
+    "at": "2026-09-09T09:55:55.478Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 296,
+    "total": 2200,
+    "elapsed_ms": 26065
+  },
+  {
+    "at": "2026-09-09T09:55:55.731Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 304,
+    "total": 2200,
+    "elapsed_ms": 26318
+  },
+  {
+    "at": "2026-09-09T09:55:55.984Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 312,
+    "total": 2200,
+    "elapsed_ms": 26571
+  },
+  {
+    "at": "2026-09-09T09:55:56.262Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 320,
+    "total": 2200,
+    "elapsed_ms": 26849
+  },
+  {
+    "at": "2026-09-09T09:55:56.512Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 328,
+    "total": 2200,
+    "elapsed_ms": 27099
+  },
+  {
+    "at": "2026-09-09T09:55:56.755Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 336,
+    "total": 2200,
+    "elapsed_ms": 27342
+  },
+  {
+    "at": "2026-09-09T09:55:57.042Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 344,
+    "total": 2200,
+    "elapsed_ms": 27629
+  },
+  {
+    "at": "2026-09-09T09:55:57.320Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 352,
+    "total": 2200,
+    "elapsed_ms": 27907
+  },
+  {
+    "at": "2026-09-09T09:55:57.597Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 360,
+    "total": 2200,
+    "elapsed_ms": 28184
+  },
+  {
+    "at": "2026-09-09T09:55:57.943Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 368,
+    "total": 2200,
+    "elapsed_ms": 28530
+  },
+  {
+    "at": "2026-09-09T09:55:58.276Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 376,
+    "total": 2200,
+    "elapsed_ms": 28863
+  },
+  {
+    "at": "2026-09-09T09:55:58.588Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 384,
+    "total": 2200,
+    "elapsed_ms": 29175
+  },
+  {
+    "at": "2026-09-09T09:55:58.919Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 392,
+    "total": 2200,
+    "elapsed_ms": 29506
+  },
+  {
+    "at": "2026-09-09T09:55:59.218Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 400,
+    "total": 2200,
+    "elapsed_ms": 29805
+  },
+  {
+    "at": "2026-09-09T09:55:59.538Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 408,
+    "total": 2200,
+    "elapsed_ms": 30125
+  },
+  {
+    "at": "2026-09-09T09:55:59.878Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 416,
+    "total": 2200,
+    "elapsed_ms": 30465
+  },
+  {
+    "at": "2026-09-09T09:56:00.237Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 424,
+    "total": 2200,
+    "elapsed_ms": 30824
+  },
+  {
+    "at": "2026-09-09T09:56:00.573Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 432,
+    "total": 2200,
+    "elapsed_ms": 31160
+  },
+  {
+    "at": "2026-09-09T09:56:00.916Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 440,
+    "total": 2200,
+    "elapsed_ms": 31503
+  },
+  {
+    "at": "2026-09-09T09:56:01.308Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 448,
+    "total": 2200,
+    "elapsed_ms": 31895
+  },
+  {
+    "at": "2026-09-09T09:56:01.700Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 456,
+    "total": 2200,
+    "elapsed_ms": 32287
+  },
+  {
+    "at": "2026-09-09T09:56:02.086Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 464,
+    "total": 2200,
+    "elapsed_ms": 32673
+  },
+  {
+    "at": "2026-09-09T09:56:02.497Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 472,
+    "total": 2200,
+    "elapsed_ms": 33084
+  },
+  {
+    "at": "2026-09-09T09:56:02.851Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 480,
+    "total": 2200,
+    "elapsed_ms": 33438
+  },
+  {
+    "at": "2026-09-09T09:56:03.251Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 488,
+    "total": 2200,
+    "elapsed_ms": 33838
+  },
+  {
+    "at": "2026-09-09T09:56:03.647Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 496,
+    "total": 2200,
+    "elapsed_ms": 34234
+  },
+  {
+    "at": "2026-09-09T09:56:04.006Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 504,
+    "total": 2200,
+    "elapsed_ms": 34593
+  },
+  {
+    "at": "2026-09-09T09:56:04.421Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 512,
+    "total": 2200,
+    "elapsed_ms": 35008
+  },
+  {
+    "at": "2026-09-09T09:56:04.850Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 520,
+    "total": 2200,
+    "elapsed_ms": 35437
+  },
+  {
+    "at": "2026-09-09T09:56:05.263Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 528,
+    "total": 2200,
+    "elapsed_ms": 35850
+  },
+  {
+    "at": "2026-09-09T09:56:05.679Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 536,
+    "total": 2200,
+    "elapsed_ms": 36266
+  },
+  {
+    "at": "2026-09-09T09:56:06.121Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 544,
+    "total": 2200,
+    "elapsed_ms": 36708
+  },
+  {
+    "at": "2026-09-09T09:56:06.585Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 552,
+    "total": 2200,
+    "elapsed_ms": 37172
+  },
+  {
+    "at": "2026-09-09T09:56:07.030Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 560,
+    "total": 2200,
+    "elapsed_ms": 37617
+  },
+  {
+    "at": "2026-09-09T09:56:07.494Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 568,
+    "total": 2200,
+    "elapsed_ms": 38081
+  },
+  {
+    "at": "2026-09-09T09:56:07.972Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 576,
+    "total": 2200,
+    "elapsed_ms": 38559
+  },
+  {
+    "at": "2026-09-09T09:56:10.567Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 584,
+    "total": 2200,
+    "elapsed_ms": 41154
+  },
+  {
+    "at": "2026-09-09T09:56:11.029Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 592,
+    "total": 2200,
+    "elapsed_ms": 41616
+  },
+  {
+    "at": "2026-09-09T09:56:11.531Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 600,
+    "total": 2200,
+    "elapsed_ms": 42118
+  },
+  {
+    "at": "2026-09-09T09:56:12.031Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 608,
+    "total": 2200,
+    "elapsed_ms": 42618
+  },
+  {
+    "at": "2026-09-09T09:56:12.530Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 616,
+    "total": 2200,
+    "elapsed_ms": 43117
+  },
+  {
+    "at": "2026-09-09T09:56:13.067Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 624,
+    "total": 2200,
+    "elapsed_ms": 43654
+  },
+  {
+    "at": "2026-09-09T09:56:13.592Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 632,
+    "total": 2200,
+    "elapsed_ms": 44179
+  },
+  {
+    "at": "2026-09-09T09:56:14.109Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 640,
+    "total": 2200,
+    "elapsed_ms": 44696
+  },
+  {
+    "at": "2026-09-09T09:56:14.627Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 648,
+    "total": 2200,
+    "elapsed_ms": 45214
+  },
+  {
+    "at": "2026-09-09T09:56:15.137Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 656,
+    "total": 2200,
+    "elapsed_ms": 45724
+  },
+  {
+    "at": "2026-09-09T09:56:15.645Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 664,
+    "total": 2200,
+    "elapsed_ms": 46232
+  },
+  {
+    "at": "2026-09-09T09:56:16.131Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 672,
+    "total": 2200,
+    "elapsed_ms": 46718
+  },
+  {
+    "at": "2026-09-09T09:56:16.657Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 680,
+    "total": 2200,
+    "elapsed_ms": 47244
+  },
+  {
+    "at": "2026-09-09T09:56:17.196Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 688,
+    "total": 2200,
+    "elapsed_ms": 47783
+  },
+  {
+    "at": "2026-09-09T09:56:17.703Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 696,
+    "total": 2200,
+    "elapsed_ms": 48290
+  },
+  {
+    "at": "2026-09-09T09:56:18.266Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 704,
+    "total": 2200,
+    "elapsed_ms": 48853
+  },
+  {
+    "at": "2026-09-09T09:56:18.818Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 712,
+    "total": 2200,
+    "elapsed_ms": 49405
+  },
+  {
+    "at": "2026-09-09T09:56:19.357Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 720,
+    "total": 2200,
+    "elapsed_ms": 49944
+  },
+  {
+    "at": "2026-09-09T09:56:19.974Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 728,
+    "total": 2200,
+    "elapsed_ms": 50561
+  },
+  {
+    "at": "2026-09-09T09:56:20.502Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 736,
+    "total": 2200,
+    "elapsed_ms": 51089
+  },
+  {
+    "at": "2026-09-09T09:56:21.063Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 744,
+    "total": 2200,
+    "elapsed_ms": 51650
+  },
+  {
+    "at": "2026-09-09T09:56:21.615Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 752,
+    "total": 2200,
+    "elapsed_ms": 52202
+  },
+  {
+    "at": "2026-09-09T09:56:22.214Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 760,
+    "total": 2200,
+    "elapsed_ms": 52801
+  },
+  {
+    "at": "2026-09-09T09:56:22.854Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 768,
+    "total": 2200,
+    "elapsed_ms": 53441
+  },
+  {
+    "at": "2026-09-09T09:56:23.428Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 776,
+    "total": 2200,
+    "elapsed_ms": 54015
+  },
+  {
+    "at": "2026-09-09T09:56:24.050Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 784,
+    "total": 2200,
+    "elapsed_ms": 54637
+  },
+  {
+    "at": "2026-09-09T09:56:24.670Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 792,
+    "total": 2200,
+    "elapsed_ms": 55257
+  },
+  {
+    "at": "2026-09-09T09:56:25.273Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 800,
+    "total": 2200,
+    "elapsed_ms": 55860
+  },
+  {
+    "at": "2026-09-09T09:56:25.899Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 808,
+    "total": 2200,
+    "elapsed_ms": 56486
+  },
+  {
+    "at": "2026-09-09T09:56:26.524Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 816,
+    "total": 2200,
+    "elapsed_ms": 57111
+  },
+  {
+    "at": "2026-09-09T09:56:27.165Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 824,
+    "total": 2200,
+    "elapsed_ms": 57752
+  },
+  {
+    "at": "2026-09-09T09:56:27.812Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 832,
+    "total": 2200,
+    "elapsed_ms": 58399
+  },
+  {
+    "at": "2026-09-09T09:56:28.421Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 840,
+    "total": 2200,
+    "elapsed_ms": 59008
+  },
+  {
+    "at": "2026-09-09T09:56:29.083Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 848,
+    "total": 2200,
+    "elapsed_ms": 59670
+  },
+  {
+    "at": "2026-09-09T09:56:29.741Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 856,
+    "total": 2200,
+    "elapsed_ms": 60328
+  },
+  {
+    "at": "2026-09-09T09:56:30.370Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 864,
+    "total": 2200,
+    "elapsed_ms": 60957
+  },
+  {
+    "at": "2026-09-09T09:56:31.014Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 872,
+    "total": 2200,
+    "elapsed_ms": 61601
+  },
+  {
+    "at": "2026-09-09T09:56:31.657Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 880,
+    "total": 2200,
+    "elapsed_ms": 62244
+  },
+  {
+    "at": "2026-09-09T09:56:32.341Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 888,
+    "total": 2200,
+    "elapsed_ms": 62928
+  },
+  {
+    "at": "2026-09-09T09:56:33.009Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 896,
+    "total": 2200,
+    "elapsed_ms": 63596
+  },
+  {
+    "at": "2026-09-09T09:56:33.669Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 904,
+    "total": 2200,
+    "elapsed_ms": 64256
+  },
+  {
+    "at": "2026-09-09T09:56:34.378Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 912,
+    "total": 2200,
+    "elapsed_ms": 64965
+  },
+  {
+    "at": "2026-09-09T09:56:35.070Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 920,
+    "total": 2200,
+    "elapsed_ms": 65657
+  },
+  {
+    "at": "2026-09-09T09:56:35.776Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 928,
+    "total": 2200,
+    "elapsed_ms": 66363
+  },
+  {
+    "at": "2026-09-09T09:56:36.487Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 936,
+    "total": 2200,
+    "elapsed_ms": 67074
+  },
+  {
+    "at": "2026-09-09T09:56:37.208Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 944,
+    "total": 2200,
+    "elapsed_ms": 67795
+  },
+  {
+    "at": "2026-09-09T09:56:37.963Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 952,
+    "total": 2200,
+    "elapsed_ms": 68550
+  },
+  {
+    "at": "2026-09-09T09:56:38.665Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 960,
+    "total": 2200,
+    "elapsed_ms": 69252
+  },
+  {
+    "at": "2026-09-09T09:56:39.376Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 968,
+    "total": 2200,
+    "elapsed_ms": 69963
+  },
+  {
+    "at": "2026-09-09T09:56:40.091Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 976,
+    "total": 2200,
+    "elapsed_ms": 70678
+  },
+  {
+    "at": "2026-09-09T09:56:40.850Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 984,
+    "total": 2200,
+    "elapsed_ms": 71437
+  },
+  {
+    "at": "2026-09-09T09:56:41.531Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 992,
+    "total": 2200,
+    "elapsed_ms": 72118
+  },
+  {
+    "at": "2026-09-09T09:56:42.311Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1000,
+    "total": 2200,
+    "elapsed_ms": 72898
+  },
+  {
+    "at": "2026-09-09T09:56:43.069Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1008,
+    "total": 2200,
+    "elapsed_ms": 73656
+  },
+  {
+    "at": "2026-09-09T09:56:43.846Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1016,
+    "total": 2200,
+    "elapsed_ms": 74433
+  },
+  {
+    "at": "2026-09-09T09:56:44.592Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1024,
+    "total": 2200,
+    "elapsed_ms": 75179
+  },
+  {
+    "at": "2026-09-09T09:56:45.368Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1032,
+    "total": 2200,
+    "elapsed_ms": 75955
+  },
+  {
+    "at": "2026-09-09T09:56:46.170Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1040,
+    "total": 2200,
+    "elapsed_ms": 76757
+  },
+  {
+    "at": "2026-09-09T09:56:46.959Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1048,
+    "total": 2200,
+    "elapsed_ms": 77546
+  },
+  {
+    "at": "2026-09-09T09:56:47.755Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1056,
+    "total": 2200,
+    "elapsed_ms": 78342
+  },
+  {
+    "at": "2026-09-09T09:56:48.555Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1064,
+    "total": 2200,
+    "elapsed_ms": 79142
+  },
+  {
+    "at": "2026-09-09T09:56:49.390Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1072,
+    "total": 2200,
+    "elapsed_ms": 79977
+  },
+  {
+    "at": "2026-09-09T09:56:50.241Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1080,
+    "total": 2200,
+    "elapsed_ms": 80828
+  },
+  {
+    "at": "2026-09-09T09:56:51.075Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1088,
+    "total": 2200,
+    "elapsed_ms": 81662
+  },
+  {
+    "at": "2026-09-09T09:56:51.849Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1096,
+    "total": 2200,
+    "elapsed_ms": 82436
+  },
+  {
+    "at": "2026-09-09T09:56:52.673Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1104,
+    "total": 2200,
+    "elapsed_ms": 83260
+  },
+  {
+    "at": "2026-09-09T09:56:53.509Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1112,
+    "total": 2200,
+    "elapsed_ms": 84096
+  },
+  {
+    "at": "2026-09-09T09:56:54.311Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1120,
+    "total": 2200,
+    "elapsed_ms": 84898
+  },
+  {
+    "at": "2026-09-09T09:56:55.169Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1128,
+    "total": 2200,
+    "elapsed_ms": 85756
+  },
+  {
+    "at": "2026-09-09T09:56:56.013Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1136,
+    "total": 2200,
+    "elapsed_ms": 86600
+  },
+  {
+    "at": "2026-09-09T09:56:56.850Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1144,
+    "total": 2200,
+    "elapsed_ms": 87437
+  },
+  {
+    "at": "2026-09-09T09:56:57.720Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1152,
+    "total": 2200,
+    "elapsed_ms": 88307
+  },
+  {
+    "at": "2026-09-09T09:56:58.571Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1160,
+    "total": 2200,
+    "elapsed_ms": 89158
+  },
+  {
+    "at": "2026-09-09T09:56:59.448Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1168,
+    "total": 2200,
+    "elapsed_ms": 90035
+  },
+  {
+    "at": "2026-09-09T09:57:00.348Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1176,
+    "total": 2200,
+    "elapsed_ms": 90935
+  },
+  {
+    "at": "2026-09-09T09:57:01.270Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1184,
+    "total": 2200,
+    "elapsed_ms": 91857
+  },
+  {
+    "at": "2026-09-09T09:57:02.193Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1192,
+    "total": 2200,
+    "elapsed_ms": 92780
+  },
+  {
+    "at": "2026-09-09T09:57:03.110Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1200,
+    "total": 2200,
+    "elapsed_ms": 93697
+  },
+  {
+    "at": "2026-09-09T09:57:04.017Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1208,
+    "total": 2200,
+    "elapsed_ms": 94604
+  },
+  {
+    "at": "2026-09-09T09:57:04.916Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1216,
+    "total": 2200,
+    "elapsed_ms": 95503
+  },
+  {
+    "at": "2026-09-09T09:57:05.801Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1224,
+    "total": 2200,
+    "elapsed_ms": 96388
+  },
+  {
+    "at": "2026-09-09T09:57:06.678Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1232,
+    "total": 2200,
+    "elapsed_ms": 97265
+  },
+  {
+    "at": "2026-09-09T09:57:07.558Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1240,
+    "total": 2200,
+    "elapsed_ms": 98145
+  },
+  {
+    "at": "2026-09-09T09:57:08.587Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1248,
+    "total": 2200,
+    "elapsed_ms": 99174
+  },
+  {
+    "at": "2026-09-09T09:57:10.602Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1256,
+    "total": 2200,
+    "elapsed_ms": 101189
+  },
+  {
+    "at": "2026-09-09T09:57:11.505Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1264,
+    "total": 2200,
+    "elapsed_ms": 102092
+  },
+  {
+    "at": "2026-09-09T09:57:12.451Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1272,
+    "total": 2200,
+    "elapsed_ms": 103038
+  },
+  {
+    "at": "2026-09-09T09:57:13.426Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1280,
+    "total": 2200,
+    "elapsed_ms": 104013
+  },
+  {
+    "at": "2026-09-09T09:57:14.299Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1288,
+    "total": 2200,
+    "elapsed_ms": 104886
+  },
+  {
+    "at": "2026-09-09T09:57:15.213Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1296,
+    "total": 2200,
+    "elapsed_ms": 105800
+  },
+  {
+    "at": "2026-09-09T09:57:16.136Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1304,
+    "total": 2200,
+    "elapsed_ms": 106723
+  },
+  {
+    "at": "2026-09-09T09:57:17.089Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1312,
+    "total": 2200,
+    "elapsed_ms": 107676
+  },
+  {
+    "at": "2026-09-09T09:57:18.080Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1320,
+    "total": 2200,
+    "elapsed_ms": 108667
+  },
+  {
+    "at": "2026-09-09T09:57:19.023Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1328,
+    "total": 2200,
+    "elapsed_ms": 109610
+  },
+  {
+    "at": "2026-09-09T09:57:20.023Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1336,
+    "total": 2200,
+    "elapsed_ms": 110610
+  },
+  {
+    "at": "2026-09-09T09:57:20.999Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1344,
+    "total": 2200,
+    "elapsed_ms": 111586
+  },
+  {
+    "at": "2026-09-09T09:57:22.011Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1352,
+    "total": 2200,
+    "elapsed_ms": 112598
+  },
+  {
+    "at": "2026-09-09T09:57:23.016Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1360,
+    "total": 2200,
+    "elapsed_ms": 113603
+  },
+  {
+    "at": "2026-09-09T09:57:24.059Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1368,
+    "total": 2200,
+    "elapsed_ms": 114646
+  },
+  {
+    "at": "2026-09-09T09:57:25.054Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1376,
+    "total": 2200,
+    "elapsed_ms": 115641
+  },
+  {
+    "at": "2026-09-09T09:57:26.069Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1384,
+    "total": 2200,
+    "elapsed_ms": 116656
+  },
+  {
+    "at": "2026-09-09T09:57:27.072Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1392,
+    "total": 2200,
+    "elapsed_ms": 117659
+  },
+  {
+    "at": "2026-09-09T09:57:28.067Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1400,
+    "total": 2200,
+    "elapsed_ms": 118654
+  },
+  {
+    "at": "2026-09-09T09:57:29.122Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1408,
+    "total": 2200,
+    "elapsed_ms": 119709
+  },
+  {
+    "at": "2026-09-09T09:57:30.169Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1416,
+    "total": 2200,
+    "elapsed_ms": 120756
+  },
+  {
+    "at": "2026-09-09T09:57:31.270Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1424,
+    "total": 2200,
+    "elapsed_ms": 121857
+  },
+  {
+    "at": "2026-09-09T09:57:32.349Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1432,
+    "total": 2200,
+    "elapsed_ms": 122936
+  },
+  {
+    "at": "2026-09-09T09:57:33.449Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1440,
+    "total": 2200,
+    "elapsed_ms": 124036
+  },
+  {
+    "at": "2026-09-09T09:57:34.554Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1448,
+    "total": 2200,
+    "elapsed_ms": 125141
+  },
+  {
+    "at": "2026-09-09T09:57:35.584Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1456,
+    "total": 2200,
+    "elapsed_ms": 126171
+  },
+  {
+    "at": "2026-09-09T09:57:36.609Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1464,
+    "total": 2200,
+    "elapsed_ms": 127196
+  },
+  {
+    "at": "2026-09-09T09:57:37.701Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1472,
+    "total": 2200,
+    "elapsed_ms": 128288
+  },
+  {
+    "at": "2026-09-09T09:57:38.800Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1480,
+    "total": 2200,
+    "elapsed_ms": 129387
+  },
+  {
+    "at": "2026-09-09T09:57:39.854Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1488,
+    "total": 2200,
+    "elapsed_ms": 130441
+  },
+  {
+    "at": "2026-09-09T09:57:40.968Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1496,
+    "total": 2200,
+    "elapsed_ms": 131555
+  },
+  {
+    "at": "2026-09-09T09:57:42.083Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1504,
+    "total": 2200,
+    "elapsed_ms": 132670
+  },
+  {
+    "at": "2026-09-09T09:57:43.168Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1512,
+    "total": 2200,
+    "elapsed_ms": 133755
+  },
+  {
+    "at": "2026-09-09T09:57:44.282Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1520,
+    "total": 2200,
+    "elapsed_ms": 134869
+  },
+  {
+    "at": "2026-09-09T09:57:45.431Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1528,
+    "total": 2200,
+    "elapsed_ms": 136018
+  },
+  {
+    "at": "2026-09-09T09:57:46.572Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1536,
+    "total": 2200,
+    "elapsed_ms": 137159
+  },
+  {
+    "at": "2026-09-09T09:57:47.712Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1544,
+    "total": 2200,
+    "elapsed_ms": 138299
+  },
+  {
+    "at": "2026-09-09T09:57:48.826Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1552,
+    "total": 2200,
+    "elapsed_ms": 139413
+  },
+  {
+    "at": "2026-09-09T09:57:49.954Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1560,
+    "total": 2200,
+    "elapsed_ms": 140541
+  },
+  {
+    "at": "2026-09-09T09:57:51.059Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1568,
+    "total": 2200,
+    "elapsed_ms": 141646
+  },
+  {
+    "at": "2026-09-09T09:57:52.181Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1576,
+    "total": 2200,
+    "elapsed_ms": 142768
+  },
+  {
+    "at": "2026-09-09T09:57:53.343Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1584,
+    "total": 2200,
+    "elapsed_ms": 143930
+  },
+  {
+    "at": "2026-09-09T09:57:54.537Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1592,
+    "total": 2200,
+    "elapsed_ms": 145124
+  },
+  {
+    "at": "2026-09-09T09:57:55.684Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1600,
+    "total": 2200,
+    "elapsed_ms": 146271
+  },
+  {
+    "at": "2026-09-09T09:57:56.836Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1608,
+    "total": 2200,
+    "elapsed_ms": 147423
+  },
+  {
+    "at": "2026-09-09T09:57:58.057Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1616,
+    "total": 2200,
+    "elapsed_ms": 148644
+  },
+  {
+    "at": "2026-09-09T09:57:59.228Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1624,
+    "total": 2200,
+    "elapsed_ms": 149815
+  },
+  {
+    "at": "2026-09-09T09:58:00.403Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1632,
+    "total": 2200,
+    "elapsed_ms": 150990
+  },
+  {
+    "at": "2026-09-09T09:58:01.594Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1640,
+    "total": 2200,
+    "elapsed_ms": 152181
+  },
+  {
+    "at": "2026-09-09T09:58:02.866Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1648,
+    "total": 2200,
+    "elapsed_ms": 153453
+  },
+  {
+    "at": "2026-09-09T09:58:04.128Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1656,
+    "total": 2200,
+    "elapsed_ms": 154715
+  },
+  {
+    "at": "2026-09-09T09:58:05.369Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1664,
+    "total": 2200,
+    "elapsed_ms": 155956
+  },
+  {
+    "at": "2026-09-09T09:58:06.647Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1672,
+    "total": 2200,
+    "elapsed_ms": 157234
+  },
+  {
+    "at": "2026-09-09T09:58:07.927Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1680,
+    "total": 2200,
+    "elapsed_ms": 158514
+  },
+  {
+    "at": "2026-09-09T09:58:10.265Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1688,
+    "total": 2200,
+    "elapsed_ms": 160852
+  },
+  {
+    "at": "2026-09-09T09:58:11.479Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1696,
+    "total": 2200,
+    "elapsed_ms": 162066
+  },
+  {
+    "at": "2026-09-09T09:58:12.698Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1704,
+    "total": 2200,
+    "elapsed_ms": 163285
+  },
+  {
+    "at": "2026-09-09T09:58:13.992Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1712,
+    "total": 2200,
+    "elapsed_ms": 164579
+  },
+  {
+    "at": "2026-09-09T09:58:15.255Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1720,
+    "total": 2200,
+    "elapsed_ms": 165842
+  },
+  {
+    "at": "2026-09-09T09:58:16.620Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1728,
+    "total": 2200,
+    "elapsed_ms": 167207
+  },
+  {
+    "at": "2026-09-09T09:58:17.906Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1736,
+    "total": 2200,
+    "elapsed_ms": 168493
+  },
+  {
+    "at": "2026-09-09T09:58:19.192Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1744,
+    "total": 2200,
+    "elapsed_ms": 169779
+  },
+  {
+    "at": "2026-09-09T09:58:20.527Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1752,
+    "total": 2200,
+    "elapsed_ms": 171114
+  },
+  {
+    "at": "2026-09-09T09:58:21.857Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1760,
+    "total": 2200,
+    "elapsed_ms": 172444
+  },
+  {
+    "at": "2026-09-09T09:58:23.192Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1768,
+    "total": 2200,
+    "elapsed_ms": 173779
+  },
+  {
+    "at": "2026-09-09T09:58:24.550Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1776,
+    "total": 2200,
+    "elapsed_ms": 175137
+  },
+  {
+    "at": "2026-09-09T09:58:25.888Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1784,
+    "total": 2200,
+    "elapsed_ms": 176475
+  },
+  {
+    "at": "2026-09-09T09:58:27.282Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1792,
+    "total": 2200,
+    "elapsed_ms": 177869
+  },
+  {
+    "at": "2026-09-09T09:58:28.726Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1800,
+    "total": 2200,
+    "elapsed_ms": 179313
+  },
+  {
+    "at": "2026-09-09T09:58:30.143Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1808,
+    "total": 2200,
+    "elapsed_ms": 180730
+  },
+  {
+    "at": "2026-09-09T09:58:31.514Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1816,
+    "total": 2200,
+    "elapsed_ms": 182101
+  },
+  {
+    "at": "2026-09-09T09:58:32.872Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1824,
+    "total": 2200,
+    "elapsed_ms": 183459
+  },
+  {
+    "at": "2026-09-09T09:58:34.239Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1832,
+    "total": 2200,
+    "elapsed_ms": 184826
+  },
+  {
+    "at": "2026-09-09T09:58:35.630Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1840,
+    "total": 2200,
+    "elapsed_ms": 186217
+  },
+  {
+    "at": "2026-09-09T09:58:37.013Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1848,
+    "total": 2200,
+    "elapsed_ms": 187600
+  },
+  {
+    "at": "2026-09-09T09:58:38.377Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1856,
+    "total": 2200,
+    "elapsed_ms": 188964
+  },
+  {
+    "at": "2026-09-09T09:58:39.841Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1864,
+    "total": 2200,
+    "elapsed_ms": 190428
+  },
+  {
+    "at": "2026-09-09T09:58:41.198Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1872,
+    "total": 2200,
+    "elapsed_ms": 191785
+  },
+  {
+    "at": "2026-09-09T09:58:42.581Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1880,
+    "total": 2200,
+    "elapsed_ms": 193168
+  },
+  {
+    "at": "2026-09-09T09:58:44.007Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1888,
+    "total": 2200,
+    "elapsed_ms": 194594
+  },
+  {
+    "at": "2026-09-09T09:58:45.410Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1896,
+    "total": 2200,
+    "elapsed_ms": 195997
+  },
+  {
+    "at": "2026-09-09T09:58:46.819Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1904,
+    "total": 2200,
+    "elapsed_ms": 197406
+  },
+  {
+    "at": "2026-09-09T09:58:48.252Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1912,
+    "total": 2200,
+    "elapsed_ms": 198839
+  },
+  {
+    "at": "2026-09-09T09:58:49.725Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1920,
+    "total": 2200,
+    "elapsed_ms": 200312
+  },
+  {
+    "at": "2026-09-09T09:58:51.154Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1928,
+    "total": 2200,
+    "elapsed_ms": 201741
+  },
+  {
+    "at": "2026-09-09T09:58:52.532Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1936,
+    "total": 2200,
+    "elapsed_ms": 203119
+  },
+  {
+    "at": "2026-09-09T09:58:54.110Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1944,
+    "total": 2200,
+    "elapsed_ms": 204697
+  },
+  {
+    "at": "2026-09-09T09:58:55.540Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1952,
+    "total": 2200,
+    "elapsed_ms": 206127
+  },
+  {
+    "at": "2026-09-09T09:58:56.992Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1960,
+    "total": 2200,
+    "elapsed_ms": 207579
+  },
+  {
+    "at": "2026-09-09T09:58:58.469Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1968,
+    "total": 2200,
+    "elapsed_ms": 209056
+  },
+  {
+    "at": "2026-09-09T09:58:59.922Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1976,
+    "total": 2200,
+    "elapsed_ms": 210509
+  },
+  {
+    "at": "2026-09-09T09:59:01.397Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1984,
+    "total": 2200,
+    "elapsed_ms": 211984
+  },
+  {
+    "at": "2026-09-09T09:59:02.936Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 1992,
+    "total": 2200,
+    "elapsed_ms": 213523
+  },
+  {
+    "at": "2026-09-09T09:59:04.429Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2000,
+    "total": 2200,
+    "elapsed_ms": 215016
+  },
+  {
+    "at": "2026-09-09T09:59:05.929Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2008,
+    "total": 2200,
+    "elapsed_ms": 216516
+  },
+  {
+    "at": "2026-09-09T09:59:07.424Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2016,
+    "total": 2200,
+    "elapsed_ms": 218011
+  },
+  {
+    "at": "2026-09-09T09:59:09.084Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2024,
+    "total": 2200,
+    "elapsed_ms": 219671
+  },
+  {
+    "at": "2026-09-09T09:59:11.634Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2032,
+    "total": 2200,
+    "elapsed_ms": 222221
+  },
+  {
+    "at": "2026-09-09T09:59:13.152Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2040,
+    "total": 2200,
+    "elapsed_ms": 223739
+  },
+  {
+    "at": "2026-09-09T09:59:14.697Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2048,
+    "total": 2200,
+    "elapsed_ms": 225284
+  },
+  {
+    "at": "2026-09-09T09:59:16.247Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2056,
+    "total": 2200,
+    "elapsed_ms": 226834
+  },
+  {
+    "at": "2026-09-09T09:59:17.874Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2064,
+    "total": 2200,
+    "elapsed_ms": 228461
+  },
+  {
+    "at": "2026-09-09T09:59:19.384Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2072,
+    "total": 2200,
+    "elapsed_ms": 229971
+  },
+  {
+    "at": "2026-09-09T09:59:20.944Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2080,
+    "total": 2200,
+    "elapsed_ms": 231531
+  },
+  {
+    "at": "2026-09-09T09:59:22.502Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2088,
+    "total": 2200,
+    "elapsed_ms": 233089
+  },
+  {
+    "at": "2026-09-09T09:59:24.054Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2096,
+    "total": 2200,
+    "elapsed_ms": 234641
+  },
+  {
+    "at": "2026-09-09T09:59:25.612Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2104,
+    "total": 2200,
+    "elapsed_ms": 236199
+  },
+  {
+    "at": "2026-09-09T09:59:27.235Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2112,
+    "total": 2200,
+    "elapsed_ms": 237822
+  },
+  {
+    "at": "2026-09-09T09:59:28.795Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2120,
+    "total": 2200,
+    "elapsed_ms": 239382
+  },
+  {
+    "at": "2026-09-09T09:59:30.420Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2128,
+    "total": 2200,
+    "elapsed_ms": 241007
+  },
+  {
+    "at": "2026-09-09T09:59:32.018Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2136,
+    "total": 2200,
+    "elapsed_ms": 242605
+  },
+  {
+    "at": "2026-09-09T09:59:33.633Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2144,
+    "total": 2200,
+    "elapsed_ms": 244220
+  },
+  {
+    "at": "2026-09-09T09:59:35.254Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2152,
+    "total": 2200,
+    "elapsed_ms": 245841
+  },
+  {
+    "at": "2026-09-09T09:59:36.912Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2160,
+    "total": 2200,
+    "elapsed_ms": 247499
+  },
+  {
+    "at": "2026-09-09T09:59:38.498Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2168,
+    "total": 2200,
+    "elapsed_ms": 249085
+  },
+  {
+    "at": "2026-09-09T09:59:40.121Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2176,
+    "total": 2200,
+    "elapsed_ms": 250708
+  },
+  {
+    "at": "2026-09-09T09:59:41.718Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2184,
+    "total": 2200,
+    "elapsed_ms": 252305
+  },
+  {
+    "at": "2026-09-09T09:59:43.360Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2192,
+    "total": 2200,
+    "elapsed_ms": 253947
+  },
+  {
+    "at": "2026-09-09T09:59:44.995Z",
+    "tier": 2200,
+    "phase": "plan-membership",
+    "completed": 2200,
+    "total": 2200,
+    "elapsed_ms": 255582
+  }
+]

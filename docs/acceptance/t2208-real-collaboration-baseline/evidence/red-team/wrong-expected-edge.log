@@ -1,0 +1,3 @@
+REJECT /Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-7f44327f/docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/wrong-expected-edge.json
+FAIL prototype_100_project_filter: injected wrong expected edge id
+FAIL all_gate_summary: gate failed

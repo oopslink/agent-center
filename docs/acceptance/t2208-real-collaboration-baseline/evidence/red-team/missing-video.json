@@ -1,0 +1,1510 @@
+{
+  "verdict": "REJECT",
+  "source": "ac-exec/task-cd21115f/exec-391551e1@6882a6d14785c9725cd8ffc8b1b83c00be2a44ae",
+  "generated_at": "deterministic-offline-verifier-v1",
+  "injection": "missing-video",
+  "gates": [
+    {
+      "gate": "frozen_source_provenance",
+      "verdict": "PASS",
+      "frozen_source": "ac-exec/task-cd21115f/exec-391551e1@6882a6d14785c9725cd8ffc8b1b83c00be2a44ae",
+      "build_sha": "512d1181264a706155266fa658566146b2ae58c6",
+      "no_rerun": "offline verifier only reads frozen trace/HAR/video/raw JSON/CSV artifacts"
+    },
+    {
+      "gate": "real_100_public_api_expected_ids",
+      "verdict": "PASS",
+      "expected_node_count": 109,
+      "actual_node_count": 109,
+      "expected_edge_count": 214,
+      "actual_edge_count": 214,
+      "lod_contract": "product default must expose the same complete ID set as lod=full for these frozen tiers"
+    },
+    {
+      "gate": "real_100_dom_count_contract",
+      "verdict": "PASS",
+      "expected_from_public_api": {
+        "nodes": 109,
+        "edges": 214
+      },
+      "actual_legacy_dom_counts": {
+        "nodes": 109,
+        "edges": 214
+      },
+      "id_mapping_contract": "Legacy frozen DOM evidence contains counts only; future run-real harness now captures node_ids/edge_ids when DOM exposes data-node-id/data-edge-id."
+    },
+    {
+      "gate": "real_100_project_filter",
+      "verdict": "PASS",
+      "project_id": "project-aa7e024c",
+      "project_node_id": "project:project-aa7e024c",
+      "node_count": 109,
+      "edge_count": 214
+    },
+    {
+      "gate": "real_100_agent_filter",
+      "verdict": "PASS",
+      "agent_ref": "agent:agent-d4400648",
+      "expected_node_ids_sha256": "132600e9122979a7c9486c30eecf7adae4e984c4e9b928a6f7fcd6be3904e79a",
+      "actual_node_ids_sha256": "132600e9122979a7c9486c30eecf7adae4e984c4e9b928a6f7fcd6be3904e79a",
+      "expected_edge_ids_sha256": "ef71dff88c05e812fe470f00d81d5a8306e79c0e85c06d6627df1dd54ad36339",
+      "actual_edge_ids_sha256": "ef71dff88c05e812fe470f00d81d5a8306e79c0e85c06d6627df1dd54ad36339",
+      "dom_count_after_filter": {
+        "viewBox": "-15 0 755 1452",
+        "nodes": 20,
+        "edges": 37
+      }
+    },
+    {
+      "gate": "real_100_cluster_lod_mapping",
+      "verdict": "PASS",
+      "full_nodes": 109,
+      "clustered_nodes": 90,
+      "full_edges": 214,
+      "clustered_edges": 214
+    },
+    {
+      "gate": "prototype_100_project_filter",
+      "verdict": "PASS",
+      "expected_edge_ids": [
+        "edge:network:0",
+        "edge:network:10",
+        "edge:network:102",
+        "edge:network:106",
+        "edge:network:110",
+        "edge:network:113",
+        "edge:network:116",
+        "edge:network:117",
+        "edge:network:13",
+        "edge:network:18",
+        "edge:network:2",
+        "edge:network:24",
+        "edge:network:25",
+        "edge:network:27",
+        "edge:network:28",
+        "edge:network:31",
+        "edge:network:33",
+        "edge:network:35",
+        "edge:network:41",
+        "edge:network:45",
+        "edge:network:46",
+        "edge:network:50",
+        "edge:network:51",
+        "edge:network:7",
+        "edge:network:77",
+        "edge:network:78",
+        "edge:network:83",
+        "edge:network:87",
+        "edge:network:92",
+        "edge:network:93",
+        "edge:network:96",
+        "edge:network:97"
+      ],
+      "actual_edge_ids": [
+        "edge:network:0",
+        "edge:network:10",
+        "edge:network:102",
+        "edge:network:106",
+        "edge:network:110",
+        "edge:network:113",
+        "edge:network:116",
+        "edge:network:117",
+        "edge:network:13",
+        "edge:network:18",
+        "edge:network:2",
+        "edge:network:24",
+        "edge:network:25",
+        "edge:network:27",
+        "edge:network:28",
+        "edge:network:31",
+        "edge:network:33",
+        "edge:network:35",
+        "edge:network:41",
+        "edge:network:45",
+        "edge:network:46",
+        "edge:network:50",
+        "edge:network:51",
+        "edge:network:7",
+        "edge:network:77",
+        "edge:network:78",
+        "edge:network:83",
+        "edge:network:87",
+        "edge:network:92",
+        "edge:network:93",
+        "edge:network:96",
+        "edge:network:97"
+      ],
+      "expected_count": 32,
+      "actual_count": 32
+    },
+    {
+      "gate": "prototype_100_agent_filter",
+      "verdict": "PASS",
+      "expected_edge_ids": [
+        "edge:network:0",
+        "edge:network:10",
+        "edge:network:110",
+        "edge:network:116",
+        "edge:network:117",
+        "edge:network:13",
+        "edge:network:24",
+        "edge:network:27",
+        "edge:network:45",
+        "edge:network:51",
+        "edge:network:93",
+        "edge:network:96"
+      ],
+      "actual_edge_ids": [
+        "edge:network:0",
+        "edge:network:10",
+        "edge:network:110",
+        "edge:network:116",
+        "edge:network:117",
+        "edge:network:13",
+        "edge:network:24",
+        "edge:network:27",
+        "edge:network:45",
+        "edge:network:51",
+        "edge:network:93",
+        "edge:network:96"
+      ],
+      "expected_count": 12,
+      "actual_count": 12
+    },
+    {
+      "gate": "prototype_100_window_legacy_quarantine",
+      "verdict": "PASS",
+      "verdict_note": "legacy result is not accepted as the window positive oracle because changed_from_prior_filter=false",
+      "replacement_gate": "window_positive_fixture_1h_24h_7d"
+    },
+    {
+      "gate": "prototype_100_neighborhood",
+      "verdict": "PASS",
+      "selected_id": "agent:36",
+      "one_hop_nodes": [
+        "agent:36",
+        "agent:63",
+        "agent:65",
+        "agent:94"
+      ],
+      "two_hop_added_nodes": [
+        "agent:48",
+        "agent:88"
+      ],
+      "one_count": 4,
+      "two_count": 6
+    },
+    {
+      "gate": "prototype_100_focus_pin",
+      "verdict": "PASS",
+      "focus": "agent:36",
+      "pin_before": [],
+      "pin_after": [
+        "agent:0"
+      ],
+      "zoom": {
+        "verdict": "PASS",
+        "ms": 570,
+        "before": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1
+        },
+        "after": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1.12
+        }
+      }
+    },
+    {
+      "gate": "prototype_100_edge_evidence_context",
+      "verdict": "PASS",
+      "selected_edge_id": "edge:network:0",
+      "filters": {
+        "window": "24h",
+        "project": "Alpha",
+        "agent": "agent:atlas"
+      },
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1
+      },
+      "view_switch": {
+        "verdict": "PASS",
+        "prior_edge_id": "edge:network:0",
+        "after_selection": null,
+        "notice": "edge:network:0 does not participate in impact; selection was cleared explicitly. Filters and viewport were preserved."
+      }
+    },
+    {
+      "gate": "real_500_public_api_expected_ids",
+      "verdict": "PASS",
+      "expected_node_count": 509,
+      "actual_node_count": 509,
+      "expected_edge_count": 1014,
+      "actual_edge_count": 1014,
+      "lod_contract": "product default must expose the same complete ID set as lod=full for these frozen tiers"
+    },
+    {
+      "gate": "real_500_dom_count_contract",
+      "verdict": "PASS",
+      "expected_from_public_api": {
+        "nodes": 509,
+        "edges": 1014
+      },
+      "actual_legacy_dom_counts": {
+        "nodes": 509,
+        "edges": 1014
+      },
+      "id_mapping_contract": "Legacy frozen DOM evidence contains counts only; future run-real harness now captures node_ids/edge_ids when DOM exposes data-node-id/data-edge-id."
+    },
+    {
+      "gate": "real_500_project_filter",
+      "verdict": "PASS",
+      "project_id": "project-65443e36",
+      "project_node_id": "project:project-65443e36",
+      "node_count": 509,
+      "edge_count": 1014
+    },
+    {
+      "gate": "real_500_agent_filter",
+      "verdict": "PASS",
+      "agent_ref": "agent:agent-d4400648",
+      "expected_node_ids_sha256": "67b253bdb3172f1ffe089f229eafb81b344ce4bf53b79c3c373cf502014535d5",
+      "actual_node_ids_sha256": "67b253bdb3172f1ffe089f229eafb81b344ce4bf53b79c3c373cf502014535d5",
+      "expected_edge_ids_sha256": "357fdd2805ef65719f449b7156752e929ca800308391e6f6f3637744dd301c23",
+      "actual_edge_ids_sha256": "357fdd2805ef65719f449b7156752e929ca800308391e6f6f3637744dd301c23",
+      "dom_count_after_filter": {
+        "viewBox": "-15 0 755 6946",
+        "nodes": 87,
+        "edges": 171
+      }
+    },
+    {
+      "gate": "real_500_cluster_lod_mapping",
+      "verdict": "PASS",
+      "full_nodes": 509,
+      "clustered_nodes": 90,
+      "full_edges": 1014,
+      "clustered_edges": 1014
+    },
+    {
+      "gate": "prototype_500_project_filter",
+      "verdict": "PASS",
+      "expected_edge_ids": [
+        "edge:network:0",
+        "edge:network:100",
+        "edge:network:101",
+        "edge:network:104",
+        "edge:network:106",
+        "edge:network:107",
+        "edge:network:109",
+        "edge:network:11",
+        "edge:network:110",
+        "edge:network:116",
+        "edge:network:118",
+        "edge:network:119",
+        "edge:network:120",
+        "edge:network:121",
+        "edge:network:122",
+        "edge:network:123",
+        "edge:network:130",
+        "edge:network:138",
+        "edge:network:140",
+        "edge:network:142",
+        "edge:network:146",
+        "edge:network:148",
+        "edge:network:151",
+        "edge:network:152",
+        "edge:network:153",
+        "edge:network:159",
+        "edge:network:167",
+        "edge:network:170",
+        "edge:network:171",
+        "edge:network:175",
+        "edge:network:177",
+        "edge:network:179",
+        "edge:network:18",
+        "edge:network:186",
+        "edge:network:187",
+        "edge:network:188",
+        "edge:network:196",
+        "edge:network:20",
+        "edge:network:202",
+        "edge:network:208",
+        "edge:network:217",
+        "edge:network:222",
+        "edge:network:230",
+        "edge:network:237",
+        "edge:network:243",
+        "edge:network:248",
+        "edge:network:25",
+        "edge:network:256",
+        "edge:network:260",
+        "edge:network:261"
+      ],
+      "actual_edge_ids": [
+        "edge:network:0",
+        "edge:network:100",
+        "edge:network:101",
+        "edge:network:104",
+        "edge:network:106",
+        "edge:network:107",
+        "edge:network:109",
+        "edge:network:11",
+        "edge:network:110",
+        "edge:network:116",
+        "edge:network:118",
+        "edge:network:119",
+        "edge:network:120",
+        "edge:network:121",
+        "edge:network:122",
+        "edge:network:123",
+        "edge:network:130",
+        "edge:network:138",
+        "edge:network:140",
+        "edge:network:142",
+        "edge:network:146",
+        "edge:network:148",
+        "edge:network:151",
+        "edge:network:152",
+        "edge:network:153",
+        "edge:network:159",
+        "edge:network:167",
+        "edge:network:170",
+        "edge:network:171",
+        "edge:network:175",
+        "edge:network:177",
+        "edge:network:179",
+        "edge:network:18",
+        "edge:network:186",
+        "edge:network:187",
+        "edge:network:188",
+        "edge:network:196",
+        "edge:network:20",
+        "edge:network:202",
+        "edge:network:208",
+        "edge:network:217",
+        "edge:network:222",
+        "edge:network:230",
+        "edge:network:237",
+        "edge:network:243",
+        "edge:network:248",
+        "edge:network:25",
+        "edge:network:256",
+        "edge:network:260",
+        "edge:network:261"
+      ],
+      "expected_count": 156,
+      "actual_count": 156
+    },
+    {
+      "gate": "prototype_500_agent_filter",
+      "verdict": "PASS",
+      "expected_edge_ids": [
+        "edge:network:0",
+        "edge:network:101",
+        "edge:network:104",
+        "edge:network:116",
+        "edge:network:120",
+        "edge:network:142",
+        "edge:network:153",
+        "edge:network:167",
+        "edge:network:170",
+        "edge:network:171",
+        "edge:network:177",
+        "edge:network:179",
+        "edge:network:186",
+        "edge:network:188",
+        "edge:network:196",
+        "edge:network:222",
+        "edge:network:230",
+        "edge:network:261",
+        "edge:network:271",
+        "edge:network:292",
+        "edge:network:306",
+        "edge:network:323",
+        "edge:network:335",
+        "edge:network:342",
+        "edge:network:347",
+        "edge:network:355",
+        "edge:network:358",
+        "edge:network:363",
+        "edge:network:38",
+        "edge:network:384",
+        "edge:network:394",
+        "edge:network:397",
+        "edge:network:410",
+        "edge:network:412",
+        "edge:network:437",
+        "edge:network:445",
+        "edge:network:449",
+        "edge:network:45",
+        "edge:network:465",
+        "edge:network:476",
+        "edge:network:487",
+        "edge:network:50",
+        "edge:network:502",
+        "edge:network:508",
+        "edge:network:51",
+        "edge:network:535",
+        "edge:network:550",
+        "edge:network:566",
+        "edge:network:571",
+        "edge:network:58"
+      ],
+      "actual_edge_ids": [
+        "edge:network:0",
+        "edge:network:101",
+        "edge:network:104",
+        "edge:network:116",
+        "edge:network:120",
+        "edge:network:142",
+        "edge:network:153",
+        "edge:network:167",
+        "edge:network:170",
+        "edge:network:171",
+        "edge:network:177",
+        "edge:network:179",
+        "edge:network:186",
+        "edge:network:188",
+        "edge:network:196",
+        "edge:network:222",
+        "edge:network:230",
+        "edge:network:261",
+        "edge:network:271",
+        "edge:network:292",
+        "edge:network:306",
+        "edge:network:323",
+        "edge:network:335",
+        "edge:network:342",
+        "edge:network:347",
+        "edge:network:355",
+        "edge:network:358",
+        "edge:network:363",
+        "edge:network:38",
+        "edge:network:384",
+        "edge:network:394",
+        "edge:network:397",
+        "edge:network:410",
+        "edge:network:412",
+        "edge:network:437",
+        "edge:network:445",
+        "edge:network:449",
+        "edge:network:45",
+        "edge:network:465",
+        "edge:network:476",
+        "edge:network:487",
+        "edge:network:50",
+        "edge:network:502",
+        "edge:network:508",
+        "edge:network:51",
+        "edge:network:535",
+        "edge:network:550",
+        "edge:network:566",
+        "edge:network:571",
+        "edge:network:58"
+      ],
+      "expected_count": 53,
+      "actual_count": 53
+    },
+    {
+      "gate": "prototype_500_window_legacy_quarantine",
+      "verdict": "PASS",
+      "verdict_note": "legacy result is not accepted as the window positive oracle because changed_from_prior_filter=false",
+      "replacement_gate": "window_positive_fixture_1h_24h_7d"
+    },
+    {
+      "gate": "prototype_500_neighborhood",
+      "verdict": "PASS",
+      "selected_id": "agent:0",
+      "one_hop_nodes": [
+        "agent:0",
+        "agent:204"
+      ],
+      "two_hop_added_nodes": [
+        "agent:383"
+      ],
+      "one_count": 2,
+      "two_count": 3
+    },
+    {
+      "gate": "prototype_500_focus_pin",
+      "verdict": "PASS",
+      "focus": "agent:0",
+      "pin_before": [],
+      "pin_after": [
+        "agent:12"
+      ],
+      "zoom": {
+        "verdict": "PASS",
+        "ms": 605,
+        "before": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1
+        },
+        "after": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1.12
+        }
+      }
+    },
+    {
+      "gate": "prototype_500_edge_evidence_context",
+      "verdict": "PASS",
+      "selected_edge_id": "edge:network:0",
+      "filters": {
+        "window": "24h",
+        "project": "Alpha",
+        "agent": "agent:atlas"
+      },
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1
+      },
+      "view_switch": {
+        "verdict": "PASS",
+        "prior_edge_id": "edge:network:0",
+        "after_selection": null,
+        "notice": "edge:network:0 does not participate in impact; selection was cleared explicitly. Filters and viewport were preserved."
+      }
+    },
+    {
+      "gate": "real_2200_public_api_expected_ids",
+      "verdict": "PASS",
+      "expected_node_count": 2208,
+      "actual_node_count": 2208,
+      "expected_edge_count": 4413,
+      "actual_edge_count": 4413,
+      "lod_contract": "product default must expose the same complete ID set as lod=full for these frozen tiers"
+    },
+    {
+      "gate": "real_2200_dom_count_contract",
+      "verdict": "PASS",
+      "expected_from_public_api": {
+        "nodes": 2208,
+        "edges": 4413
+      },
+      "actual_legacy_dom_counts": {
+        "nodes": 2208,
+        "edges": 4413
+      },
+      "id_mapping_contract": "Legacy frozen DOM evidence contains counts only; future run-real harness now captures node_ids/edge_ids when DOM exposes data-node-id/data-edge-id."
+    },
+    {
+      "gate": "real_2200_project_filter",
+      "verdict": "PASS",
+      "project_id": "project-79a575cb",
+      "project_node_id": "project:project-79a575cb",
+      "node_count": 2208,
+      "edge_count": 4413
+    },
+    {
+      "gate": "real_2200_agent_filter",
+      "verdict": "PASS",
+      "agent_ref": "agent:agent-d4400648",
+      "expected_node_ids_sha256": "3665a6904d8223932678833cbde244b837ed88c207086e1190a7f14f715b3047",
+      "actual_node_ids_sha256": "3665a6904d8223932678833cbde244b837ed88c207086e1190a7f14f715b3047",
+      "expected_edge_ids_sha256": "3d22147e41834cfa66b787bef750c27609c7f8a1c5a7fbebb3a9b9f5f0874654",
+      "actual_edge_ids_sha256": "3d22147e41834cfa66b787bef750c27609c7f8a1c5a7fbebb3a9b9f5f0874654",
+      "dom_count_after_filter": {
+        "viewBox": "-15 0 755 30152",
+        "nodes": 370,
+        "edges": 737
+      }
+    },
+    {
+      "gate": "real_2200_cluster_lod_mapping",
+      "verdict": "PASS",
+      "full_nodes": 2208,
+      "clustered_nodes": 90,
+      "full_edges": 4413,
+      "clustered_edges": 4413
+    },
+    {
+      "gate": "prototype_2200_project_filter",
+      "verdict": "PASS",
+      "expected_edge_ids": [
+        "edge:network:10",
+        "edge:network:1000",
+        "edge:network:1001",
+        "edge:network:1009",
+        "edge:network:1011",
+        "edge:network:1012",
+        "edge:network:1018",
+        "edge:network:1019",
+        "edge:network:102",
+        "edge:network:1020",
+        "edge:network:1021",
+        "edge:network:1036",
+        "edge:network:1037",
+        "edge:network:1041",
+        "edge:network:1048",
+        "edge:network:106",
+        "edge:network:1063",
+        "edge:network:1066",
+        "edge:network:1067",
+        "edge:network:1072",
+        "edge:network:1073",
+        "edge:network:108",
+        "edge:network:1094",
+        "edge:network:1095",
+        "edge:network:1110",
+        "edge:network:112",
+        "edge:network:1123",
+        "edge:network:1125",
+        "edge:network:1138",
+        "edge:network:1142",
+        "edge:network:1144",
+        "edge:network:1148",
+        "edge:network:1150",
+        "edge:network:1156",
+        "edge:network:1159",
+        "edge:network:1163",
+        "edge:network:1169",
+        "edge:network:117",
+        "edge:network:1172",
+        "edge:network:1177",
+        "edge:network:1187",
+        "edge:network:1197",
+        "edge:network:1213",
+        "edge:network:1226",
+        "edge:network:1232",
+        "edge:network:1233",
+        "edge:network:1240",
+        "edge:network:1248",
+        "edge:network:125",
+        "edge:network:1250"
+      ],
+      "actual_edge_ids": [
+        "edge:network:10",
+        "edge:network:1000",
+        "edge:network:1001",
+        "edge:network:1009",
+        "edge:network:1011",
+        "edge:network:1012",
+        "edge:network:1018",
+        "edge:network:1019",
+        "edge:network:102",
+        "edge:network:1020",
+        "edge:network:1021",
+        "edge:network:1036",
+        "edge:network:1037",
+        "edge:network:1041",
+        "edge:network:1048",
+        "edge:network:106",
+        "edge:network:1063",
+        "edge:network:1066",
+        "edge:network:1067",
+        "edge:network:1072",
+        "edge:network:1073",
+        "edge:network:108",
+        "edge:network:1094",
+        "edge:network:1095",
+        "edge:network:1110",
+        "edge:network:112",
+        "edge:network:1123",
+        "edge:network:1125",
+        "edge:network:1138",
+        "edge:network:1142",
+        "edge:network:1144",
+        "edge:network:1148",
+        "edge:network:1150",
+        "edge:network:1156",
+        "edge:network:1159",
+        "edge:network:1163",
+        "edge:network:1169",
+        "edge:network:117",
+        "edge:network:1172",
+        "edge:network:1177",
+        "edge:network:1187",
+        "edge:network:1197",
+        "edge:network:1213",
+        "edge:network:1226",
+        "edge:network:1232",
+        "edge:network:1233",
+        "edge:network:1240",
+        "edge:network:1248",
+        "edge:network:125",
+        "edge:network:1250"
+      ],
+      "expected_count": 525,
+      "actual_count": 525
+    },
+    {
+      "gate": "prototype_2200_agent_filter",
+      "verdict": "PASS",
+      "expected_edge_ids": [
+        "edge:network:1001",
+        "edge:network:1008",
+        "edge:network:1009",
+        "edge:network:1011",
+        "edge:network:1012",
+        "edge:network:102",
+        "edge:network:1036",
+        "edge:network:1048",
+        "edge:network:1063",
+        "edge:network:1067",
+        "edge:network:1072",
+        "edge:network:109",
+        "edge:network:1094",
+        "edge:network:1095",
+        "edge:network:1106",
+        "edge:network:1125",
+        "edge:network:1144",
+        "edge:network:1156",
+        "edge:network:1167",
+        "edge:network:1177",
+        "edge:network:1196",
+        "edge:network:1213",
+        "edge:network:1232",
+        "edge:network:1235",
+        "edge:network:125",
+        "edge:network:1250",
+        "edge:network:126",
+        "edge:network:1264",
+        "edge:network:1269",
+        "edge:network:1279",
+        "edge:network:1286",
+        "edge:network:1287",
+        "edge:network:129",
+        "edge:network:1292",
+        "edge:network:1303",
+        "edge:network:1308",
+        "edge:network:1313",
+        "edge:network:1322",
+        "edge:network:1340",
+        "edge:network:1344",
+        "edge:network:1365",
+        "edge:network:1392",
+        "edge:network:1409",
+        "edge:network:1419",
+        "edge:network:1458",
+        "edge:network:1469",
+        "edge:network:1478",
+        "edge:network:1479",
+        "edge:network:149",
+        "edge:network:1498"
+      ],
+      "actual_edge_ids": [
+        "edge:network:1001",
+        "edge:network:1008",
+        "edge:network:1009",
+        "edge:network:1011",
+        "edge:network:1012",
+        "edge:network:102",
+        "edge:network:1036",
+        "edge:network:1048",
+        "edge:network:1063",
+        "edge:network:1067",
+        "edge:network:1072",
+        "edge:network:109",
+        "edge:network:1094",
+        "edge:network:1095",
+        "edge:network:1106",
+        "edge:network:1125",
+        "edge:network:1144",
+        "edge:network:1156",
+        "edge:network:1167",
+        "edge:network:1177",
+        "edge:network:1196",
+        "edge:network:1213",
+        "edge:network:1232",
+        "edge:network:1235",
+        "edge:network:125",
+        "edge:network:1250",
+        "edge:network:126",
+        "edge:network:1264",
+        "edge:network:1269",
+        "edge:network:1279",
+        "edge:network:1286",
+        "edge:network:1287",
+        "edge:network:129",
+        "edge:network:1292",
+        "edge:network:1303",
+        "edge:network:1308",
+        "edge:network:1313",
+        "edge:network:1322",
+        "edge:network:1340",
+        "edge:network:1344",
+        "edge:network:1365",
+        "edge:network:1392",
+        "edge:network:1409",
+        "edge:network:1419",
+        "edge:network:1458",
+        "edge:network:1469",
+        "edge:network:1478",
+        "edge:network:1479",
+        "edge:network:149",
+        "edge:network:1498"
+      ],
+      "expected_count": 241,
+      "actual_count": 241
+    },
+    {
+      "gate": "prototype_2200_window_legacy_quarantine",
+      "verdict": "PASS",
+      "verdict_note": "legacy result is not accepted as the window positive oracle because changed_from_prior_filter=false",
+      "replacement_gate": "window_positive_fixture_1h_24h_7d"
+    },
+    {
+      "gate": "prototype_2200_neighborhood",
+      "verdict": "PASS",
+      "selected_id": "agent:12",
+      "one_hop_nodes": [
+        "agent:12",
+        "agent:1608",
+        "agent:1635",
+        "agent:433",
+        "agent:828"
+      ],
+      "two_hop_added_nodes": [
+        "agent:399"
+      ],
+      "one_count": 5,
+      "two_count": 6
+    },
+    {
+      "gate": "prototype_2200_focus_pin",
+      "verdict": "PASS",
+      "focus": "agent:12",
+      "pin_before": [],
+      "pin_after": [
+        "agent:0"
+      ],
+      "zoom": {
+        "verdict": "PASS",
+        "ms": 769,
+        "before": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1
+        },
+        "after": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1.12
+        }
+      }
+    },
+    {
+      "gate": "prototype_2200_edge_evidence_context",
+      "verdict": "PASS",
+      "selected_edge_id": "edge:network:6",
+      "filters": {
+        "window": "24h",
+        "project": "Alpha",
+        "agent": "agent:atlas"
+      },
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1
+      },
+      "view_switch": {
+        "verdict": "PASS",
+        "prior_edge_id": "edge:network:6",
+        "after_selection": null,
+        "notice": "edge:network:6 does not participate in impact; selection was cleared explicitly. Filters and viewport were preserved."
+      }
+    },
+    {
+      "gate": "window_positive_fixture_1h_24h_7d",
+      "verdict": "PASS",
+      "oracle_source": "inline deterministic fixture manifest independent of graphForState",
+      "expected_edge_ids_by_window": {
+        "1h": [
+          "fx-edge-1h-handoff"
+        ],
+        "24h": [
+          "fx-edge-1h-handoff",
+          "fx-edge-24h-review"
+        ],
+        "7d": [
+          "fx-edge-1h-handoff",
+          "fx-edge-24h-review",
+          "fx-edge-7d-block"
+        ]
+      },
+      "changed_from_prior_filter": true
+    },
+    {
+      "gate": "real_100_context_state",
+      "verdict": "PASS",
+      "selected_source": "edge button with evidence > 0",
+      "filter_values": {
+        "project_id": "project-aa7e024c",
+        "agent_ref": "agent:agent-d4400648",
+        "lod": "full"
+      },
+      "viewport": {
+        "viewBox": "-15 0 755 1452",
+        "nodes": 20,
+        "edges": 37
+      },
+      "selected_id_contract": "legacy DOM drawer text is not the oracle; selected effect edge evidence is cross-checked through HAR evidence endpoint gates"
+    },
+    {
+      "gate": "real_500_context_state",
+      "verdict": "PASS",
+      "selected_source": "edge button with evidence > 0",
+      "filter_values": {
+        "project_id": "project-65443e36",
+        "agent_ref": "agent:agent-d4400648",
+        "lod": "full"
+      },
+      "viewport": {
+        "viewBox": "-15 0 755 6946",
+        "nodes": 87,
+        "edges": 171
+      },
+      "selected_id_contract": "legacy DOM drawer text is not the oracle; selected effect edge evidence is cross-checked through HAR evidence endpoint gates"
+    },
+    {
+      "gate": "real_2200_context_state",
+      "verdict": "PASS",
+      "selected_source": "edge button with evidence > 0",
+      "filter_values": {
+        "project_id": "project-79a575cb",
+        "agent_ref": "agent:agent-d4400648",
+        "lod": "full"
+      },
+      "viewport": {
+        "viewBox": "-15 0 755 30152",
+        "nodes": 370,
+        "edges": 737
+      },
+      "selected_id_contract": "legacy DOM drawer text is not the oracle; selected effect edge evidence is cross-checked through HAR evidence endpoint gates"
+    },
+    {
+      "gate": "artifacts_video_real_100",
+      "verdict": "REJECT",
+      "videos": [
+        {
+          "path": "raw/real-100/page@77e62c200c5d59b9a48cd6c6045376cf.webm",
+          "size": 759291,
+          "sha256": "431d078fffc1d15d1d894d71d3669f5b0afe5fe642016ac44494311e8233000d",
+          "reachable": true,
+          "injected_missing": true
+        }
+      ],
+      "reason": "injected missing video artifact",
+      "injected_fault": "missing-video"
+    },
+    {
+      "gate": "artifacts_video_prototype_100",
+      "verdict": "PASS",
+      "videos": [
+        {
+          "path": "raw/prototype-100/page@706bfd2b7d599bf2bcf3410d5ff79dea.webm",
+          "size": 286562,
+          "sha256": "971e17a577e08361123ff925d06bb1c94d196b8986f204e205b89e92cbafd7c7",
+          "reachable": true
+        }
+      ]
+    },
+    {
+      "gate": "artifacts_video_real_500",
+      "verdict": "PASS",
+      "videos": [
+        {
+          "path": "raw/real-500/page@6a6a71422d9096059af3fa1ad4259854.webm",
+          "size": 1636375,
+          "sha256": "05cea0a5ccb1a9ceb1bf36f14ad5aba5971c85f5e15ced88dcc94ac017f598ef",
+          "reachable": true
+        }
+      ]
+    },
+    {
+      "gate": "artifacts_video_prototype_500",
+      "verdict": "PASS",
+      "videos": [
+        {
+          "path": "raw/prototype-500/page@0c7f07087c1734c4a6b99266fdeb7280.webm",
+          "size": 329065,
+          "sha256": "6c8e2eaa4ebfa918d4b09ff2a6a54aeb70f3d80cd8e1b4948888e5b88ec2f81c",
+          "reachable": true
+        }
+      ]
+    },
+    {
+      "gate": "artifacts_video_real_2200",
+      "verdict": "PASS",
+      "videos": [
+        {
+          "path": "raw/real-2200/page@e818052197254ede9a959985afdc2fb5.webm",
+          "size": 13183463,
+          "sha256": "320523497b979b72a8ae3c94cc6031d670ace3cd9c295b7eba4df3d2f49108e6",
+          "reachable": true
+        }
+      ]
+    },
+    {
+      "gate": "artifacts_video_prototype_2200",
+      "verdict": "PASS",
+      "videos": [
+        {
+          "path": "raw/prototype-2200/page@e1ed578a53fa220c9dc53fa42943d674.webm",
+          "size": 470861,
+          "sha256": "f1f5b1d170fdd4890a5b2a2090464e06aa8db88b26d35107a8ad7e2ad0e9f90e",
+          "reachable": true
+        }
+      ]
+    },
+    {
+      "gate": "artifacts_completeness_sha256_reachable",
+      "verdict": "PASS",
+      "required_count": 49,
+      "missing_or_empty": [],
+      "manifest_count": 60
+    },
+    {
+      "gate": "legacy_audit_rows_present",
+      "verdict": "PASS",
+      "required": [
+        "T2208-neighborhood-expand",
+        "T2208-window-project-agent-filters",
+        "T2208-selected-context",
+        "T2208-view-switch",
+        "performance-evidence-complete"
+      ],
+      "missing": []
+    },
+    {
+      "gate": "real_baseline_performance_100_500_2200",
+      "verdict": "PASS",
+      "tiers": [
+        {
+          "tier": 100,
+          "tti_ms": 204,
+          "p95_ms": 32.59999990463257,
+          "memory": 17
+        },
+        {
+          "tier": 500,
+          "tti_ms": 364,
+          "p95_ms": 40.700000286102295,
+          "memory": 43
+        },
+        {
+          "tier": 2200,
+          "tti_ms": 749,
+          "p95_ms": 232.30000019073486,
+          "memory": 18
+        }
+      ]
+    },
+    {
+      "gate": "prototype_performance_100_500_2200",
+      "verdict": "PASS",
+      "tiers": [
+        {
+          "tier": 100,
+          "tti_ms": 55,
+          "p95_ms": 33.59999990463257,
+          "memory": 10
+        },
+        {
+          "tier": 500,
+          "tti_ms": 72,
+          "p95_ms": 25.399999618530273,
+          "memory": 10
+        },
+        {
+          "tier": 2200,
+          "tti_ms": 125,
+          "p95_ms": 33.5,
+          "memory": 10
+        }
+      ]
+    },
+    {
+      "gate": "all_gate_summary",
+      "verdict": "REJECT",
+      "required_gates": [
+        "project_filter",
+        "agent_filter",
+        "window_filter",
+        "context",
+        "neighborhood",
+        "focus",
+        "pin",
+        "edge_evidence",
+        "real_baseline_performance_100_500_2200",
+        "prototype_performance_100_500_2200",
+        "artifacts_completeness"
+      ],
+      "false_or_not_run_gates": [
+        "artifacts_video_real_100"
+      ]
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "frozen-prototype/index.html",
+      "size": 3959,
+      "sha256": "4d7a345a3560d08dd5da766a9885e72d1f85b401df62f564af9521bf8765042d",
+      "reachable": true
+    },
+    {
+      "path": "frozen-prototype/prototype.css",
+      "size": 4236,
+      "sha256": "c2e6f8de5459242a5f22879c6847fa8d040c2eb8a7350957aa49c178d9e128fc",
+      "reachable": true
+    },
+    {
+      "path": "frozen-prototype/prototype.js",
+      "size": 32806,
+      "sha256": "5dfc8f94c9bce664237623132477f228680bb481cd9f3695accf35e8983c1f71",
+      "reachable": true
+    },
+    {
+      "path": "oracle-fixture-manifest.json",
+      "size": 8120,
+      "sha256": "a5c2754e1ed5da8ba3b5f60fec604eae5703706214afe157e1590dc9c67a7ba5",
+      "reachable": true
+    },
+    {
+      "path": "raw/environment.json",
+      "size": 2554,
+      "sha256": "7060131935919df8653ca0cffafa3da7d73dd06d9d56b97a2433878c4a0c1298",
+      "reachable": true
+    },
+    {
+      "path": "raw/evidence-precommit.log",
+      "size": 200,
+      "sha256": "317cf03fc4a5f98f6ca4dc3091d87acafe577bd34d881046e8baed2813c5f1f6",
+      "reachable": true
+    },
+    {
+      "path": "raw/frozen-benchmark-summary.csv",
+      "size": 2129,
+      "sha256": "d414e1f58865bbae46ab32bbb923cb098fd31cbd0aa9f0c45512470f530afcd7",
+      "reachable": true
+    },
+    {
+      "path": "raw/frozen-benchmark-summary.json",
+      "size": 33115,
+      "sha256": "cae7f03c0a69bf28ae10c632fd352fb34237538d956ee18bc7f12567c41c627a",
+      "reachable": true
+    },
+    {
+      "path": "raw/node-check.log",
+      "size": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-100/console.json",
+      "size": 45,
+      "sha256": "b66db4e3722074a4f9e56b2c135d9bf376edcad67950f367b9ee71caa3885b81",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-100/network.har",
+      "size": 47666,
+      "sha256": "c5595c468b7da05cc601e1671fe2df3866d0da0a024d564aa469f12629814762",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-100/page.png",
+      "size": 149656,
+      "sha256": "fb0dac1808d0e0fa7dd18549a2edf2c2c63fa2931f63d4d5cf6bee4ea5eb430c",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-100/page@706bfd2b7d599bf2bcf3410d5ff79dea.webm",
+      "size": 286562,
+      "sha256": "971e17a577e08361123ff925d06bb1c94d196b8986f204e205b89e92cbafd7c7",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-100/result.json",
+      "size": 4155,
+      "sha256": "e685a65dee2ac212318c489ead3fc6083d1c2da9664c5166cdd8ee3d5da15073",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-100/trace.zip",
+      "size": 1748647,
+      "sha256": "6bf0e29f39a5825be905b276e56ee59743fb695836c6d00a5fd863b5948391bd",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-2200/console.json",
+      "size": 45,
+      "sha256": "b66db4e3722074a4f9e56b2c135d9bf376edcad67950f367b9ee71caa3885b81",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-2200/network.har",
+      "size": 47674,
+      "sha256": "dfe307c6df5484938aed4ac897a7e01775511523450dac37943a35e273cc4a57",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-2200/page.png",
+      "size": 498310,
+      "sha256": "a8c67331b3445165b96eb10ea428735a10da6ff3bc9db4bd7063cb1984cb2da4",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-2200/page@e1ed578a53fa220c9dc53fa42943d674.webm",
+      "size": 470861,
+      "sha256": "f1f5b1d170fdd4890a5b2a2090464e06aa8db88b26d35107a8ad7e2ad0e9f90e",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-2200/result.json",
+      "size": 6986,
+      "sha256": "d3cf360d0d4164cc5b0ebff7db15b0d59bfe278bf00ffdfb008853e9b710283e",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-2200/trace.zip",
+      "size": 3731474,
+      "sha256": "3df02492b3f0ce94c74b496682fd524d430515f667e92104f30052c7fe5a91d0",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-500/console.json",
+      "size": 45,
+      "sha256": "b66db4e3722074a4f9e56b2c135d9bf376edcad67950f367b9ee71caa3885b81",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-500/network.har",
+      "size": 47695,
+      "sha256": "c9a819c53d8ad11cec2432624ef34b9f2a1cbf29636077970b7ccb113281444b",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-500/page.png",
+      "size": 255524,
+      "sha256": "5e11304e3b13db4f1c082fb48da26910cb6c76705ae6f5af707d2dc5f16a4a3b",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-500/page@0c7f07087c1734c4a6b99266fdeb7280.webm",
+      "size": 329065,
+      "sha256": "6c8e2eaa4ebfa918d4b09ff2a6a54aeb70f3d80cd8e1b4948888e5b88ec2f81c",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-500/result.json",
+      "size": 6734,
+      "sha256": "dc0fa04e9c0a0b645c1de16ef782fcfde634fca92b9c6ec5937655b32d2b618f",
+      "reachable": true
+    },
+    {
+      "path": "raw/prototype-500/trace.zip",
+      "size": 2762587,
+      "sha256": "42f0d78bd7817f37dd3f097275b6eca2d95f44c05371dc471d3557b28ca49f70",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-100/api-clustered_90.json",
+      "size": 105321,
+      "sha256": "59d079efa09bf1b22b0605369fd1e9b6995a48e868836b54164b442d782457ba",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-100/api-product_default.json",
+      "size": 110098,
+      "sha256": "36747f8749b95e748a3a464bc3715b0544d7a9c45970c8fe04420dd41de1f1c7",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-100/api-visible_full.json",
+      "size": 110098,
+      "sha256": "ed2593de2a39601012379e9f90dbcaedbfc8d4ac3aa05aa818a6080986c5cf55",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-100/console.json",
+      "size": 45,
+      "sha256": "b66db4e3722074a4f9e56b2c135d9bf376edcad67950f367b9ee71caa3885b81",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-100/network.har",
+      "size": 3689751,
+      "sha256": "bd8407dd12dada7209909cf7318945c4612bbf68d1b05b3ce1e35519baa4fdb4",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-100/network.json",
+      "size": 11538,
+      "sha256": "cc8fb20fd435bc804ebfb45cdeaee25088551b5edaa35cea91a5194d98f8023c",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-100/page.png",
+      "size": 162096,
+      "sha256": "c702d887d3cb243e65b01bfd35d2ab7c7328a8f0357b74eae874285e83955346",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-100/page@77e62c200c5d59b9a48cd6c6045376cf.webm",
+      "size": 759291,
+      "sha256": "431d078fffc1d15d1d894d71d3669f5b0afe5fe642016ac44494311e8233000d",
+      "reachable": true,
+      "injected_missing": true
+    },
+    {
+      "path": "raw/real-100/result.json",
+      "size": 4361,
+      "sha256": "72dafc4808a55ffe6d00fed214400cd7ce1e46d006b9a0496084205bda35c88f",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-100/trace.zip",
+      "size": 8341847,
+      "sha256": "74af15a9f173f531bd4573233526e6f90f6cdbe534fc40e87891dcef31f9f185",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-2200/api-clustered_90.json",
+      "size": 1438275,
+      "sha256": "bb7f096f6009e9eb5e94a58d37fb4d0cf434fd4b1348bcb40cf41df34cfb34d6",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-2200/api-product_default.json",
+      "size": 2019636,
+      "sha256": "459653b60efbfce986f4885edb171011fd2fc280dbc56156c893f913cdce04da",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-2200/api-visible_full.json",
+      "size": 2019635,
+      "sha256": "5b16b93d87739d1d5e0a23ef4b4219e1035bdace17468b8a86b1bb13a56bf3e0",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-2200/console.json",
+      "size": 45,
+      "sha256": "b66db4e3722074a4f9e56b2c135d9bf376edcad67950f367b9ee71caa3885b81",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-2200/network.har",
+      "size": 11480062,
+      "sha256": "257a419ba921f9a5d993a21ea39101efd99b369e568ed781420d03da4520784c",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-2200/network.json",
+      "size": 11675,
+      "sha256": "f4b65c4118f7445da968cdddb157cd3d5aea23267ef3b9f53fbac1e5b9bfe514",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-2200/page.png",
+      "size": 156443,
+      "sha256": "8556eb9065bd7a89d80b82d47ee1607b0bed0dddc5952fab54accf4b2c78a6ac",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-2200/page@e818052197254ede9a959985afdc2fb5.webm",
+      "size": 13183463,
+      "sha256": "320523497b979b72a8ae3c94cc6031d670ace3cd9c295b7eba4df3d2f49108e6",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-2200/result.json",
+      "size": 4834,
+      "sha256": "729e2808aa0ccf7864617bbb967f524073e536a09031393358931bd46578fe40",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-2200/trace.zip",
+      "size": 9730699,
+      "sha256": "f7864797feb15f21ea6f32746d43670068d10c44cd52c889794cebb230c8fbf9",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-500/api-clustered_90.json",
+      "size": 359755,
+      "sha256": "1269e943202b33090d08844d937e913898d983b99a81d917cee1960a280c75f8",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-500/api-product_default.json",
+      "size": 473700,
+      "sha256": "38f0529811f465498dad619d80648d38afd133bfddfd352018f375b7d24b73aa",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-500/api-visible_full.json",
+      "size": 473700,
+      "sha256": "75c4f759731c41059fdf224e99395554432e97167d7e0f733ef1a15330830d28",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-500/console.json",
+      "size": 45,
+      "sha256": "b66db4e3722074a4f9e56b2c135d9bf376edcad67950f367b9ee71caa3885b81",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-500/network.har",
+      "size": 5675028,
+      "sha256": "612452a4c73d822ff3d144a05695057679588ad7790778056ccc7c075e5f0607",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-500/network.json",
+      "size": 11538,
+      "sha256": "718bb977533fff6248f0ab35cac002a1d9ea090e3e36e3c5db4db7f1cdfe5af9",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-500/page.png",
+      "size": 160303,
+      "sha256": "1b1fe3a70164adc47833b56eb7dbc2d05ca84a1f71594256cd9fa42bcf7e29be",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-500/page@6a6a71422d9096059af3fa1ad4259854.webm",
+      "size": 1636375,
+      "sha256": "05cea0a5ccb1a9ceb1bf36f14ad5aba5971c85f5e15ced88dcc94ac017f598ef",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-500/result.json",
+      "size": 4622,
+      "sha256": "6944d7dcfc81d3212d41a685499d725bcf54abf5ec51224e788e028d51401fc0",
+      "reachable": true
+    },
+    {
+      "path": "raw/real-500/trace.zip",
+      "size": 8539661,
+      "sha256": "f280bf15593e793e510b1b8e245009edcef562a2a2b3bcd4bc87670c68053d7b",
+      "reachable": true
+    },
+    {
+      "path": "raw/seed-progress.json",
+      "size": 109938,
+      "sha256": "34f99d7bab009dfa1bb6f223a630624c58c998f731e311717ed27584e1b6f288",
+      "reachable": true
+    },
+    {
+      "path": "raw/server.log",
+      "size": 125438,
+      "sha256": "562ab75532b3f80e82e1ee3f1b048737a27c17fe92a0585a7b2d67c69b575200",
+      "reachable": true
+    },
+    {
+      "path": "verdict.json",
+      "size": 60782,
+      "sha256": "f91a604dc5759934937f38e12da93f58f242cba010fbf5354a9b0be4c699f2b4",
+      "reachable": true
+    }
+  ]
+}
