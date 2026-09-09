@@ -34,6 +34,12 @@ const codexCenterAccessPolicySection = "== Agent-center access policy ==\n" +
 	"Do not use the agent-center MCP search_tools meta-tool in Codex sessions: Codex does not rebuild its callable MCP registry from that server-side list change. " +
 	"If an agent-center MCP tool is missing, unavailable, or fails to load, report that blocker in the current conversation and stop the affected center-state operation."
 
+const codexComputerUseSection = "== Computer Use ==\n" +
+	"When a task requires operating macOS apps or reading local app UI, use the node_repl MCP tool. " +
+	"On the first node_repl call in a fresh session, run `globalThis.sky = (await import(\"@oai/sky\")).sky;`. " +
+	"Inspect app state before acting, perform the smallest necessary actions with sky, then inspect again before reporting the result. " +
+	"If node_repl or @oai/sky is unavailable, report that Computer Use is unavailable instead of using unrelated UI automation."
+
 // PersonaDescriptionSection wraps an agent's profile description as a system-prompt
 // persona段 (T728). A blank description yields "" (no section) so an agent without a
 // description — or one that opted the injection out (the caller passes "") — adds
@@ -61,6 +67,10 @@ func ComposeExtraSystemPrompt(promptDescription, memoryContext string) string {
 // tool_search instead of mcp-host's search_tools.
 func ComposeCodexExtraSystemPrompt(promptDescription, memoryContext string) string {
 	return composeExtraSystemPrompt(codexCenterAccessPolicySection, promptDescription, memoryContext)
+}
+
+func ComposeCodexExtraSystemPromptWithComputerUse(promptDescription, memoryContext string) string {
+	return composeExtraSystemPrompt(codexCenterAccessPolicySection+"\n\n"+codexComputerUseSection, promptDescription, memoryContext)
 }
 
 func composeExtraSystemPrompt(accessPolicy, promptDescription, memoryContext string) string {

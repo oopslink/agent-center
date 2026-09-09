@@ -88,6 +88,33 @@ func TestStartCodex_InheritsComputerUseCodexHomeResources(t *testing.T) {
 	base := t.TempDir()
 	sourceCodexHome := t.TempDir()
 	t.Setenv("CODEX_HOME", sourceCodexHome)
+	nodeRoot := t.TempDir()
+	nodeRepl := filepath.Join(nodeRoot, "node_repl")
+	node := filepath.Join(nodeRoot, "node")
+	modules := filepath.Join(nodeRoot, "node_modules")
+	service := filepath.Join(sourceCodexHome, "computer-use", "Codex Computer Use.app", "Contents", "MacOS", "SkyComputerUseService")
+	for _, p := range []string{nodeRepl, node, service} {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(modules, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldNodeRepl, oldNode, oldModules, oldService := codexNodeReplCommand, codexNodeCommand, codexNodeModuleDirs, codexComputerUseService
+	t.Cleanup(func() {
+		codexNodeReplCommand = oldNodeRepl
+		codexNodeCommand = oldNode
+		codexNodeModuleDirs = oldModules
+		codexComputerUseService = oldService
+	})
+	codexNodeReplCommand = nodeRepl
+	codexNodeCommand = node
+	codexNodeModuleDirs = modules
+	codexComputerUseService = filepath.Join(t.TempDir(), "missing-service")
 	if err := os.WriteFile(filepath.Join(sourceCodexHome, "auth.json"), []byte(`{"token":"x"}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -139,6 +166,18 @@ command = "/stale/agent-center"
 	}
 	if strings.Contains(s, "/stale/agent-center") {
 		t.Fatalf("codex config kept stale source MCP table; got:\n%s", s)
+	}
+	for _, want := range []string{
+		"[mcp_servers.node_repl]",
+		`command = "` + nodeRepl + `"`,
+		`SKY_CUA_SERVICE_PATH = "` + service + `"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Fatalf("codex config missing Computer Use node_repl entry %q; got:\n%s", want, s)
+		}
+	}
+	if !strings.Contains(got.ExtraSystemPrompt, "== Computer Use ==") {
+		t.Fatalf("Codex extra system prompt must include Computer Use instructions when available; got:\n%s", got.ExtraSystemPrompt)
 	}
 	for _, name := range codexInheritedResourceDirs {
 		target, err := os.Readlink(filepath.Join(got.CodexHome, name))

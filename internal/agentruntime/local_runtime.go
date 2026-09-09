@@ -1081,6 +1081,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		return fmt.Errorf("agent_controller: write codex mcp-config: %w", err)
 	}
 	resourceWarnings := provisionCodexResourceLinks(codexHome, sourceCodexHome)
+	computerUseAvailable := codexComputerUseAvailable(sourceCodexHome)
 	r.reportCodexMCPDiagnostic(agentID, "codex_config_written", map[string]any{
 		"summary":            "codex config.toml written under per-agent CODEX_HOME",
 		"codex_home":         codexHome,
@@ -1088,6 +1089,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		"config_file_status": fileStatus(filepath.Join(codexHome, codexConfigFileName)),
 		"source_config":      fileStatus(filepath.Join(sourceCodexHome, codexConfigFileName)),
 		"resource_warnings":  resourceWarnings,
+		"computer_use":       computerUseAvailable,
 	})
 	// T977 fix #1: provision the codex login auth.json into the per-agent CODEX_HOME.
 	// codex reads auth from $CODEX_HOME; the dedicated per-agent home has the generated
@@ -1118,7 +1120,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	}); err != nil {
 		return err
 	}
-	extraSystemPrompt := r.codexExtraSystemPrompt(ctx, home, spec.PromptDescription)
+	extraSystemPrompt := r.codexExtraSystemPrompt(ctx, home, spec.PromptDescription, computerUseAvailable)
 
 	// Codex resume is health-gated. A captured thread_id is only safe to seed when
 	// the caller explicitly requested a resume AND the prior generation proved it
@@ -1200,6 +1202,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		CodexHome: codexHome,
 		CodexAuth: authStatus,
 		Memory:    "progressive",
+		Computer:  computerUseStatus(computerUseAvailable),
 		Executor:  executorStatus(spec.ConcurrencyEnabled),
 		Resume:    resumeThreadID != "",
 		SessionID: resumeThreadID,
@@ -1217,6 +1220,7 @@ type controlLoadedInfo struct {
 	CodexHome string
 	CodexAuth string
 	Memory    string
+	Computer  string
 	Executor  string
 	Resume    bool
 	SessionID string
@@ -1227,6 +1231,13 @@ func executorStatus(enabled bool) string {
 		return "enabled"
 	}
 	return "disabled"
+}
+
+func computerUseStatus(enabled bool) string {
+	if enabled {
+		return "enabled"
+	}
+	return "unavailable"
 }
 
 func (r *LocalRuntime) reportControlLoaded(agentID string, spec StartSpec, info controlLoadedInfo) {
@@ -1243,6 +1254,7 @@ func (r *LocalRuntime) reportControlLoaded(agentID string, spec StartSpec, info 
 		components = append(components,
 			map[string]any{"name": "codex_home", "status": pathStatus(info.CodexHome)},
 			map[string]any{"name": "codex_auth", "status": info.CodexAuth},
+			map[string]any{"name": "computer_use", "status": info.Computer},
 			map[string]any{"name": "codex_transport", "status": "https_forced"},
 		)
 	}
@@ -1378,7 +1390,7 @@ func fileStatus(path string) map[string]any {
 	return map[string]any{"exists": true, "size": info.Size(), "mode": info.Mode().Perm().String()}
 }
 
-func (r *LocalRuntime) codexExtraSystemPrompt(ctx context.Context, home, promptDescription string) string {
+func (r *LocalRuntime) codexExtraSystemPrompt(ctx context.Context, home, promptDescription string, computerUseAvailable bool) string {
 	memEngine := memory.NewEngine(filepath.Join(home, "memory"), "")
 	var memoryContext string
 	if initErr := memEngine.EnsureRootInit(ctx); initErr != nil {
@@ -1398,6 +1410,9 @@ func (r *LocalRuntime) codexExtraSystemPrompt(ctx context.Context, home, promptD
 			stats.MemoryBudgetBytes,
 			stats.PerFileBytes,
 		)
+	}
+	if computerUseAvailable {
+		return claudestream.ComposeCodexExtraSystemPromptWithComputerUse(promptDescription, memoryContext)
 	}
 	return claudestream.ComposeCodexExtraSystemPrompt(promptDescription, memoryContext)
 }

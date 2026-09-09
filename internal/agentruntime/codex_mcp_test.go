@@ -133,6 +133,67 @@ command = "/stale/other"
 	}
 }
 
+func TestWriteCodexMCPConfigFromSource_AddsNodeReplWhenComputerUseAvailable(t *testing.T) {
+	home := t.TempDir()
+	src := t.TempDir()
+	nodeRoot := t.TempDir()
+	nodeRepl := filepath.Join(nodeRoot, "node_repl")
+	node := filepath.Join(nodeRoot, "node")
+	modules := filepath.Join(nodeRoot, "node_modules")
+	service := filepath.Join(src, "computer-use", "Codex Computer Use.app", "Contents", "MacOS", "SkyComputerUseService")
+	for _, p := range []string{nodeRepl, node, service} {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(modules, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	oldNodeRepl, oldNode, oldModules, oldService := codexNodeReplCommand, codexNodeCommand, codexNodeModuleDirs, codexComputerUseService
+	t.Cleanup(func() {
+		codexNodeReplCommand = oldNodeRepl
+		codexNodeCommand = oldNode
+		codexNodeModuleDirs = oldModules
+		codexComputerUseService = oldService
+	})
+	codexNodeReplCommand = nodeRepl
+	codexNodeCommand = node
+	codexNodeModuleDirs = modules
+	codexComputerUseService = filepath.Join(t.TempDir(), "missing-service")
+
+	if err := os.WriteFile(filepath.Join(src, "config.toml"), []byte(`model = "gpt-5-codex"`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime := []byte(`{"mcpServers":{"agent-center":{"command":"/opt/agent-center-worker","args":["worker","mcp-host"],"env":{}}}}`)
+
+	codexHome, err := WriteCodexMCPConfigFromSource(home, runtime, src)
+	if err != nil {
+		t.Fatalf("WriteCodexMCPConfigFromSource: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(codexHome, codexConfigFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	for _, want := range []string{
+		`[mcp_servers.node_repl]`,
+		`command = "` + nodeRepl + `"`,
+		`startup_timeout_sec = 120`,
+		`CODEX_HOME = "` + codexHome + `"`,
+		`NODE_REPL_NODE_MODULE_DIRS = "` + modules + `"`,
+		`NODE_REPL_NODE_PATH = "` + node + `"`,
+		`NODE_REPL_TRUSTED_CODE_PATHS = "` + src + `:` + codexHome + `:` + modules + `"`,
+		`SKY_CUA_SERVICE_PATH = "` + service + `"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("node_repl config missing %q; got:\n%s", want, s)
+		}
+	}
+}
+
 // An empty runtimeJSON yields a header-only config.toml (no servers), not an error —
 // a codex agent with no MCP still gets a valid CODEX_HOME.
 func TestWriteCodexMCPConfig_Empty(t *testing.T) {

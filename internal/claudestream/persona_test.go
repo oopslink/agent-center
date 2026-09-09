@@ -118,3 +118,17 @@ func TestCodexAccessPolicyUsesNativeToolSearch(t *testing.T) {
 		}
 	}
 }
+
+func TestComposeCodexExtraSystemPromptWithComputerUse(t *testing.T) {
+	got := ComposeCodexExtraSystemPromptWithComputerUse("", "")
+	for _, want := range []string{
+		"== Computer Use ==",
+		"use the node_repl MCP tool",
+		`globalThis.sky = (await import("@oai/sky")).sky;`,
+		"Inspect app state before acting",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("Computer Use prompt missing %q; got:\n%s", want, got)
+		}
+	}
+}
