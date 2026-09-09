@@ -1,0 +1,15 @@
+{
+  "view": "impact",
+  "layout": "radial impact",
+  "requested_scale": 500,
+  "rendered_nodes": 500,
+  "rendered_edges": 600,
+  "first_interactive_ms": 116,
+  "draw_ms_last": 4.6,
+  "draw_ms_avg": 5.6,
+  "draw_ms_p95": 6.6,
+  "estimated_fps_p95": 60,
+  "js_heap_mb": 1,
+  "budget_ms_per_frame": 24,
+  "pass": true
+}

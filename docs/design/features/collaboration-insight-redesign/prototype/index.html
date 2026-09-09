@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Collaboration Insight Redesign Prototype</title>
+  <link rel="stylesheet" href="./prototype.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div>
+        <h1>Collaboration Insight</h1>
+        <p id="view-question">Who collaborates most closely?</p>
+      </div>
+      <div class="filters" aria-label="Shared filters">
+        <label>Window <select id="window"><option>24h</option><option>7d</option><option>30d</option></select></label>
+        <label>Project <select id="project"><option value="">All projects</option><option>Alpha</option><option>Runtime</option></select></label>
+        <label>Agent <select id="agent"><option value="">All agents</option><option>agent:atlas</option><option>agent:forge</option></select></label>
+        <button id="clear">Clear</button>
+      </div>
+    </header>
+
+    <nav class="view-tabs" aria-label="Graph views">
+      <button class="active" data-view="network">Collaboration network</button>
+      <button data-view="impact">Task impact</button>
+      <button data-view="lineage">Plan path</button>
+    </nav>
+
+    <section class="workspace">
+      <aside class="panel" aria-label="Graph controls">
+        <label>Scale
+          <select id="scale">
+            <option value="100">100 nodes/edges</option>
+            <option value="500">500 nodes/edges</option>
+            <option value="2200">2k+ nodes/edges</option>
+          </select>
+        </label>
+        <label>Layout
+          <select id="layout"></select>
+        </label>
+        <label>Search
+          <input id="search" placeholder="Find agent, task, stage">
+        </label>
+        <div class="button-row">
+          <button id="focus">Focus</button>
+          <button id="restore">Restore</button>
+        </div>
+        <div class="button-row">
+          <button id="expand">Expand</button>
+          <button id="collapse">Collapse</button>
+        </div>
+        <label class="check"><input id="clusters" type="checkbox" checked> Cluster quiet neighborhoods</label>
+        <label class="check"><input id="lod" type="checkbox" checked> Zoom-level labels</label>
+        <div class="legend">
+          <span><i class="node agent"></i>Agent</span>
+          <span><i class="node task"></i>Task</span>
+          <span><i class="node plan"></i>Plan</span>
+          <span><i class="edge positive"></i>Positive</span>
+          <span><i class="edge negative"></i>Blocking</span>
+          <span><i class="edge neutral"></i>Dependency</span>
+        </div>
+      </aside>
+
+      <section class="canvas-wrap" aria-label="Prototype graph canvas">
+        <canvas id="graph" width="1280" height="760" tabindex="0" aria-label="Interactive graph"></canvas>
+        <canvas id="minimap" width="180" height="110" aria-label="Mini map"></canvas>
+        <div class="hud" id="hud">Ready</div>
+      </section>
+
+      <aside class="panel detail" aria-label="Selected context">
+        <h2 id="selected-title">Select a node or edge</h2>
+        <p id="selected-copy">Hover or search to reduce noise. Enter opens the selected Evidence bundle.</p>
+        <button id="evidence">Open Evidence</button>
+        <pre id="metrics" aria-label="Measurement output"></pre>
+      </aside>
+    </section>
+  </main>
+
+  <dialog id="evidence-dialog">
+    <form method="dialog">
+      <header><h2>Evidence bundle</h2><button>Close</button></header>
+      <p>Effect scopes are loaded by `effect_id` and `project_id`; attribution stays owned by CollaborationEffectProjection.</p>
+      <pre id="evidence-json"></pre>
+    </form>
+  </dialog>
+
+  <script src="./prototype.js"></script>
+</body>
+</html>
