@@ -1,0 +1,15 @@
+{
+  "view": "lineage",
+  "layout": "hierarchical DAG",
+  "requested_scale": 2200,
+  "rendered_nodes": 422,
+  "rendered_edges": 900,
+  "first_interactive_ms": 133,
+  "draw_ms_last": 17.5,
+  "draw_ms_avg": 14.15,
+  "draw_ms_p95": 17.5,
+  "estimated_fps_p95": 57,
+  "js_heap_mb": 2,
+  "budget_ms_per_frame": 40,
+  "pass": true
+}

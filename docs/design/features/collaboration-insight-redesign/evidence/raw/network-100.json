@@ -1,0 +1,15 @@
+{
+  "view": "network",
+  "layout": "community",
+  "requested_scale": 100,
+  "rendered_nodes": 100,
+  "rendered_edges": 120,
+  "first_interactive_ms": 101,
+  "draw_ms_last": 5.7,
+  "draw_ms_avg": 5.85,
+  "draw_ms_p95": 6,
+  "estimated_fps_p95": 60,
+  "js_heap_mb": 1,
+  "budget_ms_per_frame": 16,
+  "pass": true
+}
