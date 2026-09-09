@@ -84,6 +84,55 @@ func TestWriteCodexMCPConfig(t *testing.T) {
 	}
 }
 
+func TestWriteCodexMCPConfigFromSource_InheritsUserConfigAndStripsMCP(t *testing.T) {
+	home := t.TempDir()
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "config.toml"), []byte(`
+model = "gpt-5.6-sol"
+notify = ["/Applications/Codex Computer Use.app/notify", "turn-ended"]
+
+[projects."/tmp/work"]
+trust_level = "trusted"
+
+[mcp_servers.agent-center]
+command = "/stale/agent-center"
+
+[mcp_servers.other]
+command = "/stale/other"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime := []byte(`{"mcpServers":{"agent-center":{` +
+		`"command":"/opt/agent-center-worker",` +
+		`"args":["worker","mcp-host"],` +
+		`"env":{"AC_MCP_AGENT_ID":"agent-1"}}}}`)
+
+	codexHome, err := WriteCodexMCPConfigFromSource(home, runtime, src)
+	if err != nil {
+		t.Fatalf("WriteCodexMCPConfigFromSource: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(codexHome, "config.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	for _, want := range []string{
+		`notify = ["/Applications/Codex Computer Use.app/notify", "turn-ended"]`,
+		`[projects."/tmp/work"]`,
+		`[mcp_servers.agent-center]`,
+		`command = "/opt/agent-center-worker"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("merged config missing %q; got:\n%s", want, s)
+		}
+	}
+	for _, notWant := range []string{`/stale/agent-center`, `[mcp_servers.other]`, `/stale/other`} {
+		if strings.Contains(s, notWant) {
+			t.Errorf("merged config kept stale source MCP %q; got:\n%s", notWant, s)
+		}
+	}
+}
+
 // An empty runtimeJSON yields a header-only config.toml (no servers), not an error —
 // a codex agent with no MCP still gets a valid CODEX_HOME.
 func TestWriteCodexMCPConfig_Empty(t *testing.T) {
@@ -141,6 +190,32 @@ func TestProvisionCodexAuth(t *testing.T) {
 	// Empty source → fail-loud (unresolved CODEX_HOME).
 	if w := provisionCodexAuth(codexHome, ""); w == "" {
 		t.Error("empty source CODEX_HOME must warn fail-loud")
+	}
+}
+
+func TestProvisionCodexResourceLinks(t *testing.T) {
+	src := t.TempDir()
+	codexHome := t.TempDir()
+	for _, name := range codexInheritedResourceDirs {
+		if err := os.MkdirAll(filepath.Join(src, name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(codexHome, "plugins", "cache", "stale"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if warnings := provisionCodexResourceLinks(codexHome, src); len(warnings) != 0 {
+		t.Fatalf("provisionCodexResourceLinks warnings = %v", warnings)
+	}
+	for _, name := range codexInheritedResourceDirs {
+		got, err := os.Readlink(filepath.Join(codexHome, name))
+		if err != nil {
+			t.Fatalf("%s should be a symlink: %v", name, err)
+		}
+		if got != filepath.Join(src, name) {
+			t.Errorf("%s symlink target = %q, want source dir", name, got)
+		}
 	}
 }
 

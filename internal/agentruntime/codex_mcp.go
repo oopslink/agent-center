@@ -36,6 +36,8 @@ const codexConfigFileName = "config.toml"
 // codexAuthFileName is the codex login credential file under $CODEX_HOME.
 const codexAuthFileName = "auth.json"
 
+var codexInheritedResourceDirs = []string{".tmp", "plugins", "computer-use"}
+
 // resolveSourceCodexHome returns the worker's REAL CODEX_HOME (where `codex login` wrote
 // auth.json): the CODEX_HOME env if set (read at the worker process, BEFORE the per-agent
 // override is applied to the child), else ~/.codex.
@@ -75,6 +77,42 @@ func provisionCodexAuth(codexHome, sourceCodexHome string) string {
 	return ""
 }
 
+func provisionCodexResourceLinks(codexHome, sourceCodexHome string) []string {
+	srcRoot := strings.TrimSpace(sourceCodexHome)
+	if srcRoot == "" {
+		return []string{"source CODEX_HOME unresolved — cannot inherit Codex plugin resources"}
+	}
+	var warnings []string
+	for _, name := range codexInheritedResourceDirs {
+		src := filepath.Join(srcRoot, name)
+		if _, err := os.Stat(src); err != nil {
+			if !os.IsNotExist(err) {
+				warnings = append(warnings, fmt.Sprintf("%s unavailable at source: %v", name, err))
+			}
+			continue
+		}
+		dst := filepath.Join(codexHome, name)
+		if target, err := os.Readlink(dst); err == nil {
+			if target == src {
+				continue
+			}
+			if err := os.Remove(dst); err != nil {
+				warnings = append(warnings, fmt.Sprintf("replace stale %s symlink: %v", name, err))
+				continue
+			}
+		} else if !os.IsNotExist(err) {
+			if err := os.RemoveAll(dst); err != nil {
+				warnings = append(warnings, fmt.Sprintf("replace stale %s directory: %v", name, err))
+				continue
+			}
+		}
+		if err := os.Symlink(src, dst); err != nil {
+			warnings = append(warnings, fmt.Sprintf("symlink %s into codex-home failed: %v", name, err))
+		}
+	}
+	return warnings
+}
+
 // WriteCodexMCPConfig translates the canonical mcp_config.runtime.json into codex
 // config.toml and writes it under a per-agent CODEX_HOME ("<home>/codex-home"),
 // returning that CODEX_HOME directory (to export as $CODEX_HOME to the codex
@@ -84,6 +122,23 @@ func provisionCodexAuth(codexHome, sourceCodexHome string) string {
 // SAME agent-center MCP host + per-agent creds. An empty runtimeJSON yields a
 // header-only config.toml (no servers) rather than an error.
 func WriteCodexMCPConfig(home string, runtimeJSON []byte) (string, error) {
+	return writeCodexMCPConfig(home, runtimeJSON, nil)
+}
+
+func WriteCodexMCPConfigFromSource(home string, runtimeJSON []byte, sourceCodexHome string) (string, error) {
+	var base []byte
+	src := strings.TrimSpace(sourceCodexHome)
+	if src != "" {
+		b, err := os.ReadFile(filepath.Join(src, codexConfigFileName))
+		if err != nil && !os.IsNotExist(err) {
+			return "", fmt.Errorf("codex_session: read source config.toml: %w", err)
+		}
+		base = stripCodexMCPConfigTables(b)
+	}
+	return writeCodexMCPConfig(home, runtimeJSON, base)
+}
+
+func writeCodexMCPConfig(home string, runtimeJSON, baseConfig []byte) (string, error) {
 	if home == "" {
 		return "", errors.New("codex_session: home required to write codex mcp-config")
 	}
@@ -98,10 +153,57 @@ func WriteCodexMCPConfig(home string, runtimeJSON []byte) (string, error) {
 	if err := os.MkdirAll(codexHome, 0o700); err != nil {
 		return "", fmt.Errorf("codex_session: mkdir codex-home: %w", err)
 	}
-	if err := os.WriteFile(filepath.Join(codexHome, codexConfigFileName), toml, 0o600); err != nil {
+	content := mergeCodexBaseAndGeneratedConfig(baseConfig, toml)
+	if err := os.WriteFile(filepath.Join(codexHome, codexConfigFileName), content, 0o600); err != nil {
 		return "", fmt.Errorf("codex_session: write codex config.toml: %w", err)
 	}
 	return codexHome, nil
+}
+
+func mergeCodexBaseAndGeneratedConfig(baseConfig, generated []byte) []byte {
+	base := bytesTrimSpace(baseConfig)
+	if len(base) == 0 {
+		return generated
+	}
+	out := make([]byte, 0, len(base)+len(generated)+2)
+	out = append(out, base...)
+	out = append(out, '\n', '\n')
+	out = append(out, generated...)
+	return out
+}
+
+func bytesTrimSpace(b []byte) []byte {
+	return []byte(strings.TrimSpace(string(b)))
+}
+
+func stripCodexMCPConfigTables(src []byte) []byte {
+	if len(src) == 0 {
+		return nil
+	}
+	lines := strings.SplitAfter(string(src), "\n")
+	var out strings.Builder
+	skip := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if table, ok := tomlTableName(trimmed); ok {
+			skip = table == "mcp_servers" || strings.HasPrefix(table, "mcp_servers.")
+		}
+		if skip {
+			continue
+		}
+		out.WriteString(line)
+	}
+	return []byte(out.String())
+}
+
+func tomlTableName(line string) (string, bool) {
+	if strings.HasPrefix(line, "[[") && strings.HasSuffix(line, "]]") {
+		return strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, "[["), "]]")), true
+	}
+	if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+		return strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(line, "["), "]")), true
+	}
+	return "", false
 }
 
 // codexMCPConfigTOML translates a canonical mcp_config.runtime.json document

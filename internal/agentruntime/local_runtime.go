@@ -1075,15 +1075,19 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		"summary": "codex mcp config generated from canonical runtime config",
 		"config":  summarizeRuntimeMCPConfig(mcpBytes),
 	})
-	codexHome, err := WriteCodexMCPConfig(home, mcpBytes)
+	sourceCodexHome := resolveSourceCodexHome()
+	codexHome, err := WriteCodexMCPConfigFromSource(home, mcpBytes, sourceCodexHome)
 	if err != nil {
 		return fmt.Errorf("agent_controller: write codex mcp-config: %w", err)
 	}
+	resourceWarnings := provisionCodexResourceLinks(codexHome, sourceCodexHome)
 	r.reportCodexMCPDiagnostic(agentID, "codex_config_written", map[string]any{
 		"summary":            "codex config.toml written under per-agent CODEX_HOME",
 		"codex_home":         codexHome,
 		"config_path":        filepath.Join(codexHome, codexConfigFileName),
 		"config_file_status": fileStatus(filepath.Join(codexHome, codexConfigFileName)),
+		"source_config":      fileStatus(filepath.Join(sourceCodexHome, codexConfigFileName)),
+		"resource_warnings":  resourceWarnings,
 	})
 	// T977 fix #1: provision the codex login auth.json into the per-agent CODEX_HOME.
 	// codex reads auth from $CODEX_HOME; the dedicated per-agent home has the generated
@@ -1093,7 +1097,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	// warn, the executor codexAuthPreflight discipline) if it can't be provisioned —
 	// never a silent 401.
 	authStatus := "provisioned"
-	if w := provisionCodexAuth(codexHome, resolveSourceCodexHome()); w != "" {
+	if w := provisionCodexAuth(codexHome, sourceCodexHome); w != "" {
 		authStatus = "warning"
 		r.log("codex agent=%s: WARNING codex supervisor auth NOT provisioned into %s — codex will FAIL auth (401) and MCP will be UNREACHABLE; %s", agentID, codexHome, w)
 	}

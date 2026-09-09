@@ -84,6 +84,73 @@ func TestStartCodex_WritesMCPConfigAndCodexHome(t *testing.T) {
 	}
 }
 
+func TestStartCodex_InheritsComputerUseCodexHomeResources(t *testing.T) {
+	base := t.TempDir()
+	sourceCodexHome := t.TempDir()
+	t.Setenv("CODEX_HOME", sourceCodexHome)
+	if err := os.WriteFile(filepath.Join(sourceCodexHome, "auth.json"), []byte(`{"token":"x"}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceCodexHome, "config.toml"), []byte(`
+notify = ["/Users/oopslink/.codex/computer-use/Codex Computer Use.app/Contents/SharedSupport/SkyComputerUseClient.app/Contents/MacOS/SkyComputerUseClient", "turn-ended"]
+
+[mcp_servers.agent-center]
+command = "/stale/agent-center"
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range codexInheritedResourceDirs {
+		if err := os.MkdirAll(filepath.Join(sourceCodexHome, name), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var got CodexSpec
+	cfg := LocalRuntimeConfig{
+		AgentID:       "agent-x",
+		Reporter:      &nopReporter{},
+		Log:           func(string, ...any) {},
+		WorkerID:      "worker-1",
+		AgentHomeBase: base,
+		BinaryPath:    "/opt/agent-center-worker",
+		AdminURL:      "https://127.0.0.1:9443",
+		WorkerToken:   "tok-secret",
+		CodexStarter: func(_ context.Context, spec CodexSpec) (Session, error) {
+			got = spec
+			return &fakeSession{}, nil
+		},
+	}
+	rt := NewLocalRuntime(cfg, &SessionState{})
+
+	if err := rt.Start(context.Background(), StartSpec{
+		AgentID: "agent-x",
+		Version: 1,
+		CLI:     CLICodex,
+	}); err != nil {
+		t.Fatalf("Start(codex): %v", err)
+	}
+
+	b, err := os.ReadFile(filepath.Join(got.CodexHome, codexConfigFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	if !strings.Contains(s, "SkyComputerUseClient") {
+		t.Fatalf("codex config must inherit Computer Use notify hook; got:\n%s", s)
+	}
+	if strings.Contains(s, "/stale/agent-center") {
+		t.Fatalf("codex config kept stale source MCP table; got:\n%s", s)
+	}
+	for _, name := range codexInheritedResourceDirs {
+		target, err := os.Readlink(filepath.Join(got.CodexHome, name))
+		if err != nil {
+			t.Fatalf("%s should be linked into codex-home: %v", name, err)
+		}
+		if target != filepath.Join(sourceCodexHome, name) {
+			t.Fatalf("%s link target = %q, want source dir", name, target)
+		}
+	}
+}
+
 func TestStartCodex_PreflightsFullCatalogForNativeToolSearch(t *testing.T) {
 	base := t.TempDir()
 	var gotTierTools bool
