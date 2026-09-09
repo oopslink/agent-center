@@ -1,0 +1,377 @@
+{
+  "task_id": "task-a32d690c",
+  "execution_id": "exec-7f44327f",
+  "reviewed_sha": "deb8f1d512240cebbeb176cf483108c51ac5c7fd",
+  "base_sha": "512d1181264a706155266fa658566146b2ae58c6",
+  "commands": [
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_1",
+      "command": "/bin/zsh -lc \"sed -n '1,260p' task-input/v1/manifest.json\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_2",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' task-input/v1/README.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_3",
+      "command": "/bin/zsh -lc \"rg --files | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_4",
+      "command": "/bin/zsh -lc 'pwd \u0026\u0026 git status --short --branch \u0026\u0026 git rev-parse HEAD \u0026\u0026 git remote -v'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_6",
+      "command": "/bin/zsh -lc 'rg -n \"T2209|task-cd21115f|Collaboration|graphForState|window_filter|project_filter|agent_filter|artifacts completeness|artifact\" .'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_7",
+      "command": "/bin/zsh -lc \"find . -path './.git' -prune -o -type d \\\\( -iname '*t2209*' -o -iname '*cd21115f*' -o -iname '*collaboration*' \\\\) -print\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_8",
+      "command": "/bin/zsh -lc 'git branch -a --contains 3c3cb293e81c99e4def353a854e1d7de7373b886 || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_9",
+      "command": "/bin/zsh -lc 'git branch -a --contains 6882a6d14785c9725cd8ffc8b1b83c00be2a44ae || true'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_10",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate 6882a6d14785c9725cd8ffc8b1b83c00be2a44ae'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_11",
+      "command": "/bin/zsh -lc 'git log --oneline --decorate --graph --max-count=30 --all --simplify-by-decoration'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_12",
+      "command": "/bin/zsh -lc 'git show --stat --oneline --decorate 3c3cb293e81c99e4def353a854e1d7de7373b886'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_13",
+      "command": "/bin/zsh -lc 'git diff --stat 6882a6d14785c9725cd8ffc8b1b83c00be2a44ae..3c3cb293e81c99e4def353a854e1d7de7373b886'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_15",
+      "command": "/bin/zsh -lc \"git ls-tree -r --name-only 6882a6d14785c9725cd8ffc8b1b83c00be2a44ae | rg 't2208|task-cd21115f|collaboration|InsightCollaboration|evidence'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_16",
+      "command": "/bin/zsh -lc \"git ls-tree -r --name-only 3c3cb293e81c99e4def353a854e1d7de7373b886 | rg 't2208|task-cd21115f|task-a32d690c|collaboration|InsightCollaboration|evidence'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_17",
+      "command": "/bin/zsh -lc \"git show 6882a6d14785c9725cd8ffc8b1b83c00be2a44ae:docs/acceptance/t2208-real-collaboration-baseline/evidence/verdict.json | sed -n '1,240p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_18",
+      "command": "/bin/zsh -lc \"git show 6882a6d14785c9725cd8ffc8b1b83c00be2a44ae:docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_19",
+      "command": "/bin/zsh -lc \"git show 6882a6d14785c9725cd8ffc8b1b83c00be2a44ae:docs/acceptance/t2208-real-collaboration-baseline/evidence/verdict.json | rg -n 'filter|context|artifact|baseline|prototype|PASS|changed|expected|selected|viewport|video|trace|har|raw'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_20",
+      "command": "/bin/zsh -lc \"git show 6882a6d14785c9725cd8ffc8b1b83c00be2a44ae:docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs | sed -n '260,760p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_21",
+      "command": "/bin/zsh -lc \"git show 3c3cb293e81c99e4def353a854e1d7de7373b886:.agent-center/evidence/task-a32d690c/exec-ee5ba7c6.json | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_23",
+      "command": "/bin/zsh -lc \"git show 3c3cb293e81c99e4def353a854e1d7de7373b886:docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs 2\u003e/dev/null | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_24",
+      "command": "/bin/zsh -lc \"git ls-tree -r --name-only 3c3cb293e81c99e4def353a854e1d7de7373b886 | rg 'verify-frozen|oracle-verdict|red|t2208-real' || true\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_25",
+      "command": "/bin/zsh -lc \"git show 6882a6d14785c9725cd8ffc8b1b83c00be2a44ae:docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/prototype-100/result.json | sed -n '1,220p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_26",
+      "command": "/bin/zsh -lc 'git show 6882a6d14785c9725cd8ffc8b1b83c00be2a44ae:docs/acceptance/t2208-real-collaboration-baseline/evidence/frozen-prototype/prototype.js | rg -n \"function graphForState|const state|const base|windowRank|function make|agents|projects|edges|filtered|cluster\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_28",
+      "command": "/bin/zsh -lc 'git checkout 6882a6d14785c9725cd8ffc8b1b83c00be2a44ae -- .agent-center/evidence/task-cd21115f/exec-391551e1.json docs/acceptance/t2208-real-collaboration-baseline'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_30",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t2208-real-collaboration-baseline/evidence/frozen-prototype/prototype.js\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_31",
+      "command": "/bin/zsh -lc \"sed -n '220,520p' docs/acceptance/t2208-real-collaboration-baseline/evidence/frozen-prototype/prototype.js\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_32",
+      "command": "/bin/zsh -lc \"sed -n '520,720p' docs/acceptance/t2208-real-collaboration-baseline/evidence/frozen-prototype/prototype.js\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_33",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst fs=require('fs');\nfor (const tier of [100,500,2200]) {\n const api=JSON.parse(fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-${tier}/api-visible_full.json`,'\"'utf8')).body;\n const res=JSON.parse(fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-${tier}/result.json`,'\"'utf8'));\n console.log('real',tier, api.graph.nodes.length, api.graph.edges.length, Object.keys(api.graph.nodes[0]), Object.keys(api.graph.edges[0]));\n console.log(api.graph.edges[0]);\n console.log('filter', res.filters);\n}\nNODE\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_37",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs'",
+      "exit_status": 2
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_38",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst j=JSON.parse(require('fs').readFileSync('docs/acceptance/t2208-real-collaboration-baseline/evidence/oracle-verdict.json','utf8'));\nfor (const g of j.gates.filter(g=\u003eg.verdict\"'!=='\"'PASS')) console.log(g.gate, JSON.stringify(g,null,2).slice(0,2000));\nNODE\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_40",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst fs=require('fs');\nfor (const tier of [100]) {\n const full=JSON.parse(fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-${tier}/api-visible_full.json`,'\"'utf8')).body;\n const res=JSON.parse(fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-${tier}/result.json`,'\"'utf8'));\n const har=JSON.parse(fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-${tier}/network.har`,'\"'utf8'));\n const entry=har.log.entries.find(e=\u003ee.request.url.includes(\"'`agent_ref=${encodeURIComponent(res.filters.agent_ref)}`)\u0026\u0026e.request.url.includes('\"'lod=full')\u0026\u0026e.response.status===200);\n const filtered=JSON.parse(entry.response.content.text);\n console.log('actual edges', filtered.graph.edges.length, filtered.graph.edges.slice(0,20));\n console.log('actual relations counts', filtered.graph.edges.reduce((m,e)=\u003e(m[e.relation_type]=(m[e.relation_type]||0)+1,m),{}));\n console.log('actual nodes', filtered.graph.nodes.map(n=\u003en.id));\n const fullEdges=full.graph.edges.filter(e=\u003ee.source===res.filters.agent_ref||e.target===res.filters.agent_ref);\n console.log('direct', fullEdges.length, fullEdges.map(e=\u003ee.id));\n const rels=new Set(filtered.graph.edges.map(e=\u003ee.relation_type));\n for (const rel of rels) console.log(rel, full.graph.edges.filter(e=\u003ee.relation_type===rel).length)\n}\nNODE\"",
+      "exit_status": 1
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_42",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst fs=require('fs');\nconst tier=100;\nconst res=JSON.parse(fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-${tier}/result.json`,'\"'utf8'));\nconst har=JSON.parse(fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-${tier}/network.har`,'\"'utf8'));\nfor (const e of har.log.entries.filter(e=\u003ee.request.url.includes('collaboration-effects')\u0026\u0026e.request.url.includes(\"'`agent_ref=${encodeURIComponent(res.filters.agent_ref)}`))) {\n console.log(e.request.url, e.response.status, e.response.content.mimeType, e.response.content.text.slice(0,20));\n}\nNODE'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_43",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst fs=require('fs');\nfor (const tier of [100,500,2200]) {\n const full=JSON.parse(fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-${tier}/api-visible_full.json`,'\"'utf8')).body;\n const res=JSON.parse(fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-${tier}/result.json`,'\"'utf8'));\n const har=JSON.parse(fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/real-${tier}/network.har`,'\"'utf8'));\n const entries=har.log.entries.filter(e=\u003ee.request.url.includes('/api/orgs/')\u0026\u0026e.request.url.includes('collaboration-effects?')\u0026\u0026e.request.url.includes(\"'`agent_ref=${encodeURIComponent(res.filters.agent_ref)}`)\u0026\u0026e.response.status===200\u0026\u0026e.response.content.text.trim().startsWith('\"'{'));\n const filtered=JSON.parse(entries.at(-1).response.content.text);\n const aIds=new Set(filtered.graph.edges.map(e=\u003ee.id));\n for (const pred of ['direct','agent_field']) {\n  let arr=full.graph.edges.filter(e=\u003e pred==='direct' ? (e.source===res.filters.agent_ref||e.target===res.filters.agent_ref) : (e.source===res.filters.agent_ref||e.target===res.filters.agent_ref||e.relation_type==='plan_task'||e.relation_type==='project_plan'||e.relation_type==='task_agent'));\n  const ids=new Set(arr.map(e=\u003ee.id));\n  console.log(tier,pred,arr.length,'missing', [...aIds].filter(x=\u003e\"'!ids.has(x)).length, '\"'extra', [...ids].filter(x=\u003e\"'!aIds.has(x)).length);\n }\n console.log('\"'actual relations', filtered.graph.edges.reduce((m,e)=\u003e(m[e.relation_type]=(m[e.relation_type]||0)+1,m),{}));\n console.log('sample relations full first actual', filtered.graph.edges.slice(0,10).map(e=\u003e[e.id,e.relation_type,e.source,e.target]));\n}\nNODE\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_47",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_49",
+      "command": "/bin/zsh -lc 'mkdir -p docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team \u0026\u0026 for inj in wrong-expected-edge missing-agent wrong-selected-id viewport-drift missing-video; do out=\"docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.json\"; log=\"docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.log\"; node docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs --inject=${inj} --output=${out} \u003e${log} 2\u003e\u00261; code=$?; printf '\"'%s\\\\n' \\\"\"'$code\" \u003e \"docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.exitcode\"; printf '\"'%s exit=%s\\\\n' \\\"\"'$inj\" \"$code\"; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_51",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst j=JSON.parse(require('fs').readFileSync('docs/acceptance/t2208-real-collaboration-baseline/evidence/oracle-verdict.json','utf8'));\nconsole.log('verdict', j.verdict, 'gates', j.gates.length, 'artifacts', j.artifacts.length);\nconsole.log(j.gates.map(g=\u003e\"'`${g.gate}:${g.verdict}`).join('\"'\\\\n'));\nNODE\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_52",
+      "command": "/bin/zsh -lc \"sed -n '1,220p' docs/acceptance/t2208-real-collaboration-baseline/REPORT.md\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_53",
+      "command": "/bin/zsh -lc \"for f in docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/*.log docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/*.exitcode; do printf '%s: ' \\\"\"'$f\"; sed -n '\"'1,4p' \\\"\"'$f\"; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_54",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_58",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst fs=require('fs');\nconst out={source:'Frozen deterministic prototype fixture manifest for T2209 oracle repair; verifier treats this as expected input, separate from each result actual object.', tiers:{}};\nfor (const tier of [100,500,2200]) {\n const strict=JSON.parse(fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/raw/prototype-${tier}/result.json`,'\"'utf8')).strict;\n out.tiers[tier]={\n  project_filter:{edge_ids: strict.project_filter.expected_edge_ids, count: strict.project_filter.count},\n  agent_filter:{edge_ids: strict.agent_filter.expected_edge_ids, count: strict.agent_filter.count},\n };\n}\nfs.writeFileSync('docs/acceptance/t2208-real-collaboration-baseline/evidence/oracle-fixture-manifest.json', JSON.stringify(out,null,2)+'\\\\n');\nNODE\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_62",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs \u0026\u0026 for inj in wrong-expected-edge missing-agent wrong-selected-id viewport-drift missing-video; do out=\"docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.json\"; log=\"docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.log\"; node docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs --inject=${inj} --output=${out} \u003e${log} 2\u003e\u00261; code=$?; printf '\"'%s\\\\n' \\\"\"'$code\" \u003e \"docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.exitcode\"; printf '\"'%s exit=%s\\\\n' \\\"\"'$inj\" \"$code\"; done'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_64",
+      "command": "/bin/zsh -lc \"git diff -- docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs docs/acceptance/t2208-real-collaboration-baseline/REPORT.md | sed -n '1,260p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_65",
+      "command": "/bin/zsh -lc 'node --check docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs \u0026\u0026 node --check docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_66",
+      "command": "/bin/zsh -lc 'git status --short'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_67",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst j=JSON.parse(require('fs').readFileSync('docs/acceptance/t2208-real-collaboration-baseline/evidence/oracle-verdict.json','utf8'));\nconsole.log(JSON.stringify({verdict:j.verdict,gates:j.gates.length,artifacts:j.artifacts.length,source:j.source},null,2));\nfor (const inj of ['wrong-expected-edge','missing-agent','wrong-selected-id','viewport-drift','missing-video']) {\n const code=require('fs').readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.exitcode`,'\"'utf8').trim();\n const v=JSON.parse(require('fs').readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.json`,'\"'utf8')).verdict;\n console.log(\"'`${inj} verdict=${v} exit=${code}`);\n}\nNODE'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_69",
+      "command": "/bin/zsh -lc 'git add -A \u0026\u0026 git diff --cached --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_71",
+      "command": "/bin/zsh -lc 'git commit -m \"test(acceptance): repair collaboration evidence oracle\"'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_73",
+      "command": "/bin/zsh -lc 'git push origin-push HEAD:ac-exec/task-a32d690c/exec-7f44327f'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_75",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git rev-parse 512d1181264a706155266fa658566146b2ae58c6 \u0026\u0026 git merge-base --is-ancestor 512d1181264a706155266fa658566146b2ae58c6 HEAD; echo base_ancestor_exit=$? \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_76",
+      "command": "/bin/zsh -lc 'node --check docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs \u0026\u0026 node --check docs/acceptance/t2208-real-collaboration-baseline/run-real-collaboration-baseline.mjs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_78",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_77",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-a32d690c/exec-7f44327f'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_80",
+      "command": "/bin/zsh -lc \"git status --short \u0026\u0026 git diff -- docs/acceptance/t2208-real-collaboration-baseline/evidence/oracle-verdict.json | sed -n '1,80p'\"",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_81",
+      "command": "/bin/zsh -lc 'git diff --stat'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_85",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs \u0026\u0026 for inj in wrong-expected-edge missing-agent wrong-selected-id viewport-drift missing-video; do out=\"docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.json\"; log=\"docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.log\"; node docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs --inject=${inj} --output=${out} \u003e${log} 2\u003e\u00261; code=$?; printf '\"'%s\\\\n' \\\"\"'$code\" \u003e \"docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.exitcode\"; printf '\"'%s exit=%s\\\\n' \\\"\"'$inj\" \"$code\"; done \u0026\u0026 git add -A \u0026\u0026 git commit --amend --no-edit'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_87",
+      "command": "/bin/zsh -lc 'git push --force-with-lease origin-push HEAD:ac-exec/task-a32d690c/exec-7f44327f'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_89",
+      "command": "/bin/zsh -lc 'git rev-parse HEAD \u0026\u0026 git merge-base --is-ancestor 512d1181264a706155266fa658566146b2ae58c6 HEAD; echo base_ancestor_exit=$? \u0026\u0026 git status --short --branch'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_91",
+      "command": "/bin/zsh -lc \"node - \u003c\u003c'NODE'\nconst fs=require('fs');\nfor (const inj of ['wrong-expected-edge','missing-agent','wrong-selected-id','viewport-drift','missing-video']) {\n const code=fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.exitcode`,'\"'utf8').trim();\n const json=JSON.parse(fs.readFileSync(\"'`docs/acceptance/t2208-real-collaboration-baseline/evidence/red-team/${inj}.json`,'\"'utf8'));\n if (code \"'!== '\"'2' || json.verdict \"'!== '\"'REJECT') throw new Error(\"'`${inj} expected REJECT/2 got ${json.verdict}/${code}`);\n console.log(`${inj}: ${json.verdict} exit=${code}`);\n}\nNODE'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_92",
+      "command": "/bin/zsh -lc 'node docs/acceptance/t2208-real-collaboration-baseline/verify-frozen-evidence.mjs \u0026\u0026 git diff --exit-code -- docs/acceptance/t2208-real-collaboration-baseline/evidence/oracle-verdict.json'",
+      "exit_status": 0
+    },
+    {
+      "source": "codex_jsonl",
+      "tool_use_id": "item_90",
+      "command": "/bin/zsh -lc 'git ls-remote origin-push refs/heads/ac-exec/task-a32d690c/exec-7f44327f'",
+      "exit_status": 0
+    }
+  ],
+  "commands_available": true,
+  "command_event_path": "executor://exec-7f44327f/command_events.jsonl",
+  "command_event_digest": "sha256:923541c0a1d7b15c7d940f575fc7deafabf213e9fc34e6dc657bee8e7714ce67",
+  "exit_status": 0,
+  "verdict": "pass",
+  "summary": "Implemented and delivered the T2209 evidence harness/oracle repair.",
+  "artifact_digest": "sha256:84aa01bf13d085c4b310d1390d19282bbd8c0fb52d0f9490ccd14dfbe53fccec",
+  "path": ".agent-center/evidence/task-a32d690c/exec-7f44327f.json",
+  "branch": "ac-exec/task-a32d690c/exec-7f44327f"
+}
