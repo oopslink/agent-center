@@ -1,97 +1,37 @@
 {
   "size": 2200,
-  "tti_ms": 890,
-  "filter_ms": 63.39999961853027,
-  "pan_ms": 1472,
-  "zoom_ms": 64,
-  "drag_ms": 1336.3999996185303,
+  "tti_ms": 669.4000000953674,
+  "filter_ms": 68.2999997138977,
+  "pan_ms": 366.19999980926514,
+  "zoom_ms": 65.2999997138977,
+  "drag_ms": 807.0999999046326,
   "counts": {
-    "labelChars": 24875,
+    "labelChars": 4776,
     "canvas": 1,
     "svgGraphs": 0
   },
   "runtime": {
     "memory": {
-      "usedJSHeapSize": 50400000,
-      "totalJSHeapSize": 148000000,
+      "usedJSHeapSize": 20500000,
+      "totalJSHeapSize": 97400000,
       "jsHeapSizeLimit": 3760000000
     },
     "longTasks": [
       {
         "name": "self",
-        "startTime": 54.299999713897705,
-        "duration": 282
-      },
-      {
-        "name": "self",
-        "startTime": 337.19999980926514,
-        "duration": 95
-      },
-      {
-        "name": "self",
-        "startTime": 432.59999990463257,
-        "duration": 174
-      },
-      {
-        "name": "self",
-        "startTime": 1305.7999997138977,
-        "duration": 203
-      },
-      {
-        "name": "self",
-        "startTime": 1554.5999999046326,
-        "duration": 141
-      },
-      {
-        "name": "self",
-        "startTime": 1853.0999999046326,
-        "duration": 185
-      },
-      {
-        "name": "self",
-        "startTime": 2152.7999997138977,
-        "duration": 146
-      },
-      {
-        "name": "self",
-        "startTime": 2763,
-        "duration": 199
-      },
-      {
-        "name": "self",
-        "startTime": 3667.8999996185303,
-        "duration": 136
-      },
-      {
-        "name": "self",
-        "startTime": 3929.8999996185303,
-        "duration": 150
-      },
-      {
-        "name": "self",
-        "startTime": 4181.5,
-        "duration": 150
-      },
-      {
-        "name": "self",
-        "startTime": 4481.199999809265,
-        "duration": 150
-      },
-      {
-        "name": "self",
-        "startTime": 4729.799999713898,
-        "duration": 147
+        "startTime": 88.10000038146973,
+        "duration": 126
       }
     ],
-    "sessionPins": "{\"agent:hub\":{\"x\":203.55702338624866,\"y\":460.4333532576211}}"
+    "sessionPins": "{\"agent:hub\":{\"x\":201.169933396765,\"y\":457.76340813997723}}"
   },
   "interactionEvidence": {
     "pan_changed": true,
     "zoom_changed": true,
     "drag_target": {
-      "x": 343.60910518053373,
-      "y": 667.3014128728414,
-      "matched_pixels": 637
+      "x": 341.18672199170123,
+      "y": 669.3651452282159,
+      "matched_pixels": 241
     },
     "drag_pinned": true
   },
@@ -110,27 +50,27 @@
     },
     "graph_rect": {
       "x": 329,
-      "y": 391,
+      "y": 327,
       "width": 1077,
-      "height": 476,
+      "height": 540,
       "right": 1406,
       "bottom": 867
     },
     "panel_rect": {
       "x": 320,
-      "y": 382,
+      "y": 318,
       "width": 1095,
-      "height": 494,
+      "height": 558,
       "right": 1415,
       "bottom": 876
     },
     "graph_visible_width": 1075,
-    "graph_visible_height": 474,
+    "graph_visible_height": 538,
     "canvas": {
       "width": 1075,
-      "height": 474,
+      "height": 538,
       "cssWidth": 1075,
-      "cssHeight": 474
+      "cssHeight": 538
     },
     "document_scroll_width": 1440,
     "document_client_width": 1440,
@@ -141,14 +81,16 @@
     "flow_edge_lists": 0,
     "open_edge_drawers": 0,
     "node_bbox": {
-      "count": 520,
+      "count": 100,
       "width": 1051,
-      "height": 414,
+      "height": 477.9999999999999,
       "width_ratio": 0.9758588672237697,
-      "height_ratio": 0.8697478991596639,
+      "height_ratio": 0.885185185185185,
       "center_offset_x_ratio": 0.0009285051067780873,
-      "center_offset_y_ratio": 0.023109243697478993,
-      "out_of_bounds": 0
+      "center_offset_y_ratio": 0.020370370370370264,
+      "out_of_bounds": 0,
+      "overlap_pairs": 0,
+      "overlapped_nodes": 0
     }
   }
 }

@@ -176,11 +176,13 @@ try {
     network_log: networkLog,
     console_log: consoleLog,
   };
-  await writeFile(join(raw, 'acceptance-results.json'), JSON.stringify(payload, null, 2));
+  const serializedPayload = JSON.stringify(payload, null, 2);
+  await writeFile(join(raw, 'acceptance-results.json'), serializedPayload);
+  await writeFile(join(raw, 'acceptance-run.log'), `${serializedPayload}\n`);
   await writeFile(join(raw, 'api-log.json'), JSON.stringify(apiLog, null, 2));
   await writeFile(join(raw, 'network-log.json'), JSON.stringify(networkLog, null, 2));
   await writeFile(join(raw, 'console-log.json'), JSON.stringify(consoleLog, null, 2));
-  console.log(JSON.stringify(payload, null, 2));
+  console.log(serializedPayload);
 } finally {
   await browser.close();
   await new Promise((resolveClose) => server.close(resolveClose));

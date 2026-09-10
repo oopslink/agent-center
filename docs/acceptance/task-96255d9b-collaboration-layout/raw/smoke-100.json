@@ -1,10 +1,10 @@
 {
   "size": 100,
-  "tti_ms": 610.5999999046326,
-  "filter_ms": 55.09999990463257,
-  "pan_ms": 284.7000002861023,
-  "zoom_ms": 73.39999961853027,
-  "drag_ms": 659.2999997138977,
+  "tti_ms": 654.3000001907349,
+  "filter_ms": 118.90000009536743,
+  "pan_ms": 278.80000019073486,
+  "zoom_ms": 61.90000009536743,
+  "drag_ms": 714.5,
   "counts": {
     "labelChars": 3314,
     "canvas": 1,
@@ -12,11 +12,17 @@
   },
   "runtime": {
     "memory": {
-      "usedJSHeapSize": 50400000,
-      "totalJSHeapSize": 148000000,
+      "usedJSHeapSize": 20500000,
+      "totalJSHeapSize": 97400000,
       "jsHeapSizeLimit": 3760000000
     },
-    "longTasks": [],
+    "longTasks": [
+      {
+        "name": "self",
+        "startTime": 107.09999990463257,
+        "duration": 84
+      }
+    ],
     "sessionPins": "{\"agent:hub\":{\"x\":201.6875991119569,\"y\":452.04556020455595}}"
   },
   "interactionEvidence": {
@@ -82,7 +88,9 @@
       "height_ratio": 0.8851851851851852,
       "center_offset_x_ratio": 0.0009285051067780873,
       "center_offset_y_ratio": 0.020370370370370372,
-      "out_of_bounds": 0
+      "out_of_bounds": 0,
+      "overlap_pairs": 0,
+      "overlapped_nodes": 0
     }
   }
 }
