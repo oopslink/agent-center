@@ -120,6 +120,7 @@ describe('Collaboration Insight', () => {
     const user = userEvent.setup();
     const view = renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
     await screen.findByTestId('collaboration-graph');
+    await user.click(screen.getByText('More filters'));
     await user.selectOptions(screen.getByLabelText('Polarity'), 'mixed');
     await user.type(screen.getByLabelText('Since'), '2026-09-03T12:30');
     await waitFor(() => expect(new URL(requested).searchParams.get('polarity')).toBe('mixed'));
@@ -128,6 +129,32 @@ describe('Collaboration Insight', () => {
     view.unmount();
     renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1&polarity=mixed'));
     expect(screen.getByLabelText('Polarity')).toHaveValue('mixed');
+  });
+
+  it('keeps the formal page in a compact full-height layout with discoverable advanced filters', async () => {
+    const user = userEvent.setup();
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
+    const page = await screen.findByTestId('page-InsightCollaboration');
+    const toolbar = screen.getByTestId('collaboration-filter-toolbar');
+    const workspace = await screen.findByTestId('collaboration-workspace');
+    const graphPanel = await screen.findByTestId('collaboration-graph');
+    const svg = await screen.findByTestId('collaboration-graph-svg');
+
+    expect(page.className).toContain('h-full');
+    expect(page.className).toContain('overflow-hidden');
+    expect(toolbar.className).toContain('shrink-0');
+    expect(workspace.className).toContain('flex-1');
+    expect(workspace.className).toContain('overflow-hidden');
+    expect(graphPanel.className).toContain('min-h-0');
+    expect(graphPanel.className).toContain('overflow-hidden');
+    expect(svg.getAttribute('class')).toContain('flex-1');
+    expect(screen.getByTestId('collaboration-view-tabs').className).toContain('shrink-0');
+
+    expect(screen.getByLabelText('Relationship')).not.toBeVisible();
+    await user.click(screen.getByText('More filters'));
+    expect(screen.getByLabelText('Relationship')).toBeVisible();
+    await user.selectOptions(screen.getByLabelText('Relationship'), 'assign');
+    expect(screen.getByText('Active')).toBeVisible();
   });
 
   it('selects project, task and agent from searchable dropdown filters', async () => {
@@ -233,6 +260,7 @@ describe('Collaboration Insight', () => {
       expect(search.get('max_nodes')).toBe('90');
       expect(search.has('project_id')).toBe(false);
     });
+    await user.click(screen.getByText('More filters'));
     expect(screen.getByLabelText('Polarity')).toHaveValue('');
     expect(screen.getByLabelText('Relationship')).toHaveValue('');
   });
@@ -612,6 +640,7 @@ describe('Collaboration Insight', () => {
       const graphElement = await screen.findByTestId('collaboration-graph');
       const ttiMs = performance.now() - started;
       const filterStarted = performance.now();
+      fireEvent.click(screen.getByText('More filters'));
       fireEvent.change(screen.getByLabelText('Polarity'), { target: { value: 'mixed' } });
       await waitFor(() => expect(new URL(lastRequest).searchParams.get('polarity')).toBe('mixed'));
       const filterMs = performance.now() - filterStarted;

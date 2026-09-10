@@ -89,22 +89,31 @@ export default function InsightCollaboration(): React.ReactElement {
   };
 
   return (
-    <section className="space-y-4" data-testid="page-InsightCollaboration">
-      <header><h1 className="text-xl font-semibold text-text-primary">{t('insight.collaboration.title')}</h1><p className="mt-1 text-sm text-text-muted">{t('insight.collaboration.subtitle')}</p></header>
+    <section className="flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden" data-testid="page-InsightCollaboration">
+      <header className="shrink-0">
+        <h1 className="text-xl font-semibold text-text-primary">{t('insight.collaboration.title')}</h1>
+        <p className="mt-0.5 text-sm text-text-muted">{t('insight.collaboration.subtitle')}</p>
+      </header>
       <CollaborationFiltersBar params={params} update={update} clearAll={() => { const next = new URLSearchParams(); next.set('view', activeView); setParams(next); setSelected(null); setSwitchNotice(null); }} t={t} />
       <CollaborationViewTabs active={activeView} onChange={changeView} t={t} />
       {switchNotice ? <State id="collaboration-selection-incompatible" title={t('insight.collaboration.selectionCleared')} body={switchNotice} /> : null}
       {query.isLoading ? <State id="collaboration-loading" title={t('insight.collaboration.loading')} /> : null}
       {query.isError ? <CollaborationError error={query.error} t={t} /> : null}
-      {query.data ? <>
-        <Summary summary={summary} t={t} />
-        <CollaborationLODNotice view={activeGraph} canLoadMore={query.hasNextPage} loadingMore={query.isFetchingNextPage} onLoadMore={() => void query.fetchNextPage()} onShowFull={showFullGraph} t={t} />
+      {query.data ? <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden" data-testid="collaboration-workspace">
+        <div className="grid shrink-0 gap-3 lg:grid-cols-[minmax(0,1fr)_12rem] xl:grid-cols-[minmax(0,1fr)_18rem]">
+          <Summary summary={summary} t={t} />
+          <CollaborationLODNotice view={activeGraph} canLoadMore={query.hasNextPage} loadingMore={query.isFetchingNextPage} onLoadMore={() => void query.fetchNextPage()} onShowFull={showFullGraph} t={t} />
+        </div>
         {activeGraph.unsupported ? <State id="collaboration-unsupported" title={t('insight.collaboration.unsupported')} body={activeGraph.reason ?? t('insight.collaboration.emptyBody')} /> : null}
-        {!activeGraph.unsupported && activeGraph.edges.length === 0 ? <State id="collaboration-empty" title={t('insight.collaboration.empty')} body={t('insight.collaboration.emptyBody')} /> :
-          !activeGraph.unsupported ? <CollaborationGraph view={activeGraph} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} /> : null}
-        {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="rounded border border-border px-3 py-2 text-sm" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
-        <Timeline effects={effects} onSelect={setSelected} t={t} />
-      </> : null}
+        {!activeGraph.unsupported && activeGraph.edges.length === 0 ? <State id="collaboration-empty" title={t('insight.collaboration.empty')} body={t('insight.collaboration.emptyBody')} /> : null}
+        {!activeGraph.unsupported && activeGraph.edges.length > 0 ? <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_12rem] xl:grid-cols-[minmax(0,1fr)_18rem]">
+          <CollaborationGraph view={activeGraph} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} />
+          <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
+            {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="shrink-0 rounded border border-border px-3 py-2 text-sm hover:bg-bg-subtle" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
+            <Timeline effects={effects} onSelect={setSelected} t={t} />
+          </div>
+        </div> : null}
+      </div> : null}
       {selected ? <EvidenceDrawer effect={effect} effectIds={selected} onClose={() => setSelected(null)} t={t} /> : null}
     </section>
   );
@@ -133,7 +142,7 @@ function viewFromParams(params: URLSearchParams): CollaborationViewKind {
 
 function CollaborationViewTabs({ active, onChange, t }: { active: CollaborationViewKind; onChange: (view: CollaborationViewKind) => void; t: Translator }) {
   return (
-    <div role="tablist" aria-label={t('insight.collaboration.views.label')} className="flex flex-wrap gap-2 rounded-lg border border-border bg-bg-surface p-2" data-testid="collaboration-view-tabs">
+    <div role="tablist" aria-label={t('insight.collaboration.views.label')} className="flex shrink-0 flex-wrap gap-1 rounded border border-border bg-bg-surface p-1" data-testid="collaboration-view-tabs">
       {COLLABORATION_VIEWS.map((view) => (
         <button
           key={view}
@@ -142,7 +151,7 @@ function CollaborationViewTabs({ active, onChange, t }: { active: CollaborationV
           aria-selected={active === view}
           data-testid={`collaboration-view-${view}`}
           onClick={() => onChange(view)}
-          className={`rounded px-3 py-2 text-sm ${active === view ? 'bg-brand text-white' : 'text-text-muted hover:bg-bg-subtle'}`}
+          className={`rounded px-3 py-1.5 text-sm ${active === view ? 'bg-brand text-white' : 'text-text-muted hover:bg-bg-subtle'}`}
         >
           {t(`insight.collaboration.views.${view}`)}
         </button>
@@ -186,64 +195,46 @@ function CollaborationFiltersBar({ params, update, clearAll, t }: { params: URLS
     ['since', t('insight.collaboration.filters.since'), 'datetime-local'],
     ['until', t('insight.collaboration.filters.until'), 'datetime-local'],
   ];
-  return <form aria-label={t('insight.collaboration.filters.label')} className="grid gap-3 rounded-lg border border-border bg-bg-surface p-4 md:grid-cols-4" onSubmit={(e) => e.preventDefault()}>
-    <div className="flex items-center justify-between gap-3 md:col-span-4"><h2 className="text-sm font-semibold text-text-primary">{t('insight.collaboration.filters.label')}</h2><button type="button" onClick={clearAll} className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle">{t('insight.collaboration.filters.clearAll')}</button></div>
-    <EntityFilter
-      name="project_id"
-      label={t('insight.collaboration.filters.project')}
-      value={projectId}
-      options={projectOptions}
-      disabled={projects.isLoading}
-      placeholder={projects.isLoading ? t('insight.collaboration.filters.loadingProjects') : t('insight.collaboration.filters.chooseProject')}
-      searchPlaceholder={t('insight.collaboration.filters.searchProjects')}
-      emptyLabel={t('insight.collaboration.filters.noProjects')}
-      update={(key, value) => update(key, value, value !== projectId ? ['plan_id', 'task_id', 'agent_ref'] : [])}
-    />
-    <EntityFilter
-      name="plan_id"
-      label={t('insight.collaboration.filters.plan')}
-      value={planId}
-      options={planOptions}
-      disabled={!projectId || plans.isLoading}
-      placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyPlan')}
-      searchPlaceholder={t('insight.collaboration.filters.searchPlans')}
-      emptyLabel={t('insight.collaboration.filters.noPlans')}
-      update={(key, value) => update(key, value, ['task_id'])}
-    />
-    <EntityFilter
-      name="task_id"
-      label={t('insight.collaboration.filters.task')}
-      value={params.get('task_id') ?? ''}
-      options={taskOptions}
-      disabled={!projectId || tasks.isLoading}
-      placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : tasks.isLoading ? t('insight.collaboration.filters.loadingTasks') : t('insight.collaboration.filters.chooseTask')}
-      searchPlaceholder={t('insight.collaboration.filters.searchTasks')}
-      emptyLabel={t('insight.collaboration.filters.noTasks')}
-      update={update}
-    />
-    <EntityFilter
-      name="agent_ref"
-      label={t('insight.collaboration.filters.agent')}
-      value={params.get('agent_ref') ?? ''}
-      options={agentOptions}
-      disabled={!projectId || projectMembers.isLoading || members.isLoading}
-      placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyAgent')}
-      searchPlaceholder={t('insight.collaboration.filters.searchAgents')}
-      emptyLabel={t('insight.collaboration.filters.noAgents')}
-      update={update}
-    />
-    {fields.map(([name, label, type]) => <label key={name} className="text-xs text-text-muted">{label}<input aria-label={label} type={type} value={dateTimeInputValue(params.get(name))} onChange={(e) => update(name, dateTimeInputToRFC3339(e.target.value))} className="mt-1 w-full rounded border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary" /></label>)}
-    <SelectFilter name="relation_type" label={t('insight.collaboration.filters.relation')} values={RELATIONS} value={params.get('relation_type') ?? ''} update={update} t={t} />
-    <SelectFilter name="polarity" label={t('insight.collaboration.filters.polarity')} values={POLARITIES} value={params.get('polarity') ?? ''} update={update} t={t} />
+  const secondaryActive = Boolean(planId || params.get('since') || params.get('until') || params.get('relation_type') || params.get('polarity'));
+  const [advancedOpen, setAdvancedOpen] = useState(secondaryActive);
+  useEffect(() => {
+    if (secondaryActive) setAdvancedOpen(true);
+  }, [secondaryActive]);
+  return <form aria-label={t('insight.collaboration.filters.label')} className="shrink-0 rounded border border-border bg-bg-surface p-2" onSubmit={(e) => e.preventDefault()} data-testid="collaboration-filter-toolbar">
+    <div className="flex min-w-0 flex-wrap items-end gap-2">
+      <h2 className="mb-1 mr-1 shrink-0 text-sm font-semibold text-text-primary">{t('insight.collaboration.filters.label')}</h2>
+      <div className="min-w-[12rem] flex-[1_1_13rem]">
+        <EntityFilter name="project_id" label={t('insight.collaboration.filters.project')} value={projectId} options={projectOptions} disabled={projects.isLoading} placeholder={projects.isLoading ? t('insight.collaboration.filters.loadingProjects') : t('insight.collaboration.filters.chooseProject')} searchPlaceholder={t('insight.collaboration.filters.searchProjects')} emptyLabel={t('insight.collaboration.filters.noProjects')} update={(key, value) => update(key, value, value !== projectId ? ['plan_id', 'task_id', 'agent_ref'] : [])} />
+      </div>
+      <div className="min-w-[11rem] flex-[1_1_12rem]">
+        <EntityFilter name="task_id" label={t('insight.collaboration.filters.task')} value={params.get('task_id') ?? ''} options={taskOptions} disabled={!projectId || tasks.isLoading} placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : tasks.isLoading ? t('insight.collaboration.filters.loadingTasks') : t('insight.collaboration.filters.chooseTask')} searchPlaceholder={t('insight.collaboration.filters.searchTasks')} emptyLabel={t('insight.collaboration.filters.noTasks')} update={update} />
+      </div>
+      <div className="min-w-[11rem] flex-[1_1_12rem]">
+        <EntityFilter name="agent_ref" label={t('insight.collaboration.filters.agent')} value={params.get('agent_ref') ?? ''} options={agentOptions} disabled={!projectId || projectMembers.isLoading || members.isLoading} placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyAgent')} searchPlaceholder={t('insight.collaboration.filters.searchAgents')} emptyLabel={t('insight.collaboration.filters.noAgents')} update={update} />
+      </div>
+      <details className="group relative shrink-0" open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
+        <summary className="flex h-[2.125rem] cursor-pointer list-none items-center gap-2 rounded border border-border px-3 text-xs text-text-muted hover:bg-bg-subtle">
+          <span>{t('insight.collaboration.filters.more')}</span>
+          {secondaryActive ? <span className="rounded bg-brand px-1.5 py-0.5 text-[10px] font-semibold text-white">{t('insight.collaboration.filters.active')}</span> : null}
+        </summary>
+        <div className="absolute right-0 z-20 mt-2 grid w-[min(42rem,calc(100vw-2rem))] gap-3 rounded border border-border bg-bg-elevated p-3 shadow-2 md:grid-cols-3">
+          <EntityFilter name="plan_id" label={t('insight.collaboration.filters.plan')} value={planId} options={planOptions} disabled={!projectId || plans.isLoading} placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyPlan')} searchPlaceholder={t('insight.collaboration.filters.searchPlans')} emptyLabel={t('insight.collaboration.filters.noPlans')} update={(key, value) => update(key, value, ['task_id'])} />
+          {fields.map(([name, label, type]) => <label key={name} className="text-xs text-text-muted">{label}<input aria-label={label} type={type} value={dateTimeInputValue(params.get(name))} onChange={(e) => update(name, dateTimeInputToRFC3339(e.target.value))} className="mt-1 h-[2.125rem] w-full rounded border border-border bg-bg-primary px-2 text-sm text-text-primary" /></label>)}
+          <SelectFilter name="relation_type" label={t('insight.collaboration.filters.relation')} values={RELATIONS} value={params.get('relation_type') ?? ''} update={update} t={t} />
+          <SelectFilter name="polarity" label={t('insight.collaboration.filters.polarity')} values={POLARITIES} value={params.get('polarity') ?? ''} update={update} t={t} />
+        </div>
+      </details>
+      <button type="button" onClick={clearAll} className="h-[2.125rem] shrink-0 rounded border border-border px-2 text-xs hover:bg-bg-subtle">{t('insight.collaboration.filters.clearAll')}</button>
+    </div>
   </form>;
 }
 
 function EntityFilter({ name, label, value, options, disabled, placeholder, searchPlaceholder, emptyLabel, update }: { name: string; label: string; value: string; options: EntityOption[]; disabled?: boolean; placeholder: string; searchPlaceholder: string; emptyLabel: string; update: (key: string, value: string) => void }) {
-  return <label className="text-xs text-text-muted">{label}<div className="mt-1 flex gap-2"><div className="min-w-0 flex-1"><EntitySelect testId={`collaboration-${name}`} ariaLabel={label} value={value} options={options} onChange={(next) => update(name, next)} disabled={disabled} placeholder={placeholder} searchPlaceholder={searchPlaceholder} emptyLabel={emptyLabel} /></div>{value ? <button type="button" onClick={() => update(name, '')} className="shrink-0 rounded border border-border px-2 text-sm text-text-muted hover:bg-bg-subtle" aria-label={`Clear ${label}`}>×</button> : null}</div></label>;
+  return <label className="block text-xs text-text-muted">{label}<div className="mt-1 flex gap-1"><div className="min-w-0 flex-1"><EntitySelect testId={`collaboration-${name}`} ariaLabel={label} value={value} options={options} onChange={(next) => update(name, next)} disabled={disabled} placeholder={placeholder} searchPlaceholder={searchPlaceholder} emptyLabel={emptyLabel} /></div>{value ? <button type="button" onClick={() => update(name, '')} className="h-[2.125rem] shrink-0 rounded border border-border px-2 text-sm text-text-muted hover:bg-bg-subtle" aria-label={`Clear ${label}`}>×</button> : null}</div></label>;
 }
 
 function SelectFilter({ name, label, values, value, update, t }: { name: string; label: string; values: string[]; value: string; update: (k: string, v: string) => void; t: Translator }) {
-  return <label className="text-xs text-text-muted">{label}<select aria-label={label} value={value} onChange={(e) => update(name, e.target.value)} className="mt-1 w-full rounded border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary"><option value="">{t('insight.collaboration.filters.all')}</option>{values.map((item) => <option key={item} value={item}>{labelFor(t, item)}</option>)}</select></label>;
+  return <label className="text-xs text-text-muted">{label}<select aria-label={label} value={value} onChange={(e) => update(name, e.target.value)} className="mt-1 h-[2.125rem] w-full rounded border border-border bg-bg-primary px-2 text-sm text-text-primary"><option value="">{t('insight.collaboration.filters.all')}</option>{values.map((item) => <option key={item} value={item}>{labelFor(t, item)}</option>)}</select></label>;
 }
 
 function dateTimeInputValue(value: string | null): string {
@@ -261,7 +252,7 @@ function dateTimeInputToRFC3339(value: string): string {
 }
 
 function Summary({ summary, t }: { summary: { positive_count: number; negative_count: number; neutral_count: number; mixed_count: number; affected_task_count: number }; t: Translator }) {
-  return <section aria-label={t('insight.collaboration.summary')} className="grid grid-cols-2 gap-2 md:grid-cols-5">{(['positive', 'negative', 'neutral', 'mixed'] as const).map((key) => <div key={key} className="rounded border border-border bg-bg-surface p-3"><span className="text-xs text-text-muted">{labelFor(t, key)}</span><strong className="block text-lg">{summary[`${key}_count`]}</strong></div>)}<div className="rounded border border-border bg-bg-surface p-3"><span className="text-xs text-text-muted">{t('insight.collaboration.affectedTasks')}</span><strong className="block text-lg">{summary.affected_task_count}</strong></div></section>;
+  return <section aria-label={t('insight.collaboration.summary')} className="grid min-w-0 grid-cols-5 gap-2 overflow-hidden">{(['positive', 'negative', 'neutral', 'mixed'] as const).map((key) => <div key={key} className="min-w-0 rounded border border-border bg-bg-surface px-3 py-2"><span className="block truncate text-xs text-text-muted">{labelFor(t, key)}</span><strong className="block text-base">{summary[`${key}_count`]}</strong></div>)}<div className="min-w-0 rounded border border-border bg-bg-surface px-3 py-2"><span className="block truncate text-xs text-text-muted">{t('insight.collaboration.affectedTasks')}</span><strong className="block text-base">{summary.affected_task_count}</strong></div></section>;
 }
 
 function dedupeBy<T>(items: T[], key: (item: T) => string): T[] {
@@ -466,10 +457,10 @@ function CollaborationLODNotice({ view, canLoadMore, loadingMore, onLoadMore, on
   const clustered = view.lod === 'cluster' || view.clusters.length > 0;
   if (!clustered && !view.truncated) return null;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-bg-surface p-3 text-sm" data-testid="collaboration-lod-notice">
-      <div>
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded border border-border bg-bg-surface px-3 py-2 text-sm" data-testid="collaboration-lod-notice">
+      <div className="min-w-0">
         <strong className="text-text-primary">{clustered ? t('insight.collaboration.lod.clusteredTitle') : t('insight.collaboration.lod.truncatedTitle')}</strong>
-        <p className="mt-1 text-text-muted">{t('insight.collaboration.lod.body', { nodes: view.nodes.length, edges: view.edges.length })}</p>
+        <p className="truncate text-text-muted">{t('insight.collaboration.lod.body', { nodes: view.nodes.length, edges: view.edges.length })}</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {canLoadMore ? <button type="button" disabled={loadingMore} onClick={onLoadMore} className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" data-testid="collaboration-lod-load-more">{loadingMore ? t('insight.collaboration.loadingMore') : t('insight.collaboration.lod.continueLoading')}</button> : null}
@@ -564,9 +555,9 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
       window.removeEventListener('wheel', handler);
     };
   }, [toSvgPoint]);
-  return <section className="rounded-lg border border-border bg-bg-surface p-4" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap gap-3 text-xs text-text-muted">
+  return <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded border border-border bg-bg-surface p-3" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
+    <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
+      <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
         <span>{t(`insight.collaboration.views.${view.view}`)}</span>
         <span>━━ {t('insight.collaboration.legend.relationship')}</span>
         <span>┄┄ {t('insight.collaboration.legend.effect')}</span>
@@ -574,7 +565,7 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
         {view.view === 'network' ? <span data-testid="collaboration-network-communities">{t('insight.collaboration.legend.communities', { count: communityCount })}</span> : null}
         {view.truncated ? <span>{t('insight.collaboration.lod.cropped', { nodes: view.visibleNodeCount, edges: view.visibleEdgeCount })}</span> : null}
       </div>
-      <div className="flex items-center gap-1" aria-label={t('insight.collaboration.viewport.controls')}>
+      <div className="flex shrink-0 items-center gap-1" aria-label={t('insight.collaboration.viewport.controls')}>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(0.82)} aria-label={t('insight.collaboration.viewport.zoomIn')}>+</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(1.18)} aria-label={t('insight.collaboration.viewport.zoomOut')}>-</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={focusSelected} disabled={context.nodes.size === 0}>{t('insight.collaboration.viewport.focus')}</button>
@@ -586,7 +577,7 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
     <svg
       ref={svgRef}
       viewBox={`${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`}
-      className="min-h-64 w-full touch-none cursor-grab rounded border border-border bg-bg-primary active:cursor-grabbing"
+      className="min-h-[12rem] min-w-0 flex-1 touch-none cursor-grab rounded border border-border bg-bg-primary active:cursor-grabbing"
       role="img"
       aria-label={t('insight.collaboration.graph')}
       data-testid="collaboration-graph-svg"
@@ -646,11 +637,11 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
       })}
       {visibleNodes.map((node) => { const active = !hasNoiseReduction || context.nodes.has(node.id); const focused = focusedNodeId === node.id; const wide = node.kind === 'cluster' || node.kind === 'plan'; return <g key={node.id} role="button" tabIndex={0} aria-label={node.label} className="cursor-pointer outline-none" opacity={active ? 1 : 0.18} onMouseEnter={() => setHoveredId(node.id)} onMouseLeave={() => setHoveredId(null)} onPointerDown={(event) => { event.stopPropagation(); lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; const point = toSvgPoint(event); dragRef.current = { id: node.id, pointer: point, origin: { x: node.x, y: node.y }, moved: false }; svgRef.current?.setPointerCapture?.(event.pointerId); }} onDoubleClick={() => setCollapsedNodeIds((current) => toggleSet(current, node.id))} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocusedNodeId(node.id); setViewport(focusViewBox(node)); } if (event.key === 'Backspace' || event.key === 'Delete') setCollapsedNodeIds((current) => toggleSet(current, node.id)); }}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" fill="var(--color-bg-elevated)" stroke="var(--color-brand)" strokeWidth={focused ? 4 : dragPositions[node.id] ? 3 : 2} /> : <rect x={node.x-(wide ? 88 : 54)} y={node.y-24} width={wide ? 176 : 108} height="48" rx="5" fill="var(--color-bg-elevated)" stroke="var(--color-text-muted)" strokeWidth={focused ? 4 : dragPositions[node.id] ? 3 : 2} />}<text x={node.x} y={node.y+3} textAnchor="middle" fill="var(--color-text-primary)" className="pointer-events-none text-[11px]">{showLabels ? truncateLabel(node.label, wide ? 28 : 18) : truncateLabel(node.label, 10)}</text><text x={node.x} y={node.y+18} textAnchor="middle" fill="var(--color-text-muted)" className="pointer-events-none text-[8px]">{node.kind}</text></g>; })}
     </svg>
-    <div className="mt-3 flex flex-wrap gap-2">
+    <div className="mt-2 flex shrink-0 flex-wrap gap-2">
       <button type="button" className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" onClick={() => focusedNodeId && setCollapsedNodeIds((current) => toggleSet(current, focusedNodeId))} disabled={!focusedNodeId} data-testid="collaboration-collapse-focus">{t('insight.collaboration.viewport.collapse')}</button>
       <button type="button" className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" onClick={() => setCollapsedNodeIds(new Set())} disabled={collapsedNodeIds.size === 0} data-testid="collaboration-expand-all">{t('insight.collaboration.viewport.expand')}</button>
     </div>
-    <div className="mt-3 grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{visibleEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = scopesForEdge(edge); const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} onMouseEnter={() => setHoveredId(edge.source)} onMouseLeave={() => setHoveredId(null)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
+    <div className="mt-2 grid max-h-[32%] shrink-0 gap-2 overflow-auto md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{visibleEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = scopesForEdge(edge); const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} onMouseEnter={() => setHoveredId(edge.source)} onMouseLeave={() => setHoveredId(null)} className="min-w-0 rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
   </section>;
 }
 
@@ -837,7 +828,7 @@ function truncateLabel(label: string, max = 18): string {
 
 function Timeline({ effects, onSelect, t }: { effects: { effect_id: string; project_id: string; occurred_at: string; relation_type: string; polarity: string; source_agent_ref: string; target_task_id: string }[]; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
   const ordered = useMemo(() => [...effects].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, TIMELINE_RENDER_LIMIT), [effects]);
-  return <section className="rounded-lg border border-border bg-bg-surface p-4" data-testid="collaboration-timeline"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2>{effects.length > ordered.length ? <span className="text-xs text-text-muted" data-testid="collaboration-timeline-limit">{t('insight.collaboration.timelineLimited', { count: ordered.length, total: effects.length })}</span> : null}</div><ol className="mt-3 border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol></section>;
+  return <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded border border-border bg-bg-surface p-3" data-testid="collaboration-timeline"><div className="flex shrink-0 flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2>{effects.length > ordered.length ? <span className="text-xs text-text-muted" data-testid="collaboration-timeline-limit">{t('insight.collaboration.timelineLimited', { count: ordered.length, total: effects.length })}</span> : null}</div><ol className="mt-3 min-h-0 overflow-auto border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol></section>;
 }
 
 function EvidenceDrawer({ effect, effectIds, onClose, t }: { effect: Pick<CollaborationEffect, 'project_id' | 'explanation_key' | 'before_state' | 'after_state'> | null; effectIds: CollaborationEffectScope[]; onClose: () => void; t: Translator }) {

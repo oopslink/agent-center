@@ -283,7 +283,8 @@ export default function AppLayout(): React.ReactElement {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const displayName = me.data?.display_name;
-  const isFullHeightContentRoute = /\/access\/grant-access\/?$/.test(location.pathname);
+  const isFullHeightContentRoute = /\/access\/grant-access\/?$/.test(location.pathname)
+    || /\/insights\/collaboration\/?$/.test(location.pathname);
 
   // Context panel (col④). Declared here (ahead of its later usage) so the
   // auto-close-on-navigation effect below can reach `closeMobileSheet`.
@@ -605,10 +606,10 @@ export default function AppLayout(): React.ReactElement {
         />
 
         {/* ────── col③ Content ────── */}
-        <main className="flex flex-1 overflow-hidden pt-12 pb-14 md:pb-0 md:pt-0">
+        <main className="flex min-w-0 flex-1 overflow-hidden pt-12 pb-14 md:pb-0 md:pt-0">
           <div
             className={[
-              'flex h-full min-h-0 w-full flex-col px-4 pt-2 pb-0 md:p-4 lg:p-6',
+              'flex h-full min-h-0 w-full min-w-0 flex-col px-4 pt-2 pb-0 md:p-4 lg:p-6',
               isFullHeightContentRoute ? 'overflow-hidden' : 'overflow-y-auto',
             ].join(' ')}
             data-testid="app-content-shell"
