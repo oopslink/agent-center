@@ -1,38 +1,78 @@
 {
   "size": 100,
-  "tti_ms": 760.1999998092651,
-  "filter_ms": 47.30000019073486,
-  "pan_ms": 236.2999997138977,
-  "zoom_ms": 68.09999990463257,
-  "drag_ms": 660.9000000953674,
+  "tti_ms": 646.7999997138977,
+  "filter_ms": 63.40000009536743,
+  "pan_ms": 172.19999980926514,
+  "zoom_ms": 16.5,
+  "drag_ms": 159.69999980926514,
   "counts": {
-    "labelChars": 3848,
+    "labelChars": 3314,
     "canvas": 1,
     "svgGraphs": 0
   },
   "runtime": {
     "memory": {
-      "usedJSHeapSize": 35100000,
-      "totalJSHeapSize": 116000000,
+      "usedJSHeapSize": 18200000,
+      "totalJSHeapSize": 103000000,
       "jsHeapSizeLimit": 3760000000
     },
-    "longTasks": [
-      {
-        "name": "self",
-        "startTime": 242.40000009536743,
-        "duration": 61
-      }
-    ],
-    "sessionPins": "{\"agent:hub\":{\"x\":136.27187079407804,\"y\":509.2857142857142},\"task:T9\":{\"x\":585.9872764917607,\"y\":1688.035714285714}}"
+    "longTasks": [],
+    "sessionPins": "{}"
   },
-  "interactionEvidence": {
-    "pan_changed": true,
-    "zoom_changed": true,
-    "drag_target": {
-      "x": 344.75,
-      "y": 437.59375,
-      "matched_pixels": 32
+  "layout": {
+    "viewport": {
+      "width": 1440,
+      "height": 900
     },
-    "drag_pinned": true
+    "toolbar_rect": {
+      "x": 320,
+      "y": 86,
+      "width": 1095,
+      "height": 84,
+      "right": 1415,
+      "bottom": 170
+    },
+    "graph_rect": {
+      "x": 329,
+      "y": 327,
+      "width": 1077,
+      "height": 540,
+      "right": 1406,
+      "bottom": 867
+    },
+    "panel_rect": {
+      "x": 320,
+      "y": 318,
+      "width": 1095,
+      "height": 558,
+      "right": 1415,
+      "bottom": 876
+    },
+    "graph_visible_width": 1075,
+    "graph_visible_height": 538,
+    "canvas": {
+      "width": 1075,
+      "height": 538,
+      "cssWidth": 1075,
+      "cssHeight": 538
+    },
+    "document_scroll_width": 1440,
+    "document_client_width": 1440,
+    "body_scroll_width": 1440,
+    "body_client_width": 1440,
+    "horizontal_overflow": false,
+    "graph_clipped": false,
+    "flow_edge_lists": 0,
+    "open_edge_drawers": 0,
+    "node_bbox": {
+      "count": 88,
+      "width": 1051,
+      "height": 478,
+      "width_ratio": 0.9758588672237697,
+      "height_ratio": 0.8851851851851852,
+      "center_offset_x_ratio": 0.0009285051067780873,
+      "center_offset_y_ratio": 0.020370370370370372,
+      "out_of_bounds": 0
+    }
   }
 }

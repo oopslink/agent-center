@@ -1,53 +1,89 @@
 {
   "size": 500,
-  "tti_ms": 677.9000000953674,
-  "filter_ms": 113.19999980926514,
-  "pan_ms": 382.2000002861023,
-  "zoom_ms": 65.90000009536743,
-  "drag_ms": 841.2000002861023,
+  "tti_ms": 606.1000003814697,
+  "filter_ms": 44,
+  "pan_ms": 188.09999990463257,
+  "zoom_ms": 17.699999809265137,
+  "drag_ms": 187.40000009536743,
   "counts": {
-    "labelChars": 21643,
+    "labelChars": 11073,
     "canvas": 1,
     "svgGraphs": 0
   },
   "runtime": {
     "memory": {
-      "usedJSHeapSize": 35100000,
-      "totalJSHeapSize": 116000000,
+      "usedJSHeapSize": 18200000,
+      "totalJSHeapSize": 103000000,
       "jsHeapSizeLimit": 3760000000
     },
     "longTasks": [
       {
         "name": "self",
-        "startTime": 42.40000009536743,
-        "duration": 247
+        "startTime": 52.200000286102295,
+        "duration": 163
       },
       {
         "name": "self",
-        "startTime": 317.5,
-        "duration": 57
-      },
-      {
-        "name": "self",
-        "startTime": 374.69999980926514,
-        "duration": 154
-      },
-      {
-        "name": "self",
-        "startTime": 1142.5999999046326,
-        "duration": 52
+        "startTime": 249.30000019073486,
+        "duration": 103
       }
     ],
-    "sessionPins": "{\"agent:hub\":{\"x\":136.27187079407807,\"y\":2644.5071428571428},\"task:T90\":{\"x\":585.9872764917608,\"y\":9713.492857142857}}"
+    "sessionPins": "{}"
   },
-  "interactionEvidence": {
-    "pan_changed": true,
-    "zoom_changed": true,
-    "drag_target": {
-      "x": 345,
-      "y": 437,
-      "matched_pixels": 0
+  "layout": {
+    "viewport": {
+      "width": 1440,
+      "height": 900
     },
-    "drag_pinned": true
+    "toolbar_rect": {
+      "x": 320,
+      "y": 86,
+      "width": 1095,
+      "height": 84,
+      "right": 1415,
+      "bottom": 170
+    },
+    "graph_rect": {
+      "x": 329,
+      "y": 327,
+      "width": 1077,
+      "height": 540,
+      "right": 1406,
+      "bottom": 867
+    },
+    "panel_rect": {
+      "x": 320,
+      "y": 318,
+      "width": 1095,
+      "height": 558,
+      "right": 1415,
+      "bottom": 876
+    },
+    "graph_visible_width": 1075,
+    "graph_visible_height": 538,
+    "canvas": {
+      "width": 1075,
+      "height": 538,
+      "cssWidth": 1075,
+      "cssHeight": 538
+    },
+    "document_scroll_width": 1440,
+    "document_client_width": 1440,
+    "body_scroll_width": 1440,
+    "body_client_width": 1440,
+    "horizontal_overflow": false,
+    "graph_clipped": false,
+    "flow_edge_lists": 0,
+    "open_edge_drawers": 0,
+    "node_bbox": {
+      "count": 397,
+      "width": 1051,
+      "height": 478,
+      "width_ratio": 0.9758588672237697,
+      "height_ratio": 0.8851851851851852,
+      "center_offset_x_ratio": 0.0009285051067780873,
+      "center_offset_y_ratio": 0.020370370370370372,
+      "out_of_bounds": 0
+    }
   }
 }

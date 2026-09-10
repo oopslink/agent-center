@@ -1,108 +1,109 @@
 {
   "size": 2200,
-  "tti_ms": 735.1999998092651,
-  "filter_ms": 141.5,
-  "pan_ms": 1636.9000000953674,
-  "zoom_ms": 67.09999990463257,
-  "drag_ms": 1280.7999997138977,
+  "tti_ms": 874.8000001907349,
+  "filter_ms": 61.799999713897705,
+  "pan_ms": 1017,
+  "zoom_ms": 38.69999980926514,
+  "drag_ms": 187.59999990463257,
   "counts": {
-    "labelChars": 24967,
+    "labelChars": 24875,
     "canvas": 1,
     "svgGraphs": 0
   },
   "runtime": {
     "memory": {
-      "usedJSHeapSize": 35100000,
-      "totalJSHeapSize": 116000000,
+      "usedJSHeapSize": 18200000,
+      "totalJSHeapSize": 103000000,
       "jsHeapSizeLimit": 3760000000
     },
     "longTasks": [
       {
         "name": "self",
-        "startTime": 47.799999713897705,
-        "duration": 265
+        "startTime": 58.30000019073486,
+        "duration": 276
       },
       {
         "name": "self",
-        "startTime": 313,
-        "duration": 96
+        "startTime": 365.30000019073486,
+        "duration": 58
       },
       {
         "name": "self",
-        "startTime": 409.09999990463257,
-        "duration": 159
+        "startTime": 423.5,
+        "duration": 172
       },
       {
         "name": "self",
-        "startTime": 655.6999998092651,
-        "duration": 71
+        "startTime": 938.3000001907349,
+        "duration": 236
       },
       {
         "name": "self",
-        "startTime": 1229.1999998092651,
-        "duration": 206
+        "startTime": 1249.5,
+        "duration": 151
       },
       {
         "name": "self",
-        "startTime": 1488.1999998092651,
-        "duration": 129
-      },
-      {
-        "name": "self",
-        "startTime": 1797.9000000953674,
-        "duration": 163
-      },
-      {
-        "name": "self",
-        "startTime": 2075.7999997138977,
-        "duration": 129
-      },
-      {
-        "name": "self",
-        "startTime": 2665.5999999046326,
-        "duration": 165
-      },
-      {
-        "name": "self",
-        "startTime": 3475.4000000953674,
-        "duration": 131
-      },
-      {
-        "name": "self",
-        "startTime": 3725.4000000953674,
-        "duration": 129
-      },
-      {
-        "name": "self",
-        "startTime": 4000.199999809265,
-        "duration": 125
-      },
-      {
-        "name": "self",
-        "startTime": 4219.599999904633,
-        "duration": 128
-      },
-      {
-        "name": "self",
-        "startTime": 4450.5,
-        "duration": 129
-      },
-      {
-        "name": "self",
-        "startTime": 4708.699999809265,
-        "duration": 129
+        "startTime": 2080.2000002861023,
+        "duration": 183
       }
     ],
-    "sessionPins": "{\"agent:hub\":{\"x\":136.27187079407804,\"y\":11672.240740740737}}"
+    "sessionPins": "{}"
   },
-  "interactionEvidence": {
-    "pan_changed": true,
-    "zoom_changed": true,
-    "drag_target": {
-      "x": 345,
-      "y": 501,
-      "matched_pixels": 0
+  "layout": {
+    "viewport": {
+      "width": 1440,
+      "height": 900
     },
-    "drag_pinned": true
+    "toolbar_rect": {
+      "x": 320,
+      "y": 86,
+      "width": 1095,
+      "height": 84,
+      "right": 1415,
+      "bottom": 170
+    },
+    "graph_rect": {
+      "x": 329,
+      "y": 391,
+      "width": 1077,
+      "height": 476,
+      "right": 1406,
+      "bottom": 867
+    },
+    "panel_rect": {
+      "x": 320,
+      "y": 382,
+      "width": 1095,
+      "height": 494,
+      "right": 1415,
+      "bottom": 876
+    },
+    "graph_visible_width": 1075,
+    "graph_visible_height": 474,
+    "canvas": {
+      "width": 1075,
+      "height": 474,
+      "cssWidth": 1075,
+      "cssHeight": 474
+    },
+    "document_scroll_width": 1440,
+    "document_client_width": 1440,
+    "body_scroll_width": 1440,
+    "body_client_width": 1440,
+    "horizontal_overflow": false,
+    "graph_clipped": false,
+    "flow_edge_lists": 0,
+    "open_edge_drawers": 0,
+    "node_bbox": {
+      "count": 520,
+      "width": 1051,
+      "height": 414,
+      "width_ratio": 0.9758588672237697,
+      "height_ratio": 0.8697478991596639,
+      "center_offset_x_ratio": 0.0009285051067780873,
+      "center_offset_y_ratio": 0.023109243697478993,
+      "out_of_bounds": 0
+    }
   }
 }

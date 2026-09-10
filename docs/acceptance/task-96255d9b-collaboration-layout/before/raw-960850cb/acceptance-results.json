@@ -1,0 +1,2150 @@
+{
+  "generated_at": "2026-09-10T08:24:28.982Z",
+  "build_sha": "26309dffa1b8ca73e89ff468fca7f3e11698b3c6",
+  "base_url": "http://127.0.0.1:60236",
+  "environment": {
+    "platform": "darwin",
+    "node": "v25.6.0",
+    "browser": "148.0.7778.96",
+    "production_bundle": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-022991f0/internal/webconsole/spa/dist"
+  },
+  "data_provenance": "local HTTP harness serving production SPA and public /api/orgs/acme endpoints with deterministic generated collaboration graph payloads",
+  "viewports": [
+    {
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "toolbar_rect": {
+        "x": 320,
+        "y": 86,
+        "width": 1095,
+        "height": 84,
+        "right": 1415,
+        "bottom": 170
+      },
+      "graph_rect": {
+        "x": 333,
+        "y": 395,
+        "width": 769,
+        "height": 342,
+        "right": 1102,
+        "bottom": 737
+      },
+      "panel_rect": {
+        "x": 320,
+        "y": 318,
+        "width": 795,
+        "height": 558,
+        "right": 1115,
+        "bottom": 876
+      },
+      "graph_visible_width": 767,
+      "graph_visible_height": 340,
+      "canvas": {
+        "width": 767,
+        "height": 340,
+        "cssWidth": 767,
+        "cssHeight": 340
+      },
+      "document_scroll_width": 1440,
+      "document_client_width": 1440,
+      "body_scroll_width": 1440,
+      "body_client_width": 1440,
+      "horizontal_overflow": false,
+      "graph_clipped": false
+    },
+    {
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "toolbar_rect": {
+        "x": 320,
+        "y": 86,
+        "width": 935,
+        "height": 84,
+        "right": 1255,
+        "bottom": 170
+      },
+      "graph_rect": {
+        "x": 333,
+        "y": 395,
+        "width": 609,
+        "height": 162,
+        "right": 942,
+        "bottom": 557
+      },
+      "panel_rect": {
+        "x": 320,
+        "y": 318,
+        "width": 635,
+        "height": 378,
+        "right": 955,
+        "bottom": 696
+      },
+      "graph_visible_width": 607,
+      "graph_visible_height": 160,
+      "canvas": {
+        "width": 607,
+        "height": 160,
+        "cssWidth": 607,
+        "cssHeight": 160
+      },
+      "document_scroll_width": 1280,
+      "document_client_width": 1280,
+      "body_scroll_width": 1280,
+      "body_client_width": 1280,
+      "horizontal_overflow": false,
+      "graph_clipped": false
+    },
+    {
+      "viewport": {
+        "width": 1024,
+        "height": 768
+      },
+      "toolbar_rect": {
+        "x": 320,
+        "y": 86,
+        "width": 679,
+        "height": 128,
+        "right": 999,
+        "bottom": 214
+      },
+      "graph_rect": {
+        "x": 333,
+        "y": 497,
+        "width": 449,
+        "height": 108,
+        "right": 782,
+        "bottom": 605
+      },
+      "panel_rect": {
+        "x": 320,
+        "y": 362,
+        "width": 475,
+        "height": 382,
+        "right": 795,
+        "bottom": 744
+      },
+      "graph_visible_width": 447,
+      "graph_visible_height": 106,
+      "canvas": {
+        "width": 447,
+        "height": 106,
+        "cssWidth": 447,
+        "cssHeight": 106
+      },
+      "document_scroll_width": 1024,
+      "document_client_width": 1024,
+      "body_scroll_width": 1024,
+      "body_client_width": 1024,
+      "horizontal_overflow": false,
+      "graph_clipped": false
+    }
+  ],
+  "smokes": [
+    {
+      "input_size": 100,
+      "requested_nodes": 100,
+      "requested_edges": 160,
+      "rendered_nodes": 100,
+      "rendered_edges": 160,
+      "tti_ms": 637.9000000953674,
+      "filter_ms": 42.59999990463257,
+      "pan_ms": 241.09999990463257,
+      "zoom_ms": 24.59999990463257,
+      "drag_ms": 140,
+      "heap": {
+        "usedJSHeapSize": 26000000,
+        "totalJSHeapSize": 116000000,
+        "jsHeapSizeLimit": 3760000000
+      },
+      "long_tasks": [
+        {
+          "name": "self",
+          "startTime": 119.5,
+          "duration": 57
+        }
+      ],
+      "counts": {
+        "labelChars": 3848,
+        "canvas": 1,
+        "svgGraphs": 0
+      }
+    },
+    {
+      "input_size": 500,
+      "requested_nodes": 500,
+      "requested_edges": 900,
+      "rendered_nodes": 500,
+      "rendered_edges": 900,
+      "tti_ms": 677.2999997138977,
+      "filter_ms": 119,
+      "pan_ms": 395.30000019073486,
+      "zoom_ms": 32.40000009536743,
+      "drag_ms": 150.5,
+      "heap": {
+        "usedJSHeapSize": 26000000,
+        "totalJSHeapSize": 116000000,
+        "jsHeapSizeLimit": 3760000000
+      },
+      "long_tasks": [
+        {
+          "name": "self",
+          "startTime": 46.799999713897705,
+          "duration": 243
+        },
+        {
+          "name": "self",
+          "startTime": 290.5,
+          "duration": 84
+        },
+        {
+          "name": "self",
+          "startTime": 375.2999997138977,
+          "duration": 152
+        },
+        {
+          "name": "self",
+          "startTime": 797.5,
+          "duration": 54
+        }
+      ],
+      "counts": {
+        "labelChars": 21643,
+        "canvas": 1,
+        "svgGraphs": 0
+      }
+    },
+    {
+      "input_size": 2200,
+      "requested_nodes": 2200,
+      "requested_edges": 3600,
+      "rendered_nodes": 2200,
+      "rendered_edges": 3600,
+      "tti_ms": 797.5,
+      "filter_ms": 152,
+      "pan_ms": 415.8999996185303,
+      "zoom_ms": 18,
+      "drag_ms": 205.40000009536743,
+      "heap": {
+        "usedJSHeapSize": 26000000,
+        "totalJSHeapSize": 116000000,
+        "jsHeapSizeLimit": 3760000000
+      },
+      "long_tasks": [
+        {
+          "name": "self",
+          "startTime": 57.80000019073486,
+          "duration": 284
+        },
+        {
+          "name": "self",
+          "startTime": 375.80000019073486,
+          "duration": 68
+        },
+        {
+          "name": "self",
+          "startTime": 444.2000002861023,
+          "duration": 172
+        },
+        {
+          "name": "self",
+          "startTime": 711.3000001907349,
+          "duration": 77
+        },
+        {
+          "name": "self",
+          "startTime": 950.9000000953674,
+          "duration": 222
+        },
+        {
+          "name": "self",
+          "startTime": 1229.2000002861023,
+          "duration": 138
+        },
+        {
+          "name": "self",
+          "startTime": 1760.3000001907349,
+          "duration": 166
+        }
+      ],
+      "counts": {
+        "labelChars": 24967,
+        "canvas": 1,
+        "svgGraphs": 0
+      }
+    }
+  ],
+  "assertions": {
+    "echartsHosts": 1,
+    "canvasCount": 1,
+    "svgGraphCount": 0,
+    "visibleGraphs": 1,
+    "scrollWidth": 1440,
+    "clientWidth": 1440
+  },
+  "api_log": [
+    {
+      "method": "GET",
+      "path": "/api/orgs",
+      "search": {},
+      "response": [
+        {
+          "id": "org-1",
+          "slug": "acme",
+          "name": "Acme Acceptance",
+          "role": "owner",
+          "created_at": "2026-09-10T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/conversations",
+      "search": {
+        "kind": "channel"
+      },
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/conversations",
+      "search": {
+        "kind": "dm"
+      },
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/members",
+      "search": {},
+      "response": [
+        {
+          "id": "m-agent",
+          "organization_id": "org-1",
+          "identity_id": "agent:hub",
+          "kind": "agent",
+          "role": "member",
+          "status": "joined",
+          "joined_at": "2026-09-10T00:00:00Z",
+          "display_name": "Hub Agent"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "search": {},
+      "response": {
+        "identity_id": "user:u1",
+        "display_name": "Acceptance User",
+        "kind": "user"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/unread-conversations",
+      "search": {},
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/attention",
+      "search": {},
+      "response": {
+        "items": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects",
+      "search": {},
+      "response": {
+        "projects": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/plans",
+      "search": {},
+      "response": {
+        "plans": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/tasks",
+      "search": {
+        "status": "all",
+        "sort": "updated",
+        "dir": "desc",
+        "page_size": "500"
+      },
+      "response": {
+        "tasks": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/members",
+      "search": {},
+      "response": {
+        "members": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/insights/collaboration-effects",
+      "search": {
+        "limit": "100",
+        "project_id": "P1",
+        "task_id": "T1",
+        "lod": "full",
+        "max_nodes": "500"
+      },
+      "response": {
+        "graph_nodes": 500,
+        "graph_edges": 900,
+        "effects": 200,
+        "graph_version": "acceptance-500"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/permissions/effective",
+      "search": {
+        "subject_ref": "user:user:u1",
+        "resource_kind": "org",
+        "resource_id": "org-1"
+      },
+      "response": {
+        "subject_ref": "user:user:u1",
+        "resource": {
+          "kind": "org",
+          "id": "org-1"
+        },
+        "permissions": [
+          {
+            "key": "*",
+            "name": "Owner",
+            "source": "acceptance"
+          }
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sse",
+      "search": {
+        "user_id": "user:user:u1"
+      },
+      "response": {
+        "event_stream": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs",
+      "search": {},
+      "response": [
+        {
+          "id": "org-1",
+          "slug": "acme",
+          "name": "Acme Acceptance",
+          "role": "owner",
+          "created_at": "2026-09-10T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/conversations",
+      "search": {
+        "kind": "channel"
+      },
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/conversations",
+      "search": {
+        "kind": "dm"
+      },
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/members",
+      "search": {},
+      "response": [
+        {
+          "id": "m-agent",
+          "organization_id": "org-1",
+          "identity_id": "agent:hub",
+          "kind": "agent",
+          "role": "member",
+          "status": "joined",
+          "joined_at": "2026-09-10T00:00:00Z",
+          "display_name": "Hub Agent"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "search": {},
+      "response": {
+        "identity_id": "user:u1",
+        "display_name": "Acceptance User",
+        "kind": "user"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/unread-conversations",
+      "search": {},
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/attention",
+      "search": {},
+      "response": {
+        "items": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/permissions/effective",
+      "search": {
+        "subject_ref": "user:user:u1",
+        "resource_kind": "org",
+        "resource_id": "org-1"
+      },
+      "response": {
+        "subject_ref": "user:user:u1",
+        "resource": {
+          "kind": "org",
+          "id": "org-1"
+        },
+        "permissions": [
+          {
+            "key": "*",
+            "name": "Owner",
+            "source": "acceptance"
+          }
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sse",
+      "search": {
+        "user_id": "user:user:u1"
+      },
+      "response": {
+        "event_stream": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects",
+      "search": {},
+      "response": {
+        "projects": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/plans",
+      "search": {},
+      "response": {
+        "plans": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/tasks",
+      "search": {
+        "status": "all",
+        "sort": "updated",
+        "dir": "desc",
+        "page_size": "500"
+      },
+      "response": {
+        "tasks": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/members",
+      "search": {},
+      "response": {
+        "members": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/insights/collaboration-effects",
+      "search": {
+        "limit": "100",
+        "project_id": "P1",
+        "task_id": "T1",
+        "lod": "full",
+        "max_nodes": "500"
+      },
+      "response": {
+        "graph_nodes": 500,
+        "graph_edges": 900,
+        "effects": 200,
+        "graph_version": "acceptance-500"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs",
+      "search": {},
+      "response": [
+        {
+          "id": "org-1",
+          "slug": "acme",
+          "name": "Acme Acceptance",
+          "role": "owner",
+          "created_at": "2026-09-10T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/conversations",
+      "search": {
+        "kind": "channel"
+      },
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/conversations",
+      "search": {
+        "kind": "dm"
+      },
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/members",
+      "search": {},
+      "response": [
+        {
+          "id": "m-agent",
+          "organization_id": "org-1",
+          "identity_id": "agent:hub",
+          "kind": "agent",
+          "role": "member",
+          "status": "joined",
+          "joined_at": "2026-09-10T00:00:00Z",
+          "display_name": "Hub Agent"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "search": {},
+      "response": {
+        "identity_id": "user:u1",
+        "display_name": "Acceptance User",
+        "kind": "user"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/unread-conversations",
+      "search": {},
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/attention",
+      "search": {},
+      "response": {
+        "items": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/permissions/effective",
+      "search": {
+        "subject_ref": "user:user:u1",
+        "resource_kind": "org",
+        "resource_id": "org-1"
+      },
+      "response": {
+        "subject_ref": "user:user:u1",
+        "resource": {
+          "kind": "org",
+          "id": "org-1"
+        },
+        "permissions": [
+          {
+            "key": "*",
+            "name": "Owner",
+            "source": "acceptance"
+          }
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sse",
+      "search": {
+        "user_id": "user:user:u1"
+      },
+      "response": {
+        "event_stream": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects",
+      "search": {},
+      "response": {
+        "projects": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/plans",
+      "search": {},
+      "response": {
+        "plans": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/tasks",
+      "search": {
+        "status": "all",
+        "sort": "updated",
+        "dir": "desc",
+        "page_size": "500"
+      },
+      "response": {
+        "tasks": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/members",
+      "search": {},
+      "response": {
+        "members": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/insights/collaboration-effects",
+      "search": {
+        "limit": "100",
+        "project_id": "P1",
+        "task_id": "T1",
+        "lod": "full",
+        "max_nodes": "500"
+      },
+      "response": {
+        "graph_nodes": 500,
+        "graph_edges": 900,
+        "effects": 200,
+        "graph_version": "acceptance-500"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sse",
+      "search": {
+        "user_id": "user:user:u1"
+      },
+      "response": {
+        "event_stream": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/insights/collaboration-effects/ce-0/evidence",
+      "search": {
+        "project_id": "P1"
+      },
+      "response": {
+        "evidence": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs",
+      "search": {},
+      "response": [
+        {
+          "id": "org-1",
+          "slug": "acme",
+          "name": "Acme Acceptance",
+          "role": "owner",
+          "created_at": "2026-09-10T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/conversations",
+      "search": {
+        "kind": "channel"
+      },
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/conversations",
+      "search": {
+        "kind": "dm"
+      },
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/members",
+      "search": {},
+      "response": [
+        {
+          "id": "m-agent",
+          "organization_id": "org-1",
+          "identity_id": "agent:hub",
+          "kind": "agent",
+          "role": "member",
+          "status": "joined",
+          "joined_at": "2026-09-10T00:00:00Z",
+          "display_name": "Hub Agent"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "search": {},
+      "response": {
+        "identity_id": "user:u1",
+        "display_name": "Acceptance User",
+        "kind": "user"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/unread-conversations",
+      "search": {},
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/attention",
+      "search": {},
+      "response": {
+        "items": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/permissions/effective",
+      "search": {
+        "subject_ref": "user:user:u1",
+        "resource_kind": "org",
+        "resource_id": "org-1"
+      },
+      "response": {
+        "subject_ref": "user:user:u1",
+        "resource": {
+          "kind": "org",
+          "id": "org-1"
+        },
+        "permissions": [
+          {
+            "key": "*",
+            "name": "Owner",
+            "source": "acceptance"
+          }
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sse",
+      "search": {
+        "user_id": "user:user:u1"
+      },
+      "response": {
+        "event_stream": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects",
+      "search": {},
+      "response": {
+        "projects": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/plans",
+      "search": {},
+      "response": {
+        "plans": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/tasks",
+      "search": {
+        "status": "all",
+        "sort": "updated",
+        "dir": "desc",
+        "page_size": "500"
+      },
+      "response": {
+        "tasks": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/members",
+      "search": {},
+      "response": {
+        "members": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/insights/collaboration-effects",
+      "search": {
+        "limit": "100",
+        "project_id": "P1",
+        "task_id": "T1",
+        "lod": "full",
+        "max_nodes": "100"
+      },
+      "response": {
+        "graph_nodes": 100,
+        "graph_edges": 160,
+        "effects": 160,
+        "graph_version": "acceptance-100"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/insights/collaboration-effects",
+      "search": {
+        "limit": "100",
+        "project_id": "P1",
+        "task_id": "T1",
+        "polarity": "mixed",
+        "lod": "full",
+        "max_nodes": "100"
+      },
+      "response": {
+        "graph_nodes": 100,
+        "graph_edges": 26,
+        "effects": 26,
+        "graph_version": "acceptance-100"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs",
+      "search": {},
+      "response": [
+        {
+          "id": "org-1",
+          "slug": "acme",
+          "name": "Acme Acceptance",
+          "role": "owner",
+          "created_at": "2026-09-10T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/conversations",
+      "search": {
+        "kind": "channel"
+      },
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/conversations",
+      "search": {
+        "kind": "dm"
+      },
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/members",
+      "search": {},
+      "response": [
+        {
+          "id": "m-agent",
+          "organization_id": "org-1",
+          "identity_id": "agent:hub",
+          "kind": "agent",
+          "role": "member",
+          "status": "joined",
+          "joined_at": "2026-09-10T00:00:00Z",
+          "display_name": "Hub Agent"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "search": {},
+      "response": {
+        "identity_id": "user:u1",
+        "display_name": "Acceptance User",
+        "kind": "user"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/attention",
+      "search": {},
+      "response": {
+        "items": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/unread-conversations",
+      "search": {},
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/permissions/effective",
+      "search": {
+        "subject_ref": "user:user:u1",
+        "resource_kind": "org",
+        "resource_id": "org-1"
+      },
+      "response": {
+        "subject_ref": "user:user:u1",
+        "resource": {
+          "kind": "org",
+          "id": "org-1"
+        },
+        "permissions": [
+          {
+            "key": "*",
+            "name": "Owner",
+            "source": "acceptance"
+          }
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sse",
+      "search": {
+        "user_id": "user:user:u1"
+      },
+      "response": {
+        "event_stream": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects",
+      "search": {},
+      "response": {
+        "projects": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/plans",
+      "search": {},
+      "response": {
+        "plans": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/tasks",
+      "search": {
+        "status": "all",
+        "sort": "updated",
+        "dir": "desc",
+        "page_size": "500"
+      },
+      "response": {
+        "tasks": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/members",
+      "search": {},
+      "response": {
+        "members": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/insights/collaboration-effects",
+      "search": {
+        "limit": "100",
+        "project_id": "P1",
+        "task_id": "T1",
+        "lod": "full",
+        "max_nodes": "500"
+      },
+      "response": {
+        "graph_nodes": 500,
+        "graph_edges": 900,
+        "effects": 200,
+        "graph_version": "acceptance-500"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/insights/collaboration-effects",
+      "search": {
+        "limit": "100",
+        "project_id": "P1",
+        "task_id": "T1",
+        "polarity": "mixed",
+        "lod": "full",
+        "max_nodes": "500"
+      },
+      "response": {
+        "graph_nodes": 500,
+        "graph_edges": 150,
+        "effects": 150,
+        "graph_version": "acceptance-500"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sse",
+      "search": {
+        "user_id": "user:user:u1"
+      },
+      "response": {
+        "event_stream": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs",
+      "search": {},
+      "response": [
+        {
+          "id": "org-1",
+          "slug": "acme",
+          "name": "Acme Acceptance",
+          "role": "owner",
+          "created_at": "2026-09-10T00:00:00Z"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/conversations",
+      "search": {
+        "kind": "dm"
+      },
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/members",
+      "search": {},
+      "response": [
+        {
+          "id": "m-agent",
+          "organization_id": "org-1",
+          "identity_id": "agent:hub",
+          "kind": "agent",
+          "role": "member",
+          "status": "joined",
+          "joined_at": "2026-09-10T00:00:00Z",
+          "display_name": "Hub Agent"
+        }
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/conversations",
+      "search": {
+        "kind": "channel"
+      },
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/me",
+      "search": {},
+      "response": {
+        "identity_id": "user:u1",
+        "display_name": "Acceptance User",
+        "kind": "user"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/unread-conversations",
+      "search": {},
+      "response": []
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/attention",
+      "search": {},
+      "response": {
+        "items": []
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/permissions/effective",
+      "search": {
+        "subject_ref": "user:user:u1",
+        "resource_kind": "org",
+        "resource_id": "org-1"
+      },
+      "response": {
+        "subject_ref": "user:user:u1",
+        "resource": {
+          "kind": "org",
+          "id": "org-1"
+        },
+        "permissions": [
+          {
+            "key": "*",
+            "name": "Owner",
+            "source": "acceptance"
+          }
+        ]
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sse",
+      "search": {
+        "user_id": "user:user:u1"
+      },
+      "response": {
+        "event_stream": true
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects",
+      "search": {},
+      "response": {
+        "projects": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/plans",
+      "search": {},
+      "response": {
+        "plans": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/tasks",
+      "search": {
+        "status": "all",
+        "sort": "updated",
+        "dir": "desc",
+        "page_size": "500"
+      },
+      "response": {
+        "tasks": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/projects/P1/members",
+      "search": {},
+      "response": {
+        "members": 1
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/insights/collaboration-effects",
+      "search": {
+        "limit": "100",
+        "project_id": "P1",
+        "task_id": "T1",
+        "lod": "full",
+        "max_nodes": "2200"
+      },
+      "response": {
+        "graph_nodes": 2200,
+        "graph_edges": 3600,
+        "effects": 200,
+        "graph_version": "acceptance-2200"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/orgs/acme/insights/collaboration-effects",
+      "search": {
+        "limit": "100",
+        "project_id": "P1",
+        "task_id": "T1",
+        "polarity": "mixed",
+        "lod": "full",
+        "max_nodes": "2200"
+      },
+      "response": {
+        "graph_nodes": 2200,
+        "graph_edges": 600,
+        "effects": 200,
+        "graph_version": "acceptance-2200"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/api/sse",
+      "search": {
+        "user_id": "user:user:u1"
+      },
+      "response": {
+        "event_stream": true
+      }
+    }
+  ],
+  "network_log": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/index-BeS6F5AD.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/organizations/acme/insights/collaboration?view=impact&project_id=P1&task_id=T1&lod=full&max_nodes=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/index-BZ8W4ljv.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/fonts/plus-jakarta-sans-latin.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/tasks-CcDmcWMJ.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/useInfiniteQuery-BBpF10qh.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/insights-Blk3Tlcb.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/orgWorkItems-B12TkaHB.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/plans-ueTU4uwM.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/EntitySelect-EUNInGCI.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/InsightCollaboration-PParSVUr.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/conversations?kind=channel",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/conversations?kind=dm",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/members",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/unread-conversations",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/attention",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/fonts/ibm-plex-mono-400-latin.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/plans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/tasks?status=all&sort=updated&dir=desc&page_size=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/members",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/insights/collaboration-effects?limit=100&project_id=P1&task_id=T1&lod=full&max_nodes=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/permissions/effective?subject_ref=user%3Auser%3Au1&resource_kind=org&resource_id=org-1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/sse?user_id=user%3Auser%3Au1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/index-BeS6F5AD.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/organizations/acme/insights/collaboration?view=impact&project_id=P1&task_id=T1&lod=full&max_nodes=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/index-BZ8W4ljv.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/fonts/plus-jakarta-sans-latin.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/useInfiniteQuery-BBpF10qh.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/orgWorkItems-B12TkaHB.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/tasks-CcDmcWMJ.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/insights-Blk3Tlcb.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/plans-ueTU4uwM.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/EntitySelect-EUNInGCI.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/conversations?kind=channel",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/conversations?kind=dm",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/members",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/unread-conversations",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/attention",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/fonts/ibm-plex-mono-400-latin.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/InsightCollaboration-PParSVUr.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/permissions/effective?subject_ref=user%3Auser%3Au1&resource_kind=org&resource_id=org-1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/sse?user_id=user%3Auser%3Au1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/plans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/tasks?status=all&sort=updated&dir=desc&page_size=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/members",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/insights/collaboration-effects?limit=100&project_id=P1&task_id=T1&lod=full&max_nodes=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/organizations/acme/insights/collaboration?view=impact&project_id=P1&task_id=T1&lod=full&max_nodes=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/index-BeS6F5AD.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/index-BZ8W4ljv.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/fonts/plus-jakarta-sans-latin.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/tasks-CcDmcWMJ.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/useInfiniteQuery-BBpF10qh.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/orgWorkItems-B12TkaHB.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/insights-Blk3Tlcb.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/plans-ueTU4uwM.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/EntitySelect-EUNInGCI.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/conversations?kind=channel",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/conversations?kind=dm",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/members",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/unread-conversations",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/attention",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/InsightCollaboration-PParSVUr.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/fonts/ibm-plex-mono-400-latin.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/sse?user_id=user%3Auser%3Au1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/permissions/effective?subject_ref=user%3Auser%3Au1&resource_kind=org&resource_id=org-1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/plans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/tasks?status=all&sort=updated&dir=desc&page_size=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/members",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/insights/collaboration-effects?limit=100&project_id=P1&task_id=T1&lod=full&max_nodes=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/sse?user_id=user%3Auser%3Au1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/insights/collaboration-effects/ce-0/evidence?project_id=P1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/organizations/acme/insights/collaboration?view=impact&project_id=P1&task_id=T1&lod=full&max_nodes=100",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/index-BeS6F5AD.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/index-BZ8W4ljv.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/fonts/plus-jakarta-sans-latin.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/useInfiniteQuery-BBpF10qh.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/tasks-CcDmcWMJ.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/orgWorkItems-B12TkaHB.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/insights-Blk3Tlcb.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/plans-ueTU4uwM.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/EntitySelect-EUNInGCI.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/conversations?kind=channel",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/conversations?kind=dm",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/members",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/unread-conversations",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/attention",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/fonts/ibm-plex-mono-400-latin.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/InsightCollaboration-PParSVUr.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/permissions/effective?subject_ref=user%3Auser%3Au1&resource_kind=org&resource_id=org-1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/sse?user_id=user%3Auser%3Au1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/plans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/tasks?status=all&sort=updated&dir=desc&page_size=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/members",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/insights/collaboration-effects?limit=100&project_id=P1&task_id=T1&lod=full&max_nodes=100",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/insights/collaboration-effects?limit=100&project_id=P1&task_id=T1&polarity=mixed&lod=full&max_nodes=100",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/organizations/acme/insights/collaboration?view=impact&project_id=P1&task_id=T1&lod=full&max_nodes=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/index-BeS6F5AD.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/index-BZ8W4ljv.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/fonts/plus-jakarta-sans-latin.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/tasks-CcDmcWMJ.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/useInfiniteQuery-BBpF10qh.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/orgWorkItems-B12TkaHB.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/insights-Blk3Tlcb.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/plans-ueTU4uwM.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/EntitySelect-EUNInGCI.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/conversations?kind=channel",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/conversations?kind=dm",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/members",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/attention",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/unread-conversations",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/fonts/ibm-plex-mono-400-latin.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/InsightCollaboration-PParSVUr.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/permissions/effective?subject_ref=user%3Auser%3Au1&resource_kind=org&resource_id=org-1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/sse?user_id=user%3Auser%3Au1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/plans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/tasks?status=all&sort=updated&dir=desc&page_size=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/members",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/insights/collaboration-effects?limit=100&project_id=P1&task_id=T1&lod=full&max_nodes=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/insights/collaboration-effects?limit=100&project_id=P1&task_id=T1&polarity=mixed&lod=full&max_nodes=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/sse?user_id=user%3Auser%3Au1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/organizations/acme/insights/collaboration?view=impact&project_id=P1&task_id=T1&lod=full&max_nodes=2200",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/index-BeS6F5AD.css",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/index-BZ8W4ljv.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/fonts/plus-jakarta-sans-latin.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/tasks-CcDmcWMJ.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/useInfiniteQuery-BBpF10qh.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/orgWorkItems-B12TkaHB.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/insights-Blk3Tlcb.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/plans-ueTU4uwM.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/EntitySelect-EUNInGCI.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/conversations?kind=dm",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/members",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/conversations?kind=channel",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/auth/me",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/unread-conversations",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/attention",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/fonts/ibm-plex-mono-400-latin.woff2",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/assets/InsightCollaboration-PParSVUr.js",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/permissions/effective?subject_ref=user%3Auser%3Au1&resource_kind=org&resource_id=org-1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/sse?user_id=user%3Auser%3Au1",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/plans",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/tasks?status=all&sort=updated&dir=desc&page_size=500",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/projects/P1/members",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/insights/collaboration-effects?limit=100&project_id=P1&task_id=T1&lod=full&max_nodes=2200",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/orgs/acme/insights/collaboration-effects?limit=100&project_id=P1&task_id=T1&polarity=mixed&lod=full&max_nodes=2200",
+      "status": 200
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:60236/api/sse?user_id=user%3Auser%3Au1",
+      "status": 200
+    }
+  ],
+  "console_log": []
+}

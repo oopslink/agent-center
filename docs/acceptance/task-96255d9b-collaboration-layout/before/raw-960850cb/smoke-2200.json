@@ -1,0 +1,58 @@
+{
+  "size": 2200,
+  "tti_ms": 797.5,
+  "filter_ms": 152,
+  "pan_ms": 415.8999996185303,
+  "zoom_ms": 18,
+  "drag_ms": 205.40000009536743,
+  "counts": {
+    "labelChars": 24967,
+    "canvas": 1,
+    "svgGraphs": 0
+  },
+  "runtime": {
+    "memory": {
+      "usedJSHeapSize": 26000000,
+      "totalJSHeapSize": 116000000,
+      "jsHeapSizeLimit": 3760000000
+    },
+    "longTasks": [
+      {
+        "name": "self",
+        "startTime": 57.80000019073486,
+        "duration": 284
+      },
+      {
+        "name": "self",
+        "startTime": 375.80000019073486,
+        "duration": 68
+      },
+      {
+        "name": "self",
+        "startTime": 444.2000002861023,
+        "duration": 172
+      },
+      {
+        "name": "self",
+        "startTime": 711.3000001907349,
+        "duration": 77
+      },
+      {
+        "name": "self",
+        "startTime": 950.9000000953674,
+        "duration": 222
+      },
+      {
+        "name": "self",
+        "startTime": 1229.2000002861023,
+        "duration": 138
+      },
+      {
+        "name": "self",
+        "startTime": 1760.3000001907349,
+        "duration": 166
+      }
+    ],
+    "sessionPins": "{}"
+  }
+}

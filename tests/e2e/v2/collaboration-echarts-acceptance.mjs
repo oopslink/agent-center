@@ -12,6 +12,11 @@ const raw = join(out, 'raw');
 const evidence = join(out, 'evidence');
 const buildSha = process.env.ACCEPTANCE_SHA || (await runGit(['rev-parse', 'HEAD']));
 const sizes = [100, 500, 2200];
+const minCanvasHeight = new Map([
+  ['1440x900', 480],
+  ['1280x720', 320],
+  ['1024x768', 340],
+]);
 const mime = new Map([
   ['.html', 'text/html; charset=utf-8'],
   ['.js', 'text/javascript; charset=utf-8'],
@@ -94,7 +99,9 @@ try {
   ]) {
     await page.setViewportSize(viewport);
     await gotoGraph(page, `${baseURL}/organizations/acme/insights/collaboration?view=impact&project_id=P1&task_id=T1&lod=full&max_nodes=500`);
-    viewportResults.push(await measureViewport(page, viewport));
+    const measured = await measureViewport(page, viewport);
+    assertViewport(measured);
+    viewportResults.push(measured);
     await page.screenshot({ path: join(evidence, `${viewport.width}x${viewport.height}.png`), fullPage: true });
   }
 
@@ -111,14 +118,28 @@ try {
   await page.mouse.move(620, 420, { steps: 12 });
   await page.mouse.up();
   await page.mouse.wheel(0, -500);
-  const edgeButton = page.getByLabel('Keyboard-accessible graph edges').getByRole('button').first();
+  const restoredBeforeDrawer = await measureViewport(page, { width: 1024, height: 768 });
+  await page.getByTestId('collaboration-edge-drawer').locator('summary').click();
+  const edgeButton = page.getByTestId('collaboration-edge-drawer').getByRole('button').first();
   await edgeButton.click();
   await page.getByTestId('collaboration-evidence-drawer').waitFor();
+  const drawerOpen = await measureViewport(page, { width: 1024, height: 768 });
   await page.screenshot({ path: join(evidence, '1024x768-evidence.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Close evidence' }).click();
+  await page.getByTestId('collaboration-evidence-drawer').waitFor({ state: 'detached' });
+  const restoredAfterDrawer = await measureViewport(page, { width: 1024, height: 768 });
+  assertDrawerRestores(restoredBeforeDrawer, drawerOpen, restoredAfterDrawer);
 
   for (const size of sizes) {
     await page.setViewportSize({ width: 1440, height: 900 });
     smokeResults.push(await runSmoke(page, baseURL, size));
+  }
+  for (const view of ['network', 'impact', 'lineage']) {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoGraph(page, `${baseURL}/organizations/acme/insights/collaboration?view=${view}&project_id=P1&task_id=T1&lod=full&max_nodes=500`);
+    const viewMeasure = await measureViewport(page, { width: 1440, height: 900 });
+    assertNodeSpread(viewMeasure, view);
+    viewportResults.push({ ...viewMeasure, view_stability_check: view });
   }
 
   const assertions = await page.evaluate(() => {
@@ -173,6 +194,10 @@ async function gotoGraph(page, url) {
       const host = document.querySelector('[data-testid="collaboration-echarts"]');
       return Boolean(host?.querySelector('canvas'));
     });
+    await page.waitForFunction(() => {
+      const debug = window.__collaborationGraphDebug;
+      return Boolean(debug?.nodes?.some((node) => typeof node.x === 'number' && typeof node.y === 'number'));
+    });
   } catch (error) {
     await page.screenshot({ path: join(evidence, 'failure-timeout.png'), fullPage: true });
     await writeFile(join(raw, 'failure-timeout.html'), await page.content());
@@ -188,6 +213,43 @@ async function measureViewport(page, viewport) {
       if (!el) return null;
       const rect = el.getBoundingClientRect();
       return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, right: rect.right, bottom: rect.bottom };
+    };
+    const nodeBBox = () => {
+      const graph = document.querySelector('[data-testid="collaboration-echarts"]');
+      const chart = window.__collaborationECharts;
+      const debug = window.__collaborationGraphDebug;
+      if (!graph || !chart || !debug?.nodes?.length) return null;
+      const rect = graph.getBoundingClientRect();
+      const points = debug.nodes
+        .map((node) => {
+          if (typeof node.x !== 'number' || typeof node.y !== 'number') return null;
+          try {
+            const pixel = chart.convertToPixel({ seriesIndex: 0 }, [node.x, node.y]);
+            return Array.isArray(pixel) && Number.isFinite(pixel[0]) && Number.isFinite(pixel[1]) ? { x: pixel[0], y: pixel[1] } : null;
+          } catch {
+            return null;
+          }
+        })
+        .filter(Boolean);
+      if (points.length < 2) return null;
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+      return {
+        count: points.length,
+        width: maxX - minX,
+        height: maxY - minY,
+        width_ratio: (maxX - minX) / Math.max(1, rect.width),
+        height_ratio: (maxY - minY) / Math.max(1, rect.height),
+        center_offset_x_ratio: Math.abs(centerX - rect.width / 2) / Math.max(1, rect.width),
+        center_offset_y_ratio: Math.abs(centerY - rect.height / 2) / Math.max(1, rect.height),
+        out_of_bounds: points.filter((point) => point.x < -10 || point.y < -10 || point.x > rect.width + 10 || point.y > rect.height + 10).length,
+      };
     };
     const graph = document.querySelector('[data-testid="collaboration-echarts"]');
     const panel = document.querySelector('[data-testid="collaboration-graph"]');
@@ -206,6 +268,12 @@ async function measureViewport(page, viewport) {
       body_client_width: document.body.clientWidth,
       horizontal_overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
       graph_clipped: Boolean(panel && graph && graph.getBoundingClientRect().right > panel.getBoundingClientRect().right + 1),
+      flow_edge_lists: [...document.querySelectorAll('[aria-label="Keyboard-accessible graph edges"]')].filter((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.width > 1 && rect.height > 1;
+      }).length,
+      open_edge_drawers: document.querySelectorAll('[data-testid="collaboration-graph"] details[open]').length,
+      node_bbox: nodeBBox(),
     };
   }, viewport);
 }
@@ -213,6 +281,9 @@ async function measureViewport(page, viewport) {
 async function runSmoke(page, baseURL, size) {
   await page.evaluate(() => sessionStorage.removeItem('insight:collaboration:pins:impact'));
   await gotoGraph(page, `${baseURL}/organizations/acme/insights/collaboration?view=impact&project_id=P1&task_id=T1&lod=full&max_nodes=${size}`);
+  await page.getByRole('button', { name: 'Fit' }).click();
+  const layout = await measureViewport(page, { width: 1440, height: 900 });
+  assertNodeSpread(layout, `impact-${size}`);
   const tti = await page.evaluate(() => performance.now());
   const counts = await page.evaluate(() => {
     const labels = document.querySelector('[data-testid="collaboration-rendered-labels"]')?.textContent || '';
@@ -283,8 +354,9 @@ async function runSmoke(page, baseURL, size) {
   if (!interactionEvidence.pan_changed || !interactionEvidence.zoom_changed || !interactionEvidence.drag_pinned) {
     throw new Error(`canvas interaction evidence failed for ${size}-node smoke: ${JSON.stringify(interactionEvidence)}`);
   }
-  await writeFile(join(raw, `smoke-${size}.json`), JSON.stringify({ size, tti_ms: tti, filter_ms: filterMs, pan_ms: panMs, zoom_ms: zoomMs, drag_ms: dragMs, counts, runtime, interactionEvidence }, null, 2));
-  return { input_size: size, requested_nodes: size, requested_edges: size === 100 ? 160 : size === 500 ? 900 : 3600, rendered_nodes: size, rendered_edges: size === 100 ? 160 : size === 500 ? 900 : 3600, tti_ms: tti, filter_ms: filterMs, pan_ms: panMs, zoom_ms: zoomMs, drag_ms: dragMs, heap: runtime.memory, long_tasks: runtime.longTasks, counts, interaction_evidence: interactionEvidence };
+  const smoke = { size, tti_ms: tti, filter_ms: filterMs, pan_ms: panMs, zoom_ms: zoomMs, drag_ms: dragMs, counts, runtime, interactionEvidence, layout };
+  await writeFile(join(raw, `smoke-${size}.json`), JSON.stringify(smoke, null, 2));
+  return { input_size: size, requested_nodes: size, requested_edges: size === 100 ? 160 : size === 500 ? 900 : 3600, rendered_nodes: layout.node_bbox?.count ?? size, rendered_edges: size === 100 ? 160 : size === 500 ? 900 : 3600, tti_ms: tti, filter_ms: filterMs, pan_ms: panMs, zoom_ms: zoomMs, drag_ms: dragMs, heap: runtime.memory, long_tasks: runtime.longTasks, counts, interaction_evidence: interactionEvidence, layout };
 }
 
 async function findCanvasNodePoint(page, target) {
@@ -317,6 +389,31 @@ async function findCanvasNodePoint(page, target) {
   }, target);
 }
 
+function assertViewport(result) {
+  const key = `${result.viewport.width}x${result.viewport.height}`;
+  const min = minCanvasHeight.get(key);
+  if (min && result.graph_visible_height < min) throw new Error(`${key} graph height ${result.graph_visible_height} < ${min}`);
+  if (result.canvas && result.canvas.cssHeight < (min ?? 0)) throw new Error(`${key} canvas CSS height ${result.canvas.cssHeight} < ${min}`);
+  if (result.horizontal_overflow) throw new Error(`${key} has horizontal overflow: ${result.document_scroll_width} > ${result.document_client_width}`);
+  if (result.graph_clipped) throw new Error(`${key} graph is clipped by panel`);
+  if (result.flow_edge_lists > 0) throw new Error(`${key} visible edge list remains in document flow`);
+  assertNodeSpread(result, key);
+}
+
+function assertDrawerRestores(before, open, after) {
+  if (open.graph_visible_height < before.graph_visible_height - 4) throw new Error('evidence drawer reduced graph height while open');
+  if (Math.abs(after.graph_visible_height - before.graph_visible_height) > 4) throw new Error(`evidence drawer did not restore graph height: before=${before.graph_visible_height} after=${after.graph_visible_height}`);
+}
+
+function assertNodeSpread(result, label) {
+  const bbox = result.node_bbox;
+  if (!bbox || bbox.count < 2) throw new Error(`${label} missing node bbox`);
+  if (bbox.width_ratio < 0.48) throw new Error(`${label} node bbox width ratio ${bbox.width_ratio} < 0.48`);
+  if (bbox.height_ratio < 0.36) throw new Error(`${label} node bbox height ratio ${bbox.height_ratio} < 0.36`);
+  if (bbox.center_offset_x_ratio > 0.22 || bbox.center_offset_y_ratio > 0.24) throw new Error(`${label} node bbox off center ${bbox.center_offset_x_ratio},${bbox.center_offset_y_ratio}`);
+  if (bbox.out_of_bounds > Math.max(2, bbox.count * 0.02)) throw new Error(`${label} too many nodes outside canvas: ${bbox.out_of_bounds}/${bbox.count}`);
+}
+
 function apiResponse(url) {
   if (url.pathname === '/api/auth/me') return { identity_id: 'user:u1', display_name: 'Acceptance User', kind: 'user' };
   if (url.pathname === '/api/orgs') return [{ id: 'org-1', slug: 'acme', name: 'Acme Acceptance', role: 'owner', created_at: '2026-09-10T00:00:00Z' }];
@@ -337,20 +434,41 @@ function apiResponse(url) {
 
 function generatedGraph(size, search) {
   const edgeCount = size === 100 ? 160 : size === 500 ? 900 : 3600;
-  const nodes = [{ id: 'agent:hub', kind: 'agent', label: 'Hub Agent', project_id: 'P1' }];
-  for (let i = 1; i < size; i += 1) nodes.push({ id: `task:T${i}`, kind: 'task', label: `Task ${i}`, task_id: `T${i}`, project_id: 'P1', plan_id: 'PL1', stage_id: `S${i % 12}` });
+  const stageCount = Math.min(12, Math.max(4, Math.floor(size / 30)));
+  const agentCount = Math.min(36, Math.max(6, Math.floor(size / 20)));
+  const nodes = [{ id: 'plan:PL1', kind: 'plan', label: 'Delivery Plan', project_id: 'P1', plan_id: 'PL1' }];
+  for (let i = 0; i < stageCount; i += 1) nodes.push({ id: `stage:S${i}`, kind: 'stage', label: `Stage ${i}`, project_id: 'P1', plan_id: 'PL1', stage_id: `S${i}` });
+  nodes.push({ id: 'agent:hub', kind: 'agent', label: 'Hub Agent', project_id: 'P1' });
+  for (let i = 1; i < agentCount; i += 1) nodes.push({ id: `agent:a${i}`, kind: 'agent', label: `Agent ${i}`, project_id: 'P1' });
+  for (let i = nodes.length; i < size; i += 1) {
+    const taskIndex = i - agentCount - stageCount;
+    nodes.push({ id: `task:T${taskIndex}`, kind: 'task', label: `Task ${taskIndex}`, task_id: `T${taskIndex}`, project_id: 'P1', plan_id: 'PL1', stage_id: `S${taskIndex % stageCount}` });
+  }
   const relations = ['assign', 'complete', 'block', 'unblock', 'dependency_release', 'review_reject'];
   const polarities = ['neutral', 'positive', 'negative', 'positive', 'positive', 'mixed'];
   const polarityFilter = search.get('polarity');
+  const tasks = nodes.filter((node) => node.kind === 'task');
+  const agents = nodes.filter((node) => node.kind === 'agent');
   const edges = [];
+  for (let i = 0; i < stageCount; i += 1) {
+    edges.push({ id: `lineage-plan-stage-${i}`, source: 'plan:PL1', target: `stage:S${i}`, relation_type: 'dependency_release', polarity: 'neutral', magnitude: 1, interaction_count: 0, evidence_count: 0 });
+  }
+  for (let i = 0; i < tasks.length; i += 1) {
+    edges.push({ id: `lineage-stage-task-${i}`, source: `stage:S${i % stageCount}`, target: tasks[i].id, relation_type: 'dependency_release', polarity: 'neutral', magnitude: 1, interaction_count: 0, evidence_count: 0 });
+  }
   for (let i = 0; i < edgeCount; i += 1) {
     const relation = relations[i % relations.length];
     const polarity = polarities[i % polarities.length];
     if (polarityFilter && polarity !== polarityFilter) continue;
-    const taskIndex = (i % (size - 1)) + 1;
-    edges.push({ id: `edge-${i}`, source: 'agent:hub', target: `task:T${taskIndex}`, relation_type: relation, polarity, magnitude: ((i % 3) + 1), effect_id: `ce-${i}`, effect_scopes: [{ effect_id: `ce-${i}`, project_id: 'P1' }], interaction_count: 1, evidence_count: 1, first_occurred_at: '2026-09-10T01:00:00Z', last_occurred_at: '2026-09-10T01:00:00Z' });
+    if (i % 7 === 0 && agents.length > 1) {
+      const target = agents[(i % (agents.length - 1)) + 1].id;
+      edges.push({ id: `agent-edge-${i}`, source: 'agent:hub', target, relation_type: relation, polarity, magnitude: ((i % 3) + 1), effect_id: `ce-${i}`, effect_scopes: [{ effect_id: `ce-${i}`, project_id: 'P1' }], interaction_count: 1, evidence_count: 1, first_occurred_at: '2026-09-10T01:00:00Z', last_occurred_at: '2026-09-10T01:00:00Z' });
+      continue;
+    }
+    const task = tasks[i % Math.max(1, tasks.length)];
+    edges.push({ id: `edge-${i}`, source: 'agent:hub', target: task?.id ?? 'plan:PL1', relation_type: relation, polarity, magnitude: ((i % 3) + 1), effect_id: `ce-${i}`, effect_scopes: [{ effect_id: `ce-${i}`, project_id: 'P1' }], interaction_count: 1, evidence_count: 1, first_occurred_at: '2026-09-10T01:00:00Z', last_occurred_at: '2026-09-10T01:00:00Z' });
   }
-  const effects = edges.slice(0, 200).map((edge) => ({ id: edge.effect_id, effect_id: edge.effect_id, source: edge.source, target: edge.target, relation_type: edge.relation_type, polarity: edge.polarity, magnitude: edge.magnitude, project_id: 'P1', target_task_id: edge.target.replace('task:', ''), source_agent_ref: edge.source, target_agent_ref: '', confidence: 'high', occurred_at: '2026-09-10T01:00:00Z', rule_version: 'collaboration-effect.mvp.v1', evidence_event_ids: [`evt-${edge.effect_id}`], before_state: { status: 'running' }, after_state: { status: 'completed' }, explanation_key: `collaboration.effect.${edge.relation_type}` }));
+  const effects = edges.filter((edge) => edge.effect_id).slice(0, 200).map((edge) => ({ id: edge.effect_id, effect_id: edge.effect_id, source: edge.source, target: edge.target, relation_type: edge.relation_type, polarity: edge.polarity, magnitude: edge.magnitude, project_id: 'P1', target_task_id: edge.target.startsWith('task:') ? edge.target.replace('task:', '') : '', source_agent_ref: edge.source, target_agent_ref: edge.target.startsWith('agent:') ? edge.target : '', confidence: 'high', occurred_at: '2026-09-10T01:00:00Z', rule_version: 'collaboration-effect.mvp.v1', evidence_event_ids: [`evt-${edge.effect_id}`], before_state: { status: 'running' }, after_state: { status: 'completed' }, explanation_key: `collaboration.effect.${edge.relation_type}` }));
   return { graph: { nodes, edges, lod: 'full', clusters: [], truncated: false }, effects, summary: { positive_count: 100, negative_count: 25, neutral_count: 25, mixed_count: 10, affected_task_count: Math.max(1, size - 1) }, next_cursor: '', graph_version: `acceptance-${size}` };
 }
 

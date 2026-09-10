@@ -31,6 +31,7 @@ const RELATIONS: CollaborationRelation[] = ['assign', 'reassign', 'complete', 'b
 const POLARITIES: CollaborationPolarity[] = ['positive', 'negative', 'neutral', 'mixed'];
 const COLLABORATION_VIEWS = ['network', 'impact', 'lineage'] as const;
 const TIMELINE_RENDER_LIMIT = 200;
+const EDGE_LIST_RENDER_LIMIT = 240;
 const NODE_COLORS: Record<CollaborationNode['kind'], string> = {
   agent: '#2563eb',
   task: '#0f766e',
@@ -127,10 +128,10 @@ export default function InsightCollaboration(): React.ReactElement {
         </div>
         {activeGraph.unsupported ? <State id="collaboration-unsupported" title={t('insight.collaboration.unsupported')} body={activeGraph.reason ?? t('insight.collaboration.emptyBody')} /> : null}
         {!activeGraph.unsupported && activeGraph.edges.length === 0 ? <State id="collaboration-empty" title={t('insight.collaboration.empty')} body={t('insight.collaboration.emptyBody')} /> : null}
-        {!activeGraph.unsupported && activeGraph.edges.length > 0 ? <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_12rem] xl:grid-cols-[minmax(0,1fr)_18rem]">
+        {!activeGraph.unsupported && activeGraph.edges.length > 0 ? <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
           <CollaborationGraph view={activeGraph} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} />
-          <div className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
-            {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="shrink-0 rounded border border-border px-3 py-2 text-sm hover:bg-bg-subtle" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
+          <div className="absolute right-6 top-6 z-20 flex items-center gap-2">
+            {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="rounded border border-border bg-bg-elevated px-3 py-1.5 text-xs shadow-lg hover:bg-bg-subtle" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
             <Timeline effects={effects} onSelect={setSelected} t={t} />
           </div>
         </div> : null}
@@ -591,6 +592,7 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
     if (!host) return undefined;
     const chart = echarts.init(host, undefined, { renderer: 'canvas' });
     chartRef.current = chart;
+    (window as unknown as { __collaborationECharts?: ECharts }).__collaborationECharts = chart;
     const resize = () => chart.resize();
     const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
     observer?.observe(host);
@@ -600,6 +602,7 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
       window.removeEventListener('resize', resize);
       chart.dispose();
       chartRef.current = null;
+      delete (window as unknown as { __collaborationECharts?: ECharts }).__collaborationECharts;
     };
   }, []);
   useEffect(() => {
@@ -607,7 +610,19 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
     if (!chart) return;
     chart.setOption(chartOption, true);
     chart.resize();
-  }, [chartOption]);
+    const timeout = window.setTimeout(() => {
+      if (chart.isDisposed()) return;
+      const option = chart.getOption() as { series?: Array<{ data?: Array<EChartNodeDatum & { x?: number; y?: number }> }> } | null;
+      const liveNodes = option?.series?.[0]?.data ?? [];
+      (window as unknown as { __collaborationGraphDebug?: unknown }).__collaborationGraphDebug = {
+        view: view.view,
+        node_count: visibleNodes.length,
+        edge_count: visibleEdges.length,
+        nodes: liveNodes.map((node) => ({ id: node.id, name: node.name, x: node.x, y: node.y })),
+      };
+    }, 120);
+    return () => window.clearTimeout(timeout);
+  }, [chartOption, view.view, visibleEdges.length, visibleNodes.length]);
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return undefined;
@@ -685,17 +700,27 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
     setFocusedNodeId(locateId);
     chartRef.current?.dispatchAction({ type: 'focusNodeAdjacency', seriesIndex: 0, dataIndex: visibleNodes.findIndex((node) => node.id === locateId) });
   };
-  return <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-bg-surface p-3" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
-    <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2" data-testid="collaboration-graph-toolbar">
-      <div className="flex min-w-0 flex-wrap gap-3 text-xs text-text-muted">
+  const renderEdgeButtons = () => visibleEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0).slice(0, EDGE_LIST_RENDER_LIMIT).map((edge) => {
+    const scopes = scopesForEdge(edge);
+    const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0');
+    return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} onMouseEnter={() => setHoveredId(edge.source)} onMouseLeave={() => setHoveredId(null)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>;
+  });
+  return <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-bg-surface p-2" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
+    <div className="absolute left-4 top-4 z-10 flex max-w-[calc(100%-2rem)] flex-wrap items-center gap-2" data-testid="collaboration-graph-toolbar">
+      <div className="flex min-w-0 flex-wrap gap-2 rounded border border-border bg-bg-elevated/95 px-2 py-1.5 text-xs text-text-muted shadow-lg">
         <span>{t(`insight.collaboration.views.${view.view}`)}</span>
-        <span>━━ {t('insight.collaboration.legend.relationship')}</span>
-        <span>┄┄ {t('insight.collaboration.legend.effect')}</span>
-        <span>+/− {t('insight.collaboration.legend.mixed')}</span>
         {view.view === 'network' ? <span data-testid="collaboration-network-communities">{t('insight.collaboration.legend.communities', { count: communityCount })}</span> : null}
         {view.truncated ? <span>{t('insight.collaboration.lod.cropped', { nodes: view.visibleNodeCount, edges: view.visibleEdgeCount })}</span> : null}
       </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-1" aria-label={t('insight.collaboration.viewport.controls')}>
+      <details className="relative">
+        <summary className="h-8 cursor-pointer list-none rounded border border-border bg-bg-elevated/95 px-2 py-1.5 text-xs text-text-primary shadow-lg hover:bg-bg-subtle">{t('insight.collaboration.legend.relationship')}</summary>
+        <div className="absolute left-0 mt-2 w-56 rounded border border-border bg-bg-elevated p-3 text-xs text-text-muted shadow-xl">
+          <p>━━ {t('insight.collaboration.legend.relationship')}</p>
+          <p className="mt-1">┄┄ {t('insight.collaboration.legend.effect')}</p>
+          <p className="mt-1">+/− {t('insight.collaboration.legend.mixed')}</p>
+        </div>
+      </details>
+      <div className="flex min-w-0 flex-wrap items-center gap-1 rounded border border-border bg-bg-elevated/95 p-1 shadow-lg" aria-label={t('insight.collaboration.viewport.controls')}>
         <select aria-label="Locate" className="h-8 max-w-[13rem] rounded border border-border bg-bg-primary px-2 text-xs text-text-primary" value={locateId} onChange={(event) => setLocateId(event.target.value)} data-testid="collaboration-locate">
           <option value="">Locate</option>
           {locateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -711,12 +736,12 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
     </div>
     <div
       ref={chartHostRef}
-      className="min-h-0 min-w-0 flex-1 touch-none rounded border border-border bg-bg-primary"
+      className="min-h-[340px] min-w-0 flex-1 touch-none rounded border border-border bg-bg-primary"
       role="img"
       aria-label={t('insight.collaboration.graph')}
       data-testid="collaboration-echarts"
     />
-    <div className="mt-2 flex shrink-0 flex-wrap gap-2">
+    <div className="absolute bottom-4 left-4 z-10 flex max-w-[calc(100%-2rem)] flex-wrap gap-2">
       <button type="button" className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" onClick={() => focusedNodeId && setCollapsedNodeIds((current) => toggleSet(current, focusedNodeId))} disabled={!focusedNodeId} data-testid="collaboration-collapse-focus">{t('insight.collaboration.viewport.collapse')}</button>
       <button type="button" className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" onClick={() => setCollapsedNodeIds(new Set())} disabled={collapsedNodeIds.size === 0} data-testid="collaboration-expand-all">{t('insight.collaboration.viewport.expand')}</button>
     </div>
@@ -735,7 +760,11 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
         }}
       >{node.label}</button>)}
     </div>
-    <div className="mt-2 grid max-h-20 shrink-0 gap-2 overflow-auto md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{visibleEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = scopesForEdge(edge); const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} onMouseEnter={() => setHoveredId(edge.source)} onMouseLeave={() => setHoveredId(null)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
+    <details className="absolute bottom-4 right-4 z-10" data-testid="collaboration-edge-drawer">
+      <summary className="cursor-pointer list-none rounded border border-border bg-bg-elevated/95 px-3 py-1.5 text-xs text-text-primary shadow-lg hover:bg-bg-subtle">{t('insight.collaboration.edgeList')}</summary>
+      <div className="mt-2 grid max-h-[min(22rem,55vh)] w-[min(40rem,calc(100vw-2rem))] gap-2 overflow-auto rounded border border-border bg-bg-elevated p-3 shadow-xl md:grid-cols-2">{renderEdgeButtons()}</div>
+    </details>
+    <div className="sr-only" aria-label={t('insight.collaboration.edgeList')}>{renderEdgeButtons()}</div>
     <div className="sr-only" data-testid="collaboration-rendered-labels">{visibleNodes.map((node) => node.label).join(' ')} {visibleEdges.map((edge) => `${labelFor(t, edge.relation_type)} ${labelFor(t, edge.polarity)}`).join(' ')} {view.lod === 'cluster' ? t('insight.collaboration.lod.overviewBadge') : ''}</div>
   </section>;
 }
@@ -782,8 +811,8 @@ function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focus
       name: node.id,
       value: node.label,
       category: node.kind,
-      x: view.view === 'network' && !pinned ? undefined : node.x,
-      y: view.view === 'network' && !pinned ? undefined : node.y,
+      x: node.x,
+      y: node.y,
       fixed: view.view !== 'network' || pinned,
       draggable: true,
       node,
@@ -949,28 +978,72 @@ function layoutNetwork(nodes: CollaborationNode[], edges: CollaborationEdge[]): 
     degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1);
   });
   const ordered = [...nodes].sort((a, b) => (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0) || a.label.localeCompare(b.label));
-  const center = { x: 380, y: 260 };
-  const radius = Math.max(150, Math.min(560, ordered.length * 17));
+  const center = { x: 500, y: 340 };
+  const rings = Math.max(1, Math.ceil(Math.sqrt(Math.max(1, ordered.length)) / 2));
   return ordered.map((node, index) => {
     if (ordered.length === 1) return { ...node, ...center };
+    const ringIndex = Math.min(rings, Math.floor(Math.sqrt(index + 1) / 2) + 1);
+    const radius = 80 + ringIndex * (260 / rings);
     const angle = (index / ordered.length) * Math.PI * 2 - Math.PI / 2;
-    const ring = index < 16 ? radius * 0.55 : radius;
-    return { ...node, x: center.x + Math.cos(angle) * ring, y: center.y + Math.sin(angle) * ring };
+    return { ...node, x: center.x + Math.cos(angle) * radius, y: center.y + Math.sin(angle) * radius };
   });
 }
 
 function layoutLanes(nodes: CollaborationNode[], view: CollaborationViewKind): PositionedNode[] {
-  const lanes = view === 'lineage'
-    ? { plan: 90, stage: 325, task: 600, agent: 0, project: 0, cluster: 325 }
-    : { agent: 65, project: 200, plan: 350, stage: 500, task: 660, cluster: 360 };
-  const laneIndex = new Map<string, number>();
-  return [...nodes]
+  const ordered = [...nodes]
     .sort((a, b) => laneOrder(a.kind, view) - laneOrder(b.kind, view) || (a.plan_id ?? '').localeCompare(b.plan_id ?? '') || (a.stage_id ?? '').localeCompare(b.stage_id ?? '') || a.label.localeCompare(b.label))
-    .map((node) => {
-      const i = laneIndex.get(node.kind) ?? 0;
-      laneIndex.set(node.kind, i + 1);
-      return { ...node, x: lanes[node.kind], y: 70 + i * 82 };
-    });
+  if (view === 'impact') return layoutImpact(ordered);
+  if (view === 'lineage') return layoutLineage(ordered);
+  return packByKind(ordered, { x: 120, y: 80, width: 760, height: 520 });
+}
+
+function layoutImpact(nodes: CollaborationNode[]): PositionedNode[] {
+  const agents = nodes.filter((node) => node.kind === 'agent');
+  const plans = nodes.filter((node) => node.kind === 'plan');
+  const tasks = nodes.filter((node) => node.kind === 'task');
+  const others = nodes.filter((node) => !['agent', 'plan', 'task'].includes(node.kind));
+  return [
+    ...spreadColumn(agents, 135, 120, 560),
+    ...spreadColumn(plans, 390, 130, 540),
+    ...packByKind(tasks, { x: 590, y: 90, width: 340, height: 500 }),
+    ...packByKind(others, { x: 330, y: 90, width: 260, height: 500 }),
+  ];
+}
+
+function layoutLineage(nodes: CollaborationNode[]): PositionedNode[] {
+  const plans = nodes.filter((node) => node.kind === 'plan');
+  const stages = nodes.filter((node) => node.kind === 'stage');
+  const tasks = nodes.filter((node) => node.kind === 'task');
+  const others = nodes.filter((node) => !['plan', 'stage', 'task'].includes(node.kind));
+  return [
+    ...spreadColumn(plans, 130, 130, 540),
+    ...spreadColumn(stages, 390, 100, 580),
+    ...packByKind(tasks, { x: 600, y: 90, width: 330, height: 500 }),
+    ...packByKind(others, { x: 390, y: 120, width: 260, height: 460 }),
+  ];
+}
+
+function spreadColumn(nodes: CollaborationNode[], x: number, top: number, height: number): PositionedNode[] {
+  if (nodes.length === 0) return [];
+  return nodes.map((node, index) => ({ ...node, x, y: top + ((index + 1) * height) / (nodes.length + 1) }));
+}
+
+function packByKind(nodes: CollaborationNode[], box: { x: number; y: number; width: number; height: number }): PositionedNode[] {
+  if (nodes.length === 0) return [];
+  const columns = Math.max(1, Math.ceil(Math.sqrt(nodes.length * (box.width / Math.max(1, box.height)))));
+  const rows = Math.max(1, Math.ceil(nodes.length / columns));
+  const cellW = box.width / columns;
+  const cellH = box.height / rows;
+  return nodes.map((node, index) => {
+    const col = index % columns;
+    const row = Math.floor(index / columns);
+    const jitter = ((index * 37) % 19 - 9) / 9;
+    return {
+      ...node,
+      x: box.x + cellW * (col + 0.5) + jitter * Math.min(12, cellW * 0.18),
+      y: box.y + cellH * (row + 0.5) - jitter * Math.min(10, cellH * 0.16),
+    };
+  });
 }
 
 function laneOrder(kind: CollaborationNode['kind'], view: CollaborationViewKind): number {
@@ -1042,7 +1115,7 @@ function truncateLabel(label: string, max = 18): string {
 
 function Timeline({ effects, onSelect, t }: { effects: { effect_id: string; project_id: string; occurred_at: string; relation_type: string; polarity: string; source_agent_ref: string; target_task_id: string }[]; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
   const ordered = useMemo(() => [...effects].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, TIMELINE_RENDER_LIMIT), [effects]);
-  return <section className="rounded-lg border border-border bg-bg-surface p-4" data-testid="collaboration-timeline"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2>{effects.length > ordered.length ? <span className="text-xs text-text-muted" data-testid="collaboration-timeline-limit">{t('insight.collaboration.timelineLimited', { count: ordered.length, total: effects.length })}</span> : null}</div><ol className="mt-3 border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol></section>;
+  return <details className="relative" data-testid="collaboration-timeline"><summary className="cursor-pointer list-none rounded border border-border bg-bg-elevated px-3 py-1.5 text-xs shadow-lg hover:bg-bg-subtle">{t('insight.collaboration.timeline')}</summary><section className="absolute right-0 mt-2 max-h-[min(30rem,65vh)] w-[min(32rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border border-border bg-bg-elevated p-4 shadow-xl"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2>{effects.length > ordered.length ? <span className="text-xs text-text-muted" data-testid="collaboration-timeline-limit">{t('insight.collaboration.timelineLimited', { count: ordered.length, total: effects.length })}</span> : null}</div><ol className="mt-3 border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} - {item.source_agent_ref} {'->'} {item.target_task_id}</button></li>)}</ol></section></details>;
 }
 
 function EvidenceDrawer({ effect, effectIds, onClose, t }: { effect: Pick<CollaborationEffect, 'project_id' | 'explanation_key' | 'before_state' | 'after_state'> | null; effectIds: CollaborationEffectScope[]; onClose: () => void; t: Translator }) {

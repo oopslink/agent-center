@@ -1,0 +1,28 @@
+{
+  "size": 100,
+  "tti_ms": 637.9000000953674,
+  "filter_ms": 42.59999990463257,
+  "pan_ms": 241.09999990463257,
+  "zoom_ms": 24.59999990463257,
+  "drag_ms": 140,
+  "counts": {
+    "labelChars": 3848,
+    "canvas": 1,
+    "svgGraphs": 0
+  },
+  "runtime": {
+    "memory": {
+      "usedJSHeapSize": 26000000,
+      "totalJSHeapSize": 116000000,
+      "jsHeapSizeLimit": 3760000000
+    },
+    "longTasks": [
+      {
+        "name": "self",
+        "startTime": 119.5,
+        "duration": 57
+      }
+    ],
+    "sessionPins": "{}"
+  }
+}
