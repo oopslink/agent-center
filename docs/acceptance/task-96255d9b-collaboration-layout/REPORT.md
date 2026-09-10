@@ -1,6 +1,6 @@
 # Collaboration ECharts Canvas Acceptance
 
-Generated: 2026-09-10T08:24:28Z
+Generated: 2026-09-10T08:42:40Z
 
 ## Verdict
 
@@ -23,8 +23,10 @@ The prior SVG/viewBox report and screenshots are deprecated. The current accepta
 
 ## Provenance
 
-- Main before remediation: `ec4fc0d40d8b69fea90f1ebda47bd6c04b0038e6`
-- Implementation/evidence build SHA: `26309dffa1b8ca73e89ff468fca7f3e11698b3c6`
+- Original ECharts implementation baseline: `ec4fc0d40d8b69fea90f1ebda47bd6c04b0038e6`
+- Main before supervisor drag-evidence remediation: `960850cb9de84955391ce31b6c942ffa24f0f2a1`
+- Implementation/evidence build SHA: `8d8d7f2d7514ff653e91077b7d2978b7009cb6bc`
+- Acceptance asset commit / main after code and evidence: `5ee49e2735bd6269e50d490825e7f744d8437b08`
 - Production bundle: `internal/webconsole/spa/dist`
 - Harness: `tests/e2e/v2/collaboration-echarts-acceptance.mjs`
 - Browser: Chromium `148.0.7778.96`
@@ -53,22 +55,26 @@ Automated PASS:
 - Clearing filters restores the current dimension full graph
 - Fit and Reset execute on the ECharts instance
 - Continuous pan and wheel zoom execute on the production page
+- Every 100/500/2200-node run records a changed Canvas image after pan and zoom
 - Direct ECharts node hit-test selects a node
 - Direct ECharts edge hit-test opens Evidence
 - Focus and Restore work from selected graph state
 - Expand/collapse works in the active graph
 - Drag/pin persists to `sessionStorage` and restores after remount
-- Production dragend now reads live ECharts series coordinates before falling back to event payload coordinates
+- Every 100/500/2200-node production-page run drags the rendered `agent:hub` node and records `drag_pinned=true`
+- Production mouseup/dragend converts the live Canvas pixel coordinate back into graph coordinates before persisting the pin
 
 ## Performance Smoke
 
 | Input | Rendered nodes/edges | TTI | Filter | Pan | Zoom | Drag | Heap used | Long tasks |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| 100 | 100 / 160 | 637.9 ms | 42.6 ms | 241.1 ms | 24.6 ms | 140.0 ms | 26.0 MB | 57 ms |
-| 500 | 500 / 900 | 677.3 ms | 119.0 ms | 395.3 ms | 32.4 ms | 150.5 ms | 26.0 MB | 243, 84, 152, 54 ms |
-| 2200 | 2200 / 3600 | 797.5 ms | 152.0 ms | 415.9 ms | 18.0 ms | 205.4 ms | 26.0 MB | 284, 68, 172, 77, 222, 138, 166 ms |
+| 100 | 100 / 160 | 760.2 ms | 47.3 ms | 236.3 ms | 68.1 ms | 660.9 ms | 35.1 MB | 61 ms |
+| 500 | 500 / 900 | 677.9 ms | 113.2 ms | 382.2 ms | 65.9 ms | 841.2 ms | 35.1 MB | 247, 57, 154, 52 ms |
+| 2200 | 2200 / 3600 | 735.2 ms | 141.5 ms | 1636.9 ms | 67.1 ms | 1280.8 ms | 35.1 MB | 265, 96, 159, 71, 206, 129, 163, 129, 165, 131, 129, 125, 128, 129, 129 ms |
 
 The 2200-node run is the requested 2k+ case. The public API returned and the page rendered the full requested size for all three runs; no API-side clipping occurred in this harness.
+
+The original evidence run only timed pointer gestures and left `sessionPins` empty. That result was rejected during supervisor review. The final harness now fails unless pan and zoom visibly change the Canvas and a real rendered-node drag persists `agent:hub`; the replacement raw JSON records those booleans and coordinates for every scale.
 
 ## Gates
 
@@ -78,5 +84,4 @@ PASS:
 - `cd web && pnpm run typecheck` -> PASS
 - `make build-frontend` -> PASS, with existing non-fatal CSS minifier and chunk-size warnings
 - `cd web && pnpm test` -> 200 files / 1930 tests passed
-- `cd tests/e2e/v2 && ACCEPTANCE_SHA=$(git rev-parse HEAD) node collaboration-echarts-acceptance.mjs` -> PASS
-
+- `cd tests/e2e/v2 && ACCEPTANCE_SHA=8d8d7f2d7514ff653e91077b7d2978b7009cb6bc node collaboration-echarts-acceptance.mjs` -> PASS
