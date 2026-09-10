@@ -131,10 +131,8 @@ export default function InsightCollaboration(): React.ReactElement {
           <CollaborationGraph view={activeGraph} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} />
           <div className="absolute right-6 top-6 z-20 flex items-center gap-2">
             {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="rounded border border-border bg-bg-elevated px-3 py-1.5 text-xs shadow-lg hover:bg-bg-subtle" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
-            <Timeline effects={effects} onSelect={setSelected} t={t} />
-          </div>
-          <div className="absolute right-6 top-16 z-20 max-w-sm">
             <CollaborationLODNotice view={activeGraph} canLoadMore={query.hasNextPage} loadingMore={query.isFetchingNextPage} onLoadMore={() => void query.fetchNextPage()} onShowFull={showFullGraph} t={t} />
+            <Timeline effects={effects} onSelect={setSelected} t={t} />
           </div>
         </div> : null}
       </div> : null}
@@ -515,16 +513,16 @@ function CollaborationLODNotice({ view, canLoadMore, loadingMore, onLoadMore, on
   const clustered = view.lod === 'cluster' || view.clusters.length > 0;
   if (!clustered && !view.truncated) return null;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border bg-bg-elevated/95 p-2 text-xs shadow-lg" data-testid="collaboration-lod-notice">
-      <div>
-        <strong className="text-text-primary">{clustered ? t('insight.collaboration.lod.clusteredTitle') : t('insight.collaboration.lod.truncatedTitle')}</strong>
-        <p className="mt-1 text-text-muted">{t('insight.collaboration.lod.body', { nodes: view.nodes.length, edges: view.edges.length })}</p>
-      </div>
-      <div className="flex flex-wrap gap-2">
+    <details className="relative" data-testid="collaboration-lod-notice">
+      <summary className="cursor-pointer list-none rounded border border-border bg-bg-elevated px-3 py-1.5 text-xs shadow-lg hover:bg-bg-subtle">{clustered ? t('insight.collaboration.lod.clusteredTitle') : t('insight.collaboration.lod.truncatedTitle')}</summary>
+      <div className="absolute right-0 mt-2 w-80 rounded border border-border bg-bg-elevated p-3 text-xs shadow-xl">
+        <p className="text-text-muted">{t('insight.collaboration.lod.body', { nodes: view.nodes.length, edges: view.edges.length })}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
         {canLoadMore ? <button type="button" disabled={loadingMore} onClick={onLoadMore} className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" data-testid="collaboration-lod-load-more">{loadingMore ? t('insight.collaboration.loadingMore') : t('insight.collaboration.lod.continueLoading')}</button> : null}
         {clustered ? <button type="button" onClick={onShowFull} className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" data-testid="collaboration-show-full-graph">{t('insight.collaboration.lod.showFull')}</button> : null}
+        </div>
       </div>
-    </div>
+    </details>
   );
 }
 
