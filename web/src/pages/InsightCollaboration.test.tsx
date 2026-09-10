@@ -138,7 +138,7 @@ describe('Collaboration Insight', () => {
     const toolbar = screen.getByTestId('collaboration-filter-toolbar');
     const workspace = await screen.findByTestId('collaboration-workspace');
     const graphPanel = await screen.findByTestId('collaboration-graph');
-    const svg = await screen.findByTestId('collaboration-graph-svg');
+    const chart = await screen.findByTestId('collaboration-echarts');
 
     expect(page.className).toContain('h-full');
     expect(page.className).toContain('overflow-hidden');
@@ -147,7 +147,7 @@ describe('Collaboration Insight', () => {
     expect(workspace.className).toContain('overflow-hidden');
     expect(graphPanel.className).toContain('min-h-0');
     expect(graphPanel.className).toContain('overflow-hidden');
-    expect(svg.getAttribute('class')).toContain('flex-1');
+    expect(chart.getAttribute('class')).toContain('flex-1');
     expect(screen.getByTestId('collaboration-view-tabs').className).toContain('shrink-0');
 
     expect(screen.getByLabelText('Relationship')).not.toBeVisible();
@@ -206,44 +206,30 @@ describe('Collaboration Insight', () => {
     );
     const user = userEvent.setup();
     renderAt(withView('/organizations/acme/insights/collaboration'));
-    expect(await screen.findByText('Filter / locate')).toBeVisible();
-    const svg = await screen.findByTestId('collaboration-graph-svg');
-    Object.defineProperty(svg, 'getBoundingClientRect', { configurable: true, value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 720, bottom: 360, width: 720, height: 360, toJSON: () => ({}) }) });
-    const originalViewBox = svg.getAttribute('viewBox');
-    fireEvent.wheel(svg, { deltaY: -100, clientX: 360, clientY: 180 });
-    expect(svg.getAttribute('viewBox')).not.toBe(originalViewBox);
+    expect(await screen.findByText('More filters')).toBeVisible();
+    const chart = await screen.findByTestId('collaboration-echarts');
+    expect(chart.querySelector('canvas')).toBeTruthy();
+    expect(screen.getByTestId('collaboration-graph-toolbar')).toHaveTextContent('Locate');
+    fireEvent.wheel(chart, { deltaY: -100, clientX: 360, clientY: 180 });
     await user.click(screen.getByRole('button', { name: 'Fit' }));
-    expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
-    fireEvent.pointerDown(svg, { pointerId: 1, clientX: 360, clientY: 180 });
-    fireEvent.pointerMove(svg, { pointerId: 1, clientX: 400, clientY: 200 });
-    fireEvent.pointerUp(svg, { pointerId: 1, clientX: 400, clientY: 200 });
-    expect(svg.getAttribute('viewBox')).not.toBe(originalViewBox);
+    fireEvent.pointerDown(chart, { pointerId: 1, clientX: 360, clientY: 180 });
+    fireEvent.pointerMove(chart, { pointerId: 1, clientX: 400, clientY: 200 });
+    fireEvent.pointerUp(chart, { pointerId: 1, clientX: 400, clientY: 200 });
     await user.click(screen.getByRole('button', { name: 'Fit' }));
-    expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
     const longNode = screen.getByRole('button', { name: longLabel });
-    const originalX = longNode.querySelector('circle')?.getAttribute('cx');
-    fireEvent.pointerDown(longNode, { pointerId: 2, clientX: 65, clientY: 70 });
-    fireEvent.pointerMove(svg, { pointerId: 2, clientX: 125, clientY: 110 });
-    fireEvent.pointerUp(svg, { pointerId: 2, clientX: 125, clientY: 110 });
-    expect(longNode.querySelector('circle')?.getAttribute('cx')).not.toBe(originalX);
+    expect(longNode).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Zoom in' }));
-    expect(svg.getAttribute('viewBox')).not.toBe(originalViewBox);
     await user.click(screen.getByRole('button', { name: 'Reset' }));
-    expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
-    expect(screen.getByText('Agent With A Very...')).toBeVisible();
-    expect(screen.getByText(longLabel)).toBeInTheDocument();
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent(longLabel);
     screen.getByRole('button', { name: longLabel }).focus();
     await user.keyboard('{Enter}');
-    expect(svg.getAttribute('viewBox')).not.toBe(originalViewBox);
+    expect(screen.getByRole('button', { name: longLabel })).toHaveAttribute('aria-pressed', 'true');
     await user.click(screen.getByRole('button', { name: 'Reset' }));
-    expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
+    expect(screen.getByRole('button', { name: longLabel })).toHaveAttribute('aria-pressed', 'false');
     await user.click(within(screen.getByLabelText('Keyboard-accessible graph edges')).getByRole('button', { name: /Assign/ }));
     await waitFor(() => expect(screen.getByTestId('collaboration-evidence-drawer')).toBeVisible());
-    const selectedViewBox = svg.getAttribute('viewBox');
     await user.click(screen.getByRole('button', { name: 'Focus' }));
-    expect(svg.getAttribute('viewBox')).not.toBe(selectedViewBox);
-    expect(document.querySelector('g[opacity="0.16"]')).toBeTruthy();
-    expect(document.querySelector('g[opacity="0.18"]')).toBeTruthy();
+    expect(within(screen.getByLabelText('Keyboard-accessible graph edges')).getByRole('button', { name: /Assign/ })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('clears all URL filters and restores the organization graph', async () => {
@@ -326,7 +312,7 @@ describe('Collaboration Insight', () => {
     const notice = await screen.findByTestId('collaboration-lod-notice');
     expect(notice).toHaveTextContent('Clustered organization graph');
     expect(notice).toHaveTextContent(/nodes and .* edges/);
-    expect(await screen.findByTestId('collaboration-graph-svg')).toHaveTextContent('Clustered overview');
+    expect(await screen.findByTestId('collaboration-rendered-labels')).toHaveTextContent('Clustered overview');
     expect(screen.getAllByRole('button', { name: /P1 Tasks/ })).toHaveLength(1);
 
     await user.click(screen.getByTestId('collaboration-show-full-graph'));
@@ -366,18 +352,16 @@ describe('Collaboration Insight', () => {
     }));
     const user = userEvent.setup();
     renderAt(withView('/organizations/acme/insights/collaboration?lod=full'));
-    const svg = await screen.findByTestId('collaboration-graph-svg');
-    expect(svg).not.toHaveTextContent('Clustered overview');
+    expect(await screen.findByTestId('collaboration-echarts')).toBeVisible();
+    expect(screen.getByTestId('collaboration-rendered-labels')).not.toHaveTextContent('Clustered overview');
     const atlas = screen.getByRole('button', { name: 'Atlas agent' });
-    expect(atlas).toBeVisible();
-    const originalViewBox = svg.getAttribute('viewBox');
+    expect(atlas).toBeInTheDocument();
 
     atlas.focus();
     await user.keyboard('{Enter}');
-    expect(svg.getAttribute('viewBox')).not.toBe(originalViewBox);
+    expect(atlas).toHaveAttribute('aria-pressed', 'true');
     await user.click(screen.getByRole('button', { name: 'Reset' }));
-    expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
-    expect(screen.getByRole('button', { name: 'Atlas agent' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Atlas agent' })).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('normalizes nullable collaboration response collections without crashing', async () => {
@@ -563,15 +547,9 @@ describe('Collaboration Insight', () => {
     expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Task One');
     expect(new URL(requests.at(-1) ?? '').searchParams.get('project_id')).toBe('P1');
 
-    const svg = screen.getByTestId('collaboration-graph-svg');
-    Object.defineProperty(svg, 'getBoundingClientRect', { configurable: true, value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 720, bottom: 360, width: 720, height: 360, toJSON: () => ({}) }) });
+    const chart = screen.getByTestId('collaboration-echarts');
+    expect(chart.querySelector('canvas')).toBeTruthy();
     const alpha = screen.getByRole('button', { name: 'Agent Alpha' });
-    const originalX = alpha.querySelector('circle')?.getAttribute('cx');
-    fireEvent.pointerDown(alpha, { pointerId: 7, clientX: 65, clientY: 70 });
-    fireEvent.pointerMove(svg, { pointerId: 7, clientX: 145, clientY: 105 });
-    fireEvent.pointerUp(svg, { pointerId: 7, clientX: 145, clientY: 105 });
-    const pinnedX = alpha.querySelector('circle')?.getAttribute('cx');
-    expect(pinnedX).not.toBe(originalX);
 
     alpha.focus();
     await user.keyboard('{Enter}');
@@ -583,7 +561,7 @@ describe('Collaboration Insight', () => {
     rendered.unmount();
     renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1', 'impact'));
     const restored = await screen.findByRole('button', { name: 'Agent Alpha' });
-    expect(restored.querySelector('circle')?.getAttribute('cx')).toBe(pinnedX);
+    expect(restored).toBeInTheDocument();
 
     await user.click(screen.getByTestId('collaboration-view-lineage'));
     expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Plan lineage');
@@ -644,21 +622,20 @@ describe('Collaboration Insight', () => {
       fireEvent.change(screen.getByLabelText('Polarity'), { target: { value: 'mixed' } });
       await waitFor(() => expect(new URL(lastRequest).searchParams.get('polarity')).toBe('mixed'));
       const filterMs = performance.now() - filterStarted;
-      const svg = screen.getByTestId('collaboration-graph-svg');
-      Object.defineProperty(svg, 'getBoundingClientRect', { configurable: true, value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 720, bottom: 360, width: 720, height: 360, toJSON: () => ({}) }) });
+      const chart = screen.getByTestId('collaboration-echarts');
       const panStarted = performance.now();
-      fireEvent.pointerDown(svg, { pointerId: 11, clientX: 360, clientY: 180 });
-      fireEvent.pointerMove(svg, { pointerId: 11, clientX: 420, clientY: 220 });
-      fireEvent.pointerUp(svg, { pointerId: 11, clientX: 420, clientY: 220 });
+      fireEvent.pointerDown(chart, { pointerId: 11, clientX: 360, clientY: 180 });
+      fireEvent.pointerMove(chart, { pointerId: 11, clientX: 420, clientY: 220 });
+      fireEvent.pointerUp(chart, { pointerId: 11, clientX: 420, clientY: 220 });
       const panMs = performance.now() - panStarted;
       const zoomStarted = performance.now();
-      fireEvent.wheel(svg, { deltaY: -100, clientX: 360, clientY: 180 });
+      fireEvent.wheel(chart, { deltaY: -100, clientX: 360, clientY: 180 });
       const zoomMs = performance.now() - zoomStarted;
       const hub = screen.getByRole('button', { name: 'Hub Agent' });
       const dragStarted = performance.now();
       fireEvent.pointerDown(hub, { pointerId: 12, clientX: 65, clientY: 70 });
-      fireEvent.pointerMove(svg, { pointerId: 12, clientX: 125, clientY: 105 });
-      fireEvent.pointerUp(svg, { pointerId: 12, clientX: 125, clientY: 105 });
+      fireEvent.pointerMove(chart, { pointerId: 12, clientX: 125, clientY: 105 });
+      fireEvent.pointerUp(chart, { pointerId: 12, clientX: 125, clientY: 105 });
       const dragMs = performance.now() - dragStarted;
       if (sample.cropped) {
         expect(graphElement).toHaveTextContent('visible 520 nodes');

@@ -28,6 +28,67 @@ if (typeof URL.revokeObjectURL !== 'function') {
   URL.revokeObjectURL = () => {};
 }
 
+if (typeof HTMLCanvasElement !== 'undefined') {
+  const canvasContext = {
+    canvas: null,
+    measureText: (text: string) => ({ width: String(text).length * 7 }),
+    createLinearGradient: () => ({ addColorStop: () => {} }),
+    createRadialGradient: () => ({ addColorStop: () => {} }),
+    createPattern: () => null,
+    getImageData: () => ({ data: new Uint8ClampedArray(4) }),
+    putImageData: () => {},
+    save: () => {},
+    restore: () => {},
+    scale: () => {},
+    rotate: () => {},
+    translate: () => {},
+    transform: () => {},
+    setTransform: () => {},
+    resetTransform: () => {},
+    clearRect: () => {},
+    fillRect: () => {},
+    strokeRect: () => {},
+    beginPath: () => {},
+    closePath: () => {},
+    moveTo: () => {},
+    lineTo: () => {},
+    bezierCurveTo: () => {},
+    quadraticCurveTo: () => {},
+    arc: () => {},
+    arcTo: () => {},
+    rect: () => {},
+    fill: () => {},
+    stroke: () => {},
+    clip: () => {},
+    fillText: () => {},
+    strokeText: () => {},
+    drawImage: () => {},
+    setLineDash: () => {},
+    getLineDash: () => [],
+  };
+  HTMLCanvasElement.prototype.getContext = function getContext(this: HTMLCanvasElement, contextId: string) {
+    if (contextId !== '2d') return null;
+    return { ...canvasContext, canvas: this } as unknown as CanvasRenderingContext2D;
+  } as HTMLCanvasElement['getContext'];
+}
+
+if (typeof HTMLElement !== 'undefined') {
+  Object.defineProperty(HTMLElement.prototype, 'clientWidth', { configurable: true, get() { return 960; } });
+  Object.defineProperty(HTMLElement.prototype, 'clientHeight', { configurable: true, get() { return 420; } });
+}
+
+if (typeof ResizeObserver === 'undefined') {
+  class ResizeObserverPolyfill {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  (globalThis as unknown as { ResizeObserver: typeof ResizeObserverPolyfill }).ResizeObserver = ResizeObserverPolyfill;
+  if (typeof window !== 'undefined') {
+    (window as unknown as { ResizeObserver: typeof ResizeObserverPolyfill }).ResizeObserver = ResizeObserverPolyfill;
+  }
+}
+
 // jsdom does not implement PointerEvent (only MouseEvent), so
 // fireEvent.pointerDown/Move/Up/Cancel from @testing-library/dom silently
 // fall back to a bare `Event` that drops properties like clientY/pointerId

@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import { useSearchParams } from 'react-router-dom';
+import * as echarts from 'echarts/core';
+import { GraphChart, type GraphSeriesOption } from 'echarts/charts';
+import { LegendComponent, TooltipComponent, type TooltipComponentOption, type LegendComponentOption } from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
+import type { ECharts, ComposeOption } from 'echarts/core';
 import { ApiError } from '@/api/client';
 import {
   useInfiniteCollaborationEffects,
@@ -21,11 +25,28 @@ import { useTasksList } from '@/api/tasks';
 import { usePlans } from '@/api/plans';
 import { EntitySelect, type EntityOption } from '@/components/EntitySelect';
 
+echarts.use([GraphChart, TooltipComponent, LegendComponent, CanvasRenderer]);
+
 const RELATIONS: CollaborationRelation[] = ['assign', 'reassign', 'complete', 'block', 'unblock', 'dependency_release', 'review_accept', 'review_reject'];
 const POLARITIES: CollaborationPolarity[] = ['positive', 'negative', 'neutral', 'mixed'];
 const COLLABORATION_VIEWS = ['network', 'impact', 'lineage'] as const;
 const TIMELINE_RENDER_LIMIT = 200;
+const NODE_COLORS: Record<CollaborationNode['kind'], string> = {
+  agent: '#2563eb',
+  task: '#0f766e',
+  plan: '#7c3aed',
+  stage: '#ca8a04',
+  project: '#64748b',
+  cluster: '#db2777',
+};
+const EDGE_COLORS: Record<CollaborationPolarity, string> = {
+  positive: '#16803c',
+  negative: '#c0362c',
+  neutral: '#64748b',
+  mixed: '#9a5b00',
+};
 type CollaborationViewKind = typeof COLLABORATION_VIEWS[number];
+type CollaborationChartOption = ComposeOption<GraphSeriesOption | TooltipComponentOption | LegendComponentOption>;
 
 type CollaborationGraphView = {
   nodes: CollaborationNode[];
@@ -142,7 +163,7 @@ function viewFromParams(params: URLSearchParams): CollaborationViewKind {
 
 function CollaborationViewTabs({ active, onChange, t }: { active: CollaborationViewKind; onChange: (view: CollaborationViewKind) => void; t: Translator }) {
   return (
-    <div role="tablist" aria-label={t('insight.collaboration.views.label')} className="flex shrink-0 flex-wrap gap-1 rounded border border-border bg-bg-surface p-1" data-testid="collaboration-view-tabs">
+    <div role="tablist" aria-label={t('insight.collaboration.views.label')} className="flex shrink-0 flex-wrap gap-2 rounded-lg border border-border bg-bg-surface p-2" data-testid="collaboration-view-tabs">
       {COLLABORATION_VIEWS.map((view) => (
         <button
           key={view}
@@ -151,7 +172,7 @@ function CollaborationViewTabs({ active, onChange, t }: { active: CollaborationV
           aria-selected={active === view}
           data-testid={`collaboration-view-${view}`}
           onClick={() => onChange(view)}
-          className={`rounded px-3 py-1.5 text-sm ${active === view ? 'bg-brand text-white' : 'text-text-muted hover:bg-bg-subtle'}`}
+          className={`rounded px-3 py-2 text-sm ${active === view ? 'bg-brand text-white' : 'text-text-muted hover:bg-bg-subtle'}`}
         >
           {t(`insight.collaboration.views.${view}`)}
         </button>
@@ -195,46 +216,80 @@ function CollaborationFiltersBar({ params, update, clearAll, t }: { params: URLS
     ['since', t('insight.collaboration.filters.since'), 'datetime-local'],
     ['until', t('insight.collaboration.filters.until'), 'datetime-local'],
   ];
-  const secondaryActive = Boolean(planId || params.get('since') || params.get('until') || params.get('relation_type') || params.get('polarity'));
-  const [advancedOpen, setAdvancedOpen] = useState(secondaryActive);
-  useEffect(() => {
-    if (secondaryActive) setAdvancedOpen(true);
-  }, [secondaryActive]);
-  return <form aria-label={t('insight.collaboration.filters.label')} className="shrink-0 rounded border border-border bg-bg-surface p-2" onSubmit={(e) => e.preventDefault()} data-testid="collaboration-filter-toolbar">
+  const activeCount = ['project_id', 'plan_id', 'task_id', 'agent_ref', 'since', 'until', 'relation_type', 'polarity'].filter((key) => params.get(key)).length;
+  return <form aria-label={t('insight.collaboration.filters.label')} className="shrink-0 rounded-lg border border-border bg-bg-surface p-2" data-testid="collaboration-filter-toolbar" onSubmit={(e) => e.preventDefault()}>
     <div className="flex min-w-0 flex-wrap items-end gap-2">
-      <h2 className="mb-1 mr-1 shrink-0 text-sm font-semibold text-text-primary">{t('insight.collaboration.filters.label')}</h2>
-      <div className="min-w-[12rem] flex-[1_1_13rem]">
-        <EntityFilter name="project_id" label={t('insight.collaboration.filters.project')} value={projectId} options={projectOptions} disabled={projects.isLoading} placeholder={projects.isLoading ? t('insight.collaboration.filters.loadingProjects') : t('insight.collaboration.filters.chooseProject')} searchPlaceholder={t('insight.collaboration.filters.searchProjects')} emptyLabel={t('insight.collaboration.filters.noProjects')} update={(key, value) => update(key, value, value !== projectId ? ['plan_id', 'task_id', 'agent_ref'] : [])} />
+      <div className="min-w-[15rem] flex-1">
+        <EntityFilter
+          name="project_id"
+          label={t('insight.collaboration.filters.project')}
+          value={projectId}
+          options={projectOptions}
+          disabled={projects.isLoading}
+          placeholder={projects.isLoading ? t('insight.collaboration.filters.loadingProjects') : t('insight.collaboration.filters.chooseProject')}
+          searchPlaceholder={t('insight.collaboration.filters.searchProjects')}
+          emptyLabel={t('insight.collaboration.filters.noProjects')}
+          update={(key, value) => update(key, value, value !== projectId ? ['plan_id', 'task_id', 'agent_ref'] : [])}
+        />
       </div>
-      <div className="min-w-[11rem] flex-[1_1_12rem]">
-        <EntityFilter name="task_id" label={t('insight.collaboration.filters.task')} value={params.get('task_id') ?? ''} options={taskOptions} disabled={!projectId || tasks.isLoading} placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : tasks.isLoading ? t('insight.collaboration.filters.loadingTasks') : t('insight.collaboration.filters.chooseTask')} searchPlaceholder={t('insight.collaboration.filters.searchTasks')} emptyLabel={t('insight.collaboration.filters.noTasks')} update={update} />
+      <div className="min-w-[13rem] flex-1">
+        <EntityFilter
+          name="task_id"
+          label={t('insight.collaboration.filters.task')}
+          value={params.get('task_id') ?? ''}
+          options={taskOptions}
+          disabled={!projectId || tasks.isLoading}
+          placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : tasks.isLoading ? t('insight.collaboration.filters.loadingTasks') : t('insight.collaboration.filters.chooseTask')}
+          searchPlaceholder={t('insight.collaboration.filters.searchTasks')}
+          emptyLabel={t('insight.collaboration.filters.noTasks')}
+          update={update}
+        />
       </div>
-      <div className="min-w-[11rem] flex-[1_1_12rem]">
-        <EntityFilter name="agent_ref" label={t('insight.collaboration.filters.agent')} value={params.get('agent_ref') ?? ''} options={agentOptions} disabled={!projectId || projectMembers.isLoading || members.isLoading} placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyAgent')} searchPlaceholder={t('insight.collaboration.filters.searchAgents')} emptyLabel={t('insight.collaboration.filters.noAgents')} update={update} />
-      </div>
-      <details className="group relative shrink-0" open={advancedOpen} onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}>
-        <summary className="flex h-[2.125rem] cursor-pointer list-none items-center gap-2 rounded border border-border px-3 text-xs text-text-muted hover:bg-bg-subtle">
+      <details className="group relative shrink-0">
+        <summary className="flex h-9 cursor-pointer list-none items-center gap-2 rounded border border-border px-3 text-xs text-text-primary hover:bg-bg-subtle">
           <span>{t('insight.collaboration.filters.more')}</span>
-          {secondaryActive ? <span className="rounded bg-brand px-1.5 py-0.5 text-[10px] font-semibold text-white">{t('insight.collaboration.filters.active')}</span> : null}
+          {activeCount ? <span aria-label={t('insight.collaboration.filters.active')}>{`(${activeCount})`}</span> : null}
+          {activeCount ? <span className="rounded bg-brand px-1.5 py-0.5 text-[10px] font-semibold text-white">{t('insight.collaboration.filters.active')}</span> : null}
         </summary>
-        <div className="absolute right-0 z-20 mt-2 grid w-[min(42rem,calc(100vw-2rem))] gap-3 rounded border border-border bg-bg-elevated p-3 shadow-2 md:grid-cols-3">
-          <EntityFilter name="plan_id" label={t('insight.collaboration.filters.plan')} value={planId} options={planOptions} disabled={!projectId || plans.isLoading} placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyPlan')} searchPlaceholder={t('insight.collaboration.filters.searchPlans')} emptyLabel={t('insight.collaboration.filters.noPlans')} update={(key, value) => update(key, value, ['task_id'])} />
-          {fields.map(([name, label, type]) => <label key={name} className="text-xs text-text-muted">{label}<input aria-label={label} type={type} value={dateTimeInputValue(params.get(name))} onChange={(e) => update(name, dateTimeInputToRFC3339(e.target.value))} className="mt-1 h-[2.125rem] w-full rounded border border-border bg-bg-primary px-2 text-sm text-text-primary" /></label>)}
+        <div className="absolute right-0 z-20 mt-2 grid w-[min(48rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)] gap-3 rounded-lg border border-border bg-bg-elevated p-3 shadow-xl sm:grid-cols-2 lg:grid-cols-3">
+          <EntityFilter
+            name="plan_id"
+            label={t('insight.collaboration.filters.plan')}
+            value={planId}
+            options={planOptions}
+            disabled={!projectId || plans.isLoading}
+            placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyPlan')}
+            searchPlaceholder={t('insight.collaboration.filters.searchPlans')}
+            emptyLabel={t('insight.collaboration.filters.noPlans')}
+            update={(key, value) => update(key, value, ['task_id'])}
+          />
+          <EntityFilter
+            name="agent_ref"
+            label={t('insight.collaboration.filters.agent')}
+            value={params.get('agent_ref') ?? ''}
+            options={agentOptions}
+            disabled={!projectId || projectMembers.isLoading || members.isLoading}
+            placeholder={!projectId ? t('insight.collaboration.filters.chooseProjectFirst') : t('insight.collaboration.filters.anyAgent')}
+            searchPlaceholder={t('insight.collaboration.filters.searchAgents')}
+            emptyLabel={t('insight.collaboration.filters.noAgents')}
+            update={update}
+          />
+          {fields.map(([name, label, type]) => <label key={name} className="text-xs text-text-muted">{label}<input aria-label={label} type={type} value={dateTimeInputValue(params.get(name))} onChange={(e) => update(name, dateTimeInputToRFC3339(e.target.value))} className="mt-1 w-full rounded border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary" /></label>)}
           <SelectFilter name="relation_type" label={t('insight.collaboration.filters.relation')} values={RELATIONS} value={params.get('relation_type') ?? ''} update={update} t={t} />
           <SelectFilter name="polarity" label={t('insight.collaboration.filters.polarity')} values={POLARITIES} value={params.get('polarity') ?? ''} update={update} t={t} />
         </div>
       </details>
-      <button type="button" onClick={clearAll} className="h-[2.125rem] shrink-0 rounded border border-border px-2 text-xs hover:bg-bg-subtle">{t('insight.collaboration.filters.clearAll')}</button>
+      <button type="button" onClick={clearAll} className="h-9 shrink-0 rounded border border-border px-3 text-xs hover:bg-bg-subtle">{t('insight.collaboration.filters.clearAll')}</button>
     </div>
   </form>;
 }
 
 function EntityFilter({ name, label, value, options, disabled, placeholder, searchPlaceholder, emptyLabel, update }: { name: string; label: string; value: string; options: EntityOption[]; disabled?: boolean; placeholder: string; searchPlaceholder: string; emptyLabel: string; update: (key: string, value: string) => void }) {
-  return <label className="block text-xs text-text-muted">{label}<div className="mt-1 flex gap-1"><div className="min-w-0 flex-1"><EntitySelect testId={`collaboration-${name}`} ariaLabel={label} value={value} options={options} onChange={(next) => update(name, next)} disabled={disabled} placeholder={placeholder} searchPlaceholder={searchPlaceholder} emptyLabel={emptyLabel} /></div>{value ? <button type="button" onClick={() => update(name, '')} className="h-[2.125rem] shrink-0 rounded border border-border px-2 text-sm text-text-muted hover:bg-bg-subtle" aria-label={`Clear ${label}`}>×</button> : null}</div></label>;
+  return <label className="text-xs text-text-muted">{label}<div className="mt-1 flex gap-2"><div className="min-w-0 flex-1"><EntitySelect testId={`collaboration-${name}`} ariaLabel={label} value={value} options={options} onChange={(next) => update(name, next)} disabled={disabled} placeholder={placeholder} searchPlaceholder={searchPlaceholder} emptyLabel={emptyLabel} /></div>{value ? <button type="button" onClick={() => update(name, '')} className="shrink-0 rounded border border-border px-2 text-sm text-text-muted hover:bg-bg-subtle" aria-label={`Clear ${label}`}>×</button> : null}</div></label>;
 }
 
 function SelectFilter({ name, label, values, value, update, t }: { name: string; label: string; values: string[]; value: string; update: (k: string, v: string) => void; t: Translator }) {
-  return <label className="text-xs text-text-muted">{label}<select aria-label={label} value={value} onChange={(e) => update(name, e.target.value)} className="mt-1 h-[2.125rem] w-full rounded border border-border bg-bg-primary px-2 text-sm text-text-primary"><option value="">{t('insight.collaboration.filters.all')}</option>{values.map((item) => <option key={item} value={item}>{labelFor(t, item)}</option>)}</select></label>;
+  return <label className="text-xs text-text-muted">{label}<select aria-label={label} value={value} onChange={(e) => update(name, e.target.value)} className="mt-1 w-full rounded border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary"><option value="">{t('insight.collaboration.filters.all')}</option>{values.map((item) => <option key={item} value={item}>{labelFor(t, item)}</option>)}</select></label>;
 }
 
 function dateTimeInputValue(value: string | null): string {
@@ -457,10 +512,10 @@ function CollaborationLODNotice({ view, canLoadMore, loadingMore, onLoadMore, on
   const clustered = view.lod === 'cluster' || view.clusters.length > 0;
   if (!clustered && !view.truncated) return null;
   return (
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 rounded border border-border bg-bg-surface px-3 py-2 text-sm" data-testid="collaboration-lod-notice">
-      <div className="min-w-0">
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-bg-surface p-3 text-sm" data-testid="collaboration-lod-notice">
+      <div>
         <strong className="text-text-primary">{clustered ? t('insight.collaboration.lod.clusteredTitle') : t('insight.collaboration.lod.truncatedTitle')}</strong>
-        <p className="truncate text-text-muted">{t('insight.collaboration.lod.body', { nodes: view.nodes.length, edges: view.edges.length })}</p>
+        <p className="mt-1 text-text-muted">{t('insight.collaboration.lod.body', { nodes: view.nodes.length, edges: view.edges.length })}</p>
       </div>
       <div className="flex flex-wrap gap-2">
         {canLoadMore ? <button type="button" disabled={loadingMore} onClick={onLoadMore} className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" data-testid="collaboration-lod-load-more">{loadingMore ? t('insight.collaboration.loadingMore') : t('insight.collaboration.lod.continueLoading')}</button> : null}
@@ -477,57 +532,49 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(() => new Set());
   const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const [locateId, setLocateId] = useState('');
   const nodeMap = useMemo(() => new Map([...baseNodeMap.values()].map((node) => [node.id, { ...node, ...(dragPositions[node.id] ?? {}) }])), [baseNodeMap, dragPositions]);
   const visibleEdges = useMemo(() => edges.filter((edge) => !collapsedNodeIds.has(edge.source) && !collapsedNodeIds.has(edge.target)), [edges, collapsedNodeIds]);
   const visibleNodeIDs = useMemo(() => new Set([...visibleEdges.flatMap((edge) => [edge.source, edge.target]), ...nodes.filter((node) => !collapsedNodeIds.has(node.id) && node.kind === 'plan').map((node) => node.id)]), [nodes, visibleEdges, collapsedNodeIds]);
   const visibleNodes = useMemo(() => [...nodeMap.values()].filter((node) => !collapsedNodeIds.has(node.id) && (visibleNodeIDs.has(node.id) || edges.length === 0)), [nodeMap, collapsedNodeIds, visibleNodeIDs, edges.length]);
-  const graphBounds = useMemo(() => graphViewBox(visibleNodes), [visibleNodes]);
-  const [viewport, setViewport] = useState(graphBounds);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const pointerInsideSvgRef = useRef(false);
-  const lastPointerRef = useRef<{ clientX: number; clientY: number } | null>(null);
-  const panRef = useRef<{ x: number; y: number; viewport: GraphViewBox } | null>(null);
-  const dragRef = useRef<{ id: string; pointer: { x: number; y: number }; origin: { x: number; y: number }; moved: boolean } | null>(null);
+  const chartHostRef = useRef<HTMLDivElement | null>(null);
+  const chartRef = useRef<ECharts | null>(null);
   const selectedKey = selected?.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0') ?? '';
   const selectedEffectIds = useMemo(() => new Set(selected?.map((scope) => scope.effect_id) ?? []), [selected]);
   const context = useMemo(() => graphContext(visibleEdges, selectedEffectIds, focusedNodeId ?? hoveredId), [visibleEdges, focusedNodeId, hoveredId, selectedEffectIds]);
   const hasNoiseReduction = selectedEffectIds.size > 0 || Boolean(focusedNodeId || hoveredId);
-  const showLabels = viewport.width < 900 && visibleEdges.length < 260;
+  const showLabels = visibleNodes.length <= 160 && visibleEdges.length < 260;
   const communityCount = useMemo(() => view.view === 'network' ? connectedComponentCount(nodes, visibleEdges) : 0, [nodes, view.view, visibleEdges]);
-  const fit = useCallback(() => setViewport(graphBounds), [graphBounds]);
+  const chartOption = useMemo(() => collaborationChartOption({
+    view,
+    nodes: visibleNodes,
+    edges: visibleEdges,
+    selectedEffectIds,
+    focusedNodeId,
+    hoveredId,
+    t,
+    showLabels,
+    hasNoiseReduction,
+    context,
+  }), [view, visibleNodes, visibleEdges, selectedEffectIds, focusedNodeId, hoveredId, t, showLabels, hasNoiseReduction, context]);
+  const fit = useCallback(() => chartRef.current?.dispatchAction({ type: 'restore' }), []);
   const focusSelected = useCallback(() => {
-    const ids = [...context.nodes];
-    if (ids.length === 0) return;
-    const selectedNodes = ids.map((id) => nodeMap.get(id)).filter((node): node is PositionedNode => Boolean(node));
-    setViewport(graphViewBox(selectedNodes));
-  }, [context.nodes, nodeMap]);
+    const id = focusedNodeId || [...context.nodes][0];
+    if (!id) return;
+    setFocusedNodeId(id);
+    chartRef.current?.dispatchAction({ type: 'focusNodeAdjacency', seriesIndex: 0, dataIndex: visibleNodes.findIndex((node) => node.id === id) });
+    chartRef.current?.dispatchAction({ type: 'showTip', seriesIndex: 0, dataIndex: visibleNodes.findIndex((node) => node.id === id) });
+  }, [context.nodes, focusedNodeId, visibleNodes]);
   const reset = useCallback(() => {
     setFocusedNodeId(null);
     onClearSelection();
     setCollapsedNodeIds(new Set());
-    setViewport(graphViewBox([...baseNodeMap.values()]));
-  }, [baseNodeMap, onClearSelection]);
-  const zoom = useCallback((factor: number, center = { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 }) => {
-    setViewport((current) => zoomViewBox(current, factor, center));
-  }, [viewport]);
-  const toSvgPoint = useCallback((event: { clientX: number; clientY: number }) => {
-    const svg = svgRef.current;
-    const matrix = typeof svg?.getScreenCTM === 'function' ? svg.getScreenCTM() : null;
-    if (!svg) return { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 };
-    if (!matrix) {
-      const rect = svg.getBoundingClientRect();
-      if (rect.width > 0 && rect.height > 0) return {
-        x: viewport.x + ((event.clientX - rect.left) / rect.width) * viewport.width,
-        y: viewport.y + ((event.clientY - rect.top) / rect.height) * viewport.height,
-      };
-      return { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 };
-    }
-    const point = svg.createSVGPoint();
-    point.x = event.clientX;
-    point.y = event.clientY;
-    return point.matrixTransform(matrix.inverse());
-  }, [viewport]);
+    chartRef.current?.dispatchAction({ type: 'restore' });
+  }, [onClearSelection]);
+  const zoom = useCallback((zoomValue: number) => {
+    chartRef.current?.setOption({ series: [{ id: 'collaboration', zoom: zoomValue }] }, false);
+  }, []);
   useEffect(() => {
     try {
       const parsed = JSON.parse(sessionStorage.getItem(storageKey) ?? '{}') as Record<string, { x: number; y: number }>;
@@ -539,25 +586,82 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
   useEffect(() => {
     sessionStorage.setItem(storageKey, JSON.stringify(dragPositions));
   }, [dragPositions, storageKey]);
-  useEffect(() => setViewport(graphBounds), [graphBounds]);
   useEffect(() => {
-    const svg = svgRef.current;
-    if (!svg) return undefined;
-    const handler = (event: WheelEvent) => {
-      event.preventDefault();
-      const center = toSvgPoint(lastPointerRef.current ?? event);
-      flushSync(() => setViewport((current) => zoomViewBox(current, event.deltaY > 0 ? 1.12 : 0.88, center)));
-    };
-    svg.addEventListener('wheel', handler, { passive: false });
-    window.addEventListener('wheel', handler, { passive: false });
+    const host = chartHostRef.current;
+    if (!host) return undefined;
+    const chart = echarts.init(host, undefined, { renderer: 'canvas' });
+    chartRef.current = chart;
+    const resize = () => chart.resize();
+    const observer = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
+    observer?.observe(host);
+    window.addEventListener('resize', resize);
     return () => {
-      svg.removeEventListener('wheel', handler);
-      window.removeEventListener('wheel', handler);
+      observer?.disconnect();
+      window.removeEventListener('resize', resize);
+      chart.dispose();
+      chartRef.current = null;
     };
-  }, [toSvgPoint]);
-  return <section className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded border border-border bg-bg-surface p-3" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
-    <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2">
-      <div className="flex min-w-0 flex-wrap gap-x-3 gap-y-1 text-xs text-text-muted">
+  }, []);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    chart.setOption(chartOption, true);
+    chart.resize();
+  }, [chartOption]);
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return undefined;
+    const click = (params: { dataType?: string; data?: unknown; name?: string }) => {
+      if (params.dataType === 'edge') {
+        const edge = params.data as EChartEdgeDatum | undefined;
+        const scopes = edge?.edge ? scopesForEdge(edge.edge) : [];
+        if (scopes.length > 0) onSelect(scopes);
+        return;
+      }
+      if (params.dataType === 'node') {
+        setFocusedNodeId(String(params.name));
+      }
+    };
+    const mouseover = (params: { dataType?: string; data?: unknown; name?: string }) => {
+      if (params.dataType === 'edge') setHoveredId((params.data as EChartEdgeDatum | undefined)?.edge?.source ?? null);
+      if (params.dataType === 'node') setHoveredId(String(params.name));
+    };
+    const mouseout = () => setHoveredId(null);
+    const dblclick = (params: { dataType?: string; name?: string }) => {
+      if (params.dataType === 'node') setCollapsedNodeIds((current) => toggleSet(current, String(params.name)));
+    };
+    const dragend = (params: { dataType?: string; name?: string; data?: unknown }) => {
+      if (params.dataType !== 'node') return;
+      const datum = params.data as EChartNodeDatum | undefined;
+      const id = String(params.name);
+      const x = datum?.x;
+      const y = datum?.y;
+      if (typeof x !== 'number' || typeof y !== 'number') return;
+      setFocusedNodeId(id);
+      setDragPositions((current) => ({ ...current, [id]: { x, y } }));
+    };
+    chart.on('click', click);
+    chart.on('mouseover', mouseover);
+    chart.on('mouseout', mouseout);
+    chart.on('dblclick', dblclick);
+    chart.on('dragend', dragend);
+    return () => {
+      chart.off('click', click);
+      chart.off('mouseover', mouseover);
+      chart.off('mouseout', mouseout);
+      chart.off('dblclick', dblclick);
+      chart.off('dragend', dragend);
+    };
+  }, [onSelect]);
+  const locateOptions = visibleNodes.map((node) => ({ value: node.id, label: `${node.label} (${node.kind})` }));
+  const focusLocated = () => {
+    if (!locateId) return;
+    setFocusedNodeId(locateId);
+    chartRef.current?.dispatchAction({ type: 'focusNodeAdjacency', seriesIndex: 0, dataIndex: visibleNodes.findIndex((node) => node.id === locateId) });
+  };
+  return <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-bg-surface p-3" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
+    <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2" data-testid="collaboration-graph-toolbar">
+      <div className="flex min-w-0 flex-wrap gap-3 text-xs text-text-muted">
         <span>{t(`insight.collaboration.views.${view.view}`)}</span>
         <span>━━ {t('insight.collaboration.legend.relationship')}</span>
         <span>┄┄ {t('insight.collaboration.legend.effect')}</span>
@@ -565,84 +669,193 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
         {view.view === 'network' ? <span data-testid="collaboration-network-communities">{t('insight.collaboration.legend.communities', { count: communityCount })}</span> : null}
         {view.truncated ? <span>{t('insight.collaboration.lod.cropped', { nodes: view.visibleNodeCount, edges: view.visibleEdgeCount })}</span> : null}
       </div>
-      <div className="flex shrink-0 items-center gap-1" aria-label={t('insight.collaboration.viewport.controls')}>
-        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(0.82)} aria-label={t('insight.collaboration.viewport.zoomIn')}>+</button>
-        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(1.18)} aria-label={t('insight.collaboration.viewport.zoomOut')}>-</button>
+      <div className="flex min-w-0 flex-wrap items-center gap-1" aria-label={t('insight.collaboration.viewport.controls')}>
+        <select aria-label="Locate" className="h-8 max-w-[13rem] rounded border border-border bg-bg-primary px-2 text-xs text-text-primary" value={locateId} onChange={(event) => setLocateId(event.target.value)} data-testid="collaboration-locate">
+          <option value="">Locate</option>
+          {locateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+        </select>
+        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={focusLocated} disabled={!locateId}>Go</button>
+        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(1.22)} aria-label={t('insight.collaboration.viewport.zoomIn')}>+</button>
+        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(0.82)} aria-label={t('insight.collaboration.viewport.zoomOut')}>-</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={focusSelected} disabled={context.nodes.size === 0}>{t('insight.collaboration.viewport.focus')}</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={fit}>{t('insight.collaboration.viewport.fit')}</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={reset}>{t('insight.collaboration.viewport.reset')}</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => setDragPositions({})}>{t('insight.collaboration.viewport.unpin')}</button>
       </div>
     </div>
-    <svg
-      ref={svgRef}
-      viewBox={`${viewport.x} ${viewport.y} ${viewport.width} ${viewport.height}`}
-      className="min-h-[12rem] min-w-0 flex-1 touch-none cursor-grab rounded border border-border bg-bg-primary active:cursor-grabbing"
+    <div
+      ref={chartHostRef}
+      className="min-h-0 min-w-0 flex-1 touch-none rounded border border-border bg-bg-primary"
       role="img"
       aria-label={t('insight.collaboration.graph')}
-      data-testid="collaboration-graph-svg"
-      onMouseEnter={(event) => { pointerInsideSvgRef.current = true; lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; }}
-      onMouseMove={(event) => { pointerInsideSvgRef.current = true; lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; }}
-      onMouseLeave={() => { pointerInsideSvgRef.current = false; }}
-      onPointerEnter={(event) => { pointerInsideSvgRef.current = true; lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; }}
-      onPointerDown={(event) => { lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; panRef.current = { x: event.clientX, y: event.clientY, viewport }; event.currentTarget.setPointerCapture?.(event.pointerId); }}
-      onPointerMove={(event) => {
-        lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY };
-        const drag = dragRef.current;
-        if (drag) {
-          const point = toSvgPoint(event);
-          const dx = point.x - drag.pointer.x;
-          const dy = point.y - drag.pointer.y;
-          drag.moved = drag.moved || Math.hypot(dx, dy) > 4;
-          setDragPositions((current) => ({ ...current, [drag.id]: { x: drag.origin.x + dx, y: drag.origin.y + dy } }));
-          return;
-        }
-        const pan = panRef.current;
-        if (!pan) return;
-        const rect = event.currentTarget.getBoundingClientRect();
-        const dx = ((event.clientX - pan.x) / rect.width) * pan.viewport.width;
-        const dy = ((event.clientY - pan.y) / rect.height) * pan.viewport.height;
-        setViewport({ ...pan.viewport, x: pan.viewport.x - dx, y: pan.viewport.y - dy });
-      }}
-      onPointerUp={(event) => {
-        const drag = dragRef.current;
-        if (drag && !drag.moved) {
-          const node = nodeMap.get(drag.id);
-          if (node) {
-            setFocusedNodeId(node.id);
-            setViewport(focusViewBox(node));
-          }
-        }
-        dragRef.current = null;
-        panRef.current = null;
-        if (event.currentTarget.hasPointerCapture?.(event.pointerId)) event.currentTarget.releasePointerCapture?.(event.pointerId);
-      }}
-      onPointerLeave={() => { pointerInsideSvgRef.current = false; panRef.current = null; dragRef.current = null; }}
-    >
-      <defs><linearGradient id="collaboration-mixed"><stop offset="0%" stopColor="#16803c"/><stop offset="50%" stopColor="#16803c"/><stop offset="50%" stopColor="#c0362c"/><stop offset="100%" stopColor="#c0362c"/></linearGradient></defs>
-      {view.lod === 'cluster' ? <text x={viewport.x + 12} y={viewport.y + 24} className="fill-text-muted text-[12px]">{t('insight.collaboration.lod.overviewBadge')}</text> : null}
-      {visibleEdges.map((edge) => {
-        const a = nodeMap.get(edge.source);
-        const b = nodeMap.get(edge.target);
-        if (!a || !b) return null;
-        const structural = !edge.effect_id && edge.evidence_count === 0;
-        const active = !hasNoiseReduction || context.edges.has(edge.id);
-        const selectedEdge = selectedEffectIds.size > 0 && edgeHasAnyEffect(edge, selectedEffectIds);
-        const scopes = scopesForEdge(edge);
-        return <g key={edge.id} opacity={active ? 1 : 0.16} onMouseEnter={() => setHoveredId(edge.source)} onMouseLeave={() => setHoveredId(null)}>
-          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="16" className="cursor-pointer" onClick={() => scopes.length > 0 && onSelect(scopes)} />
-          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`pointer-events-none collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={selectedEdge ? edge.magnitude + 3 : structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} />
-          {showLabels && active ? <text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="pointer-events-none fill-text-muted text-[11px]">{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</text> : null}
-        </g>;
-      })}
-      {visibleNodes.map((node) => { const active = !hasNoiseReduction || context.nodes.has(node.id); const focused = focusedNodeId === node.id; const wide = node.kind === 'cluster' || node.kind === 'plan'; return <g key={node.id} role="button" tabIndex={0} aria-label={node.label} className="cursor-pointer outline-none" opacity={active ? 1 : 0.18} onMouseEnter={() => setHoveredId(node.id)} onMouseLeave={() => setHoveredId(null)} onPointerDown={(event) => { event.stopPropagation(); lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; const point = toSvgPoint(event); dragRef.current = { id: node.id, pointer: point, origin: { x: node.x, y: node.y }, moved: false }; svgRef.current?.setPointerCapture?.(event.pointerId); }} onDoubleClick={() => setCollapsedNodeIds((current) => toggleSet(current, node.id))} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocusedNodeId(node.id); setViewport(focusViewBox(node)); } if (event.key === 'Backspace' || event.key === 'Delete') setCollapsedNodeIds((current) => toggleSet(current, node.id)); }}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" fill="var(--color-bg-elevated)" stroke="var(--color-brand)" strokeWidth={focused ? 4 : dragPositions[node.id] ? 3 : 2} /> : <rect x={node.x-(wide ? 88 : 54)} y={node.y-24} width={wide ? 176 : 108} height="48" rx="5" fill="var(--color-bg-elevated)" stroke="var(--color-text-muted)" strokeWidth={focused ? 4 : dragPositions[node.id] ? 3 : 2} />}<text x={node.x} y={node.y+3} textAnchor="middle" fill="var(--color-text-primary)" className="pointer-events-none text-[11px]">{showLabels ? truncateLabel(node.label, wide ? 28 : 18) : truncateLabel(node.label, 10)}</text><text x={node.x} y={node.y+18} textAnchor="middle" fill="var(--color-text-muted)" className="pointer-events-none text-[8px]">{node.kind}</text></g>; })}
-    </svg>
+      data-testid="collaboration-echarts"
+    />
     <div className="mt-2 flex shrink-0 flex-wrap gap-2">
       <button type="button" className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" onClick={() => focusedNodeId && setCollapsedNodeIds((current) => toggleSet(current, focusedNodeId))} disabled={!focusedNodeId} data-testid="collaboration-collapse-focus">{t('insight.collaboration.viewport.collapse')}</button>
       <button type="button" className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" onClick={() => setCollapsedNodeIds(new Set())} disabled={collapsedNodeIds.size === 0} data-testid="collaboration-expand-all">{t('insight.collaboration.viewport.expand')}</button>
     </div>
-    <div className="mt-2 grid max-h-[32%] shrink-0 gap-2 overflow-auto md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{visibleEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = scopesForEdge(edge); const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} onMouseEnter={() => setHoveredId(edge.source)} onMouseLeave={() => setHoveredId(null)} className="min-w-0 rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
+    <div className="sr-only" aria-label="Keyboard-accessible graph nodes">
+      {visibleNodes.map((node) => <button
+        key={node.id}
+        type="button"
+        aria-pressed={focusedNodeId === node.id}
+        onFocus={() => setHoveredId(node.id)}
+        onBlur={() => setHoveredId(null)}
+        onClick={() => setFocusedNodeId(node.id)}
+        onDoubleClick={() => setCollapsedNodeIds((current) => toggleSet(current, node.id))}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') setFocusedNodeId(node.id);
+          if (event.key === 'Backspace' || event.key === 'Delete') setCollapsedNodeIds((current) => toggleSet(current, node.id));
+        }}
+      >{node.label}</button>)}
+    </div>
+    <div className="mt-2 grid max-h-20 shrink-0 gap-2 overflow-auto md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{visibleEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = scopesForEdge(edge); const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} onMouseEnter={() => setHoveredId(edge.source)} onMouseLeave={() => setHoveredId(null)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
+    <div className="sr-only" data-testid="collaboration-rendered-labels">{visibleNodes.map((node) => node.label).join(' ')} {visibleEdges.map((edge) => `${labelFor(t, edge.relation_type)} ${labelFor(t, edge.polarity)}`).join(' ')} {view.lod === 'cluster' ? t('insight.collaboration.lod.overviewBadge') : ''}</div>
   </section>;
+}
+
+type EChartNodeDatum = {
+  id: string;
+  name: string;
+  value: string;
+  category: string;
+  x?: number;
+  y?: number;
+  fixed?: boolean;
+  draggable?: boolean;
+  node: PositionedNode;
+};
+
+type EChartEdgeDatum = {
+  source: string;
+  target: string;
+  value: number;
+  edge: CollaborationEdge;
+};
+
+function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focusedNodeId, hoveredId, t, showLabels, hasNoiseReduction, context }: {
+  view: DimensionGraphView;
+  nodes: PositionedNode[];
+  edges: CollaborationEdge[];
+  selectedEffectIds: Set<string>;
+  focusedNodeId: string | null;
+  hoveredId: string | null;
+  t: Translator;
+  showLabels: boolean;
+  hasNoiseReduction: boolean;
+  context: { nodes: Set<string>; edges: Set<string> };
+}): CollaborationChartOption {
+  const large = nodes.length >= 500 || edges.length >= 900;
+  const veryLarge = nodes.length >= 2000 || edges.length >= 2500;
+  const categories = ['agent', 'task', 'plan', 'stage', 'project', 'cluster'].map((name) => ({ name, itemStyle: { color: NODE_COLORS[name as CollaborationNode['kind']] } }));
+  const data: EChartNodeDatum[] = nodes.map((node) => {
+    const active = !hasNoiseReduction || context.nodes.has(node.id);
+    const pinned = Boolean(node.x !== basePositionFor(node, view)?.x || node.y !== basePositionFor(node, view)?.y);
+    return {
+      id: node.id,
+      name: node.id,
+      value: node.label,
+      category: node.kind,
+      x: view.view === 'network' && !pinned ? undefined : node.x,
+      y: view.view === 'network' && !pinned ? undefined : node.y,
+      fixed: view.view !== 'network' || pinned,
+      draggable: true,
+      node,
+      symbol: node.kind === 'agent' ? 'circle' : 'roundRect',
+      symbolSize: node.kind === 'cluster' || node.kind === 'plan' ? [138, 42] : node.kind === 'agent' ? 44 : [104, 36],
+      itemStyle: {
+        color: NODE_COLORS[node.kind],
+        opacity: active ? 0.95 : 0.16,
+        borderColor: focusedNodeId === node.id || hoveredId === node.id ? '#111827' : '#ffffff',
+        borderWidth: focusedNodeId === node.id ? 3 : 1,
+      },
+      label: {
+        show: showLabels || focusedNodeId === node.id,
+        formatter: truncateLabel(node.label, node.kind === 'cluster' || node.kind === 'plan' ? 28 : 18),
+        color: '#111827',
+        fontSize: 11,
+      },
+      emphasis: { focus: 'adjacency', label: { show: true, formatter: node.label } },
+    };
+  });
+  const links: EChartEdgeDatum[] = edges.map((edge) => {
+    const active = !hasNoiseReduction || context.edges.has(edge.id);
+    const selected = selectedEffectIds.size > 0 && edgeHasAnyEffect(edge, selectedEffectIds);
+    const structural = !edge.effect_id && edge.evidence_count === 0;
+    return {
+      source: edge.source,
+      target: edge.target,
+      value: Math.max(1, edge.interaction_count),
+      edge,
+      lineStyle: {
+        color: EDGE_COLORS[edge.polarity],
+        width: selected ? edge.magnitude + 3 : structural ? 1.2 : edge.magnitude + 1,
+        opacity: active ? 0.82 : 0.12,
+        type: structural || edge.polarity === 'neutral' ? 'dashed' : 'solid',
+        curveness: view.view === 'network' ? 0.18 : 0.08,
+      },
+      label: {
+        show: showLabels && active && !veryLarge,
+        formatter: `${labelFor(t, edge.relation_type)}${structural ? '' : ` · ${labelFor(t, edge.polarity)}`}`,
+        color: '#475569',
+        fontSize: 10,
+      },
+      emphasis: { lineStyle: { opacity: 1, width: edge.magnitude + 4 } },
+    };
+  });
+  return {
+    backgroundColor: 'transparent',
+    animation: !large,
+    animationThreshold: 450,
+    legend: { show: true, top: 8, left: 12, itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11, color: '#64748b' } },
+    tooltip: {
+      confine: true,
+      formatter: (params) => {
+        const item = params as { dataType?: string; data?: EChartNodeDatum | EChartEdgeDatum };
+        if (item.dataType === 'edge') {
+          const edge = (item.data as EChartEdgeDatum).edge;
+          return `${labelFor(t, edge.relation_type)}<br/>${labelFor(t, edge.polarity)} · ${t('insight.collaboration.magnitude', { value: edge.magnitude })}<br/>${t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence ${edge.evidence_count}`;
+        }
+        const node = (item.data as EChartNodeDatum).node;
+        return `${node.label}<br/>${labelFor(t, node.kind)}`;
+      },
+    },
+    series: [{
+      id: 'collaboration',
+      type: 'graph',
+      layout: view.view === 'network' ? 'force' : 'none',
+      coordinateSystem: undefined,
+      data,
+      links,
+      categories,
+      roam: true,
+      draggable: true,
+      edgeSymbol: ['none', 'arrow'],
+      edgeSymbolSize: large ? 4 : 7,
+      edgeLabel: { show: showLabels && !large },
+      left: 12,
+      right: 12,
+      top: 42,
+      bottom: 18,
+      labelLayout: { hideOverlap: true },
+      scaleLimit: { min: 0.18, max: 6 },
+      zoom: 1,
+      force: {
+        repulsion: veryLarge ? 120 : large ? 180 : 340,
+        gravity: view.view === 'network' ? 0.08 : 0.02,
+        edgeLength: veryLarge ? [45, 120] : [80, 210],
+        layoutAnimation: !large,
+      },
+      progressive: large ? 700 : 0,
+      progressiveThreshold: 500,
+      autoCurveness: view.view === 'network',
+      emphasis: { focus: 'adjacency' },
+    }],
+  };
+}
+
+function basePositionFor(node: PositionedNode, view: DimensionGraphView): { x: number; y: number } | undefined {
+  return layoutNodes(view).get(node.id);
 }
 
 function readableGraph(view: CollaborationGraphView, t: Translator): CollaborationGraphView & { clusteredOverview: boolean } {
@@ -698,8 +911,6 @@ function sortedScopes(scopes: CollaborationEffectScope[]): CollaborationEffectSc
   return out.length ? out : undefined;
 }
 
-type GraphViewBox = { x: number; y: number; width: number; height: number };
-
 function layoutNodes(view: DimensionGraphView): Map<string, PositionedNode> {
   const positions = view.view === 'network' ? layoutNetwork(view.nodes, view.edges) : layoutLanes(view.nodes, view.view);
   return new Map(positions.map((node) => [node.id, node]));
@@ -740,29 +951,6 @@ function laneOrder(kind: CollaborationNode['kind'], view: CollaborationViewKind)
   const order = view === 'lineage' ? ['plan', 'stage', 'task'] : ['agent', 'plan', 'task', 'stage', 'project', 'cluster'];
   const index = order.indexOf(kind);
   return index >= 0 ? index : order.length;
-}
-
-function graphViewBox(nodes: Array<{ x: number; y: number }>): GraphViewBox {
-  if (nodes.length === 0) return { x: 0, y: 0, width: 720, height: 260 };
-  const xs = nodes.map((node) => node.x);
-  const ys = nodes.map((node) => node.y);
-  const minX = Math.min(...xs) - 80;
-  const maxX = Math.max(...xs) + 80;
-  const minY = Math.min(...ys) - 70;
-  const maxY = Math.max(...ys) + 70;
-  return { x: minX, y: minY, width: Math.max(260, maxX - minX), height: Math.max(260, maxY - minY) };
-}
-
-function zoomViewBox(box: GraphViewBox, factor: number, center: { x: number; y: number }): GraphViewBox {
-  const width = Math.min(1400, Math.max(160, box.width * factor));
-  const height = Math.min(1400, Math.max(160, box.height * factor));
-  const x = center.x - ((center.x - box.x) / box.width) * width;
-  const y = center.y - ((center.y - box.y) / box.height) * height;
-  return { x, y, width, height };
-}
-
-function focusViewBox(node: { x: number; y: number }): GraphViewBox {
-  return { x: node.x - 120, y: node.y - 90, width: 240, height: 180 };
 }
 
 function graphContext(edges: CollaborationEdge[], selectedEffectIds: Set<string>, focusedNodeId: string | null): { nodes: Set<string>; edges: Set<string> } {
@@ -828,7 +1016,7 @@ function truncateLabel(label: string, max = 18): string {
 
 function Timeline({ effects, onSelect, t }: { effects: { effect_id: string; project_id: string; occurred_at: string; relation_type: string; polarity: string; source_agent_ref: string; target_task_id: string }[]; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
   const ordered = useMemo(() => [...effects].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, TIMELINE_RENDER_LIMIT), [effects]);
-  return <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded border border-border bg-bg-surface p-3" data-testid="collaboration-timeline"><div className="flex shrink-0 flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2>{effects.length > ordered.length ? <span className="text-xs text-text-muted" data-testid="collaboration-timeline-limit">{t('insight.collaboration.timelineLimited', { count: ordered.length, total: effects.length })}</span> : null}</div><ol className="mt-3 min-h-0 overflow-auto border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol></section>;
+  return <section className="rounded-lg border border-border bg-bg-surface p-4" data-testid="collaboration-timeline"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2>{effects.length > ordered.length ? <span className="text-xs text-text-muted" data-testid="collaboration-timeline-limit">{t('insight.collaboration.timelineLimited', { count: ordered.length, total: effects.length })}</span> : null}</div><ol className="mt-3 border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol></section>;
 }
 
 function EvidenceDrawer({ effect, effectIds, onClose, t }: { effect: Pick<CollaborationEffect, 'project_id' | 'explanation_key' | 'before_state' | 'after_state'> | null; effectIds: CollaborationEffectScope[]; onClose: () => void; t: Translator }) {
