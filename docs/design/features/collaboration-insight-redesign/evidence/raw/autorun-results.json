@@ -1,0 +1,2172 @@
+{
+  "generated_at": "2026-09-10T03:36:24.516Z",
+  "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/147.0.7727.15 Safari/537.36",
+  "samples": [
+    {
+      "view": "network",
+      "layout": "community",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "requested_scale": 100,
+      "rendered_nodes": 100,
+      "rendered_edges": 113,
+      "focus": null,
+      "selected": null,
+      "fixed_nodes": 0,
+      "first_interactive_ms": 90,
+      "draw_ms_last": 0.6,
+      "draw_ms_avg": 0.88,
+      "draw_ms_p95": 1,
+      "estimated_fps_p95": 60,
+      "js_heap_mb": 10,
+      "budget_ms_per_frame": 16,
+      "pass": true,
+      "raw_events": [
+        {
+          "event": "view-switch",
+          "view": "network",
+          "retained_context": null,
+          "filters": {
+            "window": "24h",
+            "project": "",
+            "agent": ""
+          },
+          "at": 5
+        },
+        {
+          "event": "filter-window",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 86
+        },
+        {
+          "event": "filter-project",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 86
+        },
+        {
+          "event": "filter-agent",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 86
+        },
+        {
+          "event": "view-switch",
+          "view": "network",
+          "retained_context": null,
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 86
+        }
+      ],
+      "interaction_metrics_after_replay": {
+        "view": "network",
+        "layout": "community",
+        "filters": {
+          "window": "30d",
+          "project": "",
+          "agent": ""
+        },
+        "requested_scale": 100,
+        "rendered_nodes": 4,
+        "rendered_edges": 6,
+        "focus": "agent:atlas-0",
+        "selected": {
+          "type": "node",
+          "id": "agent:atlas-0",
+          "node": {
+            "id": "agent:atlas-0",
+            "kind": "agent",
+            "label": "atlas-0",
+            "project": "Alpha",
+            "weight": 1,
+            "x": 670.8830658192944,
+            "y": 587.9954442522239
+          }
+        },
+        "fixed_nodes": 1,
+        "first_interactive_ms": 500,
+        "draw_ms_last": 0.4,
+        "draw_ms_avg": 1.05,
+        "draw_ms_p95": 1.4,
+        "estimated_fps_p95": 60,
+        "js_heap_mb": 10,
+        "budget_ms_per_frame": 16,
+        "pass": true,
+        "raw_events": [
+          {
+            "event": "view-switch",
+            "view": "network",
+            "retained_context": null,
+            "filters": {
+              "window": "24h",
+              "project": "",
+              "agent": ""
+            },
+            "at": 5
+          },
+          {
+            "event": "filter-window",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 86
+          },
+          {
+            "event": "filter-project",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 86
+          },
+          {
+            "event": "filter-agent",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 86
+          },
+          {
+            "event": "view-switch",
+            "view": "network",
+            "retained_context": null,
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 86
+          },
+          {
+            "event": "canvas-hit-test",
+            "type": "node",
+            "id": "agent:atlas-0",
+            "view": "network",
+            "at": 167
+          },
+          {
+            "event": "select",
+            "source": "canvas-hit-test",
+            "type": "node",
+            "id": "agent:atlas-0",
+            "view": "network",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 167
+          },
+          {
+            "event": "expand-neighborhood",
+            "depth": 1,
+            "focus": "agent:atlas-0",
+            "at": 216
+          },
+          {
+            "event": "collapse-neighborhood",
+            "depth": 0,
+            "focus": "agent:atlas-0",
+            "at": 266
+          },
+          {
+            "event": "zoom",
+            "before": 1,
+            "after": 1.1,
+            "at": 324
+          },
+          {
+            "event": "pan-canvas",
+            "before": {
+              "x": 0,
+              "y": 0,
+              "zoom": 1.1
+            },
+            "after": {
+              "x": 81.81818181818181,
+              "y": 45.45454545454545,
+              "zoom": 1.1
+            },
+            "at": 375
+          },
+          {
+            "event": "drag-pin-node",
+            "id": "agent:atlas-0",
+            "before": {
+              "x": 670.8830658192944,
+              "y": 587.9954442522239
+            },
+            "after": {
+              "x": 710.8830658192944,
+              "y": 611.6318078885876
+            },
+            "fixed_nodes": 1,
+            "at": 441
+          },
+          {
+            "event": "open-evidence",
+            "selected": "agent:atlas-0",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 491
+          },
+          {
+            "event": "keyboard-pan",
+            "key": "ArrowRight",
+            "at": 492
+          },
+          {
+            "event": "open-evidence",
+            "selected": "agent:atlas-0",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 492
+          }
+        ]
+      },
+      "scenario": {
+        "view": "network",
+        "scale": 100,
+        "project": "",
+        "agent": "",
+        "windowValue": "30d"
+      },
+      "interactions_verified": true
+    },
+    {
+      "view": "impact",
+      "layout": "radial impact",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "requested_scale": 500,
+      "rendered_nodes": 341,
+      "rendered_edges": 310,
+      "focus": null,
+      "selected": null,
+      "fixed_nodes": 1,
+      "first_interactive_ms": 542,
+      "draw_ms_last": 2,
+      "draw_ms_avg": 2.4,
+      "draw_ms_p95": 2.8,
+      "estimated_fps_p95": 60,
+      "js_heap_mb": 10,
+      "budget_ms_per_frame": 24,
+      "pass": true,
+      "raw_events": [
+        {
+          "event": "view-switch",
+          "view": "network",
+          "retained_context": null,
+          "filters": {
+            "window": "24h",
+            "project": "",
+            "agent": ""
+          },
+          "at": 5
+        },
+        {
+          "event": "filter-window",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 86
+        },
+        {
+          "event": "filter-project",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 86
+        },
+        {
+          "event": "filter-agent",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 86
+        },
+        {
+          "event": "view-switch",
+          "view": "network",
+          "retained_context": null,
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 86
+        },
+        {
+          "event": "canvas-hit-test",
+          "type": "node",
+          "id": "agent:atlas-0",
+          "view": "network",
+          "at": 167
+        },
+        {
+          "event": "select",
+          "source": "canvas-hit-test",
+          "type": "node",
+          "id": "agent:atlas-0",
+          "view": "network",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 167
+        },
+        {
+          "event": "expand-neighborhood",
+          "depth": 1,
+          "focus": "agent:atlas-0",
+          "at": 216
+        },
+        {
+          "event": "collapse-neighborhood",
+          "depth": 0,
+          "focus": "agent:atlas-0",
+          "at": 266
+        },
+        {
+          "event": "zoom",
+          "before": 1,
+          "after": 1.1,
+          "at": 324
+        },
+        {
+          "event": "pan-canvas",
+          "before": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1.1
+          },
+          "after": {
+            "x": 81.81818181818181,
+            "y": 45.45454545454545,
+            "zoom": 1.1
+          },
+          "at": 375
+        },
+        {
+          "event": "drag-pin-node",
+          "id": "agent:atlas-0",
+          "before": {
+            "x": 670.8830658192944,
+            "y": 587.9954442522239
+          },
+          "after": {
+            "x": 710.8830658192944,
+            "y": 611.6318078885876
+          },
+          "fixed_nodes": 1,
+          "at": 441
+        },
+        {
+          "event": "open-evidence",
+          "selected": "agent:atlas-0",
+          "effect_scope_count": 1,
+          "evidence_event_count": 2,
+          "at": 491
+        },
+        {
+          "event": "keyboard-pan",
+          "key": "ArrowRight",
+          "at": 492
+        },
+        {
+          "event": "open-evidence",
+          "selected": "agent:atlas-0",
+          "effect_scope_count": 1,
+          "evidence_event_count": 2,
+          "at": 492
+        },
+        {
+          "event": "filter-window",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 525
+        },
+        {
+          "event": "filter-project",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 525
+        },
+        {
+          "event": "filter-agent",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 525
+        },
+        {
+          "event": "view-switch",
+          "view": "impact",
+          "retained_context": null,
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 525
+        }
+      ],
+      "interaction_metrics_after_replay": {
+        "view": "impact",
+        "layout": "radial impact",
+        "filters": {
+          "window": "30d",
+          "project": "",
+          "agent": ""
+        },
+        "requested_scale": 500,
+        "rendered_nodes": 19,
+        "rendered_edges": 18,
+        "focus": "agent:forge-1",
+        "selected": {
+          "type": "node",
+          "id": "agent:forge-1",
+          "node": {
+            "id": "agent:forge-1",
+            "kind": "agent",
+            "label": "forge-1",
+            "project": "Runtime",
+            "weight": 1,
+            "x": 781.5128297097981,
+            "y": 403.53833302669227
+          }
+        },
+        "fixed_nodes": 2,
+        "first_interactive_ms": 1000,
+        "draw_ms_last": 1,
+        "draw_ms_avg": 2.08,
+        "draw_ms_p95": 2.8,
+        "estimated_fps_p95": 60,
+        "js_heap_mb": 10,
+        "budget_ms_per_frame": 24,
+        "pass": true,
+        "raw_events": [
+          {
+            "event": "canvas-hit-test",
+            "type": "node",
+            "id": "agent:atlas-0",
+            "view": "network",
+            "at": 167
+          },
+          {
+            "event": "select",
+            "source": "canvas-hit-test",
+            "type": "node",
+            "id": "agent:atlas-0",
+            "view": "network",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 167
+          },
+          {
+            "event": "expand-neighborhood",
+            "depth": 1,
+            "focus": "agent:atlas-0",
+            "at": 216
+          },
+          {
+            "event": "collapse-neighborhood",
+            "depth": 0,
+            "focus": "agent:atlas-0",
+            "at": 266
+          },
+          {
+            "event": "zoom",
+            "before": 1,
+            "after": 1.1,
+            "at": 324
+          },
+          {
+            "event": "pan-canvas",
+            "before": {
+              "x": 0,
+              "y": 0,
+              "zoom": 1.1
+            },
+            "after": {
+              "x": 81.81818181818181,
+              "y": 45.45454545454545,
+              "zoom": 1.1
+            },
+            "at": 375
+          },
+          {
+            "event": "drag-pin-node",
+            "id": "agent:atlas-0",
+            "before": {
+              "x": 670.8830658192944,
+              "y": 587.9954442522239
+            },
+            "after": {
+              "x": 710.8830658192944,
+              "y": 611.6318078885876
+            },
+            "fixed_nodes": 1,
+            "at": 441
+          },
+          {
+            "event": "open-evidence",
+            "selected": "agent:atlas-0",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 491
+          },
+          {
+            "event": "keyboard-pan",
+            "key": "ArrowRight",
+            "at": 492
+          },
+          {
+            "event": "open-evidence",
+            "selected": "agent:atlas-0",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 492
+          },
+          {
+            "event": "filter-window",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 525
+          },
+          {
+            "event": "filter-project",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 525
+          },
+          {
+            "event": "filter-agent",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 525
+          },
+          {
+            "event": "view-switch",
+            "view": "impact",
+            "retained_context": null,
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 525
+          },
+          {
+            "event": "canvas-hit-test",
+            "type": "node",
+            "id": "agent:forge-1",
+            "view": "impact",
+            "at": 616
+          },
+          {
+            "event": "select",
+            "source": "canvas-hit-test",
+            "type": "node",
+            "id": "agent:forge-1",
+            "view": "impact",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 616
+          },
+          {
+            "event": "expand-neighborhood",
+            "depth": 1,
+            "focus": "agent:forge-1",
+            "at": 666
+          },
+          {
+            "event": "collapse-neighborhood",
+            "depth": 0,
+            "focus": "agent:forge-1",
+            "at": 741
+          },
+          {
+            "event": "zoom",
+            "before": 1,
+            "after": 1.1,
+            "at": 808
+          },
+          {
+            "event": "pan-canvas",
+            "before": {
+              "x": 0,
+              "y": 0,
+              "zoom": 1.1
+            },
+            "after": {
+              "x": 81.81818181818181,
+              "y": 45.45454545454545,
+              "zoom": 1.1
+            },
+            "at": 883
+          },
+          {
+            "event": "drag-pin-node",
+            "id": "agent:forge-1",
+            "before": {
+              "x": 600,
+              "y": 380
+            },
+            "after": {
+              "x": 640,
+              "y": 403.6363636363636
+            },
+            "fixed_nodes": 2,
+            "at": 941
+          },
+          {
+            "event": "open-evidence",
+            "selected": "agent:forge-1",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 993
+          },
+          {
+            "event": "keyboard-pan",
+            "key": "ArrowRight",
+            "at": 994
+          },
+          {
+            "event": "open-evidence",
+            "selected": "agent:forge-1",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 994
+          }
+        ]
+      },
+      "scenario": {
+        "view": "impact",
+        "scale": 500,
+        "project": "",
+        "agent": "",
+        "windowValue": "30d"
+      },
+      "interactions_verified": true
+    },
+    {
+      "view": "lineage",
+      "layout": "hierarchical DAG",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "requested_scale": 2200,
+      "rendered_nodes": 423,
+      "rendered_edges": 814,
+      "focus": null,
+      "selected": null,
+      "fixed_nodes": 2,
+      "first_interactive_ms": 1051,
+      "draw_ms_last": 7.7,
+      "draw_ms_avg": 6.62,
+      "draw_ms_p95": 7.5,
+      "estimated_fps_p95": 60,
+      "js_heap_mb": 10,
+      "budget_ms_per_frame": 40,
+      "pass": true,
+      "raw_events": [
+        {
+          "event": "zoom",
+          "before": 1,
+          "after": 1.1,
+          "at": 324
+        },
+        {
+          "event": "pan-canvas",
+          "before": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1.1
+          },
+          "after": {
+            "x": 81.81818181818181,
+            "y": 45.45454545454545,
+            "zoom": 1.1
+          },
+          "at": 375
+        },
+        {
+          "event": "drag-pin-node",
+          "id": "agent:atlas-0",
+          "before": {
+            "x": 670.8830658192944,
+            "y": 587.9954442522239
+          },
+          "after": {
+            "x": 710.8830658192944,
+            "y": 611.6318078885876
+          },
+          "fixed_nodes": 1,
+          "at": 441
+        },
+        {
+          "event": "open-evidence",
+          "selected": "agent:atlas-0",
+          "effect_scope_count": 1,
+          "evidence_event_count": 2,
+          "at": 491
+        },
+        {
+          "event": "keyboard-pan",
+          "key": "ArrowRight",
+          "at": 492
+        },
+        {
+          "event": "open-evidence",
+          "selected": "agent:atlas-0",
+          "effect_scope_count": 1,
+          "evidence_event_count": 2,
+          "at": 492
+        },
+        {
+          "event": "filter-window",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 525
+        },
+        {
+          "event": "filter-project",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 525
+        },
+        {
+          "event": "filter-agent",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 525
+        },
+        {
+          "event": "view-switch",
+          "view": "impact",
+          "retained_context": null,
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 525
+        },
+        {
+          "event": "canvas-hit-test",
+          "type": "node",
+          "id": "agent:forge-1",
+          "view": "impact",
+          "at": 616
+        },
+        {
+          "event": "select",
+          "source": "canvas-hit-test",
+          "type": "node",
+          "id": "agent:forge-1",
+          "view": "impact",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 616
+        },
+        {
+          "event": "expand-neighborhood",
+          "depth": 1,
+          "focus": "agent:forge-1",
+          "at": 666
+        },
+        {
+          "event": "collapse-neighborhood",
+          "depth": 0,
+          "focus": "agent:forge-1",
+          "at": 741
+        },
+        {
+          "event": "zoom",
+          "before": 1,
+          "after": 1.1,
+          "at": 808
+        },
+        {
+          "event": "pan-canvas",
+          "before": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1.1
+          },
+          "after": {
+            "x": 81.81818181818181,
+            "y": 45.45454545454545,
+            "zoom": 1.1
+          },
+          "at": 883
+        },
+        {
+          "event": "drag-pin-node",
+          "id": "agent:forge-1",
+          "before": {
+            "x": 600,
+            "y": 380
+          },
+          "after": {
+            "x": 640,
+            "y": 403.6363636363636
+          },
+          "fixed_nodes": 2,
+          "at": 941
+        },
+        {
+          "event": "open-evidence",
+          "selected": "agent:forge-1",
+          "effect_scope_count": 1,
+          "evidence_event_count": 2,
+          "at": 993
+        },
+        {
+          "event": "keyboard-pan",
+          "key": "ArrowRight",
+          "at": 994
+        },
+        {
+          "event": "open-evidence",
+          "selected": "agent:forge-1",
+          "effect_scope_count": 1,
+          "evidence_event_count": 2,
+          "at": 994
+        },
+        {
+          "event": "filter-window",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 1016
+        },
+        {
+          "event": "filter-project",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 1016
+        },
+        {
+          "event": "filter-agent",
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 1016
+        },
+        {
+          "event": "view-switch",
+          "view": "lineage",
+          "retained_context": null,
+          "filters": {
+            "window": "30d",
+            "project": "",
+            "agent": ""
+          },
+          "at": 1016
+        }
+      ],
+      "interaction_metrics_after_replay": {
+        "view": "lineage",
+        "layout": "hierarchical DAG",
+        "filters": {
+          "window": "30d",
+          "project": "",
+          "agent": ""
+        },
+        "requested_scale": 2200,
+        "rendered_nodes": 5,
+        "rendered_edges": 4,
+        "focus": "task:Alpha-0",
+        "selected": {
+          "type": "node",
+          "id": "task:Alpha-0",
+          "node": {
+            "id": "task:Alpha-0",
+            "kind": "task",
+            "label": "Alpha task 0",
+            "project": "Alpha",
+            "plan_id": "plan:Alpha-0",
+            "stage_id": "stage:Alpha-0",
+            "status": "blocked",
+            "weight": 1,
+            "x": 71.24517368711531,
+            "y": 500
+          }
+        },
+        "fixed_nodes": 3,
+        "first_interactive_ms": 1495,
+        "draw_ms_last": 3.7,
+        "draw_ms_avg": 4.85,
+        "draw_ms_p95": 7.5,
+        "estimated_fps_p95": 60,
+        "js_heap_mb": 10,
+        "budget_ms_per_frame": 40,
+        "pass": true,
+        "raw_events": [
+          {
+            "event": "canvas-hit-test",
+            "type": "node",
+            "id": "agent:forge-1",
+            "view": "impact",
+            "at": 616
+          },
+          {
+            "event": "select",
+            "source": "canvas-hit-test",
+            "type": "node",
+            "id": "agent:forge-1",
+            "view": "impact",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 616
+          },
+          {
+            "event": "expand-neighborhood",
+            "depth": 1,
+            "focus": "agent:forge-1",
+            "at": 666
+          },
+          {
+            "event": "collapse-neighborhood",
+            "depth": 0,
+            "focus": "agent:forge-1",
+            "at": 741
+          },
+          {
+            "event": "zoom",
+            "before": 1,
+            "after": 1.1,
+            "at": 808
+          },
+          {
+            "event": "pan-canvas",
+            "before": {
+              "x": 0,
+              "y": 0,
+              "zoom": 1.1
+            },
+            "after": {
+              "x": 81.81818181818181,
+              "y": 45.45454545454545,
+              "zoom": 1.1
+            },
+            "at": 883
+          },
+          {
+            "event": "drag-pin-node",
+            "id": "agent:forge-1",
+            "before": {
+              "x": 600,
+              "y": 380
+            },
+            "after": {
+              "x": 640,
+              "y": 403.6363636363636
+            },
+            "fixed_nodes": 2,
+            "at": 941
+          },
+          {
+            "event": "open-evidence",
+            "selected": "agent:forge-1",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 993
+          },
+          {
+            "event": "keyboard-pan",
+            "key": "ArrowRight",
+            "at": 994
+          },
+          {
+            "event": "open-evidence",
+            "selected": "agent:forge-1",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 994
+          },
+          {
+            "event": "filter-window",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1016
+          },
+          {
+            "event": "filter-project",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1016
+          },
+          {
+            "event": "filter-agent",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1016
+          },
+          {
+            "event": "view-switch",
+            "view": "lineage",
+            "retained_context": null,
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1016
+          },
+          {
+            "event": "canvas-hit-test",
+            "type": "node",
+            "id": "task:Alpha-0",
+            "view": "lineage",
+            "at": 1175
+          },
+          {
+            "event": "select",
+            "source": "canvas-hit-test",
+            "type": "node",
+            "id": "task:Alpha-0",
+            "view": "lineage",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1175
+          },
+          {
+            "event": "expand-neighborhood",
+            "depth": 1,
+            "focus": "task:Alpha-0",
+            "at": 1226
+          },
+          {
+            "event": "collapse-neighborhood",
+            "depth": 0,
+            "focus": "task:Alpha-0",
+            "at": 1291
+          },
+          {
+            "event": "zoom",
+            "before": 1,
+            "after": 1.1,
+            "at": 1350
+          },
+          {
+            "event": "pan-canvas",
+            "before": {
+              "x": 0,
+              "y": 0,
+              "zoom": 1.1
+            },
+            "after": {
+              "x": 81.81818181818181,
+              "y": 45.45454545454545,
+              "zoom": 1.1
+            },
+            "at": 1400
+          },
+          {
+            "event": "drag-pin-node",
+            "id": "stage:Alpha-0",
+            "before": {
+              "x": 73.55881595797837,
+              "y": 260
+            },
+            "after": {
+              "x": 113.55881595797837,
+              "y": 283.6363636363636
+            },
+            "fixed_nodes": 3,
+            "at": 1441
+          },
+          {
+            "event": "open-evidence",
+            "selected": "task:Alpha-0",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 1483
+          },
+          {
+            "event": "keyboard-pan",
+            "key": "ArrowRight",
+            "at": 1483
+          },
+          {
+            "event": "open-evidence",
+            "selected": "task:Alpha-0",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 1483
+          }
+        ]
+      },
+      "scenario": {
+        "view": "lineage",
+        "scale": 2200,
+        "project": "",
+        "agent": "",
+        "windowValue": "30d"
+      },
+      "interactions_verified": true
+    }
+  ],
+  "filter_proofs": [
+    {
+      "filter": "project+window",
+      "metrics": {
+        "view": "impact",
+        "layout": "radial impact",
+        "filters": {
+          "window": "7d",
+          "project": "Alpha",
+          "agent": ""
+        },
+        "requested_scale": 500,
+        "rendered_nodes": 37,
+        "rendered_edges": 26,
+        "focus": null,
+        "selected": null,
+        "fixed_nodes": 3,
+        "first_interactive_ms": 1686,
+        "draw_ms_last": 1.1,
+        "draw_ms_avg": 1.5,
+        "draw_ms_p95": 1.1,
+        "estimated_fps_p95": 60,
+        "js_heap_mb": 10,
+        "budget_ms_per_frame": 24,
+        "pass": true,
+        "raw_events": [
+          {
+            "event": "keyboard-pan",
+            "key": "ArrowRight",
+            "at": 994
+          },
+          {
+            "event": "open-evidence",
+            "selected": "agent:forge-1",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 994
+          },
+          {
+            "event": "filter-window",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1016
+          },
+          {
+            "event": "filter-project",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1016
+          },
+          {
+            "event": "filter-agent",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1016
+          },
+          {
+            "event": "view-switch",
+            "view": "lineage",
+            "retained_context": null,
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1016
+          },
+          {
+            "event": "canvas-hit-test",
+            "type": "node",
+            "id": "task:Alpha-0",
+            "view": "lineage",
+            "at": 1175
+          },
+          {
+            "event": "select",
+            "source": "canvas-hit-test",
+            "type": "node",
+            "id": "task:Alpha-0",
+            "view": "lineage",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1175
+          },
+          {
+            "event": "expand-neighborhood",
+            "depth": 1,
+            "focus": "task:Alpha-0",
+            "at": 1226
+          },
+          {
+            "event": "collapse-neighborhood",
+            "depth": 0,
+            "focus": "task:Alpha-0",
+            "at": 1291
+          },
+          {
+            "event": "zoom",
+            "before": 1,
+            "after": 1.1,
+            "at": 1350
+          },
+          {
+            "event": "pan-canvas",
+            "before": {
+              "x": 0,
+              "y": 0,
+              "zoom": 1.1
+            },
+            "after": {
+              "x": 81.81818181818181,
+              "y": 45.45454545454545,
+              "zoom": 1.1
+            },
+            "at": 1400
+          },
+          {
+            "event": "drag-pin-node",
+            "id": "stage:Alpha-0",
+            "before": {
+              "x": 73.55881595797837,
+              "y": 260
+            },
+            "after": {
+              "x": 113.55881595797837,
+              "y": 283.6363636363636
+            },
+            "fixed_nodes": 3,
+            "at": 1441
+          },
+          {
+            "event": "open-evidence",
+            "selected": "task:Alpha-0",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 1483
+          },
+          {
+            "event": "keyboard-pan",
+            "key": "ArrowRight",
+            "at": 1483
+          },
+          {
+            "event": "open-evidence",
+            "selected": "task:Alpha-0",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 1483
+          },
+          {
+            "event": "clear-filters-restore-global",
+            "view": "lineage",
+            "filters": {
+              "window": "24h",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1516
+          },
+          {
+            "event": "view-switch",
+            "view": "network",
+            "retained_context": null,
+            "filters": {
+              "window": "24h",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1516
+          },
+          {
+            "event": "canvas-hit-test",
+            "type": "node",
+            "id": "agent:atlas-0",
+            "view": "network",
+            "at": 1591
+          },
+          {
+            "event": "select",
+            "source": "canvas-hit-test",
+            "type": "node",
+            "id": "agent:atlas-0",
+            "view": "network",
+            "filters": {
+              "window": "24h",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1591
+          },
+          {
+            "event": "view-switch",
+            "view": "impact",
+            "retained_context": "agent:atlas-0",
+            "filters": {
+              "window": "24h",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1633
+          },
+          {
+            "event": "context-chip-retained-without-node",
+            "id": "agent:atlas-0",
+            "view": "impact",
+            "at": 1642
+          },
+          {
+            "event": "filter-window",
+            "filters": {
+              "window": "7d",
+              "project": "Alpha",
+              "agent": ""
+            },
+            "at": 1675
+          },
+          {
+            "event": "filter-project",
+            "filters": {
+              "window": "7d",
+              "project": "Alpha",
+              "agent": ""
+            },
+            "at": 1675
+          }
+        ]
+      }
+    },
+    {
+      "filter": "agent",
+      "metrics": {
+        "view": "impact",
+        "layout": "radial impact",
+        "filters": {
+          "window": "7d",
+          "project": "Alpha",
+          "agent": "agent:forge-1"
+        },
+        "requested_scale": 500,
+        "rendered_nodes": 5,
+        "rendered_edges": 4,
+        "focus": "agent:forge-1",
+        "selected": null,
+        "fixed_nodes": 3,
+        "first_interactive_ms": 1717,
+        "draw_ms_last": 0.8,
+        "draw_ms_avg": 0.8,
+        "draw_ms_p95": 0.8,
+        "estimated_fps_p95": 60,
+        "js_heap_mb": 10,
+        "budget_ms_per_frame": 24,
+        "pass": true,
+        "raw_events": [
+          {
+            "event": "open-evidence",
+            "selected": "agent:forge-1",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 994
+          },
+          {
+            "event": "filter-window",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1016
+          },
+          {
+            "event": "filter-project",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1016
+          },
+          {
+            "event": "filter-agent",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1016
+          },
+          {
+            "event": "view-switch",
+            "view": "lineage",
+            "retained_context": null,
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1016
+          },
+          {
+            "event": "canvas-hit-test",
+            "type": "node",
+            "id": "task:Alpha-0",
+            "view": "lineage",
+            "at": 1175
+          },
+          {
+            "event": "select",
+            "source": "canvas-hit-test",
+            "type": "node",
+            "id": "task:Alpha-0",
+            "view": "lineage",
+            "filters": {
+              "window": "30d",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1175
+          },
+          {
+            "event": "expand-neighborhood",
+            "depth": 1,
+            "focus": "task:Alpha-0",
+            "at": 1226
+          },
+          {
+            "event": "collapse-neighborhood",
+            "depth": 0,
+            "focus": "task:Alpha-0",
+            "at": 1291
+          },
+          {
+            "event": "zoom",
+            "before": 1,
+            "after": 1.1,
+            "at": 1350
+          },
+          {
+            "event": "pan-canvas",
+            "before": {
+              "x": 0,
+              "y": 0,
+              "zoom": 1.1
+            },
+            "after": {
+              "x": 81.81818181818181,
+              "y": 45.45454545454545,
+              "zoom": 1.1
+            },
+            "at": 1400
+          },
+          {
+            "event": "drag-pin-node",
+            "id": "stage:Alpha-0",
+            "before": {
+              "x": 73.55881595797837,
+              "y": 260
+            },
+            "after": {
+              "x": 113.55881595797837,
+              "y": 283.6363636363636
+            },
+            "fixed_nodes": 3,
+            "at": 1441
+          },
+          {
+            "event": "open-evidence",
+            "selected": "task:Alpha-0",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 1483
+          },
+          {
+            "event": "keyboard-pan",
+            "key": "ArrowRight",
+            "at": 1483
+          },
+          {
+            "event": "open-evidence",
+            "selected": "task:Alpha-0",
+            "effect_scope_count": 1,
+            "evidence_event_count": 2,
+            "at": 1483
+          },
+          {
+            "event": "clear-filters-restore-global",
+            "view": "lineage",
+            "filters": {
+              "window": "24h",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1516
+          },
+          {
+            "event": "view-switch",
+            "view": "network",
+            "retained_context": null,
+            "filters": {
+              "window": "24h",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1516
+          },
+          {
+            "event": "canvas-hit-test",
+            "type": "node",
+            "id": "agent:atlas-0",
+            "view": "network",
+            "at": 1591
+          },
+          {
+            "event": "select",
+            "source": "canvas-hit-test",
+            "type": "node",
+            "id": "agent:atlas-0",
+            "view": "network",
+            "filters": {
+              "window": "24h",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1591
+          },
+          {
+            "event": "view-switch",
+            "view": "impact",
+            "retained_context": "agent:atlas-0",
+            "filters": {
+              "window": "24h",
+              "project": "",
+              "agent": ""
+            },
+            "at": 1633
+          },
+          {
+            "event": "context-chip-retained-without-node",
+            "id": "agent:atlas-0",
+            "view": "impact",
+            "at": 1642
+          },
+          {
+            "event": "filter-window",
+            "filters": {
+              "window": "7d",
+              "project": "Alpha",
+              "agent": ""
+            },
+            "at": 1675
+          },
+          {
+            "event": "filter-project",
+            "filters": {
+              "window": "7d",
+              "project": "Alpha",
+              "agent": ""
+            },
+            "at": 1675
+          },
+          {
+            "event": "filter-agent",
+            "filters": {
+              "window": "7d",
+              "project": "Alpha",
+              "agent": "agent:forge-1"
+            },
+            "at": 1708
+          }
+        ]
+      }
+    }
+  ],
+  "raw_events": [
+    {
+      "event": "view-switch",
+      "view": "network",
+      "retained_context": null,
+      "filters": {
+        "window": "24h",
+        "project": "",
+        "agent": ""
+      },
+      "at": 5
+    },
+    {
+      "event": "filter-window",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 86
+    },
+    {
+      "event": "filter-project",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 86
+    },
+    {
+      "event": "filter-agent",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 86
+    },
+    {
+      "event": "view-switch",
+      "view": "network",
+      "retained_context": null,
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 86
+    },
+    {
+      "event": "canvas-hit-test",
+      "type": "node",
+      "id": "agent:atlas-0",
+      "view": "network",
+      "at": 167
+    },
+    {
+      "event": "select",
+      "source": "canvas-hit-test",
+      "type": "node",
+      "id": "agent:atlas-0",
+      "view": "network",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 167
+    },
+    {
+      "event": "expand-neighborhood",
+      "depth": 1,
+      "focus": "agent:atlas-0",
+      "at": 216
+    },
+    {
+      "event": "collapse-neighborhood",
+      "depth": 0,
+      "focus": "agent:atlas-0",
+      "at": 266
+    },
+    {
+      "event": "zoom",
+      "before": 1,
+      "after": 1.1,
+      "at": 324
+    },
+    {
+      "event": "pan-canvas",
+      "before": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1.1
+      },
+      "after": {
+        "x": 81.81818181818181,
+        "y": 45.45454545454545,
+        "zoom": 1.1
+      },
+      "at": 375
+    },
+    {
+      "event": "drag-pin-node",
+      "id": "agent:atlas-0",
+      "before": {
+        "x": 670.8830658192944,
+        "y": 587.9954442522239
+      },
+      "after": {
+        "x": 710.8830658192944,
+        "y": 611.6318078885876
+      },
+      "fixed_nodes": 1,
+      "at": 441
+    },
+    {
+      "event": "open-evidence",
+      "selected": "agent:atlas-0",
+      "effect_scope_count": 1,
+      "evidence_event_count": 2,
+      "at": 491
+    },
+    {
+      "event": "keyboard-pan",
+      "key": "ArrowRight",
+      "at": 492
+    },
+    {
+      "event": "open-evidence",
+      "selected": "agent:atlas-0",
+      "effect_scope_count": 1,
+      "evidence_event_count": 2,
+      "at": 492
+    },
+    {
+      "event": "filter-window",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 525
+    },
+    {
+      "event": "filter-project",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 525
+    },
+    {
+      "event": "filter-agent",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 525
+    },
+    {
+      "event": "view-switch",
+      "view": "impact",
+      "retained_context": null,
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 525
+    },
+    {
+      "event": "canvas-hit-test",
+      "type": "node",
+      "id": "agent:forge-1",
+      "view": "impact",
+      "at": 616
+    },
+    {
+      "event": "select",
+      "source": "canvas-hit-test",
+      "type": "node",
+      "id": "agent:forge-1",
+      "view": "impact",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 616
+    },
+    {
+      "event": "expand-neighborhood",
+      "depth": 1,
+      "focus": "agent:forge-1",
+      "at": 666
+    },
+    {
+      "event": "collapse-neighborhood",
+      "depth": 0,
+      "focus": "agent:forge-1",
+      "at": 741
+    },
+    {
+      "event": "zoom",
+      "before": 1,
+      "after": 1.1,
+      "at": 808
+    },
+    {
+      "event": "pan-canvas",
+      "before": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1.1
+      },
+      "after": {
+        "x": 81.81818181818181,
+        "y": 45.45454545454545,
+        "zoom": 1.1
+      },
+      "at": 883
+    },
+    {
+      "event": "drag-pin-node",
+      "id": "agent:forge-1",
+      "before": {
+        "x": 600,
+        "y": 380
+      },
+      "after": {
+        "x": 640,
+        "y": 403.6363636363636
+      },
+      "fixed_nodes": 2,
+      "at": 941
+    },
+    {
+      "event": "open-evidence",
+      "selected": "agent:forge-1",
+      "effect_scope_count": 1,
+      "evidence_event_count": 2,
+      "at": 993
+    },
+    {
+      "event": "keyboard-pan",
+      "key": "ArrowRight",
+      "at": 994
+    },
+    {
+      "event": "open-evidence",
+      "selected": "agent:forge-1",
+      "effect_scope_count": 1,
+      "evidence_event_count": 2,
+      "at": 994
+    },
+    {
+      "event": "filter-window",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 1016
+    },
+    {
+      "event": "filter-project",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 1016
+    },
+    {
+      "event": "filter-agent",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 1016
+    },
+    {
+      "event": "view-switch",
+      "view": "lineage",
+      "retained_context": null,
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 1016
+    },
+    {
+      "event": "canvas-hit-test",
+      "type": "node",
+      "id": "task:Alpha-0",
+      "view": "lineage",
+      "at": 1175
+    },
+    {
+      "event": "select",
+      "source": "canvas-hit-test",
+      "type": "node",
+      "id": "task:Alpha-0",
+      "view": "lineage",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 1175
+    },
+    {
+      "event": "expand-neighborhood",
+      "depth": 1,
+      "focus": "task:Alpha-0",
+      "at": 1226
+    },
+    {
+      "event": "collapse-neighborhood",
+      "depth": 0,
+      "focus": "task:Alpha-0",
+      "at": 1291
+    },
+    {
+      "event": "zoom",
+      "before": 1,
+      "after": 1.1,
+      "at": 1350
+    },
+    {
+      "event": "pan-canvas",
+      "before": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1.1
+      },
+      "after": {
+        "x": 81.81818181818181,
+        "y": 45.45454545454545,
+        "zoom": 1.1
+      },
+      "at": 1400
+    },
+    {
+      "event": "drag-pin-node",
+      "id": "stage:Alpha-0",
+      "before": {
+        "x": 73.55881595797837,
+        "y": 260
+      },
+      "after": {
+        "x": 113.55881595797837,
+        "y": 283.6363636363636
+      },
+      "fixed_nodes": 3,
+      "at": 1441
+    },
+    {
+      "event": "open-evidence",
+      "selected": "task:Alpha-0",
+      "effect_scope_count": 1,
+      "evidence_event_count": 2,
+      "at": 1483
+    },
+    {
+      "event": "keyboard-pan",
+      "key": "ArrowRight",
+      "at": 1483
+    },
+    {
+      "event": "open-evidence",
+      "selected": "task:Alpha-0",
+      "effect_scope_count": 1,
+      "evidence_event_count": 2,
+      "at": 1483
+    },
+    {
+      "event": "clear-filters-restore-global",
+      "view": "lineage",
+      "filters": {
+        "window": "24h",
+        "project": "",
+        "agent": ""
+      },
+      "at": 1516
+    },
+    {
+      "event": "view-switch",
+      "view": "network",
+      "retained_context": null,
+      "filters": {
+        "window": "24h",
+        "project": "",
+        "agent": ""
+      },
+      "at": 1516
+    },
+    {
+      "event": "canvas-hit-test",
+      "type": "node",
+      "id": "agent:atlas-0",
+      "view": "network",
+      "at": 1591
+    },
+    {
+      "event": "select",
+      "source": "canvas-hit-test",
+      "type": "node",
+      "id": "agent:atlas-0",
+      "view": "network",
+      "filters": {
+        "window": "24h",
+        "project": "",
+        "agent": ""
+      },
+      "at": 1591
+    },
+    {
+      "event": "view-switch",
+      "view": "impact",
+      "retained_context": "agent:atlas-0",
+      "filters": {
+        "window": "24h",
+        "project": "",
+        "agent": ""
+      },
+      "at": 1633
+    },
+    {
+      "event": "context-chip-retained-without-node",
+      "id": "agent:atlas-0",
+      "view": "impact",
+      "at": 1642
+    },
+    {
+      "event": "filter-window",
+      "filters": {
+        "window": "7d",
+        "project": "Alpha",
+        "agent": ""
+      },
+      "at": 1675
+    },
+    {
+      "event": "filter-project",
+      "filters": {
+        "window": "7d",
+        "project": "Alpha",
+        "agent": ""
+      },
+      "at": 1675
+    },
+    {
+      "event": "filter-agent",
+      "filters": {
+        "window": "7d",
+        "project": "Alpha",
+        "agent": "agent:forge-1"
+      },
+      "at": 1708
+    },
+    {
+      "event": "clear-filters-restore-global",
+      "view": "impact",
+      "filters": {
+        "window": "24h",
+        "project": "",
+        "agent": ""
+      },
+      "at": 1741
+    }
+  ],
+  "acceptance": {
+    "dimensional_first_screen": true,
+    "shared_filters": true,
+    "context_and_evidence": true,
+    "hit_test_drag_pan_keyboard_ready": true,
+    "budgets_pass": true
+  }
+}

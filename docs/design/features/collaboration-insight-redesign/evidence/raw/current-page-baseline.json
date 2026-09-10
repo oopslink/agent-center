@@ -1,0 +1,21 @@
+{
+  "captured_at": "2026-09-10T03:39:50.236Z",
+  "source_file": "web/src/pages/InsightCollaboration.tsx",
+  "source_commit": "512d1181264a706155266fa658566146b2ae58c6",
+  "current_renderer": "React SVG groups plus text labels, accumulated on the main thread from /collaboration-effects pages",
+  "svg_react_surfaces": {
+    "svg_elements": 1,
+    "edge_group_mapping": true,
+    "node_group_mapping": true,
+    "text_label_rendering": 4,
+    "wheel_handler": false,
+    "pointer_handlers": true,
+    "evidence_drawer": true
+  },
+  "bottleneck_baseline": [
+    "Default unfiltered request asks the current endpoint for cluster LOD but still renders one SVG group per returned node and edge.",
+    "The current page has no view param, so the initial visual surface mixes agent-agent, agent-task, plan/stage/task, dependency, review, and Evidence entry semantics.",
+    "Viewport culling is not a renderer boundary; React still owns every returned node/edge element in the SVG tree.",
+    "Moving to better force/community/DAG layouts inside this component would put layout work on the main React render path unless moved to a Worker/server cache."
+  ]
+}

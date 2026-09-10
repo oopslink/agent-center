@@ -1,0 +1,253 @@
+{
+  "view": "network",
+  "layout": "community",
+  "filters": {
+    "window": "30d",
+    "project": "",
+    "agent": ""
+  },
+  "requested_scale": 100,
+  "rendered_nodes": 100,
+  "rendered_edges": 113,
+  "focus": null,
+  "selected": null,
+  "fixed_nodes": 0,
+  "first_interactive_ms": 90,
+  "draw_ms_last": 0.6,
+  "draw_ms_avg": 0.88,
+  "draw_ms_p95": 1,
+  "estimated_fps_p95": 60,
+  "js_heap_mb": 10,
+  "budget_ms_per_frame": 16,
+  "pass": true,
+  "raw_events": [
+    {
+      "event": "view-switch",
+      "view": "network",
+      "retained_context": null,
+      "filters": {
+        "window": "24h",
+        "project": "",
+        "agent": ""
+      },
+      "at": 5
+    },
+    {
+      "event": "filter-window",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 86
+    },
+    {
+      "event": "filter-project",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 86
+    },
+    {
+      "event": "filter-agent",
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 86
+    },
+    {
+      "event": "view-switch",
+      "view": "network",
+      "retained_context": null,
+      "filters": {
+        "window": "30d",
+        "project": "",
+        "agent": ""
+      },
+      "at": 86
+    }
+  ],
+  "interaction_metrics_after_replay": {
+    "view": "network",
+    "layout": "community",
+    "filters": {
+      "window": "30d",
+      "project": "",
+      "agent": ""
+    },
+    "requested_scale": 100,
+    "rendered_nodes": 4,
+    "rendered_edges": 6,
+    "focus": "agent:atlas-0",
+    "selected": {
+      "type": "node",
+      "id": "agent:atlas-0",
+      "node": {
+        "id": "agent:atlas-0",
+        "kind": "agent",
+        "label": "atlas-0",
+        "project": "Alpha",
+        "weight": 1,
+        "x": 670.8830658192944,
+        "y": 587.9954442522239
+      }
+    },
+    "fixed_nodes": 1,
+    "first_interactive_ms": 500,
+    "draw_ms_last": 0.4,
+    "draw_ms_avg": 1.05,
+    "draw_ms_p95": 1.4,
+    "estimated_fps_p95": 60,
+    "js_heap_mb": 10,
+    "budget_ms_per_frame": 16,
+    "pass": true,
+    "raw_events": [
+      {
+        "event": "view-switch",
+        "view": "network",
+        "retained_context": null,
+        "filters": {
+          "window": "24h",
+          "project": "",
+          "agent": ""
+        },
+        "at": 5
+      },
+      {
+        "event": "filter-window",
+        "filters": {
+          "window": "30d",
+          "project": "",
+          "agent": ""
+        },
+        "at": 86
+      },
+      {
+        "event": "filter-project",
+        "filters": {
+          "window": "30d",
+          "project": "",
+          "agent": ""
+        },
+        "at": 86
+      },
+      {
+        "event": "filter-agent",
+        "filters": {
+          "window": "30d",
+          "project": "",
+          "agent": ""
+        },
+        "at": 86
+      },
+      {
+        "event": "view-switch",
+        "view": "network",
+        "retained_context": null,
+        "filters": {
+          "window": "30d",
+          "project": "",
+          "agent": ""
+        },
+        "at": 86
+      },
+      {
+        "event": "canvas-hit-test",
+        "type": "node",
+        "id": "agent:atlas-0",
+        "view": "network",
+        "at": 167
+      },
+      {
+        "event": "select",
+        "source": "canvas-hit-test",
+        "type": "node",
+        "id": "agent:atlas-0",
+        "view": "network",
+        "filters": {
+          "window": "30d",
+          "project": "",
+          "agent": ""
+        },
+        "at": 167
+      },
+      {
+        "event": "expand-neighborhood",
+        "depth": 1,
+        "focus": "agent:atlas-0",
+        "at": 216
+      },
+      {
+        "event": "collapse-neighborhood",
+        "depth": 0,
+        "focus": "agent:atlas-0",
+        "at": 266
+      },
+      {
+        "event": "zoom",
+        "before": 1,
+        "after": 1.1,
+        "at": 324
+      },
+      {
+        "event": "pan-canvas",
+        "before": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1.1
+        },
+        "after": {
+          "x": 81.81818181818181,
+          "y": 45.45454545454545,
+          "zoom": 1.1
+        },
+        "at": 375
+      },
+      {
+        "event": "drag-pin-node",
+        "id": "agent:atlas-0",
+        "before": {
+          "x": 670.8830658192944,
+          "y": 587.9954442522239
+        },
+        "after": {
+          "x": 710.8830658192944,
+          "y": 611.6318078885876
+        },
+        "fixed_nodes": 1,
+        "at": 441
+      },
+      {
+        "event": "open-evidence",
+        "selected": "agent:atlas-0",
+        "effect_scope_count": 1,
+        "evidence_event_count": 2,
+        "at": 491
+      },
+      {
+        "event": "keyboard-pan",
+        "key": "ArrowRight",
+        "at": 492
+      },
+      {
+        "event": "open-evidence",
+        "selected": "agent:atlas-0",
+        "effect_scope_count": 1,
+        "evidence_event_count": 2,
+        "at": 492
+      }
+    ]
+  },
+  "scenario": {
+    "view": "network",
+    "scale": 100,
+    "project": "",
+    "agent": "",
+    "windowValue": "30d"
+  },
+  "interactions_verified": true
+}

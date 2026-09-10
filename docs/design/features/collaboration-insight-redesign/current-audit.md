@@ -4,7 +4,7 @@
 
 Audited `web/src/pages/InsightCollaboration.tsx`,
 `web/src/api/insights.ts`, `web/src/pages/InsightCollaboration.test.tsx`, and
-the server/client route contract on `origin/main@9cd47759fc25bbd34423425aa937a6e93f6eb085`.
+the server/client route contract on `origin/main@512d1181264a706155266fa658566146b2ae58c6`.
 
 ## What Works Today
 
@@ -70,3 +70,14 @@ the server/client route contract on `origin/main@9cd47759fc25bbd34423425aa937a6e
   and `aggregate_by`; do not change or reclassify facts.
 - Move non-trivial layout and graph aggregation out of React render: server cache
   for stable/global layouts, Web Worker for local filtered/focus layouts.
+
+## Baseline Evidence Added
+
+`evidence/raw/current-page-baseline.json` records the current source-level
+baseline used for the redesign comparison on this replay branch:
+
+- renderer: React-owned SVG with one rendered group per returned edge and node;
+- data path: existing `/collaboration-effects` pages accumulated on the main
+  thread;
+- interaction retained: current Evidence drawer and selected effect scopes;
+- missing product boundary: no `view` parameter and no dimensional first screen.

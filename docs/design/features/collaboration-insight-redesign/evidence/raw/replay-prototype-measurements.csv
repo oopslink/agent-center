@@ -1,0 +1,4 @@
+view,scale,rendered_nodes,rendered_edges,first_interactive_ms,draw_ms_p95,estimated_fps_p95,js_heap_mb,budget_ms_per_frame,pass,interactions_verified
+network,100,100,113,90,1,60,10,16,true,true
+impact,500,341,310,542,2.8,60,10,24,true,true
+lineage,2200,423,814,1051,7.5,60,10,40,true,true

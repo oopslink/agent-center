@@ -2,7 +2,7 @@
 
 Status: frozen design candidate for implementation planning.
 Route: `/organizations/:slug/insights/collaboration`.
-Base audited: `origin/main@9cd47759fc25bbd34423425aa937a6e93f6eb085`.
+Base audited: `origin/main@512d1181264a706155266fa658566146b2ae58c6`.
 
 ## Deliverables
 
@@ -11,11 +11,14 @@ Base audited: `origin/main@9cd47759fc25bbd34423425aa937a6e93f6eb085`.
 - Static interaction prototype: `prototype/index.html`.
 - Technical selection ADR: `../../decisions/0061-collaboration-insight-dimensional-graph-ui.md`.
 - Measurement raw data and screenshots: `evidence/`.
+- Owner hard-gate readback: `hard-gate-readback.md`.
 
 ## Prototype
 
 Open `prototype/index.html` directly in a browser. It is a static, no-backend
-prototype with deterministic 100, 500, and 2k+ node/edge datasets.
+prototype with deterministic CollaborationEffect-shaped 100, 500, and 2k+
+node/edge datasets. The prototype derives each view from the same effect records
+instead of hard-coding a separate graph per tab.
 
 Controls covered:
 
@@ -24,6 +27,8 @@ Controls covered:
 - layout switching per view;
 - search, focus, restore, expand/collapse;
 - clustering, progressive label LOD, mini-map, pan/zoom, keyboard Evidence.
+- node/edge hit testing, hover/select dimming, selected-context carryover,
+  node drag pinning, and canvas pan separation.
 
 The prototype intentionally demonstrates interaction semantics and performance
 budgets, not final production rendering fidelity.
