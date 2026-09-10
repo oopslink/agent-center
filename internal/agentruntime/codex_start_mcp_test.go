@@ -196,6 +196,10 @@ command = "/stale/agent-center"
 			VMName:              "ac-agent-x",
 			State:               SandboxStateRunning,
 			ComputerUseEndpoint: "vm://agent-x",
+			ComputerUseEnv: map[string]string{
+				"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS": "/tmp/agent-x-cua.sock",
+				"SKY_CUA_SERVICE_NATIVE_PIPE_PATH":       "/tmp/agent-x-cua.sock",
+			},
 		}},
 		CodexStarter: func(_ context.Context, spec CodexSpec) (Session, error) {
 			got = spec
@@ -227,7 +231,9 @@ command = "/stale/agent-center"
 	for _, want := range []string{
 		"[mcp_servers.node_repl]",
 		`command = "` + nodeRepl + `"`,
+		`NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS = "/tmp/agent-x-cua.sock"`,
 		`SKY_CUA_ENDPOINT = "vm://agent-x"`,
+		`SKY_CUA_SERVICE_NATIVE_PIPE_PATH = "/tmp/agent-x-cua.sock"`,
 		`SKY_CUA_SERVICE_PATH = "` + service + `"`,
 	} {
 		if !strings.Contains(s, want) {

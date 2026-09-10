@@ -110,6 +110,10 @@ command = "/stale/other"
 	codexHome, err := WriteCodexMCPConfigFromSource(home, runtime, src, CodexComputerUseConfig{
 		Enabled:  true,
 		Endpoint: "vm://agent-x",
+		Env: map[string]string{
+			"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS": "/tmp/agent-x-cua.sock",
+			"SKY_CUA_SERVICE_NATIVE_PIPE_PATH":       "/tmp/agent-x-cua.sock",
+		},
 	})
 	if err != nil {
 		t.Fatalf("WriteCodexMCPConfigFromSource: %v", err)
@@ -175,6 +179,10 @@ func TestWriteCodexMCPConfigFromSource_AddsNodeReplWhenComputerUseAvailable(t *t
 	codexHome, err := WriteCodexMCPConfigFromSource(home, runtime, src, CodexComputerUseConfig{
 		Enabled:  true,
 		Endpoint: "vm://agent-x",
+		Env: map[string]string{
+			"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS": "/tmp/agent-x-cua.sock",
+			"SKY_CUA_SERVICE_NATIVE_PIPE_PATH":       "/tmp/agent-x-cua.sock",
+		},
 	})
 	if err != nil {
 		t.Fatalf("WriteCodexMCPConfigFromSource: %v", err)
@@ -192,7 +200,9 @@ func TestWriteCodexMCPConfigFromSource_AddsNodeReplWhenComputerUseAvailable(t *t
 		`NODE_REPL_NODE_MODULE_DIRS = "` + modules + `"`,
 		`NODE_REPL_NODE_PATH = "` + node + `"`,
 		`NODE_REPL_TRUSTED_CODE_PATHS = "` + src + `:` + codexHome + `:` + modules + `"`,
+		`NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS = "/tmp/agent-x-cua.sock"`,
 		`SKY_CUA_ENDPOINT = "vm://agent-x"`,
+		`SKY_CUA_SERVICE_NATIVE_PIPE_PATH = "/tmp/agent-x-cua.sock"`,
 		`SKY_CUA_SERVICE_PATH = "` + service + `"`,
 	} {
 		if !strings.Contains(s, want) {

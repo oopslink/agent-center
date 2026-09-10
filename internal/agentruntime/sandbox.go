@@ -362,7 +362,11 @@ func (m *LocalSandboxManager) refreshTartBinding(ctx context.Context, b SandboxB
 	} else {
 		b.State = SandboxStateRunning
 		b.LastError = ""
-		b.ComputerUseEnv = map[string]string{"SKY_CUA_ENDPOINT": b.ComputerUseEndpoint}
+		b.ComputerUseEnv = map[string]string{
+			"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS": b.ComputerUseEndpoint,
+			"SKY_CUA_ENDPOINT":                       b.ComputerUseEndpoint,
+			"SKY_CUA_SERVICE_NATIVE_PIPE_PATH":       b.ComputerUseEndpoint,
+		}
 	}
 	b.LastHealthAt = now
 	select {
