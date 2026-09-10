@@ -175,14 +175,6 @@
     "method": "GET",
     "path": "/api/orgs/acme/conversations",
     "search": {
-      "kind": "channel"
-    },
-    "response": []
-  },
-  {
-    "method": "GET",
-    "path": "/api/orgs/acme/conversations",
-    "search": {
       "kind": "dm"
     },
     "response": []
@@ -206,6 +198,20 @@
   },
   {
     "method": "GET",
+    "path": "/api/orgs/acme/unread-conversations",
+    "search": {},
+    "response": []
+  },
+  {
+    "method": "GET",
+    "path": "/api/orgs/acme/conversations",
+    "search": {
+      "kind": "channel"
+    },
+    "response": []
+  },
+  {
+    "method": "GET",
     "path": "/api/auth/me",
     "search": {},
     "response": {
@@ -213,12 +219,6 @@
       "display_name": "Acceptance User",
       "kind": "user"
     }
-  },
-  {
-    "method": "GET",
-    "path": "/api/orgs/acme/unread-conversations",
-    "search": {},
-    "response": []
   },
   {
     "method": "GET",
@@ -374,17 +374,17 @@
   },
   {
     "method": "GET",
-    "path": "/api/orgs/acme/unread-conversations",
-    "search": {},
-    "response": []
-  },
-  {
-    "method": "GET",
     "path": "/api/orgs/acme/attention",
     "search": {},
     "response": {
       "items": []
     }
+  },
+  {
+    "method": "GET",
+    "path": "/api/orgs/acme/unread-conversations",
+    "search": {},
+    "response": []
   },
   {
     "method": "GET",
@@ -511,14 +511,6 @@
     "method": "GET",
     "path": "/api/orgs/acme/conversations",
     "search": {
-      "kind": "channel"
-    },
-    "response": []
-  },
-  {
-    "method": "GET",
-    "path": "/api/orgs/acme/conversations",
-    "search": {
       "kind": "dm"
     },
     "response": []
@@ -539,6 +531,14 @@
         "display_name": "Hub Agent"
       }
     ]
+  },
+  {
+    "method": "GET",
+    "path": "/api/orgs/acme/conversations",
+    "search": {
+      "kind": "channel"
+    },
+    "response": []
   },
   {
     "method": "GET",
@@ -671,6 +671,26 @@
   },
   {
     "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
+    }
+  },
+  {
+    "method": "GET",
     "path": "/api/orgs",
     "search": {},
     "response": [
@@ -728,17 +748,17 @@
   },
   {
     "method": "GET",
+    "path": "/api/orgs/acme/unread-conversations",
+    "search": {},
+    "response": []
+  },
+  {
+    "method": "GET",
     "path": "/api/orgs/acme/attention",
     "search": {},
     "response": {
       "items": []
     }
-  },
-  {
-    "method": "GET",
-    "path": "/api/orgs/acme/unread-conversations",
-    "search": {},
-    "response": []
   },
   {
     "method": "GET",
@@ -829,6 +849,16 @@
   },
   {
     "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
+    }
+  },
+  {
+    "method": "GET",
     "path": "/api/orgs/acme/insights/collaboration-effects",
     "search": {
       "limit": "100",
@@ -873,6 +903,14 @@
     "method": "GET",
     "path": "/api/orgs/acme/conversations",
     "search": {
+      "kind": "channel"
+    },
+    "response": []
+  },
+  {
+    "method": "GET",
+    "path": "/api/orgs/acme/conversations",
+    "search": {
       "kind": "dm"
     },
     "response": []
@@ -893,14 +931,6 @@
         "display_name": "Hub Agent"
       }
     ]
-  },
-  {
-    "method": "GET",
-    "path": "/api/orgs/acme/conversations",
-    "search": {
-      "kind": "channel"
-    },
-    "response": []
   },
   {
     "method": "GET",
@@ -1029,6 +1059,36 @@
       "graph_edges": 600,
       "effects": 200,
       "graph_version": "acceptance-2200"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
     }
   },
   {

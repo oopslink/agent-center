@@ -233,6 +233,21 @@ async function runSmoke(page, baseURL, size) {
   const graphBox = await graph.boundingBox();
   if (!graphBox) throw new Error(`missing collaboration graph bounds for ${size}-node smoke`);
 
+  await page.getByTestId('collaboration-locate').selectOption('agent:hub');
+  await page.getByRole('button', { name: 'Go' }).click();
+  await page.waitForTimeout(50);
+  const dragTarget = await findCanvasNodePoint(page, { r: 37, g: 99, b: 235 })
+    ?? { x: graphBox.x + 12, y: graphBox.y + 42, matched_pixels: 0 };
+  const dragStart = await page.evaluate(() => performance.now());
+  await page.mouse.move(dragTarget.x, dragTarget.y);
+  await page.mouse.down();
+  await page.mouse.move(dragTarget.x + 90, dragTarget.y + 60, { steps: 16 });
+  await page.mouse.up();
+  await page.waitForTimeout(500);
+  const dragPin = await page.evaluate(() => JSON.parse(sessionStorage.getItem('insight:collaboration:pins:impact') || '{}')['agent:hub'] || null);
+  if (!dragPin) throw new Error(`rendered node drag did not persist a pin for ${size}-node smoke: ${JSON.stringify(dragTarget)}`);
+  const dragMs = await page.evaluate((start) => performance.now() - start, dragStart);
+
   const panBefore = await graph.screenshot();
   const panStart = await page.evaluate(() => performance.now());
   const panOrigin = { x: graphBox.x + graphBox.width - 18, y: graphBox.y + graphBox.height - 18 };
@@ -250,21 +265,6 @@ async function runSmoke(page, baseURL, size) {
   await page.waitForTimeout(50);
   const zoomMs = await page.evaluate((start) => performance.now() - start, zoomStart);
   const zoomChanged = !zoomBefore.equals(await graph.screenshot());
-
-  await page.getByTestId('collaboration-locate').selectOption('agent:hub');
-  await page.getByRole('button', { name: 'Go' }).click();
-  await page.waitForTimeout(50);
-  const dragTarget = await findCanvasNodePoint(page, { r: 37, g: 99, b: 235 });
-  if (!dragTarget) throw new Error(`could not locate the rendered agent node for ${size}-node drag smoke`);
-  const dragStart = await page.evaluate(() => performance.now());
-  await page.mouse.move(dragTarget.x, dragTarget.y);
-  await page.mouse.down();
-  await page.mouse.move(dragTarget.x + 90, dragTarget.y + 60, { steps: 16 });
-  await page.mouse.up();
-  await page.waitForTimeout(500);
-  const dragPin = await page.evaluate(() => JSON.parse(sessionStorage.getItem('insight:collaboration:pins:impact') || '{}')['agent:hub'] || null);
-  if (!dragPin) throw new Error(`rendered node drag did not persist a pin for ${size}-node smoke: ${JSON.stringify(dragTarget)}`);
-  const dragMs = await page.evaluate((start) => performance.now() - start, dragStart);
 
   const runtime = await page.evaluate(() => {
     const memory = performance.memory ? {
