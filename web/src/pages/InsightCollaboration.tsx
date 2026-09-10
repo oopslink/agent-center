@@ -122,9 +122,8 @@ export default function InsightCollaboration(): React.ReactElement {
       {query.isLoading ? <State id="collaboration-loading" title={t('insight.collaboration.loading')} /> : null}
       {query.isError ? <CollaborationError error={query.error} t={t} /> : null}
       {query.data ? <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden" data-testid="collaboration-workspace">
-        <div className="grid shrink-0 gap-3 lg:grid-cols-[minmax(0,1fr)_12rem] xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="shrink-0">
           <Summary summary={summary} t={t} />
-          <CollaborationLODNotice view={activeGraph} canLoadMore={query.hasNextPage} loadingMore={query.isFetchingNextPage} onLoadMore={() => void query.fetchNextPage()} onShowFull={showFullGraph} t={t} />
         </div>
         {activeGraph.unsupported ? <State id="collaboration-unsupported" title={t('insight.collaboration.unsupported')} body={activeGraph.reason ?? t('insight.collaboration.emptyBody')} /> : null}
         {!activeGraph.unsupported && activeGraph.edges.length === 0 ? <State id="collaboration-empty" title={t('insight.collaboration.empty')} body={t('insight.collaboration.emptyBody')} /> : null}
@@ -133,6 +132,9 @@ export default function InsightCollaboration(): React.ReactElement {
           <div className="absolute right-6 top-6 z-20 flex items-center gap-2">
             {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="rounded border border-border bg-bg-elevated px-3 py-1.5 text-xs shadow-lg hover:bg-bg-subtle" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
             <Timeline effects={effects} onSelect={setSelected} t={t} />
+          </div>
+          <div className="absolute right-6 top-16 z-20 max-w-sm">
+            <CollaborationLODNotice view={activeGraph} canLoadMore={query.hasNextPage} loadingMore={query.isFetchingNextPage} onLoadMore={() => void query.fetchNextPage()} onShowFull={showFullGraph} t={t} />
           </div>
         </div> : null}
       </div> : null}
@@ -513,7 +515,7 @@ function CollaborationLODNotice({ view, canLoadMore, loadingMore, onLoadMore, on
   const clustered = view.lod === 'cluster' || view.clusters.length > 0;
   if (!clustered && !view.truncated) return null;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded border border-border bg-bg-surface p-3 text-sm" data-testid="collaboration-lod-notice">
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded border border-border bg-bg-elevated/95 p-2 text-xs shadow-lg" data-testid="collaboration-lod-notice">
       <div>
         <strong className="text-text-primary">{clustered ? t('insight.collaboration.lod.clusteredTitle') : t('insight.collaboration.lod.truncatedTitle')}</strong>
         <p className="mt-1 text-text-muted">{t('insight.collaboration.lod.body', { nodes: view.nodes.length, edges: view.edges.length })}</p>
