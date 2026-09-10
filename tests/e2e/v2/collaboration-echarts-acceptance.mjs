@@ -211,6 +211,7 @@ async function measureViewport(page, viewport) {
 }
 
 async function runSmoke(page, baseURL, size) {
+  await page.evaluate(() => sessionStorage.removeItem('insight:collaboration:pins:impact'));
   await gotoGraph(page, `${baseURL}/organizations/acme/insights/collaboration?view=impact&project_id=P1&task_id=T1&lod=full&max_nodes=${size}`);
   const tti = await page.evaluate(() => performance.now());
   const counts = await page.evaluate(() => {
@@ -221,30 +222,49 @@ async function runSmoke(page, baseURL, size) {
       svgGraphs: document.querySelectorAll('[data-testid="collaboration-graph-svg"]').length,
     };
   });
+  await page.waitForTimeout(350);
   const filterStart = await page.evaluate(() => performance.now());
   await page.getByText('More filters').click();
   await page.getByLabel('Polarity').selectOption('mixed');
   await page.waitForResponse((response) => response.url().includes('/api/orgs/acme/insights/collaboration-effects') && response.url().includes('polarity=mixed'));
   const filterMs = await page.evaluate((start) => performance.now() - start, filterStart);
 
-  const panStart = await page.evaluate(() => performance.now());
-  await page.mouse.move(600, 380);
-  await page.mouse.down();
-  await page.mouse.move(760, 460, { steps: 20 });
-  await page.mouse.up();
-  const panMs = await page.evaluate((start) => performance.now() - start, panStart);
+  const graph = page.getByTestId('collaboration-echarts');
+  const graphBox = await graph.boundingBox();
+  if (!graphBox) throw new Error(`missing collaboration graph bounds for ${size}-node smoke`);
 
+  const panBefore = await graph.screenshot();
+  const panStart = await page.evaluate(() => performance.now());
+  const panOrigin = { x: graphBox.x + graphBox.width - 18, y: graphBox.y + graphBox.height - 18 };
+  await page.mouse.move(panOrigin.x, panOrigin.y);
+  await page.mouse.down();
+  await page.mouse.move(panOrigin.x - 100, panOrigin.y - 60, { steps: 20 });
+  await page.mouse.up();
+  await page.waitForTimeout(50);
+  const panMs = await page.evaluate((start) => performance.now() - start, panStart);
+  const panChanged = !panBefore.equals(await graph.screenshot());
+
+  const zoomBefore = await graph.screenshot();
   const zoomStart = await page.evaluate(() => performance.now());
   await page.mouse.wheel(0, -700);
+  await page.waitForTimeout(50);
   const zoomMs = await page.evaluate((start) => performance.now() - start, zoomStart);
+  const zoomChanged = !zoomBefore.equals(await graph.screenshot());
 
   await page.getByTestId('collaboration-locate').selectOption('agent:hub');
   await page.getByRole('button', { name: 'Go' }).click();
+  await page.waitForTimeout(50);
+  const dragTarget = await findCanvasNodePoint(page, { r: 37, g: 99, b: 235 });
+  if (!dragTarget) throw new Error(`could not locate the rendered agent node for ${size}-node drag smoke`);
   const dragStart = await page.evaluate(() => performance.now());
-  await page.mouse.move(520, 360);
+  await page.mouse.move(dragTarget.x, dragTarget.y);
   await page.mouse.down();
-  await page.mouse.move(610, 420, { steps: 16 });
+  await page.mouse.move(dragTarget.x + 90, dragTarget.y + 60, { steps: 16 });
   await page.mouse.up();
+  await page.waitForFunction(() => {
+    const pins = JSON.parse(sessionStorage.getItem('insight:collaboration:pins:impact') || '{}');
+    return Boolean(pins['agent:hub']);
+  });
   const dragMs = await page.evaluate((start) => performance.now() - start, dragStart);
 
   const runtime = await page.evaluate(() => {
@@ -260,8 +280,42 @@ async function runSmoke(page, baseURL, size) {
       sessionPins: sessionStorage.getItem('insight:collaboration:pins:impact'),
     };
   });
-  await writeFile(join(raw, `smoke-${size}.json`), JSON.stringify({ size, tti_ms: tti, filter_ms: filterMs, pan_ms: panMs, zoom_ms: zoomMs, drag_ms: dragMs, counts, runtime }, null, 2));
-  return { input_size: size, requested_nodes: size, requested_edges: size === 100 ? 160 : size === 500 ? 900 : 3600, rendered_nodes: size, rendered_edges: size === 100 ? 160 : size === 500 ? 900 : 3600, tti_ms: tti, filter_ms: filterMs, pan_ms: panMs, zoom_ms: zoomMs, drag_ms: dragMs, heap: runtime.memory, long_tasks: runtime.longTasks, counts };
+  const interactionEvidence = { pan_changed: panChanged, zoom_changed: zoomChanged, drag_target: dragTarget, drag_pinned: Boolean(JSON.parse(runtime.sessionPins || '{}')['agent:hub']) };
+  if (!interactionEvidence.pan_changed || !interactionEvidence.zoom_changed || !interactionEvidence.drag_pinned) {
+    throw new Error(`canvas interaction evidence failed for ${size}-node smoke: ${JSON.stringify(interactionEvidence)}`);
+  }
+  await writeFile(join(raw, `smoke-${size}.json`), JSON.stringify({ size, tti_ms: tti, filter_ms: filterMs, pan_ms: panMs, zoom_ms: zoomMs, drag_ms: dragMs, counts, runtime, interactionEvidence }, null, 2));
+  return { input_size: size, requested_nodes: size, requested_edges: size === 100 ? 160 : size === 500 ? 900 : 3600, rendered_nodes: size, rendered_edges: size === 100 ? 160 : size === 500 ? 900 : 3600, tti_ms: tti, filter_ms: filterMs, pan_ms: panMs, zoom_ms: zoomMs, drag_ms: dragMs, heap: runtime.memory, long_tasks: runtime.longTasks, counts, interaction_evidence: interactionEvidence };
+}
+
+async function findCanvasNodePoint(page, target) {
+  return page.evaluate(({ r, g, b }) => {
+    const canvas = document.querySelector('[data-testid="collaboration-echarts"] canvas');
+    if (!(canvas instanceof HTMLCanvasElement)) return null;
+    const context = canvas.getContext('2d');
+    if (!context) return null;
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let count = 0;
+    let sumX = 0;
+    let sumY = 0;
+    for (let y = Math.floor(canvas.height * 0.12); y < canvas.height; y += 1) {
+      for (let x = 0; x < canvas.width; x += 1) {
+        const offset = (y * canvas.width + x) * 4;
+        if (pixels[offset + 3] < 180) continue;
+        if (Math.abs(pixels[offset] - r) > 32 || Math.abs(pixels[offset + 1] - g) > 32 || Math.abs(pixels[offset + 2] - b) > 32) continue;
+        count += 1;
+        sumX += x;
+        sumY += y;
+      }
+    }
+    if (count < 20) return null;
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: rect.left + (sumX / count / canvas.width) * rect.width,
+      y: rect.top + (sumY / count / canvas.height) * rect.height,
+      matched_pixels: count,
+    };
+  }, target);
 }
 
 function apiResponse(url) {
