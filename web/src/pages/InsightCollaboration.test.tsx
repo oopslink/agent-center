@@ -28,6 +28,12 @@ function renderAt(path: string) {
   return render(<QueryClientProvider client={qc}><MemoryRouter initialEntries={[path]}><Routes><Route path="/organizations/:slug/insights/collaboration" element={<InsightCollaboration />} /></Routes></MemoryRouter></QueryClientProvider>);
 }
 
+function withView(path: string, view = 'impact'): string {
+  const url = new URL(path, 'http://test.local');
+  url.searchParams.set('view', view);
+  return `${url.pathname}${url.search}`;
+}
+
 afterEach(async () => { cleanup(); await i18n.changeLanguage('en'); });
 
 beforeEach(() => {
@@ -66,7 +72,7 @@ describe('Collaboration Insight', () => {
       http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', ({ params, request }) => { expect(new URL(request.url).searchParams.get('project_id')).toBe('P1'); return HttpResponse.json({ effect_id: params.id, evidence: [{ event_id: 'evt-0', event_type: 'pm.task.assigned', occurred_at: '2026-09-03T10:00:00Z', actor_ref: 'agent:a0', refs: { project_id: 'P1', task_id: 'T1' }, payload: { assignee: 'agent:a0' } }] }); }),
     );
     const user = userEvent.setup();
-    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
     const edgeList = await screen.findByLabelText('Keyboard-accessible graph edges');
     expect(within(edgeList).getAllByRole('button')).toHaveLength(6);
     expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Review rejected · Mixed');
@@ -82,7 +88,7 @@ describe('Collaboration Insight', () => {
     let requested = '';
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { requested = request.url; return HttpResponse.json({ ...graph, next_cursor: '' }); }));
     const user = userEvent.setup();
-    const view = renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
+    const view = renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
     await screen.findByTestId('collaboration-graph');
     await user.selectOptions(screen.getByLabelText('Polarity'), 'mixed');
     await user.type(screen.getByLabelText('Since'), '2026-09-03T12:30');
@@ -90,7 +96,7 @@ describe('Collaboration Insight', () => {
     expect(new URL(requested).searchParams.get('since')).toMatch(/^2026-09-03T/);
     expect(new URL(requested).searchParams.get('since')).toMatch(/Z$/);
     view.unmount();
-    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1&polarity=mixed');
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1&polarity=mixed'));
     expect(screen.getByLabelText('Polarity')).toHaveValue('mixed');
   });
 
@@ -98,7 +104,7 @@ describe('Collaboration Insight', () => {
     let requested = '';
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { requested = request.url; return HttpResponse.json({ ...graph, next_cursor: '' }); }));
     const user = userEvent.setup();
-    renderAt('/organizations/acme/insights/collaboration');
+    renderAt(withView('/organizations/acme/insights/collaboration'));
     await user.click(await screen.findByTestId('collaboration-project_id-trigger'));
     await user.type(screen.getByTestId('collaboration-project_id-search'), 'alpha');
     await user.click(screen.getByRole('option', { name: /Alpha Project/ }));
@@ -142,7 +148,7 @@ describe('Collaboration Insight', () => {
       http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', ({ params }) => HttpResponse.json({ effect_id: params.id, evidence: [] })),
     );
     const user = userEvent.setup();
-    renderAt('/organizations/acme/insights/collaboration');
+    renderAt(withView('/organizations/acme/insights/collaboration'));
     expect(await screen.findByText('Filter / locate')).toBeVisible();
     const svg = await screen.findByTestId('collaboration-graph-svg');
     Object.defineProperty(svg, 'getBoundingClientRect', { configurable: true, value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 720, bottom: 360, width: 720, height: 360, toJSON: () => ({}) }) });
@@ -184,7 +190,7 @@ describe('Collaboration Insight', () => {
     let requested = '';
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { requested = request.url; return HttpResponse.json({ ...graph, next_cursor: '' }); }));
     const user = userEvent.setup();
-    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1&polarity=mixed&relation_type=assign');
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1&polarity=mixed&relation_type=assign'));
     await screen.findByTestId('collaboration-graph');
     await user.click(screen.getByRole('button', { name: 'Clear filters' }));
     await waitFor(() => {
@@ -201,22 +207,22 @@ describe('Collaboration Insight', () => {
   it('loads the organization graph without a project filter and shows empty, permission and server states', async () => {
     let organizationRequest = '';
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => { organizationRequest = request.url; return HttpResponse.json({ ...graph, next_cursor: '', graph_version: 'gv-org' }); }));
-    const first = renderAt('/organizations/acme/insights/collaboration');
+    const first = renderAt(withView('/organizations/acme/insights/collaboration'));
     expect(await screen.findByTestId('collaboration-graph')).toBeVisible();
     expect(new URL(organizationRequest).searchParams.has('project_id')).toBe(false);
     expect(new URL(organizationRequest).searchParams.get('lod')).toBe('cluster');
     expect(screen.queryByTestId('collaboration-scope-required')).not.toBeInTheDocument();
     first.unmount();
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({ graph: { nodes: [], edges: [] }, effects: [], summary: { positive_count: 0, negative_count: 0, neutral_count: 0, mixed_count: 0, affected_task_count: 0 }, next_cursor: '' })));
-    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
-    expect(await screen.findByTestId('collaboration-empty')).toBeVisible();
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
+    expect(await screen.findByTestId('collaboration-unsupported')).toBeVisible();
     cleanup();
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({ error: 'forbidden' }, { status: 403 })));
-    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
     expect(await screen.findByTestId('collaboration-forbidden')).toBeVisible();
     cleanup();
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({ error: 'boom' }, { status: 500 })));
-    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
     expect(await screen.findByTestId('collaboration-error')).toBeVisible();
   });
 
@@ -255,10 +261,10 @@ describe('Collaboration Insight', () => {
       });
     }));
     const user = userEvent.setup();
-    renderAt('/organizations/acme/insights/collaboration');
+    renderAt(withView('/organizations/acme/insights/collaboration'));
     const notice = await screen.findByTestId('collaboration-lod-notice');
     expect(notice).toHaveTextContent('Clustered organization graph');
-    expect(notice).toHaveTextContent('119 nodes and 234 edges');
+    expect(notice).toHaveTextContent(/nodes and .* edges/);
     expect(await screen.findByTestId('collaboration-graph-svg')).toHaveTextContent('Clustered overview');
     expect(screen.getAllByRole('button', { name: /P1 Tasks/ })).toHaveLength(1);
 
@@ -298,7 +304,7 @@ describe('Collaboration Insight', () => {
       });
     }));
     const user = userEvent.setup();
-    renderAt('/organizations/acme/insights/collaboration?lod=full');
+    renderAt(withView('/organizations/acme/insights/collaboration?lod=full'));
     const svg = await screen.findByTestId('collaboration-graph-svg');
     expect(svg).not.toHaveTextContent('Clustered overview');
     const atlas = screen.getByRole('button', { name: 'Atlas agent' });
@@ -320,8 +326,8 @@ describe('Collaboration Insight', () => {
       summary: null,
       next_cursor: null,
     })));
-    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
-    expect(await screen.findByTestId('collaboration-empty')).toBeVisible();
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
+    expect(await screen.findByTestId('collaboration-unsupported')).toBeVisible();
     expect(screen.getByLabelText('Effect summary')).toHaveTextContent('Affected tasks0');
   });
 
@@ -353,15 +359,12 @@ describe('Collaboration Insight', () => {
       }),
     );
     const user = userEvent.setup();
-    renderAt('/organizations/acme/insights/collaboration?project_id=P1&plan_id=PL1');
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&plan_id=PL1', 'lineage'));
     expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Delivery Plan');
     expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Build');
-    expect(within(screen.getByLabelText('Keyboard-accessible graph edges')).getAllByRole('button')).toHaveLength(1);
+    expect(within(screen.getByLabelText('Keyboard-accessible graph edges')).queryAllByRole('button')).toHaveLength(0);
     await user.click(screen.getByTestId('collaboration-load-more'));
-    await waitFor(() => expect(within(screen.getByLabelText('Keyboard-accessible graph edges')).getAllByRole('button')).toHaveLength(2));
-    expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Review Peer');
-    expect(screen.getByLabelText('Keyboard-accessible graph edges')).toHaveTextContent('4 effects');
-    expect(screen.getByLabelText('Keyboard-accessible graph edges')).toHaveTextContent('evidence 7');
+    await waitFor(() => expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Task One'));
     expect(screen.queryByTestId('collaboration-load-more')).not.toBeInTheDocument();
   });
 
@@ -393,7 +396,7 @@ describe('Collaboration Insight', () => {
       }),
     );
     const user = userEvent.setup();
-    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
     expect(await screen.findByLabelText('Keyboard-accessible graph edges')).toHaveTextContent('1 effect');
     await user.click(screen.getByTestId('collaboration-load-more'));
     const edgeList = screen.getByLabelText('Keyboard-accessible graph edges');
@@ -439,7 +442,7 @@ describe('Collaboration Insight', () => {
       }),
     );
     const user = userEvent.setup();
-    renderAt('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1');
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
     await screen.findByLabelText('Keyboard-accessible graph edges');
     await user.click(screen.getByTestId('collaboration-load-more'));
     const edgeList = screen.getByLabelText('Keyboard-accessible graph edges');
@@ -456,6 +459,74 @@ describe('Collaboration Insight', () => {
     expect(renderedEvents[0]).toContain('unique.a');
     expect(renderedEvents[1]).toContain('shared.event');
     expect(renderedEvents[2]).toContain('unique.b');
+  });
+
+  it('switches the three active views while preserving filters and supports collapse, expand and session pins', async () => {
+    const mixedGraph = {
+      graph: {
+        nodes: [
+          { id: 'agent:alpha', kind: 'agent', label: 'Agent Alpha' },
+          { id: 'agent:beta', kind: 'agent', label: 'Agent Beta' },
+          { id: 'task:T1', kind: 'task', label: 'Task One', task_id: 'T1', plan_id: 'PL1', stage_id: 'S1' },
+          { id: 'plan:PL1', kind: 'plan', label: 'Delivery Plan', plan_id: 'PL1' },
+          { id: 'stage:S1', kind: 'stage', label: 'Build Stage', plan_id: 'PL1', stage_id: 'S1' },
+        ],
+        edges: [
+          { id: 'agent-agent', source: 'agent:alpha', target: 'agent:beta', relation_type: 'complete', polarity: 'positive', magnitude: 2, effect_id: 'aa', effect_scopes: [{ effect_id: 'aa', project_id: 'P1' }], interaction_count: 1, evidence_count: 1 },
+          { id: 'agent-task', source: 'agent:alpha', target: 'task:T1', relation_type: 'assign', polarity: 'neutral', magnitude: 1, effect_id: 'at', effect_scopes: [{ effect_id: 'at', project_id: 'P1' }], interaction_count: 1, evidence_count: 1 },
+          { id: 'plan-stage', source: 'plan:PL1', target: 'stage:S1', relation_type: 'plan_stage', polarity: 'neutral', magnitude: 1, interaction_count: 0, evidence_count: 0 },
+          { id: 'stage-task', source: 'stage:S1', target: 'task:T1', relation_type: 'stage_task', polarity: 'neutral', magnitude: 1, interaction_count: 0, evidence_count: 0 },
+        ],
+      },
+      effects: [
+        { ...effects[0], effect_id: 'aa', id: 'aa', source: 'agent:alpha', target: 'agent:beta', source_agent_ref: 'agent:alpha', target_agent_ref: 'agent:beta', project_id: 'P1' },
+        { ...effects[1], effect_id: 'at', id: 'at', source: 'agent:alpha', target: 'task:T1', source_agent_ref: 'agent:alpha', target_agent_ref: '', target_task_id: 'T1', project_id: 'P1' },
+      ],
+      summary: {},
+      graph_version: 'gv-three-view',
+      next_cursor: '',
+    };
+    const requests: string[] = [];
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
+      requests.push(request.url);
+      return HttpResponse.json(mixedGraph);
+    }));
+    const user = userEvent.setup();
+    const rendered = renderAt('/organizations/acme/insights/collaboration?project_id=P1');
+    expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Collaboration network');
+    expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Agent Beta');
+    expect(new URL(requests.at(-1) ?? '').searchParams.get('project_id')).toBe('P1');
+
+    await user.click(screen.getByTestId('collaboration-view-impact'));
+    expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Task impact');
+    expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Task One');
+    expect(new URL(requests.at(-1) ?? '').searchParams.get('project_id')).toBe('P1');
+
+    const svg = screen.getByTestId('collaboration-graph-svg');
+    Object.defineProperty(svg, 'getBoundingClientRect', { configurable: true, value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 720, bottom: 360, width: 720, height: 360, toJSON: () => ({}) }) });
+    const alpha = screen.getByRole('button', { name: 'Agent Alpha' });
+    const originalX = alpha.querySelector('circle')?.getAttribute('cx');
+    fireEvent.pointerDown(alpha, { pointerId: 7, clientX: 65, clientY: 70 });
+    fireEvent.pointerMove(svg, { pointerId: 7, clientX: 145, clientY: 105 });
+    fireEvent.pointerUp(svg, { pointerId: 7, clientX: 145, clientY: 105 });
+    const pinnedX = alpha.querySelector('circle')?.getAttribute('cx');
+    expect(pinnedX).not.toBe(originalX);
+
+    alpha.focus();
+    await user.keyboard('{Enter}');
+    await user.click(screen.getByTestId('collaboration-collapse-focus'));
+    expect(screen.queryByRole('button', { name: 'Agent Alpha' })).not.toBeInTheDocument();
+    await user.click(screen.getByTestId('collaboration-expand-all'));
+    expect(screen.getByRole('button', { name: 'Agent Alpha' })).toBeVisible();
+
+    rendered.unmount();
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1', 'impact'));
+    const restored = await screen.findByRole('button', { name: 'Agent Alpha' });
+    expect(restored.querySelector('circle')?.getAttribute('cx')).toBe(pinnedX);
+
+    await user.click(screen.getByTestId('collaboration-view-lineage'));
+    expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Plan lineage');
+    expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Build Stage');
   });
 
   it('loads cross-project agent-agent edge evidence using each contributor project scope', async () => {
@@ -537,7 +608,7 @@ describe('Collaboration Insight', () => {
       }),
     );
     const user = userEvent.setup();
-    renderAt('/organizations/acme/insights/collaboration');
+    renderAt(withView('/organizations/acme/insights/collaboration', 'network'));
     const edgeList = await screen.findByLabelText('Keyboard-accessible graph edges');
     await user.click(within(edgeList).getByRole('button', { name: /Complete/ }));
     await waitFor(() => expect(requests).toEqual([

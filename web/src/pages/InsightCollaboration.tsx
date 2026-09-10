@@ -23,17 +23,37 @@ import { EntitySelect, type EntityOption } from '@/components/EntitySelect';
 
 const RELATIONS: CollaborationRelation[] = ['assign', 'reassign', 'complete', 'block', 'unblock', 'dependency_release', 'review_accept', 'review_reject'];
 const POLARITIES: CollaborationPolarity[] = ['positive', 'negative', 'neutral', 'mixed'];
+const COLLABORATION_VIEWS = ['network', 'impact', 'lineage'] as const;
+type CollaborationViewKind = typeof COLLABORATION_VIEWS[number];
+
+type CollaborationGraphView = {
+  nodes: CollaborationNode[];
+  edges: CollaborationEdge[];
+  clusters: CollaborationNode[];
+  lod: 'full' | 'cluster';
+  truncated: boolean;
+};
+type PositionedNode = CollaborationNode & { x: number; y: number };
+type DimensionGraphView = CollaborationGraphView & {
+  view: CollaborationViewKind;
+  unsupported: boolean;
+  reason?: string;
+  visibleNodeCount: number;
+  visibleEdgeCount: number;
+};
 
 export default function InsightCollaboration(): React.ReactElement {
   const { t } = useTranslation('insights');
   const [params, setParams] = useSearchParams();
   const [selected, setSelected] = useState<CollaborationEffectScope[] | null>(null);
+  const activeView = viewFromParams(params);
   const filters = filtersFromParams(params);
   const query = useInfiniteCollaborationEffects(filters);
   const effects = useMemo(() => dedupeBy(query.data?.pages.flatMap((page) => page.effects) ?? [], (item) => item.effect_id), [query.data?.pages]);
   const selectedIds = selected?.map((item) => item.effect_id) ?? [];
   const effect = effects.find((item) => selectedIds.includes(item.effect_id)) ?? null;
   const view = useMemo(() => accumulateGraph(query.data?.pages ?? []), [query.data?.pages]);
+  const activeGraph = useMemo(() => buildDimensionGraph(activeView, view, effects, t), [activeView, view, effects, t]);
   const summary = useMemo(() => summarizeEffects(effects), [effects]);
   const showFullGraph = () => {
     const next = new URLSearchParams(params);
@@ -51,18 +71,27 @@ export default function InsightCollaboration(): React.ReactElement {
     setParams(next);
     setSelected(null);
   };
+  const changeView = (nextView: CollaborationViewKind) => {
+    const next = new URLSearchParams(params);
+    next.set('view', nextView);
+    next.delete('cursor');
+    setParams(next);
+    if (selected && !selectionCompatible(selected, buildDimensionGraph(nextView, view, effects, t))) setSelected(null);
+  };
 
   return (
     <section className="space-y-4" data-testid="page-InsightCollaboration">
       <header><h1 className="text-xl font-semibold text-text-primary">{t('insight.collaboration.title')}</h1><p className="mt-1 text-sm text-text-muted">{t('insight.collaboration.subtitle')}</p></header>
-      <CollaborationFiltersBar params={params} update={update} clearAll={() => { setParams(new URLSearchParams()); setSelected(null); }} t={t} />
+      <CollaborationFiltersBar params={params} update={update} clearAll={() => { const next = new URLSearchParams(); next.set('view', activeView); setParams(next); setSelected(null); }} t={t} />
+      <CollaborationViewTabs active={activeView} onChange={changeView} t={t} />
       {query.isLoading ? <State id="collaboration-loading" title={t('insight.collaboration.loading')} /> : null}
       {query.isError ? <CollaborationError error={query.error} t={t} /> : null}
       {query.data ? <>
         <Summary summary={summary} t={t} />
-        <CollaborationLODNotice view={view} canLoadMore={query.hasNextPage} loadingMore={query.isFetchingNextPage} onLoadMore={() => void query.fetchNextPage()} onShowFull={showFullGraph} t={t} />
-        {view.edges.length === 0 ? <State id="collaboration-empty" title={t('insight.collaboration.empty')} body={t('insight.collaboration.emptyBody')} /> :
-          <CollaborationGraph view={view} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} />}
+        <CollaborationLODNotice view={activeGraph} canLoadMore={query.hasNextPage} loadingMore={query.isFetchingNextPage} onLoadMore={() => void query.fetchNextPage()} onShowFull={showFullGraph} t={t} />
+        {activeGraph.unsupported ? <State id="collaboration-unsupported" title={t('insight.collaboration.unsupported')} body={activeGraph.reason ?? t('insight.collaboration.emptyBody')} /> : null}
+        {!activeGraph.unsupported && activeGraph.edges.length === 0 ? <State id="collaboration-empty" title={t('insight.collaboration.empty')} body={t('insight.collaboration.emptyBody')} /> :
+          !activeGraph.unsupported ? <CollaborationGraph view={activeGraph} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} /> : null}
         {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="rounded border border-border px-3 py-2 text-sm" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
         <Timeline effects={effects} onSelect={setSelected} t={t} />
       </> : null}
@@ -85,6 +114,31 @@ function filtersFromParams(params: URLSearchParams): CollaborationFilters {
     since: params.get('since') ?? undefined, until: params.get('until') ?? undefined, cursor: params.get('cursor') ?? undefined,
     lod, max_nodes: Number.isFinite(maxNodes) && maxNodes > 0 ? maxNodes : lod === 'cluster' ? 90 : undefined, limit: 100,
   };
+}
+
+function viewFromParams(params: URLSearchParams): CollaborationViewKind {
+  const view = params.get('view');
+  return COLLABORATION_VIEWS.includes(view as CollaborationViewKind) ? view as CollaborationViewKind : 'network';
+}
+
+function CollaborationViewTabs({ active, onChange, t }: { active: CollaborationViewKind; onChange: (view: CollaborationViewKind) => void; t: Translator }) {
+  return (
+    <div role="tablist" aria-label={t('insight.collaboration.views.label')} className="flex flex-wrap gap-2 rounded-lg border border-border bg-bg-surface p-2" data-testid="collaboration-view-tabs">
+      {COLLABORATION_VIEWS.map((view) => (
+        <button
+          key={view}
+          type="button"
+          role="tab"
+          aria-selected={active === view}
+          data-testid={`collaboration-view-${view}`}
+          onClick={() => onChange(view)}
+          className={`rounded px-3 py-2 text-sm ${active === view ? 'bg-brand text-white' : 'text-text-muted hover:bg-bg-subtle'}`}
+        >
+          {t(`insight.collaboration.views.${view}`)}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 type Translator = ReturnType<typeof useTranslation>['t'];
@@ -209,8 +263,6 @@ function summarizeEffects(effects: Array<{ polarity: CollaborationPolarity; targ
   return { positive_count: count('positive'), negative_count: count('negative'), neutral_count: count('neutral'), mixed_count: count('mixed'), affected_task_count: new Set(effects.map((effect) => effect.target_task_id)).size };
 }
 
-type CollaborationGraphView = { nodes: CollaborationNode[]; edges: CollaborationEdge[]; clusters: CollaborationNode[]; lod: 'full' | 'cluster'; truncated: boolean };
-
 function accumulateGraph(pages: CollaborationGraphResponse[]): CollaborationGraphView {
   const evidenceIdsByEdge = new Map<string, Set<string>>();
   const effectIdsByEdge = new Map<string, Set<string>>();
@@ -267,6 +319,104 @@ function accumulateGraph(pages: CollaborationGraphResponse[]): CollaborationGrap
   };
 }
 
+function buildDimensionGraph(view: CollaborationViewKind, graph: CollaborationGraphView, effects: CollaborationEffect[], t: Translator): DimensionGraphView {
+  const readable = readableGraph(graph, t);
+  const base = readable.lod === 'cluster' || readable.clusters.length > 0 || readable.nodes.some((node) => node.kind === 'cluster')
+    ? dimensionResult(readable.nodes, readable.edges, view)
+    : view === 'network'
+    ? agentNetworkGraph(readable, effects)
+    : view === 'impact'
+      ? taskImpactGraph(readable, effects)
+      : planLineageGraph(readable);
+  const cropped = cropLargeGraph(base, 520, 1250);
+  return {
+    ...cropped,
+    view,
+    clusters: readable.clusters,
+    lod: readable.lod,
+    truncated: readable.truncated || cropped.visibleNodeCount < base.nodes.length || cropped.visibleEdgeCount < base.edges.length,
+  };
+}
+
+function agentNetworkGraph(graph: CollaborationGraphView, effects: CollaborationEffect[]): DimensionGraphView {
+  const nodesByID = new Map(graph.nodes.filter((node) => node.kind === 'agent' || node.kind === 'cluster').map((node) => [node.id, node]));
+  const targetAgents = new Map(effects.filter((effect) => effect.target_agent_ref).map((effect) => [effect.effect_id, effect.target_agent_ref]));
+  const edges = graph.edges
+    .map((edge) => {
+      const target = nodesByID.has(edge.target) ? edge.target : edge.effect_id ? targetAgents.get(edge.effect_id) : undefined;
+      if (!nodesByID.has(edge.source) || !target || !nodesByID.has(target) || edge.source === target) return null;
+      return target === edge.target ? edge : { ...edge, target };
+    })
+    .filter((edge): edge is CollaborationEdge => Boolean(edge));
+  const used = new Set(edges.flatMap((edge) => [edge.source, edge.target]));
+  return dimensionResult([...nodesByID.values()].filter((node) => used.has(node.id)), edges, 'network');
+}
+
+function taskImpactGraph(graph: CollaborationGraphView, effects: CollaborationEffect[]): DimensionGraphView {
+  const nodesByID = new Map(graph.nodes.filter((node) => node.kind === 'agent' || node.kind === 'task' || node.kind === 'plan').map((node) => [node.id, node]));
+  const taskTargets = new Map(effects.filter((effect) => effect.target_task_id).map((effect) => [effect.effect_id, `task:${effect.target_task_id}`]));
+  const edges = graph.edges
+    .map((edge) => {
+      const source = nodesByID.get(edge.source);
+      const targetID = nodesByID.has(edge.target) ? edge.target : edge.effect_id ? taskTargets.get(edge.effect_id) : undefined;
+      const target = targetID ? nodesByID.get(targetID) : undefined;
+      if (!source || !target || source.kind !== 'agent' || !['task', 'plan'].includes(target.kind)) return null;
+      return targetID === edge.target ? edge : { ...edge, target: targetID };
+    })
+    .filter((edge): edge is CollaborationEdge => Boolean(edge));
+  const used = new Set(edges.flatMap((edge) => [edge.source, edge.target]));
+  return dimensionResult([...nodesByID.values()].filter((node) => used.has(node.id)), edges, 'impact');
+}
+
+function planLineageGraph(graph: CollaborationGraphView): DimensionGraphView {
+  const nodesByID = new Map(graph.nodes.filter((node) => ['plan', 'stage', 'task'].includes(node.kind)).map((node) => [node.id, node]));
+  const edges = graph.edges.filter((edge) => {
+    const source = nodesByID.get(edge.source);
+    const target = nodesByID.get(edge.target);
+    return Boolean(source && target && source.kind !== 'agent' && target.kind !== 'agent');
+  });
+  const used = new Set(edges.flatMap((edge) => [edge.source, edge.target]));
+  return dimensionResult([...nodesByID.values()].filter((node) => used.has(node.id)), edges, 'lineage');
+}
+
+function dimensionResult(nodes: CollaborationNode[], edges: CollaborationEdge[], view: CollaborationViewKind): DimensionGraphView {
+  const unsupported = edges.length === 0 && nodes.length === 0;
+  return {
+    nodes,
+    edges,
+    clusters: [],
+    lod: 'full',
+    truncated: false,
+    view,
+    unsupported,
+    reason: unsupported ? `No ${view} relationships are present in the current API response.` : undefined,
+    visibleNodeCount: nodes.length,
+    visibleEdgeCount: edges.length,
+  };
+}
+
+function cropLargeGraph(view: DimensionGraphView, maxNodes: number, maxEdges: number): DimensionGraphView {
+  if (view.nodes.length <= maxNodes && view.edges.length <= maxEdges) return view;
+  const ranked = [...view.nodes].sort((a, b) => nodeDegree(view.edges, b.id) - nodeDegree(view.edges, a.id) || a.id.localeCompare(b.id)).slice(0, maxNodes);
+  const visible = new Set(ranked.map((node) => node.id));
+  return {
+    ...view,
+    nodes: ranked,
+    edges: view.edges.filter((edge) => visible.has(edge.source) && visible.has(edge.target)).slice(0, maxEdges),
+    visibleNodeCount: ranked.length,
+    visibleEdgeCount: Math.min(maxEdges, view.edges.length),
+  };
+}
+
+function nodeDegree(edges: CollaborationEdge[], nodeID: string): number {
+  return edges.reduce((count, edge) => count + (edge.source === nodeID || edge.target === nodeID ? 1 : 0), 0);
+}
+
+function selectionCompatible(selected: CollaborationEffectScope[], view: DimensionGraphView): boolean {
+  const ids = new Set(selected.map((scope) => scope.effect_id));
+  return view.edges.some((edge) => edgeHasAnyEffect(edge, ids));
+}
+
 function semanticEdgeKey(source: string, target: string, relation: string, polarity: string): string {
   return [source, target, relation, polarity].join('\0');
 }
@@ -317,14 +467,18 @@ function CollaborationLODNotice({ view, canLoadMore, loadingMore, onLoadMore, on
   );
 }
 
-function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: { view: CollaborationGraphView; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; onClearSelection: () => void; t: Translator }) {
-  const { nodes, edges, clusteredOverview } = useMemo(() => readableGraph(view, t), [view, t]);
-  const lanes = { agent: 65, project: 200, plan: 335, stage: 500, task: 660 };
-  const laneIndex = new Map<string, number>();
-  const baseNodeMap = useMemo(() => new Map(nodes.map((node) => { const i = laneIndex.get(node.kind) ?? 0; laneIndex.set(node.kind, i + 1); const lane = node.kind === 'cluster' ? 360 : lanes[node.kind]; return [node.id, { ...node, x: lane, y: 70 + i * 82 }]; })), [nodes]);
+function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: { view: DimensionGraphView; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; onClearSelection: () => void; t: Translator }) {
+  const { nodes, edges } = view;
+  const storageKey = `insight:collaboration:pins:${view.view}`;
+  const baseNodeMap = useMemo(() => layoutNodes(view), [view]);
   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(() => new Set());
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const nodeMap = useMemo(() => new Map([...baseNodeMap.values()].map((node) => [node.id, { ...node, ...(dragPositions[node.id] ?? {}) }])), [baseNodeMap, dragPositions]);
-  const graphBounds = useMemo(() => graphViewBox([...nodeMap.values()]), [nodeMap]);
+  const visibleEdges = useMemo(() => edges.filter((edge) => !collapsedNodeIds.has(edge.source) && !collapsedNodeIds.has(edge.target)), [edges, collapsedNodeIds]);
+  const visibleNodeIDs = useMemo(() => new Set([...visibleEdges.flatMap((edge) => [edge.source, edge.target]), ...nodes.filter((node) => !collapsedNodeIds.has(node.id) && node.kind === 'plan').map((node) => node.id)]), [nodes, visibleEdges, collapsedNodeIds]);
+  const visibleNodes = useMemo(() => [...nodeMap.values()].filter((node) => !collapsedNodeIds.has(node.id) && (visibleNodeIDs.has(node.id) || edges.length === 0)), [nodeMap, collapsedNodeIds, visibleNodeIDs, edges.length]);
+  const graphBounds = useMemo(() => graphViewBox(visibleNodes), [visibleNodes]);
   const [viewport, setViewport] = useState(graphBounds);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
@@ -334,13 +488,20 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
   const dragRef = useRef<{ id: string; pointer: { x: number; y: number }; origin: { x: number; y: number }; moved: boolean } | null>(null);
   const selectedKey = selected?.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0') ?? '';
   const selectedEffectIds = useMemo(() => new Set(selected?.map((scope) => scope.effect_id) ?? []), [selected]);
-  const context = useMemo(() => graphContext(edges, selectedEffectIds, focusedNodeId), [edges, focusedNodeId, selectedEffectIds]);
-  const hasNoiseReduction = selectedEffectIds.size > 0 || Boolean(focusedNodeId);
+  const context = useMemo(() => graphContext(visibleEdges, selectedEffectIds, focusedNodeId ?? hoveredId), [visibleEdges, focusedNodeId, hoveredId, selectedEffectIds]);
+  const hasNoiseReduction = selectedEffectIds.size > 0 || Boolean(focusedNodeId || hoveredId);
+  const showLabels = viewport.width < 900 && visibleEdges.length < 260;
   const fit = useCallback(() => setViewport(graphBounds), [graphBounds]);
+  const focusSelected = useCallback(() => {
+    const ids = [...context.nodes];
+    if (ids.length === 0) return;
+    const selectedNodes = ids.map((id) => nodeMap.get(id)).filter((node): node is PositionedNode => Boolean(node));
+    setViewport(graphViewBox(selectedNodes));
+  }, [context.nodes, nodeMap]);
   const reset = useCallback(() => {
     setFocusedNodeId(null);
     onClearSelection();
-    setDragPositions({});
+    setCollapsedNodeIds(new Set());
     setViewport(graphViewBox([...baseNodeMap.values()]));
   }, [baseNodeMap, onClearSelection]);
   const zoom = useCallback((factor: number, center = { x: viewport.x + viewport.width / 2, y: viewport.y + viewport.height / 2 }) => {
@@ -363,6 +524,17 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
     point.y = event.clientY;
     return point.matrixTransform(matrix.inverse());
   }, [viewport]);
+  useEffect(() => {
+    try {
+      const parsed = JSON.parse(sessionStorage.getItem(storageKey) ?? '{}') as Record<string, { x: number; y: number }>;
+      setDragPositions(parsed && typeof parsed === 'object' ? parsed : {});
+    } catch {
+      setDragPositions({});
+    }
+  }, [storageKey]);
+  useEffect(() => {
+    sessionStorage.setItem(storageKey, JSON.stringify(dragPositions));
+  }, [dragPositions, storageKey]);
   useEffect(() => setViewport(graphBounds), [graphBounds]);
   useEffect(() => {
     const svg = svgRef.current;
@@ -381,12 +553,20 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
   }, [toSvgPoint]);
   return <section className="rounded-lg border border-border bg-bg-surface p-4" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
     <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap gap-3 text-xs text-text-muted"><span>━━ {t('insight.collaboration.legend.relationship')}</span><span>┄┄ {t('insight.collaboration.legend.effect')}</span><span>+/− {t('insight.collaboration.legend.mixed')}</span></div>
+      <div className="flex flex-wrap gap-3 text-xs text-text-muted">
+        <span>{t(`insight.collaboration.views.${view.view}`)}</span>
+        <span>━━ {t('insight.collaboration.legend.relationship')}</span>
+        <span>┄┄ {t('insight.collaboration.legend.effect')}</span>
+        <span>+/− {t('insight.collaboration.legend.mixed')}</span>
+        {view.truncated ? <span>{t('insight.collaboration.lod.cropped', { nodes: view.visibleNodeCount, edges: view.visibleEdgeCount })}</span> : null}
+      </div>
       <div className="flex items-center gap-1" aria-label={t('insight.collaboration.viewport.controls')}>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(0.82)} aria-label={t('insight.collaboration.viewport.zoomIn')}>+</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(1.18)} aria-label={t('insight.collaboration.viewport.zoomOut')}>-</button>
+        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={focusSelected} disabled={context.nodes.size === 0}>{t('insight.collaboration.viewport.focus')}</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={fit}>{t('insight.collaboration.viewport.fit')}</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={reset}>{t('insight.collaboration.viewport.reset')}</button>
+        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => setDragPositions({})}>{t('insight.collaboration.viewport.unpin')}</button>
       </div>
     </div>
     <svg
@@ -435,11 +615,28 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
       onPointerLeave={() => { pointerInsideSvgRef.current = false; panRef.current = null; dragRef.current = null; }}
     >
       <defs><linearGradient id="collaboration-mixed"><stop offset="0%" stopColor="#16803c"/><stop offset="50%" stopColor="#16803c"/><stop offset="50%" stopColor="#c0362c"/><stop offset="100%" stopColor="#c0362c"/></linearGradient></defs>
-      {clusteredOverview ? <text x={viewport.x + 12} y={viewport.y + 24} className="fill-text-muted text-[12px]">{t('insight.collaboration.lod.overviewBadge')}</text> : null}
-      {edges.map((edge) => { const a = nodeMap.get(edge.source); const b = nodeMap.get(edge.target); if (!a || !b) return null; const structural = !edge.effect_id && edge.evidence_count === 0; const active = !hasNoiseReduction || context.edges.has(edge.id); const selectedEdge = selectedEffectIds.size > 0 && edgeHasAnyEffect(edge, selectedEffectIds); return <g key={edge.id} opacity={active ? 1 : 0.16}><line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={selectedEdge ? edge.magnitude + 3 : structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} /><text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="fill-text-muted text-[11px]">{active ? <>{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</> : null}</text></g>; })}
-      {[...nodeMap.values()].map((node) => { const active = !hasNoiseReduction || context.nodes.has(node.id); const focused = focusedNodeId === node.id; const wide = node.kind === 'cluster'; return <g key={node.id} role="button" tabIndex={0} aria-label={node.label} className="cursor-pointer outline-none" opacity={active ? 1 : 0.18} onPointerDown={(event) => { event.stopPropagation(); lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; const point = toSvgPoint(event); dragRef.current = { id: node.id, pointer: point, origin: { x: node.x, y: node.y }, moved: false }; svgRef.current?.setPointerCapture?.(event.pointerId); }} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocusedNodeId(node.id); setViewport(focusViewBox(node)); } }}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" fill="var(--color-bg-elevated)" stroke="var(--color-brand)" strokeWidth={focused ? 4 : 2} /> : <rect x={node.x-(wide ? 88 : 54)} y={node.y-24} width={wide ? 176 : 108} height="48" rx="5" fill="var(--color-bg-elevated)" stroke="var(--color-text-muted)" strokeWidth={focused ? 4 : 2} />}<text x={node.x} y={node.y+3} textAnchor="middle" fill="var(--color-text-primary)" className="pointer-events-none text-[11px]">{truncateLabel(node.label, wide ? 28 : 18)}</text><text x={node.x} y={node.y+18} textAnchor="middle" fill="var(--color-text-muted)" className="pointer-events-none text-[8px]">{node.kind}</text></g>; })}
+      {view.lod === 'cluster' ? <text x={viewport.x + 12} y={viewport.y + 24} className="fill-text-muted text-[12px]">{t('insight.collaboration.lod.overviewBadge')}</text> : null}
+      {visibleEdges.map((edge) => {
+        const a = nodeMap.get(edge.source);
+        const b = nodeMap.get(edge.target);
+        if (!a || !b) return null;
+        const structural = !edge.effect_id && edge.evidence_count === 0;
+        const active = !hasNoiseReduction || context.edges.has(edge.id);
+        const selectedEdge = selectedEffectIds.size > 0 && edgeHasAnyEffect(edge, selectedEffectIds);
+        const scopes = scopesForEdge(edge);
+        return <g key={edge.id} opacity={active ? 1 : 0.16} onMouseEnter={() => setHoveredId(edge.source)} onMouseLeave={() => setHoveredId(null)}>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="transparent" strokeWidth="16" className="cursor-pointer" onClick={() => scopes.length > 0 && onSelect(scopes)} />
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} className={`pointer-events-none collaboration-edge collaboration-edge--${edge.polarity}`} strokeWidth={selectedEdge ? edge.magnitude + 3 : structural ? 1.5 : edge.magnitude + 1} strokeDasharray={structural || edge.polarity === 'neutral' ? '3 5' : edge.relation_type === 'assign' ? undefined : '10 4'} />
+          {showLabels && active ? <text x={(a.x+b.x)/2} y={(a.y+b.y)/2-6} textAnchor="middle" className="pointer-events-none fill-text-muted text-[11px]">{labelFor(t, edge.relation_type)}{structural ? '' : ` · ${labelFor(t, edge.polarity)}`}</text> : null}
+        </g>;
+      })}
+      {visibleNodes.map((node) => { const active = !hasNoiseReduction || context.nodes.has(node.id); const focused = focusedNodeId === node.id; const wide = node.kind === 'cluster' || node.kind === 'plan'; return <g key={node.id} role="button" tabIndex={0} aria-label={node.label} className="cursor-pointer outline-none" opacity={active ? 1 : 0.18} onMouseEnter={() => setHoveredId(node.id)} onMouseLeave={() => setHoveredId(null)} onPointerDown={(event) => { event.stopPropagation(); lastPointerRef.current = { clientX: event.clientX, clientY: event.clientY }; const point = toSvgPoint(event); dragRef.current = { id: node.id, pointer: point, origin: { x: node.x, y: node.y }, moved: false }; svgRef.current?.setPointerCapture?.(event.pointerId); }} onDoubleClick={() => setCollapsedNodeIds((current) => toggleSet(current, node.id))} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFocusedNodeId(node.id); setViewport(focusViewBox(node)); } if (event.key === 'Backspace' || event.key === 'Delete') setCollapsedNodeIds((current) => toggleSet(current, node.id)); }}><title>{node.label}</title>{node.kind === 'agent' ? <circle cx={node.x} cy={node.y} r="27" fill="var(--color-bg-elevated)" stroke="var(--color-brand)" strokeWidth={focused ? 4 : dragPositions[node.id] ? 3 : 2} /> : <rect x={node.x-(wide ? 88 : 54)} y={node.y-24} width={wide ? 176 : 108} height="48" rx="5" fill="var(--color-bg-elevated)" stroke="var(--color-text-muted)" strokeWidth={focused ? 4 : dragPositions[node.id] ? 3 : 2} />}<text x={node.x} y={node.y+3} textAnchor="middle" fill="var(--color-text-primary)" className="pointer-events-none text-[11px]">{showLabels ? truncateLabel(node.label, wide ? 28 : 18) : truncateLabel(node.label, 10)}</text><text x={node.x} y={node.y+18} textAnchor="middle" fill="var(--color-text-muted)" className="pointer-events-none text-[8px]">{node.kind}</text></g>; })}
     </svg>
-    <div className="grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{edges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = edge.effect_scopes?.length ? edge.effect_scopes : edge.effect_ids?.length ? edge.effect_ids.map((id) => ({ effect_id: id, project_id: '' })) : edge.effect_id ? [{ effect_id: edge.effect_id, project_id: '' }] : []; const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
+    <div className="mt-3 flex flex-wrap gap-2">
+      <button type="button" className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" onClick={() => focusedNodeId && setCollapsedNodeIds((current) => toggleSet(current, focusedNodeId))} disabled={!focusedNodeId} data-testid="collaboration-collapse-focus">{t('insight.collaboration.viewport.collapse')}</button>
+      <button type="button" className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" onClick={() => setCollapsedNodeIds(new Set())} disabled={collapsedNodeIds.size === 0} data-testid="collaboration-expand-all">{t('insight.collaboration.viewport.expand')}</button>
+    </div>
+    <div className="mt-3 grid gap-2 md:grid-cols-2" aria-label={t('insight.collaboration.edgeList')}>{visibleEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0).map((edge) => { const scopes = scopesForEdge(edge); const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0'); return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} onMouseEnter={() => setHoveredId(edge.source)} onMouseLeave={() => setHoveredId(null)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>; })}</div>
   </section>;
 }
 
@@ -498,6 +695,48 @@ function sortedScopes(scopes: CollaborationEffectScope[]): CollaborationEffectSc
 
 type GraphViewBox = { x: number; y: number; width: number; height: number };
 
+function layoutNodes(view: DimensionGraphView): Map<string, PositionedNode> {
+  const positions = view.view === 'network' ? layoutNetwork(view.nodes, view.edges) : layoutLanes(view.nodes, view.view);
+  return new Map(positions.map((node) => [node.id, node]));
+}
+
+function layoutNetwork(nodes: CollaborationNode[], edges: CollaborationEdge[]): PositionedNode[] {
+  const degree = new Map<string, number>();
+  edges.forEach((edge) => {
+    degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1);
+    degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1);
+  });
+  const ordered = [...nodes].sort((a, b) => (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0) || a.label.localeCompare(b.label));
+  const center = { x: 380, y: 260 };
+  const radius = Math.max(150, Math.min(560, ordered.length * 17));
+  return ordered.map((node, index) => {
+    if (ordered.length === 1) return { ...node, ...center };
+    const angle = (index / ordered.length) * Math.PI * 2 - Math.PI / 2;
+    const ring = index < 16 ? radius * 0.55 : radius;
+    return { ...node, x: center.x + Math.cos(angle) * ring, y: center.y + Math.sin(angle) * ring };
+  });
+}
+
+function layoutLanes(nodes: CollaborationNode[], view: CollaborationViewKind): PositionedNode[] {
+  const lanes = view === 'lineage'
+    ? { plan: 90, stage: 325, task: 600, agent: 0, project: 0, cluster: 325 }
+    : { agent: 65, project: 200, plan: 350, stage: 500, task: 660, cluster: 360 };
+  const laneIndex = new Map<string, number>();
+  return [...nodes]
+    .sort((a, b) => laneOrder(a.kind, view) - laneOrder(b.kind, view) || (a.plan_id ?? '').localeCompare(b.plan_id ?? '') || (a.stage_id ?? '').localeCompare(b.stage_id ?? '') || a.label.localeCompare(b.label))
+    .map((node) => {
+      const i = laneIndex.get(node.kind) ?? 0;
+      laneIndex.set(node.kind, i + 1);
+      return { ...node, x: lanes[node.kind], y: 70 + i * 82 };
+    });
+}
+
+function laneOrder(kind: CollaborationNode['kind'], view: CollaborationViewKind): number {
+  const order = view === 'lineage' ? ['plan', 'stage', 'task'] : ['agent', 'plan', 'task', 'stage', 'project', 'cluster'];
+  const index = order.indexOf(kind);
+  return index >= 0 ? index : order.length;
+}
+
 function graphViewBox(nodes: Array<{ x: number; y: number }>): GraphViewBox {
   if (nodes.length === 0) return { x: 0, y: 0, width: 720, height: 260 };
   const xs = nodes.map((node) => node.x);
@@ -538,6 +777,16 @@ function graphContext(edges: CollaborationEdge[], selectedEffectIds: Set<string>
 function edgeHasAnyEffect(edge: CollaborationEdge, effectIds: Set<string>): boolean {
   if (edge.effect_id && effectIds.has(edge.effect_id)) return true;
   return (edge.effect_ids ?? edge.effect_scopes?.map((scope) => scope.effect_id) ?? []).some((id) => effectIds.has(id));
+}
+
+function scopesForEdge(edge: CollaborationEdge): CollaborationEffectScope[] {
+  return edge.effect_scopes?.length ? edge.effect_scopes : edge.effect_ids?.length ? edge.effect_ids.map((id) => ({ effect_id: id, project_id: '' })) : edge.effect_id ? [{ effect_id: edge.effect_id, project_id: '' }] : [];
+}
+
+function toggleSet(source: Set<string>, value: string): Set<string> {
+  const next = new Set(source);
+  if (next.has(value)) next.delete(value); else next.add(value);
+  return next;
 }
 
 function truncateLabel(label: string, max = 18): string {
