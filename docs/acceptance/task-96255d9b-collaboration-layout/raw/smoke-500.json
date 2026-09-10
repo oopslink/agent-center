@@ -1,10 +1,10 @@
 {
   "size": 500,
-  "tti_ms": 606.1000003814697,
-  "filter_ms": 44,
-  "pan_ms": 188.09999990463257,
-  "zoom_ms": 17.699999809265137,
-  "drag_ms": 187.40000009536743,
+  "tti_ms": 616.5999999046326,
+  "filter_ms": 58.200000286102295,
+  "pan_ms": 306.1000003814697,
+  "zoom_ms": 61.700000286102295,
+  "drag_ms": 735.0999999046326,
   "counts": {
     "labelChars": 11073,
     "canvas": 1,
@@ -12,23 +12,33 @@
   },
   "runtime": {
     "memory": {
-      "usedJSHeapSize": 18200000,
-      "totalJSHeapSize": 103000000,
+      "usedJSHeapSize": 50400000,
+      "totalJSHeapSize": 148000000,
       "jsHeapSizeLimit": 3760000000
     },
     "longTasks": [
       {
         "name": "self",
-        "startTime": 52.200000286102295,
-        "duration": 163
+        "startTime": 44,
+        "duration": 167
       },
       {
         "name": "self",
-        "startTime": 249.30000019073486,
-        "duration": 103
+        "startTime": 245.09999990463257,
+        "duration": 102
       }
     ],
-    "sessionPins": "{}"
+    "sessionPins": "{\"agent:hub\":{\"x\":203.23031126817997,\"y\":457.2794049279405}}"
+  },
+  "interactionEvidence": {
+    "pan_changed": true,
+    "zoom_changed": true,
+    "drag_target": {
+      "x": 343.6512301013025,
+      "y": 676.5007235890014,
+      "matched_pixels": 691
+    },
+    "drag_pinned": true
   },
   "layout": {
     "viewport": {

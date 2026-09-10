@@ -175,7 +175,7 @@
     "method": "GET",
     "path": "/api/orgs/acme/conversations",
     "search": {
-      "kind": "channel"
+      "kind": "dm"
     },
     "response": []
   },
@@ -183,7 +183,7 @@
     "method": "GET",
     "path": "/api/orgs/acme/conversations",
     "search": {
-      "kind": "dm"
+      "kind": "channel"
     },
     "response": []
   },
@@ -364,6 +364,12 @@
   },
   {
     "method": "GET",
+    "path": "/api/orgs/acme/unread-conversations",
+    "search": {},
+    "response": []
+  },
+  {
+    "method": "GET",
     "path": "/api/auth/me",
     "search": {},
     "response": {
@@ -371,12 +377,6 @@
       "display_name": "Acceptance User",
       "kind": "user"
     }
-  },
-  {
-    "method": "GET",
-    "path": "/api/orgs/acme/unread-conversations",
-    "search": {},
-    "response": []
   },
   {
     "method": "GET",
@@ -471,6 +471,16 @@
       "graph_edges": 1374,
       "effects": 200,
       "graph_version": "acceptance-500"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
     }
   },
   {
@@ -562,17 +572,17 @@
   },
   {
     "method": "GET",
-    "path": "/api/orgs/acme/unread-conversations",
-    "search": {},
-    "response": []
-  },
-  {
-    "method": "GET",
     "path": "/api/orgs/acme/attention",
     "search": {},
     "response": {
       "items": []
     }
+  },
+  {
+    "method": "GET",
+    "path": "/api/orgs/acme/unread-conversations",
+    "search": {},
+    "response": []
   },
   {
     "method": "GET",
@@ -625,23 +635,6 @@
   },
   {
     "method": "GET",
-    "path": "/api/orgs/acme/insights/collaboration-effects",
-    "search": {
-      "limit": "100",
-      "project_id": "P1",
-      "task_id": "T1",
-      "lod": "full",
-      "max_nodes": "100"
-    },
-    "response": {
-      "graph_nodes": 100,
-      "graph_edges": 253,
-      "effects": 160,
-      "graph_version": "acceptance-100"
-    }
-  },
-  {
-    "method": "GET",
     "path": "/api/orgs/acme/projects/P1/tasks",
     "search": {
       "status": "all",
@@ -668,6 +661,23 @@
       "limit": "100",
       "project_id": "P1",
       "task_id": "T1",
+      "lod": "full",
+      "max_nodes": "100"
+    },
+    "response": {
+      "graph_nodes": 100,
+      "graph_edges": 253,
+      "effects": 160,
+      "graph_version": "acceptance-100"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/orgs/acme/insights/collaboration-effects",
+    "search": {
+      "limit": "100",
+      "project_id": "P1",
+      "task_id": "T1",
       "polarity": "mixed",
       "lod": "full",
       "max_nodes": "100"
@@ -677,6 +687,16 @@
       "graph_edges": 119,
       "effects": 26,
       "graph_version": "acceptance-100"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
     }
   },
   {
@@ -748,17 +768,17 @@
   },
   {
     "method": "GET",
+    "path": "/api/orgs/acme/unread-conversations",
+    "search": {},
+    "response": []
+  },
+  {
+    "method": "GET",
     "path": "/api/orgs/acme/attention",
     "search": {},
     "response": {
       "items": []
     }
-  },
-  {
-    "method": "GET",
-    "path": "/api/orgs/acme/unread-conversations",
-    "search": {},
-    "response": []
   },
   {
     "method": "GET",
@@ -863,6 +883,26 @@
       "graph_edges": 624,
       "effects": 150,
       "graph_version": "acceptance-500"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
     }
   },
   {
@@ -1025,6 +1065,16 @@
   },
   {
     "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
+    }
+  },
+  {
+    "method": "GET",
     "path": "/api/orgs/acme/insights/collaboration-effects",
     "search": {
       "limit": "100",
@@ -1039,6 +1089,26 @@
       "graph_edges": 2763,
       "effects": 200,
       "graph_version": "acceptance-2200"
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
+    }
+  },
+  {
+    "method": "GET",
+    "path": "/api/sse",
+    "search": {
+      "user_id": "user:user:u1"
+    },
+    "response": {
+      "event_stream": true
     }
   },
   {

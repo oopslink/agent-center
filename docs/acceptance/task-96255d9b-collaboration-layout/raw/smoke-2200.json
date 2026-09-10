@@ -1,10 +1,10 @@
 {
   "size": 2200,
-  "tti_ms": 874.8000001907349,
-  "filter_ms": 61.799999713897705,
-  "pan_ms": 1017,
-  "zoom_ms": 38.69999980926514,
-  "drag_ms": 187.59999990463257,
+  "tti_ms": 890,
+  "filter_ms": 63.39999961853027,
+  "pan_ms": 1472,
+  "zoom_ms": 64,
+  "drag_ms": 1336.3999996185303,
   "counts": {
     "labelChars": 24875,
     "canvas": 1,
@@ -12,43 +12,88 @@
   },
   "runtime": {
     "memory": {
-      "usedJSHeapSize": 18200000,
-      "totalJSHeapSize": 103000000,
+      "usedJSHeapSize": 50400000,
+      "totalJSHeapSize": 148000000,
       "jsHeapSizeLimit": 3760000000
     },
     "longTasks": [
       {
         "name": "self",
-        "startTime": 58.30000019073486,
-        "duration": 276
+        "startTime": 54.299999713897705,
+        "duration": 282
       },
       {
         "name": "self",
-        "startTime": 365.30000019073486,
-        "duration": 58
+        "startTime": 337.19999980926514,
+        "duration": 95
       },
       {
         "name": "self",
-        "startTime": 423.5,
-        "duration": 172
+        "startTime": 432.59999990463257,
+        "duration": 174
       },
       {
         "name": "self",
-        "startTime": 938.3000001907349,
-        "duration": 236
+        "startTime": 1305.7999997138977,
+        "duration": 203
       },
       {
         "name": "self",
-        "startTime": 1249.5,
-        "duration": 151
+        "startTime": 1554.5999999046326,
+        "duration": 141
       },
       {
         "name": "self",
-        "startTime": 2080.2000002861023,
-        "duration": 183
+        "startTime": 1853.0999999046326,
+        "duration": 185
+      },
+      {
+        "name": "self",
+        "startTime": 2152.7999997138977,
+        "duration": 146
+      },
+      {
+        "name": "self",
+        "startTime": 2763,
+        "duration": 199
+      },
+      {
+        "name": "self",
+        "startTime": 3667.8999996185303,
+        "duration": 136
+      },
+      {
+        "name": "self",
+        "startTime": 3929.8999996185303,
+        "duration": 150
+      },
+      {
+        "name": "self",
+        "startTime": 4181.5,
+        "duration": 150
+      },
+      {
+        "name": "self",
+        "startTime": 4481.199999809265,
+        "duration": 150
+      },
+      {
+        "name": "self",
+        "startTime": 4729.799999713898,
+        "duration": 147
       }
     ],
-    "sessionPins": "{}"
+    "sessionPins": "{\"agent:hub\":{\"x\":203.55702338624866,\"y\":460.4333532576211}}"
+  },
+  "interactionEvidence": {
+    "pan_changed": true,
+    "zoom_changed": true,
+    "drag_target": {
+      "x": 343.60910518053373,
+      "y": 667.3014128728414,
+      "matched_pixels": 637
+    },
+    "drag_pinned": true
   },
   "layout": {
     "viewport": {

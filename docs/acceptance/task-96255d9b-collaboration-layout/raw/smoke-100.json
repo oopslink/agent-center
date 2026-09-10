@@ -1,10 +1,10 @@
 {
   "size": 100,
-  "tti_ms": 646.7999997138977,
-  "filter_ms": 63.40000009536743,
-  "pan_ms": 172.19999980926514,
-  "zoom_ms": 16.5,
-  "drag_ms": 159.69999980926514,
+  "tti_ms": 610.5999999046326,
+  "filter_ms": 55.09999990463257,
+  "pan_ms": 284.7000002861023,
+  "zoom_ms": 73.39999961853027,
+  "drag_ms": 659.2999997138977,
   "counts": {
     "labelChars": 3314,
     "canvas": 1,
@@ -12,12 +12,22 @@
   },
   "runtime": {
     "memory": {
-      "usedJSHeapSize": 18200000,
-      "totalJSHeapSize": 103000000,
+      "usedJSHeapSize": 50400000,
+      "totalJSHeapSize": 148000000,
       "jsHeapSizeLimit": 3760000000
     },
     "longTasks": [],
-    "sessionPins": "{}"
+    "sessionPins": "{\"agent:hub\":{\"x\":201.6875991119569,\"y\":452.04556020455595}}"
+  },
+  "interactionEvidence": {
+    "pan_changed": true,
+    "zoom_changed": true,
+    "drag_target": {
+      "x": 343.69312169312167,
+      "y": 687.0013227513227,
+      "matched_pixels": 756
+    },
+    "drag_pinned": true
   },
   "layout": {
     "viewport": {
