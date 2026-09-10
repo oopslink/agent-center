@@ -385,7 +385,7 @@ function buildDimensionGraph(view: CollaborationViewKind, graph: CollaborationGr
     : view === 'impact'
       ? taskImpactGraph(readable, effects)
       : planLineageGraph(readable);
-  const cropped = cropLargeGraph(base, 520, 1250);
+  const cropped = cropLargeGraph(base, 100, 240);
   return {
     ...cropped,
     view,
@@ -545,7 +545,7 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
   const selectedEffectIds = useMemo(() => new Set(selected?.map((scope) => scope.effect_id) ?? []), [selected]);
   const context = useMemo(() => graphContext(visibleEdges, selectedEffectIds, focusedNodeId ?? hoveredId), [visibleEdges, focusedNodeId, hoveredId, selectedEffectIds]);
   const hasNoiseReduction = selectedEffectIds.size > 0 || Boolean(focusedNodeId || hoveredId);
-  const showLabels = visibleNodes.length <= 160 && visibleEdges.length < 260;
+  const showLabels = visibleNodes.length <= 36 && visibleEdges.length < 80;
   const communityCount = useMemo(() => view.view === 'network' ? connectedComponentCount(nodes, visibleEdges) : 0, [nodes, view.view, visibleEdges]);
   const chartOption = useMemo(() => collaborationChartOption({
     view,
@@ -618,7 +618,7 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
         view: view.view,
         node_count: visibleNodes.length,
         edge_count: visibleEdges.length,
-        nodes: liveNodes.map((node) => ({ id: node.id, name: node.name, x: node.x, y: node.y })),
+        nodes: liveNodes.map((node) => ({ id: node.id, name: node.name, x: node.x, y: node.y, symbol_size: node.symbolSize })),
       };
     }, 120);
     return () => window.clearTimeout(timeout);
@@ -778,6 +778,7 @@ type EChartNodeDatum = {
   y?: number;
   fixed?: boolean;
   draggable?: boolean;
+  symbolSize?: number | number[];
   node: PositionedNode;
 };
 
@@ -802,6 +803,7 @@ function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focus
 }): CollaborationChartOption {
   const large = nodes.length >= 500 || edges.length >= 900;
   const veryLarge = nodes.length >= 2000 || edges.length >= 2500;
+  const compactNodes = nodes.length > 48;
   const categories = ['agent', 'task', 'plan', 'stage', 'project', 'cluster'].map((name) => ({ name, itemStyle: { color: NODE_COLORS[name as CollaborationNode['kind']] } }));
   const data: EChartNodeDatum[] = nodes.map((node) => {
     const active = !hasNoiseReduction || context.nodes.has(node.id);
@@ -817,7 +819,9 @@ function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focus
       draggable: true,
       node,
       symbol: node.kind === 'agent' ? 'circle' : 'roundRect',
-      symbolSize: node.kind === 'cluster' || node.kind === 'plan' ? [138, 42] : node.kind === 'agent' ? 44 : [104, 36],
+      symbolSize: compactNodes
+        ? node.kind === 'cluster' || node.kind === 'plan' ? [72, 28] : node.kind === 'agent' ? 28 : [24, 18]
+        : node.kind === 'cluster' || node.kind === 'plan' ? [138, 42] : node.kind === 'agent' ? 44 : [104, 36],
       itemStyle: {
         color: NODE_COLORS[node.kind],
         opacity: active ? 0.95 : 0.16,
@@ -862,7 +866,7 @@ function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focus
     backgroundColor: 'transparent',
     animation: !large,
     animationThreshold: 450,
-    legend: { show: true, top: 8, left: 12, itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11, color: '#64748b' } },
+    legend: { show: false },
     tooltip: {
       confine: true,
       formatter: (params) => {

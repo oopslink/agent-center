@@ -225,7 +225,9 @@ async function measureViewport(page, viewport) {
           if (typeof node.x !== 'number' || typeof node.y !== 'number') return null;
           try {
             const pixel = chart.convertToPixel({ seriesIndex: 0 }, [node.x, node.y]);
-            return Array.isArray(pixel) && Number.isFinite(pixel[0]) && Number.isFinite(pixel[1]) ? { x: pixel[0], y: pixel[1] } : null;
+            if (!Array.isArray(pixel) || !Number.isFinite(pixel[0]) || !Number.isFinite(pixel[1])) return null;
+            const size = Array.isArray(node.symbol_size) ? node.symbol_size : [node.symbol_size, node.symbol_size];
+            return { x: pixel[0], y: pixel[1], width: Number(size[0]) || 24, height: Number(size[1]) || Number(size[0]) || 18 };
           } catch {
             return null;
           }
@@ -240,6 +242,17 @@ async function measureViewport(page, viewport) {
       const maxY = Math.max(...ys);
       const centerX = (minX + maxX) / 2;
       const centerY = (minY + maxY) / 2;
+      const overlapped = new Set();
+      let overlapPairs = 0;
+      for (let i = 0; i < points.length; i += 1) {
+        for (let j = i + 1; j < points.length; j += 1) {
+          if (Math.abs(points[i].x - points[j].x) >= (points[i].width + points[j].width) / 2) continue;
+          if (Math.abs(points[i].y - points[j].y) >= (points[i].height + points[j].height) / 2) continue;
+          overlapPairs += 1;
+          overlapped.add(i);
+          overlapped.add(j);
+        }
+      }
       return {
         count: points.length,
         width: maxX - minX,
@@ -249,6 +262,8 @@ async function measureViewport(page, viewport) {
         center_offset_x_ratio: Math.abs(centerX - rect.width / 2) / Math.max(1, rect.width),
         center_offset_y_ratio: Math.abs(centerY - rect.height / 2) / Math.max(1, rect.height),
         out_of_bounds: points.filter((point) => point.x < -10 || point.y < -10 || point.x > rect.width + 10 || point.y > rect.height + 10).length,
+        overlap_pairs: overlapPairs,
+        overlapped_nodes: overlapped.size,
       };
     };
     const graph = document.querySelector('[data-testid="collaboration-echarts"]');
@@ -412,6 +427,7 @@ function assertNodeSpread(result, label) {
   if (bbox.height_ratio < 0.36) throw new Error(`${label} node bbox height ratio ${bbox.height_ratio} < 0.36`);
   if (bbox.center_offset_x_ratio > 0.22 || bbox.center_offset_y_ratio > 0.24) throw new Error(`${label} node bbox off center ${bbox.center_offset_x_ratio},${bbox.center_offset_y_ratio}`);
   if (bbox.out_of_bounds > Math.max(2, bbox.count * 0.02)) throw new Error(`${label} too many nodes outside canvas: ${bbox.out_of_bounds}/${bbox.count}`);
+  if (bbox.overlapped_nodes > Math.max(2, bbox.count * 0.08)) throw new Error(`${label} too many overlapping nodes: ${bbox.overlapped_nodes}/${bbox.count}`);
 }
 
 function apiResponse(url) {

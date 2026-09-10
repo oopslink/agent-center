@@ -681,7 +681,7 @@ describe('Collaboration Insight', () => {
     }));
     const cases = [
       { nodes: 100, edges: 160, cropped: false },
-      { nodes: 500, edges: 900, cropped: false },
+      { nodes: 500, edges: 900, cropped: true },
       { nodes: 2200, edges: 3600, cropped: true },
     ];
     const metrics: Array<Record<string, number | string | boolean>> = [];
@@ -712,8 +712,8 @@ describe('Collaboration Insight', () => {
       fireEvent.pointerUp(chart, { pointerId: 12, clientX: 125, clientY: 105 });
       const dragMs = performance.now() - dragStarted;
       if (sample.cropped) {
-        expect(graphElement).toHaveTextContent('visible 520 nodes');
-        expect(screen.getByTestId('collaboration-timeline-limit')).toHaveTextContent('Showing 200 of 3600 events');
+        expect(graphElement).toHaveTextContent('visible 100 nodes');
+        expect(screen.getByTestId('collaboration-timeline-limit')).toHaveTextContent(`Showing 200 of ${sample.edges} events`);
       }
       const longTaskMs = Math.max(ttiMs, filterMs, panMs, zoomMs, dragMs);
       metrics.push({
