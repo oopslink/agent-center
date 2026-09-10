@@ -35,6 +35,9 @@ type CreateAgentCommand struct {
 	// JudgeEnabled opts the agent in to the LLM difficulty judge (T950 ②). Default
 	// false = OFF (byte-identical to today); absent input zero-values to OFF.
 	JudgeEnabled bool
+	// Sandbox config is desired agent profile state. Runtime owns the actual VM state.
+	SandboxEnabled  bool
+	SandboxProvider string
 	// AutoAssignable opts the agent in/out of the BE-2 auto-assign reconciler
 	// (v2.18.3 BE-1). nil → the default (true = assignable).
 	AutoAssignable *bool
@@ -62,6 +65,10 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 	if !agent.IsSupportedReasoning(cmd.Reasoning) {
 		return "", agent.ErrUnsupportedReasoning
 	}
+	sandboxEnabled, sandboxProvider, err := agent.NormalizeSandboxConfig(cmd.SandboxEnabled, cmd.SandboxProvider)
+	if err != nil {
+		return "", err
+	}
 	execs, models, err := resolveAllowedExecutors(cmd.AllowedExecutors, cmd.AllowedModels, cmd.CLI)
 	if err != nil {
 		return "", err
@@ -76,7 +83,9 @@ func (s *Service) CreateAgent(ctx context.Context, cmd CreateAgentCommand) (agen
 			CLI: cmd.CLI, Reasoning: cmd.Reasoning, Mode: cmd.Mode, Provider: cmd.Provider,
 			OrchestratorModel: cmd.OrchestratorModel, DefaultExecutorModel: cmd.DefaultExecutorModel,
 			MaxConcurrentTasks: cmd.MaxConcurrentTasks, AllowedModels: models, AllowedExecutors: execs,
-			JudgeEnabled: cmd.JudgeEnabled, // T950 ②: per-agent judge opt-in (default OFF)
+			JudgeEnabled:    cmd.JudgeEnabled, // T950 ②: per-agent judge opt-in (default OFF)
+			SandboxEnabled:  sandboxEnabled,
+			SandboxProvider: sandboxProvider,
 			// v2.18.3 BE-1: a fresh agent is auto-assignable by default (nil → true);
 			// the owner opts out by sending auto_assignable=false.
 			AutoAssignable: cmd.AutoAssignable == nil || *cmd.AutoAssignable,
@@ -251,6 +260,8 @@ type UpdateAgentConfigCommand struct {
 	// ExecutorGitWorktree opts this agent into isolated executor git worktrees.
 	// nil preserves the existing value; changes apply on agent restart.
 	ExecutorGitWorktree *bool
+	SandboxEnabled      *bool
+	SandboxProvider     *string
 }
 
 // resolveAllowedExecutors canonicalizes the executor-candidate input into the
@@ -341,6 +352,21 @@ func (s *Service) UpdateAgentConfig(ctx context.Context, id agent.AgentID, cmd U
 		}
 		if cmd.ExecutorGitWorktree != nil {
 			p.ExecutorGitWorktree = *cmd.ExecutorGitWorktree
+		}
+		if cmd.SandboxEnabled != nil || cmd.SandboxProvider != nil {
+			enabled := p.SandboxEnabled
+			provider := p.SandboxProvider
+			if cmd.SandboxEnabled != nil {
+				enabled = *cmd.SandboxEnabled
+			}
+			if cmd.SandboxProvider != nil {
+				provider = *cmd.SandboxProvider
+			}
+			var serr error
+			p.SandboxEnabled, p.SandboxProvider, serr = agent.NormalizeSandboxConfig(enabled, provider)
+			if serr != nil {
+				return serr
+			}
 		}
 		if err := a.UpdateProfile(p, now); err != nil {
 			return err

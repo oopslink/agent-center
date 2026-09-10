@@ -149,6 +149,8 @@ type agentEventPayload struct {
 	// ADDITIVE: absent → false → judge OFF (byte-identical routing).
 	JudgeEnabled        bool              `json:"judge_enabled,omitempty"`
 	ExecutorGitWorktree bool              `json:"executor_git_worktree,omitempty"`
+	SandboxEnabled      bool              `json:"sandbox_enabled,omitempty"`
+	SandboxProvider     string            `json:"sandbox_provider,omitempty"`
 	EnvVars             map[string]string `json:"env_vars,omitempty"`
 	// PromptDescription is the ALREADY-GATED description text to inject into the
 	// agent's system prompt (T728). The center collapses the per-agent switch here:
@@ -196,6 +198,8 @@ func (s *Service) emit(ctx context.Context, eventType string, a *agent.Agent, re
 		AllowedExecutors:     a.Profile().AllowedExecutors,
 		JudgeEnabled:         a.Profile().JudgeEnabled, // T950 ②: per-agent judge opt-in
 		ExecutorGitWorktree:  a.Profile().ExecutorGitWorktree,
+		SandboxEnabled:       a.Profile().SandboxEnabled,
+		SandboxProvider:      a.Profile().SandboxProvider,
 		EnvVars:              a.Profile().EnvVars,
 		PromptDescription:    promptDescription(a.Profile()),
 	})

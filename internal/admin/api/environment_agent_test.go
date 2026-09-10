@@ -760,6 +760,8 @@ func TestEnvWorkerResumeState_CarriesConcurrencyConfig(t *testing.T) {
 			AllowedExecutors:    []agent.ExecutorProfile{{CLI: "claude-code", Model: "opus-4-8"}},
 			JudgeEnabled:        true, // T950 ②: per-agent judge opt-in must reach the worker
 			ExecutorGitWorktree: true,
+			SandboxEnabled:      true,
+			SandboxProvider:     agent.SandboxProviderTartMacOSVM,
 			EnvVars:             map[string]string{"FOO": "bar", "EMPTY": ""},
 		},
 		WorkerID: atWorker1, Lifecycle: agent.LifecycleRunning, CreatedBy: "system",
@@ -802,6 +804,12 @@ func TestEnvWorkerResumeState_CarriesConcurrencyConfig(t *testing.T) {
 	}
 	if on, _ := row["executor_git_worktree"].(bool); !on {
 		t.Fatalf("executor_git_worktree = %v, want true", row["executor_git_worktree"])
+	}
+	if on, _ := row["sandbox_enabled"].(bool); !on {
+		t.Fatalf("sandbox_enabled = %v, want true", row["sandbox_enabled"])
+	}
+	if row["sandbox_provider"] != agent.SandboxProviderTartMacOSVM {
+		t.Fatalf("sandbox_provider = %v, want %s", row["sandbox_provider"], agent.SandboxProviderTartMacOSVM)
 	}
 	env, ok := row["env_vars"].(map[string]any)
 	if !ok || env["FOO"] != "bar" || env["EMPTY"] != "" {

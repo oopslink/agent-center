@@ -30,6 +30,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agentruntime/taskexec"
 	"github.com/oopslink/agent-center/internal/claudestream"
 	"github.com/oopslink/agent-center/internal/cognition/memory"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/supervisormanager"
 )
@@ -170,6 +171,10 @@ type LocalRuntimeConfig struct {
 	// center. It lets a rebuilt agent-runtime repair a missing executor engine without
 	// waiting for a later reconcile command.
 	ExecutorConfigProvider func(context.Context) (ExecutorConfig, bool, error)
+
+	// SandboxManager owns the runtime-local desktop sandbox lifecycle. nil uses the
+	// local JSON/Tart-backed manager.
+	SandboxManager SandboxManager
 }
 
 // LocalRuntime is the in-process Runtime for one agent.
@@ -355,6 +360,9 @@ var _ Runtime = (*LocalRuntime)(nil)
 // NewLocalRuntime builds a LocalRuntime over the shared state pointer.
 func NewLocalRuntime(cfg LocalRuntimeConfig, state *SessionState) *LocalRuntime {
 	lifecycleCtx, lifecycleCancel := context.WithCancel(context.Background())
+	if cfg.SandboxManager == nil {
+		cfg.SandboxManager = NewLocalSandboxManager(cfg.Now)
+	}
 	r := &LocalRuntime{cfg: cfg, state: state, lifecycleCtx: lifecycleCtx, lifecycleCancel: lifecycleCancel}
 	// option b (issue-68ccb310): load the durable pending-judgment store from the agent
 	// home so a relaunch re-drives dropped judgments (boot recovery). nil when the home
@@ -879,8 +887,15 @@ func (r *LocalRuntime) Start(ctx context.Context, spec StartSpec) error {
 	if err := os.MkdirAll(tasksDir, 0o700); err != nil {
 		return fmt.Errorf("agent_controller: mkdir tasks: %w", err)
 	}
+	sandboxBinding, err := r.ensureSandbox(ctx, spec, home)
+	if err != nil {
+		return fmt.Errorf("agent_controller: ensure sandbox: %w", err)
+	}
+	if sandboxBinding.SandboxID != "" {
+		r.log("sandbox agent=%s provider=%s vm=%s state=%s computer_use=%s", agentID, sandboxBinding.Provider, sandboxBinding.VMName, sandboxBinding.State, sandboxBinding.ComputerUseStatus())
+	}
 	if spec.CLI == CLICodex {
-		return r.startCodex(ctx, spec, home, tasksDir)
+		return r.startCodex(ctx, spec, home, tasksDir, sandboxBinding)
 	}
 	if err := os.MkdirAll(filepath.Join(tasksDir, ".claude"), 0o700); err != nil {
 		return fmt.Errorf("agent_controller: mkdir tasks/.claude: %w", err)
@@ -997,7 +1012,8 @@ func (r *LocalRuntime) startSpecRequiresSessionRestartLocked(spec StartSpec) boo
 		r.state.DisplayName != spec.DisplayName ||
 		r.state.PromptDescription != spec.PromptDescription ||
 		!maps.Equal(r.state.EnvVars, spec.EnvVars) ||
-		r.state.ConcurrencyEnabled != spec.ConcurrencyEnabled
+		r.state.ConcurrencyEnabled != spec.ConcurrencyEnabled ||
+		r.state.Sandbox != spec.Sandbox
 }
 
 func (r *LocalRuntime) recordStartSpecLocked(spec StartSpec) {
@@ -1008,6 +1024,7 @@ func (r *LocalRuntime) recordStartSpecLocked(spec StartSpec) {
 	r.state.EnvVars = cloneEnv(spec.EnvVars)
 	r.state.CLI = spec.CLI
 	r.state.ConcurrencyEnabled = spec.ConcurrencyEnabled
+	r.state.Sandbox = spec.Sandbox
 }
 
 func (r *LocalRuntime) resetSessionStartStateLocked() {
@@ -1035,9 +1052,24 @@ func (r *LocalRuntime) resetSessionStartStateLocked() {
 	r.state.SawCodexRegistryMissing = false
 }
 
+func (r *LocalRuntime) ensureSandbox(ctx context.Context, spec StartSpec, home string) (SandboxBinding, error) {
+	if !spec.Sandbox.Enabled {
+		return SandboxBinding{}, nil
+	}
+	if r.cfg.SandboxManager == nil {
+		return SandboxBinding{}, errors.New("agent_controller: sandbox manager unavailable")
+	}
+	return r.cfg.SandboxManager.EnsureAgentSandbox(ctx, SandboxEnsureRequest{
+		AgentID:  spec.AgentID,
+		WorkerID: r.cfg.WorkerID,
+		HomeDir:  home,
+		Config:   spec.Sandbox,
+	})
+}
+
 // startCodex starts a cli=codex session via the neutral CodexSpec (the daemon
 // adapter fills Launcher + merged env).
-func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tasksDir string) error {
+func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tasksDir string, sandboxBinding SandboxBinding) error {
 	agentID := spec.AgentID
 	// T977 fix #3: read the PRIOR generation's cli BEFORE overwriting the marker. A
 	// cli-switch (e.g. claude→codex) leaves a session_id from the OTHER cli in
@@ -1076,12 +1108,19 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		"config":  summarizeRuntimeMCPConfig(mcpBytes),
 	})
 	sourceCodexHome := resolveSourceCodexHome()
-	codexHome, err := WriteCodexMCPConfigFromSource(home, mcpBytes, sourceCodexHome)
+	computerUse := CodexComputerUseConfig{}
+	if spec.Sandbox.Enabled && sandboxBinding.ComputerUseStatus() == concurrency.ComputerUseReady {
+		computerUse = CodexComputerUseConfig{
+			Enabled:  true,
+			Endpoint: sandboxBinding.ComputerUseEndpoint,
+			Env:      sandboxBinding.ComputerUseEnv,
+		}
+	}
+	codexHome, err := WriteCodexMCPConfigFromSource(home, mcpBytes, sourceCodexHome, computerUse)
 	if err != nil {
 		return fmt.Errorf("agent_controller: write codex mcp-config: %w", err)
 	}
 	resourceWarnings := provisionCodexResourceLinks(codexHome, sourceCodexHome)
-	computerUseAvailable := codexComputerUseAvailable(sourceCodexHome)
 	r.reportCodexMCPDiagnostic(agentID, "codex_config_written", map[string]any{
 		"summary":            "codex config.toml written under per-agent CODEX_HOME",
 		"codex_home":         codexHome,
@@ -1089,7 +1128,8 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		"config_file_status": fileStatus(filepath.Join(codexHome, codexConfigFileName)),
 		"source_config":      fileStatus(filepath.Join(sourceCodexHome, codexConfigFileName)),
 		"resource_warnings":  resourceWarnings,
-		"computer_use":       computerUseAvailable,
+		"computer_use":       computerUse.Enabled,
+		"sandbox_binding":    sandboxBinding.Row(),
 	})
 	// T977 fix #1: provision the codex login auth.json into the per-agent CODEX_HOME.
 	// codex reads auth from $CODEX_HOME; the dedicated per-agent home has the generated
@@ -1120,7 +1160,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 	}); err != nil {
 		return err
 	}
-	extraSystemPrompt := r.codexExtraSystemPrompt(ctx, home, spec.PromptDescription, computerUseAvailable)
+	extraSystemPrompt := r.codexExtraSystemPrompt(ctx, home, spec.PromptDescription, computerUse.Enabled)
 
 	// Codex resume is health-gated. A captured thread_id is only safe to seed when
 	// the caller explicitly requested a resume AND the prior generation proved it
@@ -1202,7 +1242,7 @@ func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tas
 		CodexHome: codexHome,
 		CodexAuth: authStatus,
 		Memory:    "progressive",
-		Computer:  computerUseStatus(computerUseAvailable),
+		Computer:  computerUseStatus(computerUse.Enabled),
 		Executor:  executorStatus(spec.ConcurrencyEnabled),
 		Resume:    resumeThreadID != "",
 		SessionID: resumeThreadID,

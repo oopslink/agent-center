@@ -556,6 +556,8 @@ func (s *Server) envWorkerResumeStateHandler(w http.ResponseWriter, r *http.Requ
 			"orchestrator_model":     p.OrchestratorModel,
 			"judge_enabled":          p.JudgeEnabled, // T950 ②: per-agent judge opt-in (default OFF)
 			"executor_git_worktree":  p.ExecutorGitWorktree,
+			"sandbox_enabled":        p.SandboxEnabled,
+			"sandbox_provider":       p.SandboxProvider,
 			"default_executor_model": p.DefaultExecutorModel,
 			"env_vars":               p.EnvVars,
 			"version":                a.Version(),

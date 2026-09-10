@@ -106,9 +106,36 @@ type ExecutionStateSnapshot struct {
 	ActiveTasks         []ExecutionTaskRow    `json:"active_tasks"`
 	TaskExecutorMapping []TaskExecutorBinding `json:"task_executor_mapping"`
 	Executors           []ExecutorStateRow    `json:"executors"`
+	SandboxBinding      *SandboxBindingRow    `json:"sandbox_binding,omitempty"`
+	ComputerUseStatus   string                `json:"computer_use_status,omitempty"`
 	Integrity           string                `json:"integrity,omitempty"`
 	IntegrityError      string                `json:"integrity_error,omitempty"`
 	UpdatedAt           time.Time             `json:"updated_at"`
+}
+
+const (
+	ComputerUseUnavailable   = "unavailable"
+	ComputerUseProvisioning  = "provisioning"
+	ComputerUseReady         = "ready"
+	ComputerUseDegraded      = "degraded"
+	ComputerUseLoginRequired = "login_required"
+)
+
+// SandboxBindingRow is the runtime-owned sandbox binding projected into the
+// supervisor execution state. It is a mirror for humans/LLMs; VM authority remains
+// with the runtime and its provider.
+type SandboxBindingRow struct {
+	SandboxID           string    `json:"sandbox_id,omitempty"`
+	AgentID             string    `json:"agent_id,omitempty"`
+	WorkerID            string    `json:"worker_id,omitempty"`
+	Provider            string    `json:"provider,omitempty"`
+	VMName              string    `json:"vm_name,omitempty"`
+	State               string    `json:"state,omitempty"`
+	ComputerUseEndpoint string    `json:"computer_use_endpoint,omitempty"`
+	CreatedAt           time.Time `json:"created_at,omitempty"`
+	UpdatedAt           time.Time `json:"updated_at,omitempty"`
+	LastHealthAt        time.Time `json:"last_health_at,omitempty"`
+	LastError           string    `json:"last_error,omitempty"`
 }
 
 // TaskAuthorityRow is a center-authority task projection. Runnable means the center

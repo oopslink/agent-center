@@ -332,6 +332,13 @@
         "label": "Isolated Git worktrees",
         "description": "Create a separate Git worktree for every isolated executor unit forked by this agent. Applies after the agent restarts."
       },
+      "sandbox": {
+        "heading": "Desktop sandbox",
+        "ariaLabel": "Enable Tart macOS VM sandbox",
+        "label": "Tart macOS VM sandbox",
+        "description": "Run Computer Use through this agent's own long-lived macOS VM. Applies after the agent restarts.",
+        "provider": "Provider: tart_macos_vm"
+      },
       "autoAssign": {
         "heading": "Auto-assignment",
         "ariaLabel": "Auto-assignable",
@@ -529,7 +536,8 @@
         "provider": "Provider",
         "autoAssign": "Auto-assign",
         "maxConcurrent": "Max concurrent",
-        "gitWorktree": "Git worktree"
+        "gitWorktree": "Git worktree",
+        "sandbox": "Sandbox"
       },
       "concurrencyEnabled": "concurrency · cap {{cap}}",
       "concurrencySingle": "single-active · cap 1",

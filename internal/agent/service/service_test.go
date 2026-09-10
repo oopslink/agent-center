@@ -724,3 +724,46 @@ func TestExecutorGitWorktree_ServicePreserveAndOverride(t *testing.T) {
 		t.Fatal("omitted field did not preserve true")
 	}
 }
+
+func TestSandboxConfig_ServiceDefaultValidatePreserveAndDisable(t *testing.T) {
+	f := newFixture(t)
+	f.seedWorker(t, testWorker, testOrg)
+	ctx := context.Background()
+	getProfile := func(id agent.AgentID) agent.Profile {
+		t.Helper()
+		a, err := f.svc.GetAgent(ctx, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return a.Profile()
+	}
+	id, err := f.svc.CreateAgent(ctx, CreateAgentCommand{
+		OrganizationID: testOrg, Name: "sandbox", CLI: "claude-code", WorkerID: testWorker, CreatedBy: "user:a",
+		SandboxEnabled: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := getProfile(id); !p.SandboxEnabled || p.SandboxProvider != agent.SandboxProviderTartMacOSVM {
+		t.Fatalf("create sandbox default = enabled %v provider %q", p.SandboxEnabled, p.SandboxProvider)
+	}
+	if err := f.svc.UpdateAgentConfig(ctx, id, UpdateAgentConfigCommand{CLI: "claude-code"}); err != nil {
+		t.Fatal(err)
+	}
+	if p := getProfile(id); !p.SandboxEnabled || p.SandboxProvider != agent.SandboxProviderTartMacOSVM {
+		t.Fatalf("update omitted sandbox should preserve, got enabled %v provider %q", p.SandboxEnabled, p.SandboxProvider)
+	}
+	off := false
+	if err := f.svc.UpdateAgentConfig(ctx, id, UpdateAgentConfigCommand{CLI: "claude-code", SandboxEnabled: &off}); err != nil {
+		t.Fatal(err)
+	}
+	if p := getProfile(id); p.SandboxEnabled || p.SandboxProvider != "" {
+		t.Fatalf("disable should clear sandbox provider, got enabled %v provider %q", p.SandboxEnabled, p.SandboxProvider)
+	}
+	badProvider := "docker"
+	on := true
+	err = f.svc.UpdateAgentConfig(ctx, id, UpdateAgentConfigCommand{CLI: "claude-code", SandboxEnabled: &on, SandboxProvider: &badProvider})
+	if !errors.Is(err, agent.ErrUnsupportedSandboxProvider) {
+		t.Fatalf("invalid provider err = %v, want ErrUnsupportedSandboxProvider", err)
+	}
+}

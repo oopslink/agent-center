@@ -94,6 +94,8 @@ export interface AddAgentMemberPayload {
   worker_id?: string;
   // T728: inject the description into the system prompt (omitted ⇒ backend default true).
   include_description_in_system_prompt?: boolean;
+  sandbox_enabled?: boolean;
+  sandbox_provider?: string;
 }
 
 export const membersApi = {

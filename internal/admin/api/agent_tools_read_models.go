@@ -619,6 +619,7 @@ func (s *Server) getAgentRuntimeEffectiveConfigHandler(w http.ResponseWriter, r 
 		"default_executor_model": p.DefaultExecutorModel,
 		"max_concurrent_tasks":   p.MaxConcurrentTasks, "judge_enabled": p.JudgeEnabled,
 		"executor_git_worktree": p.ExecutorGitWorktree, "allowed_executors": p.AllowedExecutors,
+		"sandbox_enabled": p.SandboxEnabled, "sandbox_provider": p.SandboxProvider,
 	}
 	effective := map[string]any{"status": "unknown", "reason": "worker has not reported an effective-config snapshot"}
 	lastReconcileAt := any(nil)

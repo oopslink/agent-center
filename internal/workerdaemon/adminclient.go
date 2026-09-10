@@ -543,6 +543,8 @@ type ResumeAgent struct {
 	DefaultExecutorModel string                  `json:"default_executor_model,omitempty"`
 	JudgeEnabled         bool                    `json:"judge_enabled,omitempty"` // T950 ②: per-agent judge opt-in (default OFF)
 	ExecutorGitWorktree  bool                    `json:"executor_git_worktree,omitempty"`
+	SandboxEnabled       bool                    `json:"sandbox_enabled,omitempty"`
+	SandboxProvider      string                  `json:"sandbox_provider,omitempty"`
 	Version              int                     `json:"version"`
 	ResetScope           string                  `json:"reset_scope"`
 	Tasks                []ResumeTask            `json:"tasks"`

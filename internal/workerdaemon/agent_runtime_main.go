@@ -483,6 +483,7 @@ func bootReapRelaunchSupervisor(ctx context.Context, rt *agentruntime.LocalRunti
 		PromptDescription:  ra.PromptDescription,
 		EnvVars:            ra.EnvVars,
 		ConcurrencyEnabled: agent.Profile{MaxConcurrentTasks: ra.MaxConcurrentTasks, AllowedExecutors: ra.AllowedExecutors}.ConcurrencyEnabled(),
+		Sandbox:            agentruntime.SandboxConfig{Enabled: ra.SandboxEnabled, Provider: ra.SandboxProvider},
 	}); serr != nil {
 		logf(fmt.Sprintf("agent-runtime agent=%s boot-session relaunch: %v — skip", agentID, serr))
 		return

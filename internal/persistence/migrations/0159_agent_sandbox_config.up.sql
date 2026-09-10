@@ -1,0 +1,2 @@
+ALTER TABLE agents ADD COLUMN sandbox_enabled INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE agents ADD COLUMN sandbox_provider TEXT;

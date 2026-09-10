@@ -141,6 +141,7 @@ func startSpecOf(pl reconcilePayload) agentruntime.StartSpec {
 		PromptDescription:  pl.PromptDescription,
 		EnvVars:            pl.EnvVars,
 		ConcurrencyEnabled: execConfigOf(pl).ConcurrencyEnabled(),
+		Sandbox:            agentruntime.SandboxConfig{Enabled: pl.SandboxEnabled, Provider: pl.SandboxProvider},
 	}
 }
 

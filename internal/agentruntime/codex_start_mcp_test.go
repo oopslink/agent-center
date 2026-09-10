@@ -14,6 +14,45 @@ import (
 	"github.com/oopslink/agent-center/internal/mcphost"
 )
 
+type fakeSandboxManager struct {
+	binding SandboxBinding
+}
+
+func (f fakeSandboxManager) EnsureAgentSandbox(context.Context, SandboxEnsureRequest) (SandboxBinding, error) {
+	return f.binding, nil
+}
+
+func (f fakeSandboxManager) GetAgentSandbox(context.Context, SandboxEnsureRequest) (SandboxBinding, bool, error) {
+	if f.binding.SandboxID == "" {
+		return SandboxBinding{}, false, nil
+	}
+	return f.binding, true, nil
+}
+
+func (f fakeSandboxManager) StartSandbox(context.Context, SandboxEnsureRequest) (SandboxBinding, error) {
+	return f.binding, nil
+}
+
+func (f fakeSandboxManager) SuspendSandbox(context.Context, SandboxEnsureRequest) (SandboxBinding, error) {
+	return f.binding, nil
+}
+
+func (f fakeSandboxManager) ResetSandbox(context.Context, SandboxEnsureRequest) (SandboxBinding, error) {
+	return f.binding, nil
+}
+
+func (f fakeSandboxManager) DeleteSandbox(context.Context, SandboxEnsureRequest) (SandboxBinding, error) {
+	return f.binding, nil
+}
+
+func (f fakeSandboxManager) Health(context.Context, SandboxEnsureRequest) (SandboxBinding, error) {
+	return f.binding, nil
+}
+
+func (f fakeSandboxManager) ComputerUseEndpoint(context.Context, SandboxEnsureRequest) (string, error) {
+	return f.binding.ComputerUseEndpoint, nil
+}
+
 // TestStartCodex_WritesMCPConfigAndCodexHome pins the T972 supervisor-MCP wiring:
 // Start(CLI=codex) generates the canonical mcp_config.runtime.json (agent-center host
 // + per-agent creds), translates it into $CODEX_HOME/config.toml, and hands the codex
@@ -141,6 +180,15 @@ command = "/stale/agent-center"
 		BinaryPath:    "/opt/agent-center-worker",
 		AdminURL:      "https://127.0.0.1:9443",
 		WorkerToken:   "tok-secret",
+		SandboxManager: fakeSandboxManager{binding: SandboxBinding{
+			SandboxID:           "sbx-agent-x",
+			AgentID:             "agent-x",
+			WorkerID:            "worker-1",
+			Provider:            SandboxProviderTartMacOSVM,
+			VMName:              "ac-agent-x",
+			State:               SandboxStateRunning,
+			ComputerUseEndpoint: "vm://agent-x",
+		}},
 		CodexStarter: func(_ context.Context, spec CodexSpec) (Session, error) {
 			got = spec
 			return &fakeSession{}, nil
@@ -152,6 +200,7 @@ command = "/stale/agent-center"
 		AgentID: "agent-x",
 		Version: 1,
 		CLI:     CLICodex,
+		Sandbox: SandboxConfig{Enabled: true, Provider: SandboxProviderTartMacOSVM},
 	}); err != nil {
 		t.Fatalf("Start(codex): %v", err)
 	}
@@ -170,6 +219,7 @@ command = "/stale/agent-center"
 	for _, want := range []string{
 		"[mcp_servers.node_repl]",
 		`command = "` + nodeRepl + `"`,
+		`SKY_CUA_ENDPOINT = "vm://agent-x"`,
 		`SKY_CUA_SERVICE_PATH = "` + service + `"`,
 	} {
 		if !strings.Contains(s, want) {

@@ -309,6 +309,10 @@ export interface Agent {
   include_description_in_system_prompt?: boolean;
   // Per-agent opt-in for isolated git worktrees used by forked executors.
   executor_git_worktree?: boolean;
+  // Runtime-owned desktop sandbox config. Actual VM state is exposed through
+  // execution-state mirrors, not these desired profile fields.
+  sandbox_enabled?: boolean;
+  sandbox_provider?: string;
 }
 
 // v2.18.1: one executor candidate = a {cli, model} pair. The UI now selects

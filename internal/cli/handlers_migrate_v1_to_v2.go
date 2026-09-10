@@ -189,7 +189,8 @@ func MigrateV1ToV2Command() *Command {
 // acceptance ledger; 0153 adds terminal task failed lifecycle storage; 0154 clears
 // stale execution leases from terminal tasks; 0155 normalizes empty task leases;
 // 0158 adds center-side runtime execution mirrors for UI/audit/complete guards.
-const targetSchemaVersion = 158
+// 0159 adds per-agent optional sandbox desired config.
+const targetSchemaVersion = 159
 
 func runMigrateV1ToV2(
 	ctx context.Context,

@@ -136,6 +136,11 @@ var (
 	// ErrUnsupportedReasoning rejects a reasoning effort outside the allowlist
 	// (T236). Empty is accepted (= runtime default). Maps to 400.
 	ErrUnsupportedReasoning = errors.New("agent: unsupported reasoning effort (want one of minimal|low|medium|high)")
+	// ErrUnsupportedSandboxProvider rejects a sandbox provider outside the first
+	// supported runtime-owned sandbox backend. Empty is accepted only when sandboxing is
+	// disabled; enabling without a provider defaults to tart_macos_vm at the service
+	// boundary.
+	ErrUnsupportedSandboxProvider = errors.New("agent: unsupported sandbox provider (want tart_macos_vm)")
 	// ErrAgentNotStoppedForArchive rejects archiving a running/transitioning agent
 	// (v2.8 #272 (b) strict two-step) — the operator must stop it first. Maps to 409.
 	ErrAgentNotStoppedForArchive = errors.New("agent: agent must be stopped before archive")
@@ -189,6 +194,12 @@ type Profile struct {
 	// ExecutorGitWorktree enables isolated git worktrees for this agent's forked
 	// executors. It is opt-in and applied when the agent-runtime process starts.
 	ExecutorGitWorktree bool
+	// SandboxEnabled opts this agent into a runtime-owned desktop sandbox. The center
+	// persists only the desired config; the authoritative VM lifecycle and endpoint live
+	// in the agent runtime and are exposed through list_my_execution_state.
+	SandboxEnabled bool
+	// SandboxProvider is the selected sandbox backend. v1 supports only tart_macos_vm.
+	SandboxProvider string
 	// AllowedExecutors is the AUTHORITATIVE executor-candidate list (v2.18.1 BE-1,
 	// issue-8746a5b9): each entry is a {cli, model} profile, because an executor need
 	// not share the orchestrator's CLI (e.g. a claude-code supervisor dispatching a
@@ -356,6 +367,22 @@ func (p Profile) EffectiveMaxConcurrentTasks() int {
 // consult, so the two can never drift (v2.18.0 W4c, issue-b8687f2a §2).
 func (p Profile) ConcurrencyEnabled() bool {
 	return p.MaxConcurrentTasks > 0 && len(p.AllowedExecutors) > 0
+}
+
+const SandboxProviderTartMacOSVM = "tart_macos_vm"
+
+func NormalizeSandboxConfig(enabled bool, provider string) (bool, string, error) {
+	provider = strings.TrimSpace(provider)
+	if !enabled {
+		return false, "", nil
+	}
+	if provider == "" {
+		provider = SandboxProviderTartMacOSVM
+	}
+	if provider != SandboxProviderTartMacOSVM {
+		return false, "", ErrUnsupportedSandboxProvider
+	}
+	return true, provider, nil
 }
 
 // EffectiveConcurrencyCap is the agent's RUN-slot cap enforced by the center on

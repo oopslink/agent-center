@@ -84,6 +84,8 @@ func mapAgentError(w http.ResponseWriter, err error) {
 	case errors.Is(err, agentbc.ErrInvalidExecutorProfile):
 		// v2.18.1 BE-1: an allowed_executors entry has a bad cli or empty model.
 		writeError(w, http.StatusBadRequest, "invalid_executor_profile", err.Error())
+	case errors.Is(err, agentbc.ErrUnsupportedSandboxProvider):
+		writeError(w, http.StatusBadRequest, "invalid_sandbox_provider", err.Error())
 	case errors.Is(err, agentsvc.ErrResetNotConfirmed),
 		errors.Is(err, agentbc.ErrInvalidResetScope),
 		errors.Is(err, agentbc.ErrWorkerRequired),
@@ -142,6 +144,8 @@ func agentMap(a *agentbc.Agent, availability agentbc.Availability) map[string]an
 		// T950 ②: per-agent LLM-judge opt-in (true = ON); default OFF. FE回显.
 		"judge_enabled":         p.JudgeEnabled,
 		"executor_git_worktree": p.ExecutorGitWorktree,
+		"sandbox_enabled":       p.SandboxEnabled,
+		"sandbox_provider":      p.SandboxProvider,
 		"env_vars":              envVars, "capability_tags": tags, "worker_id": a.WorkerID(),
 		"lifecycle": string(a.Lifecycle()), "availability": string(availability),
 		"created_by": string(a.CreatedBy()), "version": a.Version(),
@@ -721,8 +725,10 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		// T728: per-agent inject-description-into-system-prompt switch. nil (omitted) → preserve.
 		IncludeDescriptionInSystemPrompt *bool `json:"include_description_in_system_prompt"`
 		// T950 ②: per-agent LLM-judge opt-in. nil (field omitted) → preserve.
-		JudgeEnabled        *bool `json:"judge_enabled"`
-		ExecutorGitWorktree *bool `json:"executor_git_worktree"`
+		JudgeEnabled        *bool   `json:"judge_enabled"`
+		ExecutorGitWorktree *bool   `json:"executor_git_worktree"`
+		SandboxEnabled      *bool   `json:"sandbox_enabled"`
+		SandboxProvider     *string `json:"sandbox_provider"`
 	}
 	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid_json", err.Error())
@@ -758,6 +764,8 @@ func (s *Server) agentUpdateConfigHandler(w http.ResponseWriter, r *http.Request
 		IncludeDescriptionInSystemPrompt: req.IncludeDescriptionInSystemPrompt,
 		JudgeEnabled:                     req.JudgeEnabled, // T950 ②: nil → preserve
 		ExecutorGitWorktree:              req.ExecutorGitWorktree,
+		SandboxEnabled:                   req.SandboxEnabled,
+		SandboxProvider:                  req.SandboxProvider,
 	})
 	if err != nil {
 		mapAgentError(w, err)

@@ -184,6 +184,7 @@ type SessionState struct {
 	EnvVars            map[string]string
 	CLI                string
 	ConcurrencyEnabled bool
+	Sandbox            SandboxConfig
 	// CodexCleanTurns counts successful turns in the current in-process Codex logical
 	// session. The runtime uses it to checkpoint-recycle long-lived supervisors before
 	// their Codex thread accumulates unbounded prompt history.

@@ -162,6 +162,7 @@ type StartSpec struct {
 	PromptDescription  string
 	EnvVars            map[string]string
 	ConcurrencyEnabled bool
+	Sandbox            SandboxConfig
 }
 
 // SpawnRequest is the input for SpawnExecutor (supervisor → runtime fork entry).

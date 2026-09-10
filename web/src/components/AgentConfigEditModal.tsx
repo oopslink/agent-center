@@ -106,6 +106,7 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
   const [executorGitWorktree, setExecutorGitWorktree] = useState(
     agent.executor_git_worktree ?? false,
   );
+  const [sandboxEnabled, setSandboxEnabled] = useState(agent.sandbox_enabled ?? false);
 
   // T728 (issue-0619f315): inject the agent's description into its system prompt
   // (default true). Echoes the persisted value so editing shows the current state.
@@ -147,6 +148,8 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
         allowed_executors: normalizeExecutorProfiles(executors),
         auto_assignable: autoAssignable,
         executor_git_worktree: executorGitWorktree,
+        sandbox_enabled: sandboxEnabled,
+        sandbox_provider: sandboxEnabled ? 'tart_macos_vm' : '',
         description: description.trim(),
         include_description_in_system_prompt: includeDescription,
       });
@@ -433,6 +436,29 @@ export function AgentConfigEditModal({ agent, onClose }: Props): React.ReactElem
                 <span className="font-medium text-text-primary">{t('agentRuntime.configModal.gitWorktree.label')}</span>
                 <span className="mt-0.5 block text-[0.6875rem] text-text-muted">
                   {t('agentRuntime.configModal.gitWorktree.description')}
+                </span>
+              </span>
+            </div>
+          </div>
+
+          <div className="mb-3 mt-5 border-t border-border-base pt-4" data-testid="agent-config-sandbox-section">
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-text-muted">
+              {t('agentRuntime.configModal.sandbox.heading')}
+            </h3>
+            <div className="flex items-start gap-2.5">
+              <ToggleSwitch
+                checked={sandboxEnabled}
+                onChange={setSandboxEnabled}
+                ariaLabel={t('agentRuntime.configModal.sandbox.ariaLabel')}
+                testId="agent-config-sandbox-enabled"
+              />
+              <span className="text-xs">
+                <span className="font-medium text-text-primary">{t('agentRuntime.configModal.sandbox.label')}</span>
+                <span className="mt-0.5 block text-[0.6875rem] text-text-muted">
+                  {t('agentRuntime.configModal.sandbox.description')}
+                </span>
+                <span className="mt-0.5 block text-[0.6875rem] text-text-muted">
+                  {t('agentRuntime.configModal.sandbox.provider')}
                 </span>
               </span>
             </div>

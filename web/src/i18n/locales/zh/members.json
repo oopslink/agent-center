@@ -332,6 +332,13 @@
         "label": "独立 Git 工作树",
         "description": "为该智能体派生的每个隔离执行器单元创建 Git worktree。重启智能体后生效。"
       },
+      "sandbox": {
+        "heading": "桌面沙箱",
+        "ariaLabel": "启用 Tart macOS VM 沙箱",
+        "label": "Tart macOS VM 沙箱",
+        "description": "通过该智能体自己的长期 macOS VM 运行 Computer Use。重启智能体后生效。",
+        "provider": "Provider: tart_macos_vm"
+      },
       "autoAssign": {
         "heading": "自动分配",
         "ariaLabel": "可自动分配",
@@ -529,7 +536,8 @@
         "provider": "供应方",
         "autoAssign": "自动分配",
         "maxConcurrent": "最大并发",
-        "gitWorktree": "Git 工作树"
+        "gitWorktree": "Git 工作树",
+        "sandbox": "沙箱"
       },
       "concurrencyEnabled": "并发 · 上限 {{cap}}",
       "concurrencySingle": "单活动 · 上限 1",

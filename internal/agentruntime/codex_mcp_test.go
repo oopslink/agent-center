@@ -107,7 +107,10 @@ command = "/stale/other"
 		`"args":["worker","mcp-host"],` +
 		`"env":{"AC_MCP_AGENT_ID":"agent-1"}}}}`)
 
-	codexHome, err := WriteCodexMCPConfigFromSource(home, runtime, src)
+	codexHome, err := WriteCodexMCPConfigFromSource(home, runtime, src, CodexComputerUseConfig{
+		Enabled:  true,
+		Endpoint: "vm://agent-x",
+	})
 	if err != nil {
 		t.Fatalf("WriteCodexMCPConfigFromSource: %v", err)
 	}
@@ -169,7 +172,10 @@ func TestWriteCodexMCPConfigFromSource_AddsNodeReplWhenComputerUseAvailable(t *t
 	}
 	runtime := []byte(`{"mcpServers":{"agent-center":{"command":"/opt/agent-center-worker","args":["worker","mcp-host"],"env":{}}}}`)
 
-	codexHome, err := WriteCodexMCPConfigFromSource(home, runtime, src)
+	codexHome, err := WriteCodexMCPConfigFromSource(home, runtime, src, CodexComputerUseConfig{
+		Enabled:  true,
+		Endpoint: "vm://agent-x",
+	})
 	if err != nil {
 		t.Fatalf("WriteCodexMCPConfigFromSource: %v", err)
 	}
@@ -186,11 +192,33 @@ func TestWriteCodexMCPConfigFromSource_AddsNodeReplWhenComputerUseAvailable(t *t
 		`NODE_REPL_NODE_MODULE_DIRS = "` + modules + `"`,
 		`NODE_REPL_NODE_PATH = "` + node + `"`,
 		`NODE_REPL_TRUSTED_CODE_PATHS = "` + src + `:` + codexHome + `:` + modules + `"`,
+		`SKY_CUA_ENDPOINT = "vm://agent-x"`,
 		`SKY_CUA_SERVICE_PATH = "` + service + `"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("node_repl config missing %q; got:\n%s", want, s)
 		}
+	}
+}
+
+func TestWriteCodexMCPConfigFromSource_DoesNotAddNodeReplWithoutSandboxComputerUse(t *testing.T) {
+	home := t.TempDir()
+	src := t.TempDir()
+	if err := os.WriteFile(filepath.Join(src, "config.toml"), []byte(`model = "gpt-5-codex"`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime := []byte(`{"mcpServers":{"agent-center":{"command":"/opt/agent-center-worker","args":["worker","mcp-host"],"env":{}}}}`)
+
+	codexHome, err := WriteCodexMCPConfigFromSource(home, runtime, src, CodexComputerUseConfig{})
+	if err != nil {
+		t.Fatalf("WriteCodexMCPConfigFromSource: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(codexHome, codexConfigFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "[mcp_servers.node_repl]") {
+		t.Fatalf("node_repl must not be exposed without sandbox Computer Use; got:\n%s", string(b))
 	}
 }
 

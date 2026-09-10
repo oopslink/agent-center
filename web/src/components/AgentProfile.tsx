@@ -126,6 +126,11 @@ export function AgentProfile({ agent }: { agent: Agent }): React.ReactElement {
                 value={(agent.executor_git_worktree ?? false) ? t('agents.profile.valueOn') : t('agents.profile.valueOff')}
                 testId="agent-profile-tag-git-worktree"
               />
+              <ConfigTag
+                label={t('agents.profile.tag.sandbox')}
+                value={(agent.sandbox_enabled ?? false) ? (agent.sandbox_provider || 'tart_macos_vm') : t('agents.profile.valueOff')}
+                testId="agent-profile-tag-sandbox"
+              />
             </div>
 
             {/* v2.18.1 (issue-8746a5b9): executor concurrency, read-only. */}

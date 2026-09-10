@@ -150,6 +150,8 @@ export interface UpdateAgentConfigInput {
   include_description_in_system_prompt?: boolean;
   // Per-agent executor workspace isolation. Applies after the agent restarts.
   executor_git_worktree?: boolean;
+  sandbox_enabled?: boolean;
+  sandbox_provider?: string;
 }
 
 export function useUpdateAgentConfig(id: string) {

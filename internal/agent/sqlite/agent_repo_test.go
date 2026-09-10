@@ -81,6 +81,28 @@ func TestAgentRepo_ExecutorGitWorktree_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestAgentRepo_SandboxConfig_RoundTrip(t *testing.T) {
+	r := newDB(t)
+	ctx := context.Background()
+	a := mkAgent(t, "A-sandbox", "W1")
+	p := a.Profile()
+	p.SandboxEnabled = true
+	p.SandboxProvider = agent.SandboxProviderTartMacOSVM
+	if err := a.UpdateProfile(p, t0.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Save(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	got, err := r.FindByID(ctx, a.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.Profile().SandboxEnabled || got.Profile().SandboxProvider != agent.SandboxProviderTartMacOSVM {
+		t.Fatalf("sandbox config lost during persistence round-trip: %+v", got.Profile())
+	}
+}
+
 // T728: the include_description_in_system_prompt flag survives Save→Find and
 // Update→Find for both values.
 func TestAgentRepo_IncludeDescriptionInSystemPrompt_RoundTrip(t *testing.T) {

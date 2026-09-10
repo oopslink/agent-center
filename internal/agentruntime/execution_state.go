@@ -2,6 +2,7 @@ package agentruntime
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"strings"
 
@@ -21,7 +22,17 @@ func (r *LocalRuntime) SnapshotExecutionState(ctx context.Context) (concurrency.
 		ActiveTasks:         []concurrency.ExecutionTaskRow{},
 		TaskExecutorMapping: []concurrency.TaskExecutorBinding{},
 		Executors:           []concurrency.ExecutorStateRow{},
+		ComputerUseStatus:   concurrency.ComputerUseUnavailable,
 		UpdatedAt:           now,
+	}
+	if binding, ok, err := r.snapshotSandboxBinding(ctx); err == nil && ok {
+		row := binding.Row()
+		snap.SandboxBinding = &row
+		snap.ComputerUseStatus = binding.ComputerUseStatus()
+	} else if err != nil {
+		snap.ComputerUseStatus = concurrency.ComputerUseDegraded
+		snap.Integrity = "degraded"
+		snap.IntegrityError = err.Error()
 	}
 	taskRows, integrityErrs := r.executionTaskAuthority(ctx)
 	tasksByID := make(map[string]concurrency.TaskAuthorityRow, len(taskRows))
@@ -188,9 +199,34 @@ func (r *LocalRuntime) SnapshotExecutionState(ctx context.Context) (concurrency.
 
 	if len(integrityErrs) > 0 {
 		snap.Integrity = "degraded"
+		if snap.IntegrityError != "" {
+			integrityErrs = append([]string{snap.IntegrityError}, integrityErrs...)
+		}
 		snap.IntegrityError = strings.Join(integrityErrs, "; ")
 	}
 	return snap, nil
+}
+
+func (r *LocalRuntime) snapshotSandboxBinding(ctx context.Context) (SandboxBinding, bool, error) {
+	r.mu.Lock()
+	cfg := r.state.Sandbox
+	r.mu.Unlock()
+	if !cfg.Enabled {
+		return SandboxBinding{}, false, nil
+	}
+	home, _, _, err := r.agentPaths(r.cfg.AgentID)
+	if err != nil {
+		return SandboxBinding{}, false, err
+	}
+	if r.cfg.SandboxManager == nil {
+		return SandboxBinding{}, false, errors.New("agentruntime: sandbox manager unavailable")
+	}
+	return r.cfg.SandboxManager.GetAgentSandbox(ctx, SandboxEnsureRequest{
+		AgentID:  r.cfg.AgentID,
+		WorkerID: r.cfg.WorkerID,
+		HomeDir:  home,
+		Config:   cfg,
+	})
 }
 
 func (r *LocalRuntime) executionTaskAuthority(ctx context.Context) ([]concurrency.TaskAuthorityRow, []string) {

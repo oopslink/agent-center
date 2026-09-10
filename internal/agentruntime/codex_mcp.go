@@ -129,10 +129,16 @@ func provisionCodexResourceLinks(codexHome, sourceCodexHome string) []string {
 // SAME agent-center MCP host + per-agent creds. An empty runtimeJSON yields a
 // header-only config.toml (no servers) rather than an error.
 func WriteCodexMCPConfig(home string, runtimeJSON []byte) (string, error) {
-	return writeCodexMCPConfig(home, runtimeJSON, nil, "")
+	return writeCodexMCPConfig(home, runtimeJSON, nil, "", CodexComputerUseConfig{})
 }
 
-func WriteCodexMCPConfigFromSource(home string, runtimeJSON []byte, sourceCodexHome string) (string, error) {
+type CodexComputerUseConfig struct {
+	Enabled  bool
+	Endpoint string
+	Env      map[string]string
+}
+
+func WriteCodexMCPConfigFromSource(home string, runtimeJSON []byte, sourceCodexHome string, computerUse CodexComputerUseConfig) (string, error) {
 	var base []byte
 	src := strings.TrimSpace(sourceCodexHome)
 	if src != "" {
@@ -142,10 +148,10 @@ func WriteCodexMCPConfigFromSource(home string, runtimeJSON []byte, sourceCodexH
 		}
 		base = stripCodexMCPConfigTables(b)
 	}
-	return writeCodexMCPConfig(home, runtimeJSON, base, src)
+	return writeCodexMCPConfig(home, runtimeJSON, base, src, computerUse)
 }
 
-func writeCodexMCPConfig(home string, runtimeJSON, baseConfig []byte, sourceCodexHome string) (string, error) {
+func writeCodexMCPConfig(home string, runtimeJSON, baseConfig []byte, sourceCodexHome string, computerUse CodexComputerUseConfig) (string, error) {
 	if home == "" {
 		return "", errors.New("codex_session: home required to write codex mcp-config")
 	}
@@ -161,7 +167,7 @@ func writeCodexMCPConfig(home string, runtimeJSON, baseConfig []byte, sourceCode
 		return "", fmt.Errorf("codex_session: mkdir codex-home: %w", err)
 	}
 	content := mergeCodexBaseAndGeneratedConfig(baseConfig, toml)
-	if nodeRepl := codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome); len(nodeRepl) > 0 {
+	if nodeRepl := codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome, computerUse); len(nodeRepl) > 0 {
 		content = mergeCodexBaseAndGeneratedConfig(content, nodeRepl)
 	}
 	if err := os.WriteFile(filepath.Join(codexHome, codexConfigFileName), content, 0o600); err != nil {
@@ -194,9 +200,9 @@ func codexComputerUseServicePath(sourceCodexHome string) string {
 	return ""
 }
 
-func codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome string) []byte {
+func codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome string, computerUse CodexComputerUseConfig) []byte {
 	servicePath := codexComputerUseServicePath(sourceCodexHome)
-	if strings.TrimSpace(codexHome) == "" || strings.TrimSpace(sourceCodexHome) == "" || servicePath == "" || !codexComputerUseAvailable(sourceCodexHome) {
+	if !computerUse.Enabled || strings.TrimSpace(computerUse.Endpoint) == "" || strings.TrimSpace(codexHome) == "" || strings.TrimSpace(sourceCodexHome) == "" || servicePath == "" || !codexComputerUseAvailable(sourceCodexHome) {
 		return nil
 	}
 	trustedPaths := []string{codexHome, codexNodeModuleDirs}
@@ -212,6 +218,13 @@ func codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome string) []byte {
 		"NODE_REPL_NODE_PATH":                          codexNodeCommand,
 		"NODE_REPL_TRUSTED_CODE_PATHS":                 strings.Join(trustedPaths, ":"),
 		"SKY_CUA_SERVICE_PATH":                         servicePath,
+		"SKY_CUA_ENDPOINT":                             strings.TrimSpace(computerUse.Endpoint),
+	}
+	for k, v := range computerUse.Env {
+		if strings.TrimSpace(k) == "" {
+			continue
+		}
+		env[k] = v
 	}
 
 	keys := make([]string, 0, len(env))
