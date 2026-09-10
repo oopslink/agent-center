@@ -634,8 +634,10 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
       if (params.dataType !== 'node') return;
       const datum = params.data as EChartNodeDatum | undefined;
       const id = String(params.name);
-      const x = datum?.x;
-      const y = datum?.y;
+      const option = chart.getOption() as { series?: Array<{ data?: EChartNodeDatum[] }> };
+      const liveDatum = option.series?.[0]?.data?.find((item) => item.id === id || item.name === id);
+      const x = liveDatum?.x ?? datum?.x;
+      const y = liveDatum?.y ?? datum?.y;
       if (typeof x !== 'number' || typeof y !== 'number') return;
       setFocusedNodeId(id);
       setDragPositions((current) => ({ ...current, [id]: { x, y } }));

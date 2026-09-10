@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { http, HttpResponse } from 'msw';
+import * as echarts from 'echarts/core';
 import { server } from '@/test/mswServer';
 import i18n from '@/i18n';
 import InsightCollaboration from './InsightCollaboration';
@@ -62,6 +63,17 @@ function withView(path: string, view = 'impact'): string {
   const url = new URL(path, 'http://test.local');
   url.searchParams.set('view', view);
   return `${url.pathname}${url.search}`;
+}
+
+async function collaborationChart() {
+  const host = await screen.findByTestId('collaboration-echarts');
+  const chart = echarts.getInstanceByDom(host);
+  expect(chart).toBeDefined();
+  return chart as NonNullable<typeof chart>;
+}
+
+function triggerChart(chart: Awaited<ReturnType<typeof collaborationChart>>, event: string, payload: Record<string, unknown>) {
+  (chart as unknown as { trigger: (event: string, payload: Record<string, unknown>) => void }).trigger(event, payload);
 }
 
 afterEach(async () => { cleanup(); sessionStorage.clear(); await i18n.changeLanguage('en'); });
@@ -230,6 +242,60 @@ describe('Collaboration Insight', () => {
     await waitFor(() => expect(screen.getByTestId('collaboration-evidence-drawer')).toBeVisible());
     await user.click(screen.getByRole('button', { name: 'Focus' }));
     expect(within(screen.getByLabelText('Keyboard-accessible graph edges')).getByRole('button', { name: /Assign/ })).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('handles direct ECharts node, edge and dragend events on the canvas chart', async () => {
+    const evidenceRequests: string[] = [];
+    server.use(
+      http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
+        graph: {
+          nodes: [
+            { id: 'agent:alpha', kind: 'agent', label: 'Agent Alpha' },
+            { id: 'task:T1', kind: 'task', label: 'Task One', task_id: 'T1' },
+          ],
+          edges: [{
+            ...effects[0],
+            id: 'echarts-edge',
+            effect_id: 'echarts-effect',
+            effect_scopes: [{ effect_id: 'echarts-effect', project_id: 'P1' }],
+            source: 'agent:alpha',
+            target: 'task:T1',
+            interaction_count: 1,
+            evidence_count: 1,
+          }],
+        },
+        effects: [{ ...effects[0], effect_id: 'echarts-effect', id: 'echarts-effect', source: 'agent:alpha', source_agent_ref: 'agent:alpha' }],
+        summary: {},
+        next_cursor: '',
+        graph_version: 'gv-echarts-events',
+      })),
+      http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', ({ params, request }) => {
+        evidenceRequests.push(`${params.id}:${new URL(request.url).searchParams.get('project_id')}`);
+        return HttpResponse.json({ effect_id: params.id, evidence: [{ event_id: 'evt-echarts', event_type: 'echarts.hit.edge', occurred_at: '2026-09-03T10:00:00Z', actor_ref: 'agent:alpha', refs: { project_id: 'P1', task_id: 'T1' }, payload: { via: 'echarts' } }] });
+      }),
+    );
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
+    const chart = await collaborationChart();
+    const option = chart.getOption() as { series?: Array<{ data?: Array<{ id: string; name: string; x?: number; y?: number }>; links?: Array<{ edge: unknown }> }> };
+    const nodeDatum = option.series?.[0]?.data?.find((item) => item.id === 'agent:alpha');
+    const edgeDatum = option.series?.[0]?.links?.[0];
+    expect(nodeDatum).toBeDefined();
+    expect(edgeDatum).toBeDefined();
+
+    triggerChart(chart, 'click', { dataType: 'node', name: 'agent:alpha', data: nodeDatum });
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Agent Alpha' })).toHaveAttribute('aria-pressed', 'true'));
+
+    triggerChart(chart, 'click', { dataType: 'edge', data: edgeDatum });
+    await waitFor(() => expect(evidenceRequests).toEqual(['echarts-effect:P1']));
+    expect(await screen.findByTestId('collaboration-evidence-drawer')).toHaveTextContent('echarts.hit.edge');
+
+    const draggedData = option.series?.[0]?.data?.map((item) => item.id === 'agent:alpha' ? { ...item, x: 333, y: 222 } : item) ?? [];
+    chart.setOption({ series: [{ id: 'collaboration', data: draggedData as never[] }] }, false);
+    triggerChart(chart, 'dragend', { dataType: 'node', name: 'agent:alpha', data: { ...nodeDatum, x: 1, y: 1 } });
+    await waitFor(() => {
+      const pins = JSON.parse(sessionStorage.getItem('insight:collaboration:pins:impact') ?? '{}') as Record<string, { x: number; y: number }>;
+      expect(pins['agent:alpha']).toEqual({ x: 333, y: 222 });
+    });
   });
 
   it('clears all URL filters and restores the organization graph', async () => {
