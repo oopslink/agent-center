@@ -24,6 +24,7 @@ import { EntitySelect, type EntityOption } from '@/components/EntitySelect';
 const RELATIONS: CollaborationRelation[] = ['assign', 'reassign', 'complete', 'block', 'unblock', 'dependency_release', 'review_accept', 'review_reject'];
 const POLARITIES: CollaborationPolarity[] = ['positive', 'negative', 'neutral', 'mixed'];
 const COLLABORATION_VIEWS = ['network', 'impact', 'lineage'] as const;
+const TIMELINE_RENDER_LIMIT = 200;
 type CollaborationViewKind = typeof COLLABORATION_VIEWS[number];
 
 type CollaborationGraphView = {
@@ -46,6 +47,7 @@ export default function InsightCollaboration(): React.ReactElement {
   const { t } = useTranslation('insights');
   const [params, setParams] = useSearchParams();
   const [selected, setSelected] = useState<CollaborationEffectScope[] | null>(null);
+  const [switchNotice, setSwitchNotice] = useState<string | null>(null);
   const activeView = viewFromParams(params);
   const filters = filtersFromParams(params);
   const query = useInfiniteCollaborationEffects(filters);
@@ -70,20 +72,28 @@ export default function InsightCollaboration(): React.ReactElement {
     next.delete('cursor');
     setParams(next);
     setSelected(null);
+    setSwitchNotice(null);
   };
   const changeView = (nextView: CollaborationViewKind) => {
     const next = new URLSearchParams(params);
     next.set('view', nextView);
     next.delete('cursor');
     setParams(next);
-    if (selected && !selectionCompatible(selected, buildDimensionGraph(nextView, view, effects, t))) setSelected(null);
+    const nextGraph = buildDimensionGraph(nextView, view, effects, t);
+    if (selected && !selectionCompatible(selected, nextGraph)) {
+      setSelected(null);
+      setSwitchNotice(t('insight.collaboration.selectionIncompatible', { view: t(`insight.collaboration.views.${nextView}`) }));
+    } else {
+      setSwitchNotice(null);
+    }
   };
 
   return (
     <section className="space-y-4" data-testid="page-InsightCollaboration">
       <header><h1 className="text-xl font-semibold text-text-primary">{t('insight.collaboration.title')}</h1><p className="mt-1 text-sm text-text-muted">{t('insight.collaboration.subtitle')}</p></header>
-      <CollaborationFiltersBar params={params} update={update} clearAll={() => { const next = new URLSearchParams(); next.set('view', activeView); setParams(next); setSelected(null); }} t={t} />
+      <CollaborationFiltersBar params={params} update={update} clearAll={() => { const next = new URLSearchParams(); next.set('view', activeView); setParams(next); setSelected(null); setSwitchNotice(null); }} t={t} />
       <CollaborationViewTabs active={activeView} onChange={changeView} t={t} />
+      {switchNotice ? <State id="collaboration-selection-incompatible" title={t('insight.collaboration.selectionCleared')} body={switchNotice} /> : null}
       {query.isLoading ? <State id="collaboration-loading" title={t('insight.collaboration.loading')} /> : null}
       {query.isError ? <CollaborationError error={query.error} t={t} /> : null}
       {query.data ? <>
@@ -397,19 +407,21 @@ function dimensionResult(nodes: CollaborationNode[], edges: CollaborationEdge[],
 
 function cropLargeGraph(view: DimensionGraphView, maxNodes: number, maxEdges: number): DimensionGraphView {
   if (view.nodes.length <= maxNodes && view.edges.length <= maxEdges) return view;
-  const ranked = [...view.nodes].sort((a, b) => nodeDegree(view.edges, b.id) - nodeDegree(view.edges, a.id) || a.id.localeCompare(b.id)).slice(0, maxNodes);
+  const degree = new Map<string, number>();
+  for (const edge of view.edges) {
+    degree.set(edge.source, (degree.get(edge.source) ?? 0) + 1);
+    degree.set(edge.target, (degree.get(edge.target) ?? 0) + 1);
+  }
+  const ranked = [...view.nodes].sort((a, b) => (degree.get(b.id) ?? 0) - (degree.get(a.id) ?? 0) || a.id.localeCompare(b.id)).slice(0, maxNodes);
   const visible = new Set(ranked.map((node) => node.id));
+  const edges = view.edges.filter((edge) => visible.has(edge.source) && visible.has(edge.target)).slice(0, maxEdges);
   return {
     ...view,
     nodes: ranked,
-    edges: view.edges.filter((edge) => visible.has(edge.source) && visible.has(edge.target)).slice(0, maxEdges),
+    edges,
     visibleNodeCount: ranked.length,
-    visibleEdgeCount: Math.min(maxEdges, view.edges.length),
+    visibleEdgeCount: edges.length,
   };
-}
-
-function nodeDegree(edges: CollaborationEdge[], nodeID: string): number {
-  return edges.reduce((count, edge) => count + (edge.source === nodeID || edge.target === nodeID ? 1 : 0), 0);
 }
 
 function selectionCompatible(selected: CollaborationEffectScope[], view: DimensionGraphView): boolean {
@@ -491,6 +503,7 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
   const context = useMemo(() => graphContext(visibleEdges, selectedEffectIds, focusedNodeId ?? hoveredId), [visibleEdges, focusedNodeId, hoveredId, selectedEffectIds]);
   const hasNoiseReduction = selectedEffectIds.size > 0 || Boolean(focusedNodeId || hoveredId);
   const showLabels = viewport.width < 900 && visibleEdges.length < 260;
+  const communityCount = useMemo(() => view.view === 'network' ? connectedComponentCount(nodes, visibleEdges) : 0, [nodes, view.view, visibleEdges]);
   const fit = useCallback(() => setViewport(graphBounds), [graphBounds]);
   const focusSelected = useCallback(() => {
     const ids = [...context.nodes];
@@ -558,6 +571,7 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
         <span>━━ {t('insight.collaboration.legend.relationship')}</span>
         <span>┄┄ {t('insight.collaboration.legend.effect')}</span>
         <span>+/− {t('insight.collaboration.legend.mixed')}</span>
+        {view.view === 'network' ? <span data-testid="collaboration-network-communities">{t('insight.collaboration.legend.communities', { count: communityCount })}</span> : null}
         {view.truncated ? <span>{t('insight.collaboration.lod.cropped', { nodes: view.visibleNodeCount, edges: view.visibleEdgeCount })}</span> : null}
       </div>
       <div className="flex items-center gap-1" aria-label={t('insight.collaboration.viewport.controls')}>
@@ -774,6 +788,34 @@ function graphContext(edges: CollaborationEdge[], selectedEffectIds: Set<string>
   return context;
 }
 
+function connectedComponentCount(nodes: CollaborationNode[], edges: CollaborationEdge[]): number {
+  const nodeIDs = new Set(nodes.map((node) => node.id));
+  const adjacency = new Map<string, string[]>();
+  for (const id of nodeIDs) adjacency.set(id, []);
+  for (const edge of edges) {
+    if (!nodeIDs.has(edge.source) || !nodeIDs.has(edge.target)) continue;
+    adjacency.get(edge.source)?.push(edge.target);
+    adjacency.get(edge.target)?.push(edge.source);
+  }
+  const visited = new Set<string>();
+  let count = 0;
+  for (const id of nodeIDs) {
+    if (visited.has(id)) continue;
+    count += 1;
+    const stack = [id];
+    visited.add(id);
+    while (stack.length > 0) {
+      const current = stack.pop();
+      for (const next of adjacency.get(current ?? '') ?? []) {
+        if (visited.has(next)) continue;
+        visited.add(next);
+        stack.push(next);
+      }
+    }
+  }
+  return count;
+}
+
 function edgeHasAnyEffect(edge: CollaborationEdge, effectIds: Set<string>): boolean {
   if (edge.effect_id && effectIds.has(edge.effect_id)) return true;
   return (edge.effect_ids ?? edge.effect_scopes?.map((scope) => scope.effect_id) ?? []).some((id) => effectIds.has(id));
@@ -794,8 +836,8 @@ function truncateLabel(label: string, max = 18): string {
 }
 
 function Timeline({ effects, onSelect, t }: { effects: { effect_id: string; project_id: string; occurred_at: string; relation_type: string; polarity: string; source_agent_ref: string; target_task_id: string }[]; onSelect: (scopes: CollaborationEffectScope[]) => void; t: Translator }) {
-  const ordered = [...effects].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at));
-  return <section className="rounded-lg border border-border bg-bg-surface p-4" data-testid="collaboration-timeline"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2><ol className="mt-3 border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol></section>;
+  const ordered = useMemo(() => [...effects].sort((a, b) => b.occurred_at.localeCompare(a.occurred_at)).slice(0, TIMELINE_RENDER_LIMIT), [effects]);
+  return <section className="rounded-lg border border-border bg-bg-surface p-4" data-testid="collaboration-timeline"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{t('insight.collaboration.timeline')}</h2>{effects.length > ordered.length ? <span className="text-xs text-text-muted" data-testid="collaboration-timeline-limit">{t('insight.collaboration.timelineLimited', { count: ordered.length, total: effects.length })}</span> : null}</div><ol className="mt-3 border-l border-border pl-4">{ordered.map((item) => <li key={item.effect_id} className="mb-3"><button className="text-left text-sm hover:underline focus:ring-2 focus:ring-brand" onClick={() => onSelect([{ effect_id: item.effect_id, project_id: item.project_id }])}><time className="block text-xs text-text-muted">{new Date(item.occurred_at).toLocaleString()}</time>{labelFor(t, item.relation_type)} · {labelFor(t, item.polarity)} — {item.source_agent_ref} → {item.target_task_id}</button></li>)}</ol></section>;
 }
 
 function EvidenceDrawer({ effect, effectIds, onClose, t }: { effect: Pick<CollaborationEffect, 'project_id' | 'explanation_key' | 'before_state' | 'after_state'> | null; effectIds: CollaborationEffectScope[]; onClose: () => void; t: Translator }) {

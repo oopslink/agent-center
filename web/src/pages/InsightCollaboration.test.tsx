@@ -22,6 +22,36 @@ const graph = {
   effects, summary: { positive_count: 3, negative_count: 1, neutral_count: 1, mixed_count: 1, affected_task_count: 1 }, next_cursor: 'next',
 };
 
+function makePerfGraph(nodeCount: number, edgeCount: number) {
+  const nodes = [
+    { id: 'agent:hub', kind: 'agent', label: 'Hub Agent' },
+    ...Array.from({ length: nodeCount - 1 }, (_, i) => ({ id: `task:T${i}`, kind: 'task', label: `Task ${i}`, task_id: `T${i}` })),
+  ];
+  const perfEffects = Array.from({ length: edgeCount }, (_, i) => ({
+    ...effects[i % effects.length],
+    id: `large-${i}`,
+    effect_id: `large-${i}`,
+    source: 'agent:hub',
+    source_agent_ref: 'agent:hub',
+    target: `task:T${i % (nodeCount - 1)}`,
+    target_task_id: `T${i % (nodeCount - 1)}`,
+    occurred_at: `2026-09-03T10:${String(i % 60).padStart(2, '0')}:00Z`,
+  }));
+  return {
+    graph: {
+      nodes,
+      edges: perfEffects.map((effect, i) => ({ ...effect, id: `edge-large-${i}`, effect_scopes: [{ effect_id: effect.effect_id, project_id: 'P1' }], interaction_count: 1, evidence_count: 1 })),
+      lod: 'full',
+      clusters: [],
+      truncated: false,
+    },
+    effects: perfEffects,
+    summary: {},
+    graph_version: `gv-${nodeCount}`,
+    next_cursor: '',
+  };
+}
+
 function renderAt(path: string) {
   window.history.pushState({}, '', path);
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -34,7 +64,7 @@ function withView(path: string, view = 'impact'): string {
   return `${url.pathname}${url.search}`;
 }
 
-afterEach(async () => { cleanup(); await i18n.changeLanguage('en'); });
+afterEach(async () => { cleanup(); sessionStorage.clear(); await i18n.changeLanguage('en'); });
 
 beforeEach(() => {
   server.use(
@@ -182,6 +212,9 @@ describe('Collaboration Insight', () => {
     expect(svg.getAttribute('viewBox')).toBe(originalViewBox);
     await user.click(within(screen.getByLabelText('Keyboard-accessible graph edges')).getByRole('button', { name: /Assign/ }));
     await waitFor(() => expect(screen.getByTestId('collaboration-evidence-drawer')).toBeVisible());
+    const selectedViewBox = svg.getAttribute('viewBox');
+    await user.click(screen.getByRole('button', { name: 'Focus' }));
+    expect(svg.getAttribute('viewBox')).not.toBe(selectedViewBox);
     expect(document.querySelector('g[opacity="0.16"]')).toBeTruthy();
     expect(document.querySelector('g[opacity="0.18"]')).toBeTruthy();
   });
@@ -528,6 +561,99 @@ describe('Collaboration Insight', () => {
     expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Plan lineage');
     expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Build Stage');
   });
+
+  it('shows an explicit notice when a selected edge cannot carry across views', async () => {
+    server.use(
+      http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
+        graph: {
+          nodes: [
+            { id: 'agent:alpha', kind: 'agent', label: 'Agent Alpha' },
+            { id: 'task:T1', kind: 'task', label: 'Task One', task_id: 'T1' },
+          ],
+          edges: [{ ...effects[0], id: 'agent-task', source: 'agent:alpha', target: 'task:T1', effect_id: 'impact-only', effect_scopes: [{ effect_id: 'impact-only', project_id: 'P1' }], interaction_count: 1, evidence_count: 1 }],
+        },
+        effects: [{ ...effects[0], effect_id: 'impact-only', id: 'impact-only', source: 'agent:alpha', source_agent_ref: 'agent:alpha', target: 'task:T1', target_agent_ref: '', target_task_id: 'T1' }],
+        summary: {},
+        graph_version: 'gv-incompatible',
+        next_cursor: '',
+      })),
+      http.get('/api/orgs/:slug/insights/collaboration-effects/:id/evidence', () => HttpResponse.json({ effect_id: 'impact-only', evidence: [] })),
+    );
+    const user = userEvent.setup();
+    renderAt(withView('/organizations/acme/insights/collaboration', 'impact'));
+    const edgeList = await screen.findByLabelText('Keyboard-accessible graph edges');
+    await user.click(within(edgeList).getByRole('button', { name: /Assign/ }));
+    expect(await screen.findByTestId('collaboration-evidence-drawer')).toBeVisible();
+
+    await user.click(screen.getByTestId('collaboration-view-network'));
+    const notice = await screen.findByTestId('collaboration-selection-incompatible');
+    expect(notice).toHaveTextContent('Selection cleared');
+    expect(notice).toHaveTextContent('Collaboration network');
+    expect(screen.queryByTestId('collaboration-evidence-drawer')).not.toBeInTheDocument();
+  });
+
+  it('records 100/500/2k active-view perf smoke and crops the large graph entrypoint', async () => {
+    let active = makePerfGraph(100, 160);
+    let lastRequest = '';
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
+      lastRequest = request.url;
+      return HttpResponse.json(active);
+    }));
+    const cases = [
+      { nodes: 100, edges: 160, cropped: false },
+      { nodes: 500, edges: 900, cropped: false },
+      { nodes: 2200, edges: 3600, cropped: true },
+    ];
+    const metrics: Array<Record<string, number | string | boolean>> = [];
+    for (const sample of cases) {
+      active = makePerfGraph(sample.nodes, sample.edges);
+      const started = performance.now();
+      renderAt(withView('/organizations/acme/insights/collaboration?lod=full', 'impact'));
+      const graphElement = await screen.findByTestId('collaboration-graph');
+      const ttiMs = performance.now() - started;
+      const filterStarted = performance.now();
+      fireEvent.change(screen.getByLabelText('Polarity'), { target: { value: 'mixed' } });
+      await waitFor(() => expect(new URL(lastRequest).searchParams.get('polarity')).toBe('mixed'));
+      const filterMs = performance.now() - filterStarted;
+      const svg = screen.getByTestId('collaboration-graph-svg');
+      Object.defineProperty(svg, 'getBoundingClientRect', { configurable: true, value: () => ({ x: 0, y: 0, left: 0, top: 0, right: 720, bottom: 360, width: 720, height: 360, toJSON: () => ({}) }) });
+      const panStarted = performance.now();
+      fireEvent.pointerDown(svg, { pointerId: 11, clientX: 360, clientY: 180 });
+      fireEvent.pointerMove(svg, { pointerId: 11, clientX: 420, clientY: 220 });
+      fireEvent.pointerUp(svg, { pointerId: 11, clientX: 420, clientY: 220 });
+      const panMs = performance.now() - panStarted;
+      const zoomStarted = performance.now();
+      fireEvent.wheel(svg, { deltaY: -100, clientX: 360, clientY: 180 });
+      const zoomMs = performance.now() - zoomStarted;
+      const hub = screen.getByRole('button', { name: 'Hub Agent' });
+      const dragStarted = performance.now();
+      fireEvent.pointerDown(hub, { pointerId: 12, clientX: 65, clientY: 70 });
+      fireEvent.pointerMove(svg, { pointerId: 12, clientX: 125, clientY: 105 });
+      fireEvent.pointerUp(svg, { pointerId: 12, clientX: 125, clientY: 105 });
+      const dragMs = performance.now() - dragStarted;
+      if (sample.cropped) {
+        expect(graphElement).toHaveTextContent('visible 520 nodes');
+        expect(screen.getByTestId('collaboration-timeline-limit')).toHaveTextContent('Showing 200 of 3600 events');
+      }
+      const longTaskMs = Math.max(ttiMs, filterMs, panMs, zoomMs, dragMs);
+      metrics.push({
+        nodes: sample.nodes,
+        edges: sample.edges,
+        ttiMs: Math.round(ttiMs),
+        filterMs: Math.round(filterMs),
+        panMs: Math.round(panMs),
+        zoomMs: Math.round(zoomMs),
+        dragMs: Math.round(dragMs),
+        longTaskMs: Math.round(longTaskMs),
+        heapMb: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
+        cropped: sample.cropped,
+      });
+      expect(ttiMs).toBeLessThan(20_000);
+      expect(longTaskMs).toBeLessThan(20_000);
+      cleanup();
+    }
+    console.info('collaboration-perf-smoke', JSON.stringify(metrics));
+  }, 60_000);
 
   it('loads cross-project agent-agent edge evidence using each contributor project scope', async () => {
     const p1 = {
