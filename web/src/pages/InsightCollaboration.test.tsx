@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -295,6 +295,14 @@ describe('Collaboration Insight', () => {
     await waitFor(() => {
       const pins = JSON.parse(sessionStorage.getItem('insight:collaboration:pins:impact') ?? '{}') as Record<string, { x: number; y: number }>;
       expect(pins['agent:alpha']).toEqual({ x: 333, y: 222 });
+    });
+
+    vi.spyOn(chart, 'convertFromPixel').mockReturnValue([444, 333]);
+    triggerChart(chart, 'mousedown', { dataType: 'node', name: 'task:T1', event: { offsetX: 10, offsetY: 20 } });
+    triggerChart(chart, 'mouseup', { dataType: 'node', name: 'task:T1', event: { offsetX: 70, offsetY: 80 } });
+    await waitFor(() => {
+      const pins = JSON.parse(sessionStorage.getItem('insight:collaboration:pins:impact') ?? '{}') as Record<string, { x: number; y: number }>;
+      expect(pins['task:T1']).toEqual({ x: 444, y: 333 });
     });
   });
 

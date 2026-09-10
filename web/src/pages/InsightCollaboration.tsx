@@ -611,6 +611,19 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return undefined;
+    let pendingNodeDrag: { id: string; x: number; y: number } | null = null;
+    const persistNodePosition = (id: string, datum: EChartNodeDatum | undefined, offsetX?: number, offsetY?: number) => {
+      const option = chart.getOption() as { series?: Array<{ data?: EChartNodeDatum[] }> };
+      const liveDatum = option.series?.[0]?.data?.find((item) => item.id === id || item.name === id);
+      const converted = typeof offsetX === 'number' && typeof offsetY === 'number'
+        ? chart.convertFromPixel({ seriesIndex: 0 }, [offsetX, offsetY]) as number[] | null
+        : null;
+      const x = converted?.[0] ?? liveDatum?.x ?? datum?.x;
+      const y = converted?.[1] ?? liveDatum?.y ?? datum?.y;
+      if (typeof x !== 'number' || typeof y !== 'number') return;
+      setFocusedNodeId(id);
+      setDragPositions((current) => ({ ...current, [id]: { x, y } }));
+    };
     const click = (params: { dataType?: string; data?: unknown; name?: string }) => {
       if (params.dataType === 'edge') {
         const edge = params.data as EChartEdgeDatum | undefined;
@@ -630,28 +643,39 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
     const dblclick = (params: { dataType?: string; name?: string }) => {
       if (params.dataType === 'node') setCollapsedNodeIds((current) => toggleSet(current, String(params.name)));
     };
-    const dragend = (params: { dataType?: string; name?: string; data?: unknown }) => {
+    const mousedown = (params: { dataType?: string; name?: string; event?: { offsetX?: number; offsetY?: number } }) => {
+      if (params.dataType !== 'node' || typeof params.event?.offsetX !== 'number' || typeof params.event?.offsetY !== 'number') return;
+      pendingNodeDrag = { id: String(params.name), x: params.event.offsetX, y: params.event.offsetY };
+    };
+    const mouseup = (params: { dataType?: string; name?: string; data?: unknown; event?: { offsetX?: number; offsetY?: number } }) => {
+      if (params.dataType !== 'node' || !pendingNodeDrag || pendingNodeDrag.id !== String(params.name)) {
+        pendingNodeDrag = null;
+        return;
+      }
+      const dx = (params.event?.offsetX ?? pendingNodeDrag.x) - pendingNodeDrag.x;
+      const dy = (params.event?.offsetY ?? pendingNodeDrag.y) - pendingNodeDrag.y;
+      if (Math.hypot(dx, dy) >= 4) persistNodePosition(String(params.name), params.data as EChartNodeDatum | undefined, params.event?.offsetX, params.event?.offsetY);
+      pendingNodeDrag = null;
+    };
+    const dragend = (params: { dataType?: string; name?: string; data?: unknown; event?: { offsetX?: number; offsetY?: number } }) => {
       if (params.dataType !== 'node') return;
-      const datum = params.data as EChartNodeDatum | undefined;
-      const id = String(params.name);
-      const option = chart.getOption() as { series?: Array<{ data?: EChartNodeDatum[] }> };
-      const liveDatum = option.series?.[0]?.data?.find((item) => item.id === id || item.name === id);
-      const x = liveDatum?.x ?? datum?.x;
-      const y = liveDatum?.y ?? datum?.y;
-      if (typeof x !== 'number' || typeof y !== 'number') return;
-      setFocusedNodeId(id);
-      setDragPositions((current) => ({ ...current, [id]: { x, y } }));
+      persistNodePosition(String(params.name), params.data as EChartNodeDatum | undefined, params.event?.offsetX, params.event?.offsetY);
+      pendingNodeDrag = null;
     };
     chart.on('click', click);
     chart.on('mouseover', mouseover);
     chart.on('mouseout', mouseout);
     chart.on('dblclick', dblclick);
+    chart.on('mousedown', mousedown);
+    chart.on('mouseup', mouseup);
     chart.on('dragend', dragend);
     return () => {
       chart.off('click', click);
       chart.off('mouseover', mouseover);
       chart.off('mouseout', mouseout);
       chart.off('dblclick', dblclick);
+      chart.off('mousedown', mousedown);
+      chart.off('mouseup', mouseup);
       chart.off('dragend', dragend);
     };
   }, [onSelect]);

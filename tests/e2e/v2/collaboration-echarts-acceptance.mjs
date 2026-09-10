@@ -261,10 +261,9 @@ async function runSmoke(page, baseURL, size) {
   await page.mouse.down();
   await page.mouse.move(dragTarget.x + 90, dragTarget.y + 60, { steps: 16 });
   await page.mouse.up();
-  await page.waitForFunction(() => {
-    const pins = JSON.parse(sessionStorage.getItem('insight:collaboration:pins:impact') || '{}');
-    return Boolean(pins['agent:hub']);
-  });
+  await page.waitForTimeout(500);
+  const dragPin = await page.evaluate(() => JSON.parse(sessionStorage.getItem('insight:collaboration:pins:impact') || '{}')['agent:hub'] || null);
+  if (!dragPin) throw new Error(`rendered node drag did not persist a pin for ${size}-node smoke: ${JSON.stringify(dragTarget)}`);
   const dragMs = await page.evaluate((start) => performance.now() - start, dragStart);
 
   const runtime = await page.evaluate(() => {
