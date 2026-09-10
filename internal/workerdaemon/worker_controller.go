@@ -207,7 +207,7 @@ func (h controllerHandler) deliverWithRuntimeRecovery(ctx context.Context, cmd C
 }
 
 func (h controllerHandler) reportRuntimeDeliveryParked(ctx context.Context, cmd ControlCommand, agentID, taskID, detail string) error {
-	if cmd.CommandType == cmdTypeAgentForkExec {
+	if cmd.CommandType == cmdTypeAgentForkExec || cmd.CommandType == cmdTypeAgentSandbox {
 		rep, _ := h.reporter.(commandStatusReporter)
 		if rep == nil || strings.TrimSpace(cmd.ID) == "" {
 			return nil

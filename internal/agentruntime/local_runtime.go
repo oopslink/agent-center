@@ -1067,6 +1067,50 @@ func (r *LocalRuntime) ensureSandbox(ctx context.Context, spec StartSpec, home s
 	})
 }
 
+func (r *LocalRuntime) SandboxAction(ctx context.Context, action string) (SandboxBinding, error) {
+	action = strings.TrimSpace(strings.ToLower(action))
+	home, _, _, err := r.agentPaths(r.cfg.AgentID)
+	if err != nil {
+		return SandboxBinding{}, err
+	}
+	var cfg SandboxConfig
+	r.withState(func(s *SessionState) {
+		cfg = s.Sandbox
+	})
+	if !cfg.Enabled {
+		return SandboxBinding{}, errors.New("agent_controller: sandbox is disabled for this agent")
+	}
+	if r.cfg.SandboxManager == nil {
+		return SandboxBinding{}, errors.New("agent_controller: sandbox manager unavailable")
+	}
+	req := SandboxEnsureRequest{
+		AgentID:  r.cfg.AgentID,
+		WorkerID: r.cfg.WorkerID,
+		HomeDir:  home,
+		Config:   cfg,
+	}
+	switch action {
+	case "ensure", "provision":
+		return r.cfg.SandboxManager.EnsureAgentSandbox(ctx, req)
+	case "start", "resume":
+		return r.cfg.SandboxManager.StartSandbox(ctx, req)
+	case "suspend":
+		return r.cfg.SandboxManager.SuspendSandbox(ctx, req)
+	case "reset":
+		return r.cfg.SandboxManager.ResetSandbox(ctx, req)
+	case "delete":
+		return r.cfg.SandboxManager.DeleteSandbox(ctx, req)
+	case "health":
+		return r.cfg.SandboxManager.Health(ctx, req)
+	case "open_console":
+		return r.cfg.SandboxManager.OpenSandboxConsole(ctx, req)
+	case "open_browser":
+		return r.cfg.SandboxManager.OpenSandboxBrowser(ctx, req)
+	default:
+		return SandboxBinding{}, fmt.Errorf("agent_controller: unsupported sandbox action %q", action)
+	}
+}
+
 // startCodex starts a cli=codex session via the neutral CodexSpec (the daemon
 // adapter fills Launcher + merged env).
 func (r *LocalRuntime) startCodex(ctx context.Context, spec StartSpec, home, tasksDir string, sandboxBinding SandboxBinding) error {

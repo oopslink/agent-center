@@ -622,6 +622,52 @@ func (h agentControlHandler) ForkExecutor(ctx context.Context, req agentcontrol.
 	}, nil
 }
 
+func (h agentControlHandler) SandboxAction(ctx context.Context, action string) (agentcontrol.SandboxActionResponse, error) {
+	action = strings.TrimSpace(strings.ToLower(action))
+	if h.rt == nil {
+		return agentcontrol.SandboxActionResponse{
+			OK:           false,
+			Action:       action,
+			Status:       "failed",
+			Reason:       "runtime_unavailable",
+			Detail:       "agent runtime is not attached",
+			LocalRuntime: true,
+		}, nil
+	}
+	b, err := h.rt.SandboxAction(ctx, action)
+	if err != nil {
+		return agentcontrol.SandboxActionResponse{}, err
+	}
+	row := b.Row()
+	return agentcontrol.SandboxActionResponse{
+		OK:                  b.LastError == "",
+		Action:              action,
+		Status:              b.State,
+		ComputerUseStatus:   b.ComputerUseStatus(),
+		SandboxBinding:      &row,
+		BootstrapPath:       b.BootstrapPath,
+		ConsoleCommand:      b.ConsoleCommand,
+		RequiresManualLogin: b.ComputerUseStatus() == concurrency.ComputerUseLoginRequired || action == "open_browser",
+		Reason:              sandboxActionReason(b),
+		Detail:              b.LastError,
+		LocalRuntime:        true,
+	}, nil
+}
+
+func sandboxActionReason(b agentruntime.SandboxBinding) string {
+	if strings.TrimSpace(b.LastError) == "" {
+		return ""
+	}
+	switch b.ComputerUseStatus() {
+	case concurrency.ComputerUseLoginRequired:
+		return "sandbox_login_required"
+	case concurrency.ComputerUseDegraded:
+		return "sandbox_degraded"
+	default:
+		return "sandbox_action_attention_required"
+	}
+}
+
 // Handle decodes cmd.Payload — the RAW center command payload the worker proxied
 // verbatim — using the SAME daemon payload types + converters the in-process path
 // used, and dispatches to the matching runtime method. Reusing the daemon's decoders
@@ -696,6 +742,18 @@ func (h agentControlHandler) Handle(ctx context.Context, cmd agentcontrol.Comman
 			return err
 		}
 		return h.rt.ReportForkCommandStatus(ctx, cmd.ID, pl.TaskID, res)
+	case cmdTypeAgentSandbox:
+		var pl struct {
+			Action string `json:"action"`
+		}
+		if err := decode(cmd.Payload, &pl); err != nil {
+			return err
+		}
+		b, err := h.rt.SandboxAction(ctx, pl.Action)
+		if reportErr := h.rt.ReportSandboxCommandStatus(ctx, cmd.ID, pl.Action, b, err); reportErr != nil {
+			return reportErr
+		}
+		return err
 	default:
 		return fmt.Errorf("agent-runtime: unknown control command type %q", cmd.Type)
 	}

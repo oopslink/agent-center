@@ -313,6 +313,24 @@ export interface Agent {
   // execution-state mirrors, not these desired profile fields.
   sandbox_enabled?: boolean;
   sandbox_provider?: string;
+  sandbox_binding?: SandboxBinding;
+  computer_use_status?: string;
+}
+
+export interface SandboxBinding {
+  sandbox_id?: string;
+  agent_id?: string;
+  worker_id?: string;
+  provider?: string;
+  vm_name?: string;
+  state?: string;
+  computer_use_endpoint?: string;
+  bootstrap_path?: string;
+  console_command?: string;
+  created_at?: string;
+  updated_at?: string;
+  last_health_at?: string;
+  last_error?: string;
 }
 
 // v2.18.1: one executor candidate = a {cli, model} pair. The UI now selects

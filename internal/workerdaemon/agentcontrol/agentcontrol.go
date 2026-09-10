@@ -53,6 +53,8 @@ const (
 	// runtime-local: the center may mirror the resulting state, but it is not the
 	// control plane for spawning this agent's executors.
 	forkExecutorPath = "/fork-executor"
+	// sandboxActionPath is the runtime-local Tart sandbox action entry.
+	sandboxActionPath = "/sandbox-action"
 )
 
 // HealthResponse is the body of a GET /health probe: the agent id this process serves.
@@ -151,6 +153,29 @@ type ForkExecutor interface {
 	ForkExecutor(ctx context.Context, req ForkExecutorRequest) (ForkExecutorResponse, error)
 }
 
+type SandboxActionRequest struct {
+	Action string `json:"action"`
+}
+
+type SandboxActionResponse struct {
+	OK                  bool                           `json:"ok"`
+	Action              string                         `json:"action"`
+	Status              string                         `json:"status"`
+	ComputerUseStatus   string                         `json:"computer_use_status,omitempty"`
+	SandboxBinding      *concurrency.SandboxBindingRow `json:"sandbox_binding,omitempty"`
+	BootstrapPath       string                         `json:"bootstrap_path,omitempty"`
+	ConsoleCommand      string                         `json:"console_command,omitempty"`
+	RequiresManualLogin bool                           `json:"requires_manual_login,omitempty"`
+	Reason              string                         `json:"reason,omitempty"`
+	Detail              string                         `json:"detail,omitempty"`
+	LocalRuntime        bool                           `json:"local_runtime"`
+}
+
+// SandboxActor exposes runtime-owned sandbox lifecycle/user-setup actions.
+type SandboxActor interface {
+	SandboxAction(ctx context.Context, action string) (SandboxActionResponse, error)
+}
+
 // HandlerFunc adapts a function to Handler.
 type HandlerFunc func(ctx context.Context, cmd Command) error
 
@@ -227,6 +252,7 @@ func NewServer(sockPath, agentID string, h Handler, log func(format string, args
 	mux.HandleFunc(concurrencyPath, s.serveConcurrency)
 	mux.HandleFunc(executionStatePath, s.serveExecutionState)
 	mux.HandleFunc(forkExecutorPath, s.serveForkExecutor)
+	mux.HandleFunc(sandboxActionPath, s.serveSandboxAction)
 	s.srv = &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	return s, nil
 }
@@ -348,6 +374,50 @@ func (s *Server) serveForkExecutor(w http.ResponseWriter, r *http.Request) {
 		res.Status = "accepted"
 	}
 	res.OK = res.Status != "failed" && res.Status != "rejected"
+	w.Header().Set("Content-Type", "application/json")
+	code := http.StatusOK
+	if !res.OK {
+		code = http.StatusConflict
+	}
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(res)
+}
+
+func (s *Server) serveSandboxAction(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	actor, ok := s.handler.(SandboxActor)
+	if !ok {
+		http.Error(w, "handler does not expose sandbox actions", http.StatusServiceUnavailable)
+		return
+	}
+	var req SandboxActionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad sandbox action json: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	req.Action = strings.TrimSpace(req.Action)
+	if req.Action == "" {
+		http.Error(w, "action required", http.StatusBadRequest)
+		return
+	}
+	res, err := actor.SandboxAction(r.Context(), req.Action)
+	if err != nil {
+		http.Error(w, "sandbox action failed: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	if res.Action == "" {
+		res.Action = req.Action
+	}
+	if res.Status == "" && res.SandboxBinding != nil {
+		res.Status = res.SandboxBinding.State
+	}
+	if res.Reason == "" && res.Detail == "" {
+		res.OK = true
+	}
+	res.LocalRuntime = true
 	w.Header().Set("Content-Type", "application/json")
 	code := http.StatusOK
 	if !res.OK {
@@ -527,6 +597,35 @@ func (c *Client) SnapshotExecutionState(ctx context.Context) (concurrency.Execut
 		return concurrency.ExecutionStateSnapshot{}, fmt.Errorf("agentcontrol: execution state: decode: %w", err)
 	}
 	return snap, nil
+}
+
+// SandboxAction asks the local agent runtime to act on its runtime-owned sandbox.
+func (c *Client) SandboxAction(ctx context.Context, req SandboxActionRequest) (SandboxActionResponse, error) {
+	body, err := json.Marshal(req)
+	if err != nil {
+		return SandboxActionResponse{}, fmt.Errorf("agentcontrol: marshal sandbox action: %w", err)
+	}
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, "http://agent"+sandboxActionPath, bytes.NewReader(body))
+	if err != nil {
+		return SandboxActionResponse{}, err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(httpReq)
+	if err != nil {
+		return SandboxActionResponse{}, fmt.Errorf("agentcontrol: sandbox action: %w", err)
+	}
+	defer resp.Body.Close()
+	var out SandboxActionResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return SandboxActionResponse{}, fmt.Errorf("agentcontrol: sandbox action: decode: %w", err)
+	}
+	if resp.StatusCode/100 != 2 {
+		if out.Detail != "" {
+			return out, fmt.Errorf("agentcontrol: sandbox action: agent returned %s: %s", resp.Status, out.Detail)
+		}
+		return out, fmt.Errorf("agentcontrol: sandbox action: agent returned %s", resp.Status)
+	}
+	return out, nil
 }
 
 // ForkExecutor asks the local agent runtime to spawn an isolated executor.

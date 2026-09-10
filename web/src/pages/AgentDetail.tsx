@@ -12,9 +12,11 @@ import {
   useForceDeleteAgent,
   useResetAgent,
   useRestartAgent,
+  useAgentSandboxAction,
   useStartAgent,
   useStopAgent,
   type ResetScope,
+  type SandboxAction,
 } from '@/api/agents';
 import { useAgentConcurrency } from '@/api/concurrency';
 import { AgentBacklogBadge, AgentLoadBadge, AvailabilityBadge, LifecycleBadge } from '@/components/AgentBadges';
@@ -71,6 +73,7 @@ export default function AgentDetail(): React.ReactElement {
   const reset = useResetAgent(id);
   const archive = useArchiveAgent(id);
   const forceDelete = useForceDeleteAgent();
+  const sandboxAction = useAgentSandboxAction(id);
 
   // v2.7.1 #240: header "Send message" → open (or reuse) the 1:1 DM with this
   // agent. The backend dedups (#215), so createConversation returns the existing
@@ -172,6 +175,7 @@ export default function AgentDetail(): React.ReactElement {
   // agent — a running agent must be stopped first (backend also 409-guards).
   const canArchive = lc === 'stopped' || lc === 'error';
   const agentSubjectRef = `agent:${a.identity_member_id || a.id}`;
+  const sandboxEnabled = (a.sandbox_enabled ?? false) && !isArchived;
 
   const lifecyclePending =
     start.isPending || stop.isPending || restart.isPending;
@@ -324,6 +328,93 @@ export default function AgentDetail(): React.ReactElement {
           )}
         </div>
       </header>
+
+      {sandboxEnabled && (
+        <section
+          className="flex flex-wrap items-center gap-2 rounded border border-border-base bg-bg-elevated px-3 py-2"
+          data-testid="agent-sandbox-controls"
+          aria-label={t('agents.detail.sandbox.regionAria')}
+        >
+          <span className="text-xs font-medium uppercase tracking-wide text-text-muted">
+            {t('agents.detail.sandbox.label')}
+          </span>
+          <SandboxActionButton
+            action="open_console"
+            pending={sandboxAction.isPending}
+            title={t('agents.detail.sandbox.openConsoleTitle')}
+            ariaLabel={t('agents.detail.sandbox.openConsoleAria')}
+            testId="agent-sandbox-open-console"
+            onAction={(action) => sandboxAction.mutate(action)}
+          >
+            <MonitorIcon />
+          </SandboxActionButton>
+          <SandboxActionButton
+            action="open_browser"
+            pending={sandboxAction.isPending}
+            title={t('agents.detail.sandbox.openBrowserTitle')}
+            ariaLabel={t('agents.detail.sandbox.openBrowserAria')}
+            testId="agent-sandbox-open-browser"
+            onAction={(action) => sandboxAction.mutate(action)}
+          >
+            <BrowserIcon />
+          </SandboxActionButton>
+          <SandboxActionButton
+            action="start"
+            pending={sandboxAction.isPending}
+            title={t('agents.detail.sandbox.startTitle')}
+            ariaLabel={t('agents.detail.sandbox.startAria')}
+            testId="agent-sandbox-start"
+            onAction={(action) => sandboxAction.mutate(action)}
+          >
+            <PlayIcon />
+          </SandboxActionButton>
+          <SandboxActionButton
+            action="suspend"
+            pending={sandboxAction.isPending}
+            title={t('agents.detail.sandbox.suspendTitle')}
+            ariaLabel={t('agents.detail.sandbox.suspendAria')}
+            testId="agent-sandbox-suspend"
+            onAction={(action) => sandboxAction.mutate(action)}
+          >
+            <StopIcon />
+          </SandboxActionButton>
+          <SandboxActionButton
+            action="reset"
+            pending={sandboxAction.isPending}
+            danger
+            title={t('agents.detail.sandbox.resetTitle')}
+            ariaLabel={t('agents.detail.sandbox.resetAria')}
+            testId="agent-sandbox-reset"
+            onAction={(action) => sandboxAction.mutate(action)}
+          >
+            <ResetIcon />
+          </SandboxActionButton>
+          <SandboxActionButton
+            action="delete"
+            pending={sandboxAction.isPending}
+            danger
+            title={t('agents.detail.sandbox.deleteTitle')}
+            ariaLabel={t('agents.detail.sandbox.deleteAria')}
+            testId="agent-sandbox-delete"
+            onAction={(action) => sandboxAction.mutate(action)}
+          >
+            <TrashIcon />
+          </SandboxActionButton>
+          {sandboxAction.data && (
+            <span className="text-xs text-text-muted" data-testid="agent-sandbox-action-status">
+              {t('agents.detail.sandbox.actionAccepted', {
+                action: sandboxAction.data.action,
+                status: sandboxAction.data.status,
+              })}
+            </span>
+          )}
+          {sandboxAction.isError && (
+            <span className="text-xs text-danger" data-testid="agent-sandbox-action-error">
+              {(sandboxAction.error as Error).message}
+            </span>
+          )}
+        </section>
+      )}
 
       {a.lifecycle_error && (
         <p className="text-xs text-danger" data-testid="agent-lifecycle-error">
@@ -656,6 +747,45 @@ function ResetModal({
   );
 }
 
+function SandboxActionButton({
+  action,
+  pending,
+  danger = false,
+  title,
+  ariaLabel,
+  testId,
+  onAction,
+  children,
+}: {
+  action: SandboxAction;
+  pending: boolean;
+  danger?: boolean;
+  title: string;
+  ariaLabel: string;
+  testId: string;
+  onAction: (action: SandboxAction) => void;
+  children: React.ReactNode;
+}): React.ReactElement {
+  return (
+    <button
+      type="button"
+      onClick={() => onAction(action)}
+      disabled={pending}
+      className={`flex min-h-[36px] min-w-[36px] items-center justify-center rounded border px-2 py-1.5 disabled:opacity-50 ${
+        danger
+          ? 'border-danger/40 text-danger hover:bg-danger/10'
+          : 'border-border-base text-text-primary hover:bg-bg-subtle'
+      }`}
+      data-testid={testId}
+      title={title}
+      aria-label={ariaLabel}
+      aria-busy={pending}
+    >
+      {children}
+    </button>
+  );
+}
+
 // v2.7.1 #240: chat-bubble icon for the header "Send message" action
 // (no-emoji UX rule — inline single-stroke SVG, matching the composer icons).
 function ChatBubbleIcon(): React.ReactElement {
@@ -723,6 +853,24 @@ function ResetIcon(): React.ReactElement {
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <path d="M4.5 6.5a6 6 0 1 1-1.2 4" strokeLinecap="round" strokeLinejoin="round" />
       <path d="M4 3.5v3.2h3.2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function MonitorIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <rect x="3.5" y="4.5" width="13" height="9" rx="1.5" strokeLinejoin="round" />
+      <path d="M8 16h4M10 13.5V16" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function BrowserIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <rect x="3.5" y="4.5" width="13" height="11" rx="1.5" strokeLinejoin="round" />
+      <path d="M4 8h12M7 6.2h.01M9 6.2h.01" strokeLinecap="round" />
     </svg>
   );
 }

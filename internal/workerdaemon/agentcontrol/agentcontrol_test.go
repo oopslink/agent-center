@@ -8,6 +8,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/concurrency"
 )
 
 // shortSockDir returns a SHORT temp dir (under /tmp) — a unix socket path must fit
@@ -192,4 +194,56 @@ func TestServer_RebindsOverStaleSocket(t *testing.T) {
 		t.Fatalf("NewServer over stale socket: %v", err)
 	}
 	_ = s2.Close(context.Background())
+}
+
+type sandboxHandler struct {
+	action string
+}
+
+func (h *sandboxHandler) Handle(context.Context, Command) error { return nil }
+
+func (h *sandboxHandler) SandboxAction(_ context.Context, action string) (SandboxActionResponse, error) {
+	h.action = action
+	row := concurrency.SandboxBindingRow{
+		SandboxID:           "sbx-1",
+		AgentID:             "agent-x",
+		WorkerID:            "worker-1",
+		Provider:            "tart_macos_vm",
+		VMName:              "ac-agent-x",
+		State:               "running",
+		ComputerUseEndpoint: "http://127.0.0.1:9311",
+		BootstrapPath:       "/tmp/agent/sandbox/bootstrap",
+		ConsoleCommand:      "tart run ac-agent-x",
+	}
+	return SandboxActionResponse{
+		OK:                true,
+		Action:            action,
+		Status:            row.State,
+		ComputerUseStatus: concurrency.ComputerUseReady,
+		SandboxBinding:    &row,
+		BootstrapPath:     row.BootstrapPath,
+		ConsoleCommand:    row.ConsoleCommand,
+		LocalRuntime:      true,
+	}, nil
+}
+
+func TestSandboxAction_RoundTripsRuntimeResponse(t *testing.T) {
+	h := &sandboxHandler{}
+	sock, stop := startServer(t, h)
+	defer stop()
+
+	c := NewClient(sock, time.Second)
+	got, err := c.SandboxAction(context.Background(), SandboxActionRequest{Action: "open_console"})
+	if err != nil {
+		t.Fatalf("SandboxAction: %v", err)
+	}
+	if h.action != "open_console" {
+		t.Fatalf("handler action = %q, want open_console", h.action)
+	}
+	if !got.OK || got.Status != "running" || got.ComputerUseStatus != concurrency.ComputerUseReady {
+		t.Fatalf("response = %+v, want ok running ready", got)
+	}
+	if got.SandboxBinding == nil || got.SandboxBinding.VMName != "ac-agent-x" || got.ConsoleCommand == "" {
+		t.Fatalf("sandbox binding = %+v, console=%q", got.SandboxBinding, got.ConsoleCommand)
+	}
 }

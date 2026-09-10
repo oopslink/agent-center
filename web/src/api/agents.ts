@@ -7,7 +7,7 @@ import {
 } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
-import type { Agent, AgentActivityEvent, AgentAvailability, AgentTask, ExecutorProfile } from './types';
+import type { Agent, AgentActivityEvent, AgentAvailability, AgentTask, ExecutorProfile, SandboxBinding } from './types';
 
 // Agent BC (v2.7 #101). Org-scoped agents backed by /api/agents. Replaces
 // the retired workforce.AgentInstance surface. List/work-items/activity
@@ -162,6 +162,50 @@ export function useUpdateAgentConfig(id: string) {
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: qk.agent(id) });
       void qc.invalidateQueries({ queryKey: qk.agents() });
+    },
+  });
+}
+
+export type SandboxAction =
+  | 'ensure'
+  | 'provision'
+  | 'start'
+  | 'resume'
+  | 'suspend'
+  | 'reset'
+  | 'delete'
+  | 'health'
+  | 'open_console'
+  | 'open_browser';
+
+export interface SandboxActionResult {
+  ok: boolean;
+  status: string;
+  agent_id?: string;
+  worker_id?: string;
+  action: SandboxAction;
+  command_id?: string;
+  offset?: number;
+  command_type?: string;
+  command_status?: string;
+  computer_use_status?: string;
+  sandbox_binding?: SandboxBinding;
+  bootstrap_path?: string;
+  console_command?: string;
+  requires_manual_login?: boolean;
+  reason?: string;
+  detail?: string;
+  local_runtime?: boolean;
+}
+
+export function useAgentSandboxAction(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (action: SandboxAction) =>
+      api.post<SandboxActionResult>(`/agents/${id}/sandbox/${action}`),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: qk.agent(id) });
+      void qc.invalidateQueries({ queryKey: qk.agentConcurrency(id) });
     },
   });
 }

@@ -51,6 +51,8 @@ type SandboxBinding struct {
 	State               string            `json:"state"`
 	ComputerUseEndpoint string            `json:"computer_use_endpoint,omitempty"`
 	ComputerUseEnv      map[string]string `json:"computer_use_env,omitempty"`
+	BootstrapPath       string            `json:"bootstrap_path,omitempty"`
+	ConsoleCommand      string            `json:"console_command,omitempty"`
 	CreatedAt           time.Time         `json:"created_at"`
 	UpdatedAt           time.Time         `json:"updated_at"`
 	LastHealthAt        time.Time         `json:"last_health_at,omitempty"`
@@ -78,6 +80,8 @@ func (b SandboxBinding) Row() concurrency.SandboxBindingRow {
 		SandboxID: b.SandboxID, AgentID: b.AgentID, WorkerID: b.WorkerID,
 		Provider: b.Provider, VMName: b.VMName, State: b.State,
 		ComputerUseEndpoint: b.ComputerUseEndpoint,
+		BootstrapPath:       b.BootstrapPath,
+		ConsoleCommand:      b.ConsoleCommand,
 		CreatedAt:           b.CreatedAt, UpdatedAt: b.UpdatedAt, LastHealthAt: b.LastHealthAt,
 		LastError: b.LastError,
 	}
@@ -86,6 +90,8 @@ func (b SandboxBinding) Row() concurrency.SandboxBindingRow {
 type SandboxManager interface {
 	EnsureAgentSandbox(context.Context, SandboxEnsureRequest) (SandboxBinding, error)
 	GetAgentSandbox(context.Context, SandboxEnsureRequest) (SandboxBinding, bool, error)
+	OpenSandboxConsole(context.Context, SandboxEnsureRequest) (SandboxBinding, error)
+	OpenSandboxBrowser(context.Context, SandboxEnsureRequest) (SandboxBinding, error)
 	StartSandbox(context.Context, SandboxEnsureRequest) (SandboxBinding, error)
 	SuspendSandbox(context.Context, SandboxEnsureRequest) (SandboxBinding, error)
 	ResetSandbox(context.Context, SandboxEnsureRequest) (SandboxBinding, error)
@@ -137,7 +143,16 @@ func (m *LocalSandboxManager) EnsureAgentSandbox(ctx context.Context, req Sandbo
 	if b.VMName == "" {
 		b.VMName = "ac-agent-" + shortHash(req.AgentID)
 	}
-	b = m.refreshTartBinding(ctx, b)
+	b.ConsoleCommand = "tart run " + b.VMName
+	if bp := sandboxBootstrapPath(req.HomeDir); bp != "" {
+		b.BootstrapPath = bp
+	}
+	if err := writeSandboxBootstrap(req.HomeDir, b); err != nil {
+		b.State = SandboxStateDegraded
+		b.LastError = "write sandbox bootstrap: " + err.Error()
+	} else {
+		b = m.refreshTartBinding(ctx, b)
+	}
 	if err := writeSandboxBinding(path, b); err != nil {
 		return SandboxBinding{}, err
 	}
@@ -150,6 +165,26 @@ func (m *LocalSandboxManager) GetAgentSandbox(_ context.Context, req SandboxEnsu
 		return SandboxBinding{}, false, err
 	}
 	return readSandboxBinding(path)
+}
+
+func (m *LocalSandboxManager) OpenSandboxConsole(ctx context.Context, req SandboxEnsureRequest) (SandboxBinding, error) {
+	return m.openSandbox(ctx, req, false)
+}
+
+func (m *LocalSandboxManager) OpenSandboxBrowser(ctx context.Context, req SandboxEnsureRequest) (SandboxBinding, error) {
+	return m.openSandbox(ctx, req, true)
+}
+
+func (m *LocalSandboxManager) openSandbox(ctx context.Context, req SandboxEnsureRequest, browser bool) (SandboxBinding, error) {
+	b, err := m.EnsureAgentSandbox(ctx, req)
+	if err != nil || b.SandboxID == "" {
+		return b, err
+	}
+	b = m.runTartLifecycleCommand(ctx, b, "open_console")
+	if err := m.persistBinding(req.HomeDir, b); err != nil {
+		return SandboxBinding{}, err
+	}
+	return b, nil
 }
 
 func (m *LocalSandboxManager) StartSandbox(ctx context.Context, req SandboxEnsureRequest) (SandboxBinding, error) {
@@ -239,6 +274,19 @@ func (m *LocalSandboxManager) runTartLifecycleCommand(ctx context.Context, b San
 	}
 	var args []string
 	switch op {
+	case "open_console":
+		cmd := exec.CommandContext(ctx, "tart", "run", b.VMName)
+		if err := cmd.Start(); err != nil {
+			b.State = SandboxStateDegraded
+			b.LastError = "tart run console failed: " + err.Error()
+			return b
+		}
+		if cmd.Process != nil {
+			_ = cmd.Process.Release()
+		}
+		b.State = SandboxStateRunning
+		b.LastError = ""
+		return b
 	case "start":
 		cmd := exec.CommandContext(ctx, "tart", "run", "--no-graphics", b.VMName)
 		if err := cmd.Start(); err != nil {
@@ -360,6 +408,60 @@ func sandboxBindingPath(home string) (string, error) {
 		return "", errors.New("agentruntime: sandbox home required")
 	}
 	return filepath.Join(home, "sandbox", "binding.json"), nil
+}
+
+func sandboxBootstrapPath(home string) string {
+	if strings.TrimSpace(home) == "" {
+		return ""
+	}
+	return filepath.Join(home, "sandbox", "bootstrap")
+}
+
+func writeSandboxBootstrap(home string, b SandboxBinding) error {
+	root := sandboxBootstrapPath(home)
+	if root == "" {
+		return errors.New("agentruntime: sandbox home required")
+	}
+	if err := os.MkdirAll(root, 0o700); err != nil {
+		return err
+	}
+	readme := fmt.Sprintf(`# Agent Center Tart Sandbox Bootstrap
+
+Agent ID: %s
+Worker ID: %s
+Provider: %s
+VM name: %s
+
+This directory is the host-side bootstrap bundle for the agent sandbox. The Tart
+base image must not contain LLM auth, browser cookies, Agent Center worker tokens,
+or third-party credentials. Copy only the agent-scoped material needed by the VM
+guest bootstrap channel.
+
+Console:
+
+    %s
+
+Browser setup is manual in v1: open the VM console, open the browser inside the
+guest, and sign in there. Login state must remain inside this agent VM.
+`, b.AgentID, b.WorkerID, b.Provider, b.VMName, b.ConsoleCommand)
+	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte(readme), 0o600); err != nil {
+		return err
+	}
+	manifest := map[string]any{
+		"agent_id":        b.AgentID,
+		"worker_id":       b.WorkerID,
+		"provider":        b.Provider,
+		"vm_name":         b.VMName,
+		"console_command": b.ConsoleCommand,
+		"created_at":      b.CreatedAt,
+		"updated_at":      b.UpdatedAt,
+	}
+	raw, err := json.MarshalIndent(manifest, "", "  ")
+	if err != nil {
+		return err
+	}
+	raw = append(raw, '\n')
+	return os.WriteFile(filepath.Join(root, "manifest.json"), raw, 0o600)
 }
 
 func readSandboxBinding(path string) (SandboxBinding, bool, error) {

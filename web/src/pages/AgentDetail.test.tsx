@@ -209,6 +209,33 @@ describe('AgentDetail page', () => {
     expect(posted).toMatchObject({ kind: 'dm', members: ['agent:A1'] });
   });
 
+  it('sandbox-enabled agent shows VM controls and enqueues browser setup action', async () => {
+    stubAgent({ sandbox_enabled: true, sandbox_provider: 'tart_macos_vm' });
+    let hit = '';
+    server.use(
+      http.post('/api/agents/:id/sandbox/:action', ({ params }) => {
+        hit = String(params.action);
+        return HttpResponse.json({
+          ok: true,
+          status: 'accepted',
+          action: hit,
+          command_id: 'cmd-1',
+          command_type: 'agent.sandbox_action',
+          command_status: 'pending',
+        });
+      }),
+    );
+    wrap('/agents/A1');
+    const controls = await screen.findByTestId('agent-sandbox-controls');
+    expect(controls).toBeInTheDocument();
+    const btn = screen.getByTestId('agent-sandbox-open-browser');
+    expect(btn).toHaveAttribute('title', 'Open browser setup');
+    expect(btn.querySelector('svg')).not.toBeNull();
+    fireEvent.click(btn);
+    await waitFor(() => expect(hit).toBe('open_browser'));
+    expect(await screen.findByTestId('agent-sandbox-action-status')).toHaveTextContent('open_browser accepted');
+  });
+
   it('switches tabs (Profile default) + Workspace tab is removed (#228)', async () => {
     stubAgent();
     wrap('/agents/A1');

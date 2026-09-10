@@ -132,6 +132,8 @@ type SandboxBindingRow struct {
 	VMName              string    `json:"vm_name,omitempty"`
 	State               string    `json:"state,omitempty"`
 	ComputerUseEndpoint string    `json:"computer_use_endpoint,omitempty"`
+	BootstrapPath       string    `json:"bootstrap_path,omitempty"`
+	ConsoleCommand      string    `json:"console_command,omitempty"`
 	CreatedAt           time.Time `json:"created_at,omitempty"`
 	UpdatedAt           time.Time `json:"updated_at,omitempty"`
 	LastHealthAt        time.Time `json:"last_health_at,omitempty"`

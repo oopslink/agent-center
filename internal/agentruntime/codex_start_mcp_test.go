@@ -29,6 +29,14 @@ func (f fakeSandboxManager) GetAgentSandbox(context.Context, SandboxEnsureReques
 	return f.binding, true, nil
 }
 
+func (f fakeSandboxManager) OpenSandboxConsole(context.Context, SandboxEnsureRequest) (SandboxBinding, error) {
+	return f.binding, nil
+}
+
+func (f fakeSandboxManager) OpenSandboxBrowser(context.Context, SandboxEnsureRequest) (SandboxBinding, error) {
+	return f.binding, nil
+}
+
 func (f fakeSandboxManager) StartSandbox(context.Context, SandboxEnsureRequest) (SandboxBinding, error) {
 	return f.binding, nil
 }

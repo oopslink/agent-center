@@ -477,6 +477,23 @@
         "forceDeleteTitle": "Force delete",
         "forceDeleteAria": "Force delete agent"
       },
+      "sandbox": {
+        "regionAria": "Sandbox controls",
+        "label": "Sandbox",
+        "openConsoleTitle": "Open VM console",
+        "openConsoleAria": "Open sandbox VM console",
+        "openBrowserTitle": "Open browser setup",
+        "openBrowserAria": "Open sandbox browser setup",
+        "startTitle": "Start sandbox",
+        "startAria": "Start sandbox VM",
+        "suspendTitle": "Suspend sandbox",
+        "suspendAria": "Suspend sandbox VM",
+        "resetTitle": "Reset sandbox",
+        "resetAria": "Reset sandbox VM",
+        "deleteTitle": "Delete sandbox",
+        "deleteAria": "Delete sandbox VM",
+        "actionAccepted": "{{action}} accepted · {{status}}"
+      },
       "activity": {
         "regionAria": "Activity",
         "diagnostics": "Activity Diagnostics",
