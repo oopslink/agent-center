@@ -34,3 +34,13 @@ func TestTartNotRunningError(t *testing.T) {
 		t.Fatal("unexpected not-running match")
 	}
 }
+
+func TestTartRestoreFailed(t *testing.T) {
+	errText := `Error Domain=VZErrorDomain Code=12 "The virtual machine failed to restore with error invalid argument."`
+	if !tartRestoreFailed(errText) {
+		t.Fatal("expected Tart restore failure to match")
+	}
+	if tartRestoreFailed("VM is not running") {
+		t.Fatal("unexpected restore-failure match")
+	}
+}

@@ -1,6 +1,7 @@
 package agentruntime
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha1"
 	"encoding/hex"
@@ -97,6 +98,11 @@ func tartVMState(ctx context.Context, vmName string) (string, bool) {
 
 func tartNotRunningError(out string) bool {
 	return strings.Contains(strings.ToLower(out), "is not running")
+}
+
+func tartRestoreFailed(out string) bool {
+	lower := strings.ToLower(out)
+	return strings.Contains(lower, "failed to restore") || strings.Contains(lower, "vzerrordomain code=12")
 }
 
 func (b SandboxBinding) ComputerUseStatus() string {
@@ -331,23 +337,7 @@ func (m *LocalSandboxManager) runTartLifecycleCommand(ctx context.Context, b San
 		b.LastError = ""
 		return b
 	case "start":
-		if state, ok := tartVMState(ctx, b.VMName); ok && state == SandboxStateRunning {
-			b.State = SandboxStateRunning
-			b.LastError = ""
-			return b
-		}
-		cmd := exec.CommandContext(ctx, "tart", "run", "--no-graphics", b.VMName)
-		if err := cmd.Start(); err != nil {
-			b.State = SandboxStateDegraded
-			b.LastError = "tart run failed: " + err.Error()
-			return b
-		}
-		if cmd.Process != nil {
-			_ = cmd.Process.Release()
-		}
-		b.State = SandboxStateRunning
-		b.LastError = ""
-		return b
+		return m.startTartSandbox(ctx, b)
 	case "suspend":
 		args = []string{"suspend", b.VMName}
 	case "reset":
@@ -382,6 +372,91 @@ func (m *LocalSandboxManager) runTartLifecycleCommand(ctx context.Context, b San
 	}
 	b.LastError = ""
 	return b
+}
+
+func (m *LocalSandboxManager) startTartSandbox(ctx context.Context, b SandboxBinding) SandboxBinding {
+	if state, ok := tartVMState(ctx, b.VMName); ok && state == SandboxStateRunning {
+		b.State = SandboxStateRunning
+		b.LastError = ""
+		return b
+	}
+	started, out := m.runTartUntilRunning(ctx, b.VMName)
+	if started.State == SandboxStateRunning {
+		b.State = SandboxStateRunning
+		b.LastError = ""
+		return b
+	}
+	if tartRestoreFailed(out) {
+		_ = exec.CommandContext(ctx, "tart", "stop", b.VMName).Run()
+		started, out = m.runTartUntilRunning(ctx, b.VMName)
+		if started.State == SandboxStateRunning {
+			b.State = SandboxStateRunning
+			b.LastError = ""
+			return b
+		}
+	}
+	b.State = started.State
+	b.LastError = started.LastError
+	if b.LastError == "" {
+		b.LastError = strings.TrimSpace(out)
+	}
+	return b
+}
+
+func (m *LocalSandboxManager) runTartUntilRunning(ctx context.Context, vmName string) (SandboxBinding, string) {
+	var output bytes.Buffer
+	cmd := exec.CommandContext(ctx, "tart", "run", "--no-graphics", vmName)
+	cmd.Stdout = &output
+	cmd.Stderr = &output
+	if err := cmd.Start(); err != nil {
+		return SandboxBinding{State: SandboxStateDegraded, LastError: "tart run failed: " + err.Error()}, output.String()
+	}
+	waitCh := make(chan error, 1)
+	go func() { waitCh <- cmd.Wait() }()
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	timer := time.NewTimer(45 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case err := <-waitCh:
+			if state, ok := tartVMState(ctx, vmName); ok && state == SandboxStateRunning {
+				return SandboxBinding{State: SandboxStateRunning}, output.String()
+			}
+			detail := strings.TrimSpace(output.String())
+			if err != nil {
+				return SandboxBinding{
+					State:     SandboxStateDegraded,
+					LastError: strings.TrimSpace(fmt.Sprintf("tart run failed: %v: %s", err, detail)),
+				}, output.String()
+			}
+			if detail == "" {
+				detail = "tart run exited before VM reached running"
+			}
+			return SandboxBinding{State: SandboxStateDegraded, LastError: detail}, output.String()
+		case <-ticker.C:
+			if state, ok := tartVMState(ctx, vmName); ok && state == SandboxStateRunning {
+				return SandboxBinding{State: SandboxStateRunning}, output.String()
+			}
+		case <-timer.C:
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			state := SandboxStateDegraded
+			if actual, ok := tartVMState(ctx, vmName); ok {
+				state = actual
+			}
+			return SandboxBinding{
+				State:     state,
+				LastError: "tart run timed out before VM reached running",
+			}, output.String()
+		case <-ctx.Done():
+			if cmd.Process != nil {
+				_ = cmd.Process.Kill()
+			}
+			return SandboxBinding{State: SandboxStateDegraded, LastError: ctx.Err().Error()}, output.String()
+		}
+	}
 }
 
 func (m *LocalSandboxManager) resetTartSandbox(ctx context.Context, b SandboxBinding) SandboxBinding {
