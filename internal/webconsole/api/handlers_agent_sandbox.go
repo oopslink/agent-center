@@ -35,15 +35,7 @@ var allowedSandboxActions = map[string]bool{
 var sandboxVNCUpgrader = websocket.Upgrader{
 	HandshakeTimeout: 10 * time.Second,
 	CheckOrigin: func(r *http.Request) bool {
-		origin := strings.TrimSpace(r.Header.Get("Origin"))
-		if origin == "" {
-			return true
-		}
-		want := "http://" + r.Host
-		if r.TLS != nil {
-			want = "https://" + r.Host
-		}
-		return origin == want
+		return sandboxVNCOriginAllowed(r)
 	},
 }
 
@@ -390,6 +382,62 @@ func maskVNCEndpoint(endpoint string) string {
 		return "localhost:" + port
 	}
 	return "configured:" + port
+}
+
+func sandboxVNCOriginAllowed(r *http.Request) bool {
+	origin := strings.TrimSpace(r.Header.Get("Origin"))
+	if origin == "" {
+		return true
+	}
+	for _, allowed := range sandboxVNCAllowedOrigins(r) {
+		if origin == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+func sandboxVNCAllowedOrigins(r *http.Request) []string {
+	seen := make(map[string]bool)
+	var out []string
+	add := func(scheme, host string) {
+		scheme = strings.TrimSpace(strings.ToLower(scheme))
+		host = strings.TrimSpace(host)
+		if scheme == "" || host == "" {
+			return
+		}
+		origin := scheme + "://" + host
+		if !seen[origin] {
+			seen[origin] = true
+			out = append(out, origin)
+		}
+	}
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	add(scheme, r.Host)
+	for _, proto := range splitForwardedHeader(r.Header.Get("X-Forwarded-Proto")) {
+		add(proto, r.Host)
+	}
+	for _, host := range splitForwardedHeader(r.Header.Get("X-Forwarded-Host")) {
+		add(scheme, host)
+		for _, proto := range splitForwardedHeader(r.Header.Get("X-Forwarded-Proto")) {
+			add(proto, host)
+		}
+	}
+	return out
+}
+
+func splitForwardedHeader(v string) []string {
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
 }
 
 func formatSandboxTime(t time.Time) string {

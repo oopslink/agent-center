@@ -191,12 +191,27 @@ export default function AgentDetail(): React.ReactElement {
   const agentSubjectRef = `agent:${a.identity_member_id || a.id}`;
   const sandboxEnabled = (a.sandbox_enabled ?? false) && !isArchived;
   const sandboxBinding = concurrency.data?.sandbox_binding ?? a.sandbox_binding;
-  const sandboxState = sandboxBinding?.state || 'unprovisioned';
-  const sandboxCommandRunning = sandboxCommand.data?.command_status === 'pending' || sandboxCommand.data?.command_status === 'running';
+  const sandboxCommandStatus = sandboxCommand.data?.command_status;
+  const sandboxCommandRunning = sandboxCommandStatus === 'pending' || sandboxCommandStatus === 'running';
   const sandboxPending = sandboxAction.isPending || sandboxCommandRunning;
+  const sandboxAwaitingRuntimeState = sandboxEnabled && !sandboxBinding && (sandboxPending || sandboxCommandStatus === 'succeeded');
+  const sandboxState = sandboxBinding?.state || (sandboxAwaitingRuntimeState ? 'syncing' : 'unprovisioned');
   const sandboxDeleted = sandboxState === 'deleted';
   const sandboxStarting = sandboxState === 'provisioning' || (sandboxAction.data?.action === 'start' && sandboxPending);
   const sandboxRunning = sandboxState === 'running';
+  const sandboxStateLabel = sandboxBinding
+    ? t('agents.detail.sandbox.stateValue', { state: sandboxState })
+    : t(sandboxAwaitingRuntimeState ? 'agents.detail.sandbox.stateSyncing' : 'agents.detail.sandbox.stateUnprovisioned');
+  const sandboxProgress = sandboxPending
+    ? t('agents.detail.sandbox.actionStatus', {
+        action: sandboxAction.data?.action ?? 'sandbox',
+        status: sandboxCommandStatus ?? sandboxAction.data?.status ?? 'pending',
+      })
+    : sandboxAwaitingRuntimeState
+      ? t('agents.detail.sandbox.waitingForRuntimeState')
+      : sandboxStarting
+        ? t('agents.detail.sandbox.transitioning')
+        : null;
   const sandboxCanStart = sandboxEnabled && !sandboxPending && !sandboxDeleted && !sandboxRunning && sandboxState !== 'provisioning';
   const sandboxCanSuspend = sandboxEnabled && !sandboxPending && (sandboxState === 'running' || sandboxState === 'ready');
   const sandboxCanOpen = sandboxEnabled && !sandboxPending && !sandboxDeleted;
@@ -371,7 +386,7 @@ export default function AgentDetail(): React.ReactElement {
           <div className="min-w-[13rem] text-xs" data-testid="agent-sandbox-runtime-status">
             <div className="font-medium uppercase tracking-wide text-text-muted">{t('agents.detail.sandbox.label')}</div>
             <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-text-primary">
-              <span>{t('agents.detail.sandbox.stateValue', { state: sandboxState })}</span>
+              <span>{sandboxStateLabel}</span>
               {sandboxBinding?.vm_name && <span className="text-text-muted">{sandboxBinding.vm_name}</span>}
               {sandboxBinding?.updated_at && (
                 <span className="text-text-muted" title={sandboxBinding.updated_at}>
@@ -385,7 +400,7 @@ export default function AgentDetail(): React.ReactElement {
               )}
             </div>
             {sandboxBinding?.last_error && <div className="mt-0.5 text-danger">{sandboxBinding.last_error}</div>}
-            {sandboxStarting && <div className="mt-0.5 text-text-muted">{t('agents.detail.sandbox.transitioning')}</div>}
+            {sandboxProgress && <div className="mt-0.5 text-text-muted">{sandboxProgress}</div>}
           </div>
           <SandboxActionButton
             action="open_console"

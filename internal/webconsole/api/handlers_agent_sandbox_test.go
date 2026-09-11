@@ -139,3 +139,21 @@ func TestVNCSecurityTypesForWeb_PrefersPasswordAuth(t *testing.T) {
 		t.Fatalf("security types must return a copy for unchanged passthrough")
 	}
 }
+
+func TestSandboxVNCOriginAllowed_HonorsForwardedHostAndProto(t *testing.T) {
+	req, err := http.NewRequest(http.MethodGet, "http://127.0.0.1:7100/ws", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Host = "127.0.0.1:7100"
+	req.Header.Set("Origin", "https://agent.example.com")
+	req.Header.Set("X-Forwarded-Host", "agent.example.com")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	if !sandboxVNCOriginAllowed(req) {
+		t.Fatalf("origin should be allowed through forwarded host/proto")
+	}
+	req.Header.Set("Origin", "https://other.example.com")
+	if sandboxVNCOriginAllowed(req) {
+		t.Fatalf("unrelated origin should be rejected")
+	}
+}

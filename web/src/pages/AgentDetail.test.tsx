@@ -331,6 +331,56 @@ describe('AgentDetail page', () => {
     expect(screen.getByTestId('agent-sandbox-suspend')).toBeEnabled();
   });
 
+  it('shows sandbox progress while waiting for runtime binding', async () => {
+    stubAgent({ sandbox_enabled: true, sandbox_provider: 'tart_macos_vm' });
+    server.use(
+      http.get('/api/agents/:id/concurrency', () =>
+        HttpResponse.json({
+          agent_id: 'A1',
+          cap: 4,
+          active: 0,
+          queued: 0,
+          stale: false,
+          reachable: true,
+          has_snapshot: true,
+          snapshot_age_ms: 1000,
+          executors: [],
+          slots: [],
+          computer_use_status: 'provisioning',
+        }),
+      ),
+      http.post('/api/agents/:id/sandbox/:action', ({ params }) =>
+        HttpResponse.json({
+          ok: true,
+          status: 'accepted',
+          action: String(params.action),
+          command_id: 'cmd-1',
+          command_type: 'agent.sandbox_action',
+          command_status: 'pending',
+        }),
+      ),
+      http.get('/api/agents/:id/sandbox/commands/:commandId', () =>
+        HttpResponse.json({
+          ok: true,
+          agent_id: 'A1',
+          worker_id: 'w-1',
+          command_id: 'cmd-1',
+          offset: 1,
+          command_type: 'agent.sandbox_action',
+          command_status: 'running',
+        }),
+      ),
+    );
+
+    wrap('/agents/A1');
+    const runtimeStatus = await screen.findByTestId('agent-sandbox-runtime-status');
+    expect(runtimeStatus).toHaveTextContent('State: not provisioned');
+    fireEvent.click(screen.getByTestId('agent-sandbox-start'));
+    await waitFor(() => expect(runtimeStatus).toHaveTextContent('State: waiting for runtime state'));
+    expect(runtimeStatus).toHaveTextContent('start');
+    expect(runtimeStatus).toHaveTextContent('running');
+  });
+
   it('switches tabs (Profile default) + Workspace tab is removed (#228)', async () => {
     stubAgent();
     wrap('/agents/A1');
