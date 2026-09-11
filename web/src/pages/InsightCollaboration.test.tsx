@@ -118,7 +118,7 @@ describe('Collaboration Insight', () => {
     const edgeList = await screen.findByLabelText('Keyboard-accessible graph edges');
     expect(within(edgeList).getAllByRole('button')).toHaveLength(6);
     expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Review rejected · Mixed');
-    expect(screen.getByLabelText('Effect summary')).toHaveTextContent('Affected tasks1');
+    expect(within(screen.getByTestId('collaboration-inspector')).getByLabelText('Effect summary')).toHaveTextContent('Affected tasks1');
     expect(screen.getByTestId('collaboration-load-more')).toBeVisible();
     await user.click(within(edgeList).getByRole('button', { name: /Assign/ }));
     const drawer = await screen.findByTestId('collaboration-evidence-drawer');
@@ -164,6 +164,8 @@ describe('Collaboration Insight', () => {
     expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Reading this view');
     expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Legend');
     expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Strong relationships');
+    expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Affected tasks');
+    expect(screen.getByTestId('collaboration-filter-help')).toHaveTextContent('Filters reload the dataset');
 
     expect(screen.getByLabelText('Relationship')).not.toBeVisible();
     await user.click(screen.getByText('More filters'));
@@ -224,7 +226,7 @@ describe('Collaboration Insight', () => {
     expect(await screen.findByText('More filters')).toBeVisible();
     const chart = await screen.findByTestId('collaboration-echarts');
     expect(chart.querySelector('canvas')).toBeTruthy();
-    expect(screen.getByTestId('collaboration-graph-toolbar')).toHaveTextContent('Locate');
+    expect(screen.getByTestId('collaboration-graph-toolbar')).toHaveTextContent('Find node');
     fireEvent.wheel(chart, { deltaY: -100, clientX: 360, clientY: 180 });
     await user.click(screen.getByRole('button', { name: 'Fit' }));
     fireEvent.pointerDown(chart, { pointerId: 1, clientX: 360, clientY: 180 });
@@ -472,7 +474,8 @@ describe('Collaboration Insight', () => {
     })));
     renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
     expect(await screen.findByTestId('collaboration-unsupported')).toBeVisible();
-    expect(screen.getByLabelText('Effect summary')).toHaveTextContent('Affected tasks0');
+    expect(screen.getByTestId('collaboration-filter-help')).toHaveTextContent('Filters reload the dataset');
+    expect(screen.queryByTestId('collaboration-inspector')).not.toBeInTheDocument();
   });
 
   it('accumulates cursor pages and renders real Plan and Stage ownership', async () => {

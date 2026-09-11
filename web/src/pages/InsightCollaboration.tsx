@@ -40,6 +40,30 @@ const NODE_COLORS: Record<CollaborationNode['kind'], string> = {
   project: '#64748b',
   cluster: '#db2777',
 };
+const NODE_SYMBOLS: Record<CollaborationNode['kind'], string> = {
+  agent: 'circle',
+  task: 'roundRect',
+  plan: 'diamond',
+  stage: 'rect',
+  project: 'triangle',
+  cluster: 'pin',
+};
+const NODE_SIZES: Record<CollaborationNode['kind'], number | number[]> = {
+  agent: 44,
+  task: [104, 34],
+  plan: 54,
+  stage: [74, 34],
+  project: 52,
+  cluster: 48,
+};
+const NODE_SIZES_COMPACT: Record<CollaborationNode['kind'], number | number[]> = {
+  agent: 30,
+  task: [66, 24],
+  plan: 38,
+  stage: [52, 24],
+  project: 36,
+  cluster: 34,
+};
 const EDGE_COLORS: Record<CollaborationPolarity, string> = {
   positive: '#16803c',
   negative: '#c0362c',
@@ -122,13 +146,10 @@ export default function InsightCollaboration(): React.ReactElement {
       {query.isLoading ? <State id="collaboration-loading" title={t('insight.collaboration.loading')} /> : null}
       {query.isError ? <CollaborationError error={query.error} t={t} /> : null}
       {query.data ? <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden" data-testid="collaboration-workspace">
-        <div className="shrink-0">
-          <Summary summary={summary} t={t} />
-        </div>
         {activeGraph.unsupported ? <State id="collaboration-unsupported" title={t('insight.collaboration.unsupported')} body={activeGraph.reason ?? t('insight.collaboration.emptyBody')} /> : null}
         {!activeGraph.unsupported && activeGraph.edges.length === 0 ? <State id="collaboration-empty" title={t('insight.collaboration.empty')} body={t('insight.collaboration.emptyBody')} /> : null}
         {!activeGraph.unsupported && activeGraph.edges.length > 0 ? <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          <CollaborationGraph view={activeGraph} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} />
+          <CollaborationGraph view={activeGraph} summary={summary} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} />
           <div className="absolute right-6 top-6 z-20 flex items-center gap-2">
             {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="rounded border border-border bg-bg-elevated px-3 py-1.5 text-xs shadow-lg hover:bg-bg-subtle" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
             <CollaborationLODNotice view={activeGraph} canLoadMore={query.hasNextPage} loadingMore={query.isFetchingNextPage} onLoadMore={() => void query.fetchNextPage()} onShowFull={showFullGraph} t={t} />
@@ -219,11 +240,13 @@ function CollaborationFiltersBar({ params, update, clearAll, t }: { params: URLS
   ];
   const activeCount = ['project_id', 'plan_id', 'task_id', 'agent_ref', 'since', 'until', 'relation_type', 'polarity'].filter((key) => params.get(key)).length;
   return <form aria-label={t('insight.collaboration.filters.label')} className="shrink-0 rounded-lg border border-border bg-bg-surface p-2" data-testid="collaboration-filter-toolbar" onSubmit={(e) => e.preventDefault()}>
+    <p className="mb-2 text-xs leading-5 text-text-muted" data-testid="collaboration-filter-help">{t('insight.collaboration.filters.help')}</p>
     <div className="flex min-w-0 flex-wrap items-end gap-2">
       <div className="min-w-[15rem] flex-1">
         <EntityFilter
           name="project_id"
           label={t('insight.collaboration.filters.project')}
+          description={t('insight.collaboration.filters.projectHelp')}
           value={projectId}
           options={projectOptions}
           disabled={projects.isLoading}
@@ -237,6 +260,7 @@ function CollaborationFiltersBar({ params, update, clearAll, t }: { params: URLS
         <EntityFilter
           name="task_id"
           label={t('insight.collaboration.filters.task')}
+          description={t('insight.collaboration.filters.taskHelp')}
           value={params.get('task_id') ?? ''}
           options={taskOptions}
           disabled={!projectId || tasks.isLoading}
@@ -256,6 +280,7 @@ function CollaborationFiltersBar({ params, update, clearAll, t }: { params: URLS
           <EntityFilter
             name="plan_id"
             label={t('insight.collaboration.filters.plan')}
+            description={t('insight.collaboration.filters.planHelp')}
             value={planId}
             options={planOptions}
             disabled={!projectId || plans.isLoading}
@@ -267,6 +292,7 @@ function CollaborationFiltersBar({ params, update, clearAll, t }: { params: URLS
           <EntityFilter
             name="agent_ref"
             label={t('insight.collaboration.filters.agent')}
+            description={t('insight.collaboration.filters.agentHelp')}
             value={params.get('agent_ref') ?? ''}
             options={agentOptions}
             disabled={!projectId || projectMembers.isLoading || members.isLoading}
@@ -276,8 +302,8 @@ function CollaborationFiltersBar({ params, update, clearAll, t }: { params: URLS
             update={update}
           />
           {fields.map(([name, label, type]) => <label key={name} className="text-xs text-text-muted">{label}<input aria-label={label} type={type} value={dateTimeInputValue(params.get(name))} onChange={(e) => update(name, dateTimeInputToRFC3339(e.target.value))} className="mt-1 w-full rounded border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary" /></label>)}
-          <SelectFilter name="relation_type" label={t('insight.collaboration.filters.relation')} values={RELATIONS} value={params.get('relation_type') ?? ''} update={update} t={t} />
-          <SelectFilter name="polarity" label={t('insight.collaboration.filters.polarity')} values={POLARITIES} value={params.get('polarity') ?? ''} update={update} t={t} />
+          <SelectFilter name="relation_type" label={t('insight.collaboration.filters.relation')} description={t('insight.collaboration.filters.relationHelp')} values={RELATIONS} value={params.get('relation_type') ?? ''} update={update} t={t} />
+          <SelectFilter name="polarity" label={t('insight.collaboration.filters.polarity')} description={t('insight.collaboration.filters.polarityHelp')} values={POLARITIES} value={params.get('polarity') ?? ''} update={update} t={t} />
         </div>
       </details>
       <button type="button" onClick={clearAll} className="h-9 shrink-0 rounded border border-border px-3 text-xs hover:bg-bg-subtle">{t('insight.collaboration.filters.clearAll')}</button>
@@ -285,12 +311,12 @@ function CollaborationFiltersBar({ params, update, clearAll, t }: { params: URLS
   </form>;
 }
 
-function EntityFilter({ name, label, value, options, disabled, placeholder, searchPlaceholder, emptyLabel, update }: { name: string; label: string; value: string; options: EntityOption[]; disabled?: boolean; placeholder: string; searchPlaceholder: string; emptyLabel: string; update: (key: string, value: string) => void }) {
-  return <label className="text-xs text-text-muted">{label}<div className="mt-1 flex gap-2"><div className="min-w-0 flex-1"><EntitySelect testId={`collaboration-${name}`} ariaLabel={label} value={value} options={options} onChange={(next) => update(name, next)} disabled={disabled} placeholder={placeholder} searchPlaceholder={searchPlaceholder} emptyLabel={emptyLabel} /></div>{value ? <button type="button" onClick={() => update(name, '')} className="shrink-0 rounded border border-border px-2 text-sm text-text-muted hover:bg-bg-subtle" aria-label={`Clear ${label}`}>×</button> : null}</div></label>;
+function EntityFilter({ name, label, description, value, options, disabled, placeholder, searchPlaceholder, emptyLabel, update }: { name: string; label: string; description: string; value: string; options: EntityOption[]; disabled?: boolean; placeholder: string; searchPlaceholder: string; emptyLabel: string; update: (key: string, value: string) => void }) {
+  return <label className="text-xs text-text-muted"><span className="font-medium text-text-secondary">{label}</span><span className="mt-0.5 block leading-4">{description}</span><div className="mt-1 flex gap-2"><div className="min-w-0 flex-1"><EntitySelect testId={`collaboration-${name}`} ariaLabel={label} value={value} options={options} onChange={(next) => update(name, next)} disabled={disabled} placeholder={placeholder} searchPlaceholder={searchPlaceholder} emptyLabel={emptyLabel} /></div>{value ? <button type="button" onClick={() => update(name, '')} className="shrink-0 rounded border border-border px-2 text-sm text-text-muted hover:bg-bg-subtle" aria-label={`Clear ${label}`}>×</button> : null}</div></label>;
 }
 
-function SelectFilter({ name, label, values, value, update, t }: { name: string; label: string; values: string[]; value: string; update: (k: string, v: string) => void; t: Translator }) {
-  return <label className="text-xs text-text-muted">{label}<select aria-label={label} value={value} onChange={(e) => update(name, e.target.value)} className="mt-1 w-full rounded border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary"><option value="">{t('insight.collaboration.filters.all')}</option>{values.map((item) => <option key={item} value={item}>{labelFor(t, item)}</option>)}</select></label>;
+function SelectFilter({ name, label, description, values, value, update, t }: { name: string; label: string; description: string; values: string[]; value: string; update: (k: string, v: string) => void; t: Translator }) {
+  return <label className="text-xs text-text-muted"><span className="font-medium text-text-secondary">{label}</span><span className="mt-0.5 block leading-4">{description}</span><select aria-label={label} value={value} onChange={(e) => update(name, e.target.value)} className="mt-1 w-full rounded border border-border bg-bg-primary px-2 py-1.5 text-sm text-text-primary"><option value="">{t('insight.collaboration.filters.all')}</option>{values.map((item) => <option key={item} value={item}>{labelFor(t, item)}</option>)}</select></label>;
 }
 
 function dateTimeInputValue(value: string | null): string {
@@ -307,14 +333,16 @@ function dateTimeInputToRFC3339(value: string): string {
   return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
 }
 
-function Summary({ summary, t }: { summary: { positive_count: number; negative_count: number; neutral_count: number; mixed_count: number; affected_task_count: number }; t: Translator }) {
+type CollaborationSummary = { positive_count: number; negative_count: number; neutral_count: number; mixed_count: number; affected_task_count: number };
+
+function Summary({ summary, t }: { summary: CollaborationSummary; t: Translator }) {
   const items = (['positive', 'negative', 'neutral', 'mixed'] as const).map((key) => ({
     key,
     label: labelFor(t, key),
     value: summary[`${key}_count`],
     className: polarityAccentClass(key),
   }));
-  return <section aria-label={t('insight.collaboration.summary')} className="grid min-w-0 grid-cols-2 gap-2 overflow-hidden md:grid-cols-5">{items.map((item) => <div key={item.key} className={`min-w-0 rounded-md border bg-bg-surface px-3 py-2 ${item.className}`}><span className="block truncate text-xs font-medium text-text-muted">{item.label}</span><strong className="mt-1 block text-lg leading-none text-text-primary">{item.value}</strong></div>)}<div className="min-w-0 rounded-md border border-border bg-bg-elevated px-3 py-2"><span className="block truncate text-xs font-medium text-text-muted">{t('insight.collaboration.affectedTasks')}</span><strong className="mt-1 block text-lg leading-none text-text-primary">{summary.affected_task_count}</strong></div></section>;
+  return <section aria-label={t('insight.collaboration.summary')} className="grid min-w-0 grid-cols-2 gap-2 overflow-hidden">{items.map((item) => <div key={item.key} className={`min-w-0 rounded-md border bg-bg-surface px-3 py-2 ${item.className}`}><span className="block truncate text-xs font-medium text-text-muted">{item.label}</span><strong className="mt-1 block text-lg leading-none text-text-primary">{item.value}</strong></div>)}<div className="col-span-2 min-w-0 rounded-md border border-border bg-bg-surface px-3 py-2"><span className="block truncate text-xs font-medium text-text-muted">{t('insight.collaboration.affectedTasks')}</span><strong className="mt-1 block text-lg leading-none text-text-primary">{summary.affected_task_count}</strong></div></section>;
 }
 
 function dedupeBy<T>(items: T[], key: (item: T) => string): T[] {
@@ -532,7 +560,7 @@ function CollaborationLODNotice({ view, canLoadMore, loadingMore, onLoadMore, on
   );
 }
 
-function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: { view: DimensionGraphView; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; onClearSelection: () => void; t: Translator }) {
+function CollaborationGraph({ view, summary, selected, onSelect, onClearSelection, t }: { view: DimensionGraphView; summary: CollaborationSummary; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; onClearSelection: () => void; t: Translator }) {
   const { nodes, edges } = view;
   const storageKey = `insight:collaboration:pins:${view.view}`;
   const baseNodeMap = useMemo(() => layoutNodes(view), [view]);
@@ -700,7 +728,7 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
   const renderEdgeButtons = (limit = EDGE_LIST_RENDER_LIMIT) => relationshipEdges.slice(0, limit).map((edge) => {
     const scopes = scopesForEdge(edge);
     const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0');
-    return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="group rounded-md border border-border bg-bg-primary px-3 py-2 text-left text-sm hover:border-brand/50 hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default" data-testid="collaboration-relationship-row"><span className="flex items-center justify-between gap-3"><strong className="min-w-0 truncate text-text-primary">{labelFor(t, edge.relation_type)}<span className="sr-only">{` · ${labelFor(t, edge.polarity)}`}</span></strong><span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${polarityPillClass(edge.polarity)}`}>{labelFor(t, edge.polarity)}</span></span><span className="mt-1 block text-xs text-text-muted">{t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · {t('insight.collaboration.evidence.count', { count: edge.evidence_count })}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</span></button>;
+    return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="group rounded-md border border-border bg-bg-primary px-3 py-2 text-left text-sm hover:border-brand/50 hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default" data-testid="collaboration-relationship-row"><span className="flex items-center justify-between gap-3"><strong className="min-w-0 truncate text-text-primary">{labelFor(t, edge.relation_type)}<span className="sr-only">{` · ${labelFor(t, edge.polarity)}`}</span></strong><span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${polarityPillClass(edge.polarity)}`}>{labelFor(t, edge.polarity)}</span></span><span className="mt-1 block truncate text-xs text-text-muted">{edge.source} {'->'} {edge.target}</span><span className="mt-1 block text-xs text-text-muted">{t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · {t('insight.collaboration.evidence.count', { count: edge.evidence_count })}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</span></button>;
   });
   return <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-bg-surface p-3" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pb-3" data-testid="collaboration-graph-toolbar">
@@ -711,11 +739,11 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
         {view.truncated ? <span>{t('insight.collaboration.lod.cropped', { nodes: view.visibleNodeCount, edges: view.visibleEdgeCount })}</span> : null}
       </div>
       <div className="flex min-w-0 flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elevated p-1" aria-label={t('insight.collaboration.viewport.controls')}>
-        <select aria-label="Locate" className="h-8 max-w-[13rem] rounded border border-border bg-bg-primary px-2 text-xs text-text-primary" value={locateId} onChange={(event) => setLocateId(event.target.value)} data-testid="collaboration-locate">
-          <option value="">Locate</option>
+        <select aria-label={t('insight.collaboration.viewport.locate')} title={t('insight.collaboration.viewport.locateHelp')} className="h-8 max-w-[13rem] rounded border border-border bg-bg-primary px-2 text-xs text-text-primary" value={locateId} onChange={(event) => setLocateId(event.target.value)} data-testid="collaboration-locate">
+          <option value="">{t('insight.collaboration.viewport.locate')}</option>
           {locateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
-        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={focusLocated} disabled={!locateId}>Go</button>
+        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={focusLocated} disabled={!locateId}>{t('insight.collaboration.viewport.go')}</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(1.22)} aria-label={t('insight.collaboration.viewport.zoomIn')}>+</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(0.82)} aria-label={t('insight.collaboration.viewport.zoomOut')}>-</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={focusSelected} disabled={context.nodes.size === 0}>{t('insight.collaboration.viewport.focus')}</button>
@@ -739,6 +767,7 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
         </div>
       </div>
       <aside className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-md border border-border bg-bg-elevated p-3" data-testid="collaboration-inspector">
+        <Summary summary={summary} t={t} />
         <GraphReadout view={view} visibleNodes={visibleNodes.length} visibleEdges={visibleEdges.length} t={t} />
         <GraphLegend t={t} />
         <section className="min-h-0 flex-1 overflow-hidden">
@@ -781,7 +810,7 @@ function GraphLegend({ t }: { t: Translator }) {
   return <section className="rounded-md border border-border bg-bg-primary p-3">
     <h2 className="text-sm font-semibold text-text-primary">{t('insight.collaboration.legend.title')}</h2>
     <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-text-muted">
-      {(['agent', 'plan', 'stage', 'task'] as const).map((kind) => <span key={kind} className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: NODE_COLORS[kind] }} /> <span className="truncate">{labelFor(t, kind)}</span></span>)}
+      {(['agent', 'plan', 'stage', 'task'] as const).map((kind) => <span key={kind} className="flex min-w-0 items-center gap-2"><span className={`shrink-0 ${legendShapeClass(kind)}`} style={{ backgroundColor: NODE_COLORS[kind] }} /> <span className="truncate">{labelFor(t, kind)}</span></span>)}
     </div>
     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
       {(['positive', 'negative', 'neutral', 'mixed'] as const).map((polarity) => <span key={polarity} className={`rounded px-2 py-1 text-center font-medium ${polarityPillClass(polarity)}`}>{labelFor(t, polarity)}</span>)}
@@ -799,6 +828,7 @@ type EChartNodeDatum = {
   fixed?: boolean;
   draggable?: boolean;
   symbolSize?: number | number[];
+  symbol?: string;
   node: PositionedNode;
 };
 
@@ -837,10 +867,8 @@ function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focus
       fixed: view.view !== 'network' || pinned,
       draggable: true,
       node,
-      symbol: node.kind === 'agent' ? 'circle' : 'roundRect',
-      symbolSize: compactNodes
-        ? node.kind === 'cluster' || node.kind === 'plan' ? [72, 28] : node.kind === 'agent' ? 28 : [24, 18]
-        : node.kind === 'cluster' || node.kind === 'plan' ? [138, 42] : node.kind === 'agent' ? 44 : [104, 36],
+      symbol: NODE_SYMBOLS[node.kind],
+      symbolSize: compactNodes ? NODE_SIZES_COMPACT[node.kind] : NODE_SIZES[node.kind],
       itemStyle: {
         color: NODE_COLORS[node.kind],
         opacity: active ? 0.95 : 0.16,
@@ -849,7 +877,7 @@ function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focus
       },
       label: {
         show: showLabels || focusedNodeId === node.id,
-        formatter: truncateLabel(node.label, node.kind === 'cluster' || node.kind === 'plan' ? 28 : 18),
+        formatter: truncateLabel(node.label, node.kind === 'task' ? 18 : node.kind === 'stage' ? 14 : 16),
         color: '#111827',
         fontSize: 11,
       },
@@ -865,6 +893,8 @@ function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focus
       target: edge.target,
       value: Math.max(1, edge.interaction_count),
       edge,
+      symbol: ['none', 'arrow'],
+      symbolSize: [0, large ? 5 : 9],
       lineStyle: {
         color: EDGE_COLORS[edge.polarity],
         width: selected ? edge.magnitude + 3 : structural ? 1.2 : edge.magnitude + 1,
@@ -1169,5 +1199,23 @@ function polarityPillClass(polarity: CollaborationPolarity): string {
   case 'neutral':
   default:
     return 'bg-slate-100 text-slate-700';
+  }
+}
+
+function legendShapeClass(kind: CollaborationNode['kind']): string {
+  switch (kind) {
+  case 'agent':
+    return 'h-3 w-3 rounded-full';
+  case 'plan':
+    return 'h-3 w-3 rotate-45 rounded-[2px]';
+  case 'stage':
+    return 'h-3 w-4 rounded-[1px]';
+  case 'project':
+    return 'h-0 w-0 border-x-[6px] border-b-[11px] border-x-transparent bg-transparent';
+  case 'cluster':
+    return 'h-3 w-3 rounded-t-full rounded-bl-full rotate-45';
+  case 'task':
+  default:
+    return 'h-3 w-4 rounded';
   }
 }
