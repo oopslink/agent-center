@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -222,6 +223,9 @@ func (s *Server) agentSandboxDesktopWSHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	defer ws.Close()
+	if err := negotiateVNCForWeb(r.Context(), ws, tcp); err != nil {
+		return
+	}
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
 	done := make(chan struct{}, 2)
@@ -265,6 +269,88 @@ func (s *Server) agentSandboxDesktopWSHandler(w http.ResponseWriter, r *http.Req
 	case <-ctx.Done():
 	case <-done:
 	}
+}
+
+func negotiateVNCForWeb(ctx context.Context, ws *websocket.Conn, tcp net.Conn) error {
+	deadline := time.Now().Add(10 * time.Second)
+	_ = tcp.SetDeadline(deadline)
+	_ = ws.SetReadDeadline(deadline)
+	defer func() {
+		_ = tcp.SetDeadline(time.Time{})
+		_ = ws.SetReadDeadline(time.Time{})
+	}()
+	serverVersion := make([]byte, 12)
+	if _, err := io.ReadFull(tcp, serverVersion); err != nil {
+		return err
+	}
+	if err := ws.WriteMessage(websocket.BinaryMessage, serverVersion); err != nil {
+		return err
+	}
+	clientVersion, err := readVNCClientBytes(ctx, ws, 12)
+	if err != nil {
+		return err
+	}
+	if _, err := tcp.Write(clientVersion); err != nil {
+		return err
+	}
+	if !bytes.HasPrefix(clientVersion, []byte("RFB 003.007")) && !bytes.HasPrefix(clientVersion, []byte("RFB 003.008")) {
+		return nil
+	}
+	var count [1]byte
+	if _, err := io.ReadFull(tcp, count[:]); err != nil {
+		return err
+	}
+	if count[0] == 0 {
+		if err := ws.WriteMessage(websocket.BinaryMessage, count[:]); err != nil {
+			return err
+		}
+		return nil
+	}
+	types := make([]byte, int(count[0]))
+	if _, err := io.ReadFull(tcp, types); err != nil {
+		return err
+	}
+	advertised := vncSecurityTypesForWeb(types)
+	if err := ws.WriteMessage(websocket.BinaryMessage, append([]byte{byte(len(advertised))}, advertised...)); err != nil {
+		return err
+	}
+	if len(advertised) == 1 && advertised[0] == 2 && bytes.Contains(types, []byte{2}) {
+		selection, err := readVNCClientBytes(ctx, ws, 1)
+		if err != nil {
+			return err
+		}
+		if _, err := tcp.Write(selection); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func readVNCClientBytes(ctx context.Context, ws *websocket.Conn, want int) ([]byte, error) {
+	var buf []byte
+	for len(buf) < want {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+		mt, payload, err := ws.ReadMessage()
+		if err != nil {
+			return nil, err
+		}
+		if mt != websocket.BinaryMessage && mt != websocket.TextMessage {
+			continue
+		}
+		buf = append(buf, payload...)
+	}
+	return buf[:want], nil
+}
+
+func vncSecurityTypesForWeb(types []byte) []byte {
+	if bytes.Contains(types, []byte{2}) {
+		return []byte{2}
+	}
+	return append([]byte(nil), types...)
 }
 
 func sandboxVNCEndpoint(agentIDs ...string) (string, bool) {

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"reflect"
 	"testing"
 
 	"github.com/oopslink/agent-center/internal/clock"
@@ -120,5 +121,21 @@ func TestAPI_AgentSandboxDesktopSession_DistinguishesConfiguredAndReachable(t *t
 	_ = json.NewDecoder(resp.Body).Decode(&body)
 	if body["ok"] != false || body["status"] != "unreachable" || body["endpoint_state"] != "unreachable" {
 		t.Fatalf("unreachable session = %+v", body)
+	}
+}
+
+func TestVNCSecurityTypesForWeb_PrefersPasswordAuth(t *testing.T) {
+	got := vncSecurityTypesForWeb([]byte{30, 33, 36, 2, 35})
+	if !reflect.DeepEqual(got, []byte{2}) {
+		t.Fatalf("security types = %v, want password auth only", got)
+	}
+	original := []byte{30, 33, 36}
+	got = vncSecurityTypesForWeb(original)
+	if !reflect.DeepEqual(got, original) {
+		t.Fatalf("security types = %v, want unchanged", got)
+	}
+	got[0] = 99
+	if original[0] == 99 {
+		t.Fatalf("security types must return a copy for unchanged passthrough")
 	}
 }
