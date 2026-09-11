@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"os"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
 	"github.com/oopslink/agent-center/internal/environment"
@@ -129,6 +131,9 @@ func TestAPI_AgentSandboxDesktopSession_DistinguishesConfiguredAndReachable(t *t
 	if body["ok"] != true || body["status"] != "ready" || body["endpoint_state"] != "configured" {
 		t.Fatalf("ready session = %+v", body)
 	}
+	if body["websocket_url"] == "" {
+		t.Fatalf("ready session missing websocket_url: %+v", body)
+	}
 
 	_ = ln.Close()
 	resp = orgScopedGet(t, s.URL+"/api/agents/"+id+"/sandbox/desktop/session", sess)
@@ -143,18 +148,60 @@ func TestAPI_AgentSandboxDesktopSession_DistinguishesConfiguredAndReachable(t *t
 }
 
 func TestVNCSecurityTypesForWeb_PrefersPasswordAuth(t *testing.T) {
-	got := vncSecurityTypesForWeb([]byte{30, 33, 36, 2, 35})
+	got := vncSecurityTypesForWeb([]byte{30, 33, 36, 2, 35}, false)
 	if !reflect.DeepEqual(got, []byte{2}) {
 		t.Fatalf("security types = %v, want password auth only", got)
 	}
+	got = vncSecurityTypesForWeb([]byte{30, 33, 36, 2, 35}, true)
+	if !reflect.DeepEqual(got, []byte{1}) {
+		t.Fatalf("auto-auth security types = %v, want no-auth for browser", got)
+	}
 	original := []byte{30, 33, 36}
-	got = vncSecurityTypesForWeb(original)
+	got = vncSecurityTypesForWeb(original, true)
 	if !reflect.DeepEqual(got, original) {
 		t.Fatalf("security types = %v, want unchanged", got)
 	}
 	got[0] = 99
 	if original[0] == 99 {
 		t.Fatalf("security types must return a copy for unchanged passthrough")
+	}
+}
+
+func TestSandboxVNCSessions_AreSingleUseAndAgentScoped(t *testing.T) {
+	token, err := newSandboxVNCSession("agent-a", time.Minute)
+	if err != nil {
+		t.Fatalf("new session: %v", err)
+	}
+	if consumeSandboxVNCSession(token, "agent-b") {
+		t.Fatalf("session must not validate for another agent")
+	}
+	if consumeSandboxVNCSession(token, "agent-a") {
+		t.Fatalf("session must be consumed after failed validation")
+	}
+
+	token, err = newSandboxVNCSession("agent-a", time.Minute)
+	if err != nil {
+		t.Fatalf("new session: %v", err)
+	}
+	if !consumeSandboxVNCSession(token, "agent-a") {
+		t.Fatalf("session should validate once")
+	}
+	if consumeSandboxVNCSession(token, "agent-a") {
+		t.Fatalf("session should not validate twice")
+	}
+}
+
+func TestSandboxVNCPassword_ReadsAgentScopedFile(t *testing.T) {
+	path := t.TempDir() + "/vnc_password"
+	if err := os.WriteFile(path, []byte("secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AC_SANDBOX_VNC_PASSWORD_FILE_AGENT_A", path)
+	if got := sandboxVNCPassword("agent-a"); got != "secret" {
+		t.Fatalf("password = %q, want file content", got)
+	}
+	if got := sandboxVNCAuthMode("agent-a"); got != "automatic" {
+		t.Fatalf("auth mode = %q, want automatic", got)
 	}
 }
 

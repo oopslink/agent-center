@@ -217,6 +217,7 @@ export interface SandboxDesktopSession {
   status: 'ready' | 'not_configured' | string;
   agent_id: string;
   websocket_url: string;
+  auth_mode?: 'automatic' | 'password' | string;
   endpoint_state?: string;
   endpoint?: string;
   message?: string;

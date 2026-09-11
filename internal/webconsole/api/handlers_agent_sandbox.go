@@ -3,6 +3,9 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/des"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -39,6 +43,16 @@ var sandboxVNCUpgrader = websocket.Upgrader{
 		return sandboxVNCOriginAllowed(r)
 	},
 }
+
+type sandboxVNCSession struct {
+	AgentID   string
+	ExpiresAt time.Time
+}
+
+var sandboxVNCSessions = struct {
+	sync.Mutex
+	values map[string]sandboxVNCSession
+}{values: make(map[string]sandboxVNCSession)}
 
 func (s *Server) agentSandboxActionHandler(w http.ResponseWriter, r *http.Request) {
 	d := hd(r)
@@ -210,12 +224,18 @@ func (s *Server) agentSandboxDesktopSessionHandler(w http.ResponseWriter, r *htt
 	} else {
 		_ = conn.Close()
 	}
-	wsPath := fmt.Sprintf("/api/orgs/%s/agents/%s/sandbox/desktop/ws", r.PathValue("slug"), r.PathValue("id"))
+	sessionToken, err := newSandboxVNCSession(agentFacingID(a), 5*time.Minute)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "desktop_session_failed", err.Error())
+		return
+	}
+	wsPath := fmt.Sprintf("/api/orgs/%s/agents/%s/sandbox/desktop/ws?session=%s", r.PathValue("slug"), r.PathValue("id"), sessionToken)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":             true,
 		"status":         "ready",
 		"agent_id":       agentFacingID(a),
 		"websocket_url":  wsPath,
+		"auth_mode":      sandboxVNCAuthMode(a.ID().String(), agentFacingID(a)),
 		"endpoint_state": "configured",
 		"endpoint":       maskVNCEndpoint(endpoint),
 	})
@@ -236,6 +256,10 @@ func (s *Server) agentSandboxDesktopWSHandler(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusConflict, "vnc_not_configured", "VNC endpoint is not configured for this sandbox")
 		return
 	}
+	if !consumeSandboxVNCSession(r.URL.Query().Get("session"), agentFacingID(a)) {
+		writeError(w, http.StatusUnauthorized, "desktop_session_invalid", "desktop session expired; reopen the desktop viewer")
+		return
+	}
 	tcp, err := (&net.Dialer{Timeout: 10 * time.Second}).DialContext(r.Context(), "tcp", endpoint)
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "vnc_unreachable", err.Error())
@@ -247,7 +271,7 @@ func (s *Server) agentSandboxDesktopWSHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	defer ws.Close()
-	if err := negotiateVNCForWeb(r.Context(), ws, tcp); err != nil {
+	if err := negotiateVNCForWeb(r.Context(), ws, tcp, sandboxVNCPassword(a.ID().String(), agentFacingID(a))); err != nil {
 		return
 	}
 	ctx, cancel := context.WithCancel(r.Context())
@@ -295,7 +319,7 @@ func (s *Server) agentSandboxDesktopWSHandler(w http.ResponseWriter, r *http.Req
 	}
 }
 
-func negotiateVNCForWeb(ctx context.Context, ws *websocket.Conn, tcp net.Conn) error {
+func negotiateVNCForWeb(ctx context.Context, ws *websocket.Conn, tcp net.Conn, password string) error {
 	deadline := time.Now().Add(10 * time.Second)
 	_ = tcp.SetDeadline(deadline)
 	_ = ws.SetReadDeadline(deadline)
@@ -334,9 +358,23 @@ func negotiateVNCForWeb(ctx context.Context, ws *websocket.Conn, tcp net.Conn) e
 	if _, err := io.ReadFull(tcp, types); err != nil {
 		return err
 	}
-	advertised := vncSecurityTypesForWeb(types)
+	autoPassword := strings.TrimSpace(password) != "" && bytes.Contains(types, []byte{2})
+	advertised := vncSecurityTypesForWeb(types, autoPassword)
 	if err := ws.WriteMessage(websocket.BinaryMessage, append([]byte{byte(len(advertised))}, advertised...)); err != nil {
 		return err
+	}
+	if autoPassword {
+		selection, err := readVNCClientBytes(ctx, ws, 1)
+		if err != nil {
+			return err
+		}
+		if selection[0] != 1 {
+			return fmt.Errorf("unexpected web VNC security selection %d", selection[0])
+		}
+		if _, err := tcp.Write([]byte{2}); err != nil {
+			return err
+		}
+		return authenticateVNCPassword(ws, tcp, password)
 	}
 	if len(advertised) == 1 && advertised[0] == 2 && bytes.Contains(types, []byte{2}) {
 		selection, err := readVNCClientBytes(ctx, ws, 1)
@@ -348,6 +386,71 @@ func negotiateVNCForWeb(ctx context.Context, ws *websocket.Conn, tcp net.Conn) e
 		}
 	}
 	return nil
+}
+
+func authenticateVNCPassword(ws *websocket.Conn, tcp net.Conn, password string) error {
+	challenge := make([]byte, 16)
+	if _, err := io.ReadFull(tcp, challenge); err != nil {
+		return err
+	}
+	response, err := vncPasswordResponse(password, challenge)
+	if err != nil {
+		return err
+	}
+	if _, err := tcp.Write(response); err != nil {
+		return err
+	}
+	var result [4]byte
+	if _, err := io.ReadFull(tcp, result[:]); err != nil {
+		return err
+	}
+	if err := ws.WriteMessage(websocket.BinaryMessage, result[:]); err != nil {
+		return err
+	}
+	if !bytes.Equal(result[:], []byte{0, 0, 0, 0}) {
+		var reasonLen [4]byte
+		if _, err := io.ReadFull(tcp, reasonLen[:]); err != nil {
+			return nil
+		}
+		if err := ws.WriteMessage(websocket.BinaryMessage, reasonLen[:]); err != nil {
+			return err
+		}
+		reasonSize := int(reasonLen[0])<<24 | int(reasonLen[1])<<16 | int(reasonLen[2])<<8 | int(reasonLen[3])
+		if reasonSize > 0 && reasonSize < 4096 {
+			reason := make([]byte, reasonSize)
+			if _, err := io.ReadFull(tcp, reason); err != nil {
+				return nil
+			}
+			_ = ws.WriteMessage(websocket.BinaryMessage, reason)
+		}
+	}
+	return nil
+}
+
+func vncPasswordResponse(password string, challenge []byte) ([]byte, error) {
+	if len(challenge) != 16 {
+		return nil, fmt.Errorf("invalid VNC challenge length %d", len(challenge))
+	}
+	key := make([]byte, 8)
+	copy(key, []byte(password))
+	for i := range key {
+		key[i] = reverseBits(key[i])
+	}
+	block, err := des.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]byte, 16)
+	block.Encrypt(out[:8], challenge[:8])
+	block.Encrypt(out[8:], challenge[8:])
+	return out, nil
+}
+
+func reverseBits(b byte) byte {
+	b = (b&0xF0)>>4 | (b&0x0F)<<4
+	b = (b&0xCC)>>2 | (b&0x33)<<2
+	b = (b&0xAA)>>1 | (b&0x55)<<1
+	return b
 }
 
 func readVNCClientBytes(ctx context.Context, ws *websocket.Conn, want int) ([]byte, error) {
@@ -370,11 +473,86 @@ func readVNCClientBytes(ctx context.Context, ws *websocket.Conn, want int) ([]by
 	return buf[:want], nil
 }
 
-func vncSecurityTypesForWeb(types []byte) []byte {
+func vncSecurityTypesForWeb(types []byte, autoPassword bool) []byte {
 	if bytes.Contains(types, []byte{2}) {
+		if autoPassword {
+			return []byte{1}
+		}
 		return []byte{2}
 	}
 	return append([]byte(nil), types...)
+}
+
+func sandboxVNCAuthMode(agentIDs ...string) string {
+	if sandboxVNCPassword(agentIDs...) != "" {
+		return "automatic"
+	}
+	return "password"
+}
+
+func sandboxVNCPassword(agentIDs ...string) string {
+	for _, id := range agentIDs {
+		if id == "" {
+			continue
+		}
+		suffix := sandboxEnvSuffix(id)
+		if v := strings.TrimSpace(os.Getenv("AC_SANDBOX_VNC_PASSWORD_" + suffix)); v != "" {
+			return v
+		}
+		if path := strings.TrimSpace(os.Getenv("AC_SANDBOX_VNC_PASSWORD_FILE_" + suffix)); path != "" {
+			if raw, err := os.ReadFile(path); err == nil {
+				return strings.TrimSpace(string(raw))
+			}
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("AC_SANDBOX_VNC_PASSWORD")); v != "" {
+		return v
+	}
+	if path := strings.TrimSpace(os.Getenv("AC_SANDBOX_VNC_PASSWORD_FILE")); path != "" {
+		if raw, err := os.ReadFile(path); err == nil {
+			return strings.TrimSpace(string(raw))
+		}
+	}
+	return ""
+}
+
+func newSandboxVNCSession(agentID string, ttl time.Duration) (string, error) {
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	token := base64.RawURLEncoding.EncodeToString(raw[:])
+	now := time.Now().UTC()
+	sandboxVNCSessions.Lock()
+	defer sandboxVNCSessions.Unlock()
+	for existing, sess := range sandboxVNCSessions.values {
+		if now.After(sess.ExpiresAt) {
+			delete(sandboxVNCSessions.values, existing)
+		}
+	}
+	sandboxVNCSessions.values[token] = sandboxVNCSession{
+		AgentID:   strings.TrimSpace(agentID),
+		ExpiresAt: now.Add(ttl),
+	}
+	return token, nil
+}
+
+func consumeSandboxVNCSession(token, agentID string) bool {
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return false
+	}
+	now := time.Now().UTC()
+	sandboxVNCSessions.Lock()
+	defer sandboxVNCSessions.Unlock()
+	sess, ok := sandboxVNCSessions.values[token]
+	if ok {
+		delete(sandboxVNCSessions.values, token)
+	}
+	if !ok || now.After(sess.ExpiresAt) {
+		return false
+	}
+	return sess.AgentID == strings.TrimSpace(agentID)
 }
 
 func sandboxVNCEndpoint(agentIDs ...string) (string, bool) {

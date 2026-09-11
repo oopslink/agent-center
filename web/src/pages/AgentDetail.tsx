@@ -777,7 +777,7 @@ function SandboxDesktopModal({
       shared: true,
     });
     rfb.scaleViewport = true;
-    rfb.resizeSession = true;
+    rfb.resizeSession = false;
     rfb.background = '#111827';
     rfbRef.current = rfb;
 
