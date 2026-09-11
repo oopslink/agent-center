@@ -1,4 +1,4 @@
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -7,6 +7,16 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { FakeEventSource } from '@/sse/fakeEventSource';
 import AgentDetail from './AgentDetail';
+
+vi.mock('@novnc/novnc', () => ({
+  default: class FakeRFB extends EventTarget {
+    scaleViewport = false;
+    resizeSession = false;
+    background = '';
+    disconnect() {}
+    sendCredentials() {}
+  },
+}));
 
 beforeAll(() => {
   (globalThis as unknown as { EventSource: typeof FakeEventSource }).EventSource = FakeEventSource;
@@ -224,6 +234,26 @@ describe('AgentDetail page', () => {
           command_status: 'pending',
         });
       }),
+      http.get('/api/agents/:id/sandbox/commands/:commandId', () =>
+        HttpResponse.json({
+          ok: true,
+          agent_id: 'A1',
+          worker_id: 'w-1',
+          command_id: 'cmd-1',
+          offset: 1,
+          command_type: 'agent.sandbox_action',
+          command_status: 'succeeded',
+        }),
+      ),
+      http.get('/api/agents/:id/sandbox/desktop/session', () =>
+        HttpResponse.json({
+          ok: false,
+          status: 'not_configured',
+          agent_id: 'A1',
+          websocket_url: '',
+          message: 'VNC endpoint is not configured for this sandbox',
+        }),
+      ),
     );
     wrap('/agents/A1');
     const controls = await screen.findByTestId('agent-sandbox-controls');
@@ -233,7 +263,8 @@ describe('AgentDetail page', () => {
     expect(btn.querySelector('svg')).not.toBeNull();
     fireEvent.click(btn);
     await waitFor(() => expect(hit).toBe('open_browser'));
-    expect(await screen.findByTestId('agent-sandbox-action-status')).toHaveTextContent('open_browser accepted');
+    expect(await screen.findByTestId('agent-sandbox-action-status')).toHaveTextContent('open_browser');
+    expect(await screen.findByTestId('agent-sandbox-desktop-modal')).toBeInTheDocument();
   });
 
   it('switches tabs (Profile default) + Workspace tab is removed (#228)', async () => {

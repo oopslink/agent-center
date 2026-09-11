@@ -181,6 +181,9 @@ func (m *LocalSandboxManager) openSandbox(ctx context.Context, req SandboxEnsure
 		return b, err
 	}
 	b = m.runTartLifecycleCommand(ctx, b, "open_console")
+	if browser && b.State != SandboxStateDegraded {
+		b = m.runSandboxBrowserCommand(ctx, b)
+	}
 	if err := m.persistBinding(req.HomeDir, b); err != nil {
 		return SandboxBinding{}, err
 	}
@@ -303,7 +306,7 @@ func (m *LocalSandboxManager) runTartLifecycleCommand(ctx context.Context, b San
 	case "suspend":
 		args = []string{"suspend", b.VMName}
 	case "reset":
-		args = []string{"stop", b.VMName}
+		return m.resetTartSandbox(ctx, b)
 	case "delete":
 		args = []string{"delete", "--yes", b.VMName}
 	default:
@@ -323,6 +326,44 @@ func (m *LocalSandboxManager) runTartLifecycleCommand(ctx context.Context, b San
 	case "delete":
 		b.State = SandboxStateDeleted
 	}
+	b.LastError = ""
+	return b
+}
+
+func (m *LocalSandboxManager) resetTartSandbox(ctx context.Context, b SandboxBinding) SandboxBinding {
+	base := strings.TrimSpace(os.Getenv("AC_TART_BASE_IMAGE"))
+	if base == "" {
+		b.State = SandboxStateResetRequired
+		b.LastError = "AC_TART_BASE_IMAGE is not configured; cannot rebuild sandbox VM"
+		return b
+	}
+	_ = exec.CommandContext(ctx, "tart", "stop", b.VMName).Run()
+	_ = exec.CommandContext(ctx, "tart", "delete", "--yes", b.VMName).Run()
+	if out, err := exec.CommandContext(ctx, "tart", "clone", base, b.VMName).CombinedOutput(); err != nil {
+		b.State = SandboxStateDegraded
+		b.LastError = strings.TrimSpace(fmt.Sprintf("tart reset clone failed: %v: %s", err, string(out)))
+		return b
+	}
+	b.ComputerUseEndpoint = ""
+	b.ComputerUseEnv = nil
+	b.State = SandboxStateReady
+	b.LastError = "sandbox VM was rebuilt; browser login and Computer Use setup may need to be repeated"
+	return b
+}
+
+func (m *LocalSandboxManager) runSandboxBrowserCommand(ctx context.Context, b SandboxBinding) SandboxBinding {
+	command := sandboxBrowserCommandEnv(b.AgentID)
+	if command == "" {
+		b.LastError = "sandbox browser command is not configured; VM desktop was opened"
+		return b
+	}
+	cmd := exec.CommandContext(ctx, "sh", "-lc", command)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		b.State = SandboxStateDegraded
+		b.LastError = strings.TrimSpace(fmt.Sprintf("sandbox browser command failed: %v: %s", err, string(out)))
+		return b
+	}
+	b.State = SandboxStateRunning
 	b.LastError = ""
 	return b
 }
@@ -384,6 +425,14 @@ func sandboxEndpointEnv(agentID string) string {
 		return ep
 	}
 	return strings.TrimSpace(os.Getenv("AC_SANDBOX_COMPUTER_USE_ENDPOINT"))
+}
+
+func sandboxBrowserCommandEnv(agentID string) string {
+	key := "AC_SANDBOX_BROWSER_COMMAND_" + strings.ToUpper(strings.NewReplacer("-", "_", ":", "_").Replace(agentID))
+	if cmd := strings.TrimSpace(os.Getenv(key)); cmd != "" {
+		return cmd
+	}
+	return strings.TrimSpace(os.Getenv("AC_SANDBOX_BROWSER_COMMAND"))
 }
 
 func (m *LocalSandboxManager) clock() time.Time {

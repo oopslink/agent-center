@@ -480,8 +480,8 @@
       "sandbox": {
         "regionAria": "沙箱控制",
         "label": "沙箱",
-        "openConsoleTitle": "打开 VM 控制台",
-        "openConsoleAria": "打开沙箱 VM 控制台",
+        "openConsoleTitle": "打开 VM 桌面",
+        "openConsoleAria": "打开沙箱 VM 桌面",
         "openBrowserTitle": "打开浏览器登录入口",
         "openBrowserAria": "打开沙箱浏览器登录入口",
         "startTitle": "启动沙箱",
@@ -492,7 +492,17 @@
         "resetAria": "重置沙箱 VM",
         "deleteTitle": "删除沙箱",
         "deleteAria": "删除沙箱 VM",
-        "actionAccepted": "{{action}} 已接受 · {{status}}"
+        "actionAccepted": "{{action}} 已接受 · {{status}}",
+        "actionStatus": "{{action}} · {{status}}",
+        "desktopTitle": "{{name}} 桌面",
+        "desktopStatus": "连接：{{status}}",
+        "desktopClose": "关闭",
+        "desktopLoading": "正在准备桌面会话...",
+        "desktopNotConfigured": "这个沙箱还没有配置桌面查看器。",
+        "desktopDisconnected": "桌面连接已结束。",
+        "desktopSecurityFailed": "桌面认证失败。",
+        "desktopPassword": "VNC 密码",
+        "desktopConnect": "连接"
       },
       "activity": {
         "regionAria": "活动",

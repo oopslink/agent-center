@@ -475,6 +475,9 @@ func (s *Server) routes() {
 	// Runtime-owned optional Tart sandbox lifecycle/user-setup actions. Center only
 	// enqueues operator intent; VM authority stays with the agent runtime.
 	s.mux.HandleFunc("POST /api/orgs/{slug}/agents/{id}/sandbox/{action}", s.agentSandboxActionHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/sandbox/commands/{command_id}", s.agentSandboxCommandHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/sandbox/desktop/session", s.agentSandboxDesktopSessionHandler)
+	s.mux.HandleFunc("GET /api/orgs/{slug}/agents/{id}/sandbox/desktop/ws", s.agentSandboxDesktopWSHandler)
 	// T461: edit capability tags (dispatch labels) — pure metadata, no restart.
 	s.mux.HandleFunc("PATCH /api/orgs/{slug}/agents/{id}/tags", s.agentUpdateTagsHandler)
 	// v2.8 #272: soft-delete (archive) — the sole user-facing delete path

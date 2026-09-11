@@ -5,7 +5,7 @@ import {
   useQuery,
   useQueryClient,
 } from '@tanstack/react-query';
-import { api } from './client';
+import { api, withOrgSlug } from './client';
 import { qk } from './queryKeys';
 import type { Agent, AgentActivityEvent, AgentAvailability, AgentTask, ExecutorProfile, SandboxBinding } from './types';
 
@@ -198,6 +198,30 @@ export interface SandboxActionResult {
   local_runtime?: boolean;
 }
 
+export interface SandboxCommandStatus {
+  ok: boolean;
+  agent_id: string;
+  worker_id: string;
+  command_id: string;
+  offset: number;
+  command_type: string;
+  command_status: string;
+  status_reason?: string;
+  status_detail?: string;
+  status_updated_at?: string;
+  created_at?: string;
+}
+
+export interface SandboxDesktopSession {
+  ok: boolean;
+  status: 'ready' | 'not_configured' | string;
+  agent_id: string;
+  websocket_url: string;
+  endpoint_state?: string;
+  endpoint?: string;
+  message?: string;
+}
+
 export function useAgentSandboxAction(id: string) {
   const qc = useQueryClient();
   return useMutation({
@@ -208,6 +232,32 @@ export function useAgentSandboxAction(id: string) {
       void qc.invalidateQueries({ queryKey: qk.agentConcurrency(id) });
     },
   });
+}
+
+export function useAgentSandboxCommandStatus(id: string, commandId: string | null) {
+  return useQuery({
+    queryKey: qk.agentSandboxCommand(id, commandId ?? ''),
+    queryFn: () => api.get<SandboxCommandStatus>(`/agents/${id}/sandbox/commands/${commandId}`),
+    enabled: !!id && !!commandId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.command_status;
+      return status === 'succeeded' || status === 'failed' || status === 'canceled' ? false : 1500;
+    },
+  });
+}
+
+export function useAgentSandboxDesktopSession(id: string, enabled: boolean) {
+  return useQuery({
+    queryKey: qk.agentSandboxDesktopSession(id),
+    queryFn: () => api.get<SandboxDesktopSession>(`/agents/${id}/sandbox/desktop/session`),
+    enabled: !!id && enabled,
+  });
+}
+
+export function sandboxDesktopWebsocketURL(path: string): string {
+  const scopedPath = withOrgSlug(path);
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${protocol}//${window.location.host}${scopedPath}`;
 }
 
 // useDeleteAgent hard-deletes an agent and its identity-member in one tx

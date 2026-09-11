@@ -480,8 +480,8 @@
       "sandbox": {
         "regionAria": "Sandbox controls",
         "label": "Sandbox",
-        "openConsoleTitle": "Open VM console",
-        "openConsoleAria": "Open sandbox VM console",
+        "openConsoleTitle": "Open VM desktop",
+        "openConsoleAria": "Open sandbox VM desktop",
         "openBrowserTitle": "Open browser setup",
         "openBrowserAria": "Open sandbox browser setup",
         "startTitle": "Start sandbox",
@@ -492,7 +492,17 @@
         "resetAria": "Reset sandbox VM",
         "deleteTitle": "Delete sandbox",
         "deleteAria": "Delete sandbox VM",
-        "actionAccepted": "{{action}} accepted · {{status}}"
+        "actionAccepted": "{{action}} accepted · {{status}}",
+        "actionStatus": "{{action}} · {{status}}",
+        "desktopTitle": "{{name}} desktop",
+        "desktopStatus": "Connection: {{status}}",
+        "desktopClose": "Close",
+        "desktopLoading": "Preparing desktop session...",
+        "desktopNotConfigured": "Desktop viewer is not configured for this sandbox yet.",
+        "desktopDisconnected": "Desktop connection ended.",
+        "desktopSecurityFailed": "Desktop authentication failed.",
+        "desktopPassword": "VNC password",
+        "desktopConnect": "Connect"
       },
       "activity": {
         "regionAria": "Activity",

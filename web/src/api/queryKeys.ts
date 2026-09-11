@@ -70,6 +70,9 @@ export const qk = {
   agent: (id: string) => o('agent', id),
   agentTasks: (id: string) => o('agentTasks', id),
   agentActivity: (id: string) => o('agentActivity', id),
+  agentSandboxCommand: (agentId: string, commandId: string) =>
+    o('agentSandboxCommand', agentId, commandId),
+  agentSandboxDesktopSession: (agentId: string) => o('agentSandboxDesktopSession', agentId),
   // I28/F6 per-agent analytics dashboard. Keyed by id + window so a different
   // from/to range caches independently; the task drill-down keys by task too.
   agentAnalytics: (id: string, from?: string, to?: string) =>

@@ -1,5 +1,6 @@
 import type React from 'react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import RFB from '@novnc/novnc';
 import { Trans, useTranslation } from 'react-i18next';
 import { OrgLink, useOptionalOrgContext } from '@/OrgContext';
 import { useTablistKeyboard } from '@/components/useTablistKeyboard';
@@ -13,8 +14,11 @@ import {
   useResetAgent,
   useRestartAgent,
   useAgentSandboxAction,
+  useAgentSandboxCommandStatus,
+  useAgentSandboxDesktopSession,
   useStartAgent,
   useStopAgent,
+  sandboxDesktopWebsocketURL,
   type ResetScope,
   type SandboxAction,
 } from '@/api/agents';
@@ -105,6 +109,16 @@ export default function AgentDetail(): React.ReactElement {
   // v2.8 #270: stop/restart are disruptive → confirm before firing. (start is
   // non-destructive and stays direct; reset has its own scope modal.)
   const [confirmAction, setConfirmAction] = useState<'stop' | 'restart' | null>(null);
+  const [sandboxDesktopOpen, setSandboxDesktopOpen] = useState(false);
+  const [sandboxCommandId, setSandboxCommandId] = useState<string | null>(null);
+  const sandboxCommand = useAgentSandboxCommandStatus(id, sandboxCommandId);
+  useEffect(() => {
+    const status = sandboxCommand.data?.command_status;
+    if (status === 'succeeded' || status === 'failed' || status === 'canceled') {
+      void agent.refetch();
+      void concurrency.refetch();
+    }
+  }, [agent, concurrency, sandboxCommand.data?.command_status]);
   // v2.7.1 #228: active tab synced to ?tab= so a tab is shareable/bookmarkable.
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
@@ -176,6 +190,14 @@ export default function AgentDetail(): React.ReactElement {
   const canArchive = lc === 'stopped' || lc === 'error';
   const agentSubjectRef = `agent:${a.identity_member_id || a.id}`;
   const sandboxEnabled = (a.sandbox_enabled ?? false) && !isArchived;
+  const runSandboxAction = (action: SandboxAction, openDesktop = false) => {
+    sandboxAction.mutate(action, {
+      onSuccess: (result) => {
+        setSandboxCommandId(result.command_id ?? null);
+        if (openDesktop) setSandboxDesktopOpen(true);
+      },
+    });
+  };
 
   const lifecyclePending =
     start.isPending || stop.isPending || restart.isPending;
@@ -344,7 +366,7 @@ export default function AgentDetail(): React.ReactElement {
             title={t('agents.detail.sandbox.openConsoleTitle')}
             ariaLabel={t('agents.detail.sandbox.openConsoleAria')}
             testId="agent-sandbox-open-console"
-            onAction={(action) => sandboxAction.mutate(action)}
+            onAction={(action) => runSandboxAction(action, true)}
           >
             <MonitorIcon />
           </SandboxActionButton>
@@ -354,7 +376,7 @@ export default function AgentDetail(): React.ReactElement {
             title={t('agents.detail.sandbox.openBrowserTitle')}
             ariaLabel={t('agents.detail.sandbox.openBrowserAria')}
             testId="agent-sandbox-open-browser"
-            onAction={(action) => sandboxAction.mutate(action)}
+            onAction={(action) => runSandboxAction(action, true)}
           >
             <BrowserIcon />
           </SandboxActionButton>
@@ -364,7 +386,7 @@ export default function AgentDetail(): React.ReactElement {
             title={t('agents.detail.sandbox.startTitle')}
             ariaLabel={t('agents.detail.sandbox.startAria')}
             testId="agent-sandbox-start"
-            onAction={(action) => sandboxAction.mutate(action)}
+            onAction={(action) => runSandboxAction(action)}
           >
             <PlayIcon />
           </SandboxActionButton>
@@ -374,7 +396,7 @@ export default function AgentDetail(): React.ReactElement {
             title={t('agents.detail.sandbox.suspendTitle')}
             ariaLabel={t('agents.detail.sandbox.suspendAria')}
             testId="agent-sandbox-suspend"
-            onAction={(action) => sandboxAction.mutate(action)}
+            onAction={(action) => runSandboxAction(action)}
           >
             <StopIcon />
           </SandboxActionButton>
@@ -385,7 +407,7 @@ export default function AgentDetail(): React.ReactElement {
             title={t('agents.detail.sandbox.resetTitle')}
             ariaLabel={t('agents.detail.sandbox.resetAria')}
             testId="agent-sandbox-reset"
-            onAction={(action) => sandboxAction.mutate(action)}
+            onAction={(action) => runSandboxAction(action)}
           >
             <ResetIcon />
           </SandboxActionButton>
@@ -396,15 +418,15 @@ export default function AgentDetail(): React.ReactElement {
             title={t('agents.detail.sandbox.deleteTitle')}
             ariaLabel={t('agents.detail.sandbox.deleteAria')}
             testId="agent-sandbox-delete"
-            onAction={(action) => sandboxAction.mutate(action)}
+            onAction={(action) => runSandboxAction(action)}
           >
             <TrashIcon />
           </SandboxActionButton>
-          {sandboxAction.data && (
+          {(sandboxCommand.data || sandboxAction.data) && (
             <span className="text-xs text-text-muted" data-testid="agent-sandbox-action-status">
-              {t('agents.detail.sandbox.actionAccepted', {
-                action: sandboxAction.data.action,
-                status: sandboxAction.data.status,
+              {t('agents.detail.sandbox.actionStatus', {
+                action: sandboxAction.data?.action ?? 'sandbox',
+                status: sandboxCommand.data?.command_status ?? sandboxAction.data?.status ?? 'pending',
               })}
             </span>
           )}
@@ -414,6 +436,14 @@ export default function AgentDetail(): React.ReactElement {
             </span>
           )}
         </section>
+      )}
+
+      {sandboxDesktopOpen && (
+        <SandboxDesktopModal
+          agentId={id}
+          agentName={a.name}
+          onClose={() => setSandboxDesktopOpen(false)}
+        />
       )}
 
       {a.lifecycle_error && (
@@ -668,6 +698,162 @@ export default function AgentDetail(): React.ReactElement {
         onCancel={() => setForceDeleteOpen(false)}
       />
     </section>
+  );
+}
+
+function SandboxDesktopModal({
+  agentId,
+  agentName,
+  onClose,
+}: {
+  agentId: string;
+  agentName: string;
+  onClose: () => void;
+}): React.ReactElement {
+  const { t } = useTranslation('members');
+  const session = useAgentSandboxDesktopSession(agentId, true);
+  const screenRef = useRef<HTMLDivElement | null>(null);
+  const rfbRef = useRef<RFB | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connecting' | 'connected' | 'disconnected' | 'failed'>('idle');
+  const [passwordRequired, setPasswordRequired] = useState(false);
+  const [password, setPassword] = useState('');
+  const [connectionError, setConnectionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!session.data?.ok || !session.data.websocket_url || !screenRef.current || rfbRef.current) {
+      return undefined;
+    }
+    setConnectionStatus('connecting');
+    setConnectionError(null);
+    const rfb = new RFB(screenRef.current, sandboxDesktopWebsocketURL(session.data.websocket_url), {
+      shared: true,
+    });
+    rfb.scaleViewport = true;
+    rfb.resizeSession = true;
+    rfb.background = '#111827';
+    rfbRef.current = rfb;
+
+    const onConnect = () => {
+      setConnectionStatus('connected');
+      setPasswordRequired(false);
+      setConnectionError(null);
+    };
+    const onDisconnect = (event: Event) => {
+      const detail = (event as CustomEvent<{ clean?: boolean }>).detail;
+      setConnectionStatus(detail?.clean ? 'disconnected' : 'failed');
+      if (!detail?.clean) setConnectionError(t('agents.detail.sandbox.desktopDisconnected'));
+    };
+    const onCredentialsRequired = () => {
+      setPasswordRequired(true);
+      setConnectionStatus('connecting');
+    };
+    const onSecurityFailure = (event: Event) => {
+      const detail = (event as CustomEvent<{ reason?: string }>).detail;
+      setConnectionStatus('failed');
+      setConnectionError(detail?.reason || t('agents.detail.sandbox.desktopSecurityFailed'));
+    };
+
+    rfb.addEventListener('connect', onConnect);
+    rfb.addEventListener('disconnect', onDisconnect);
+    rfb.addEventListener('credentialsrequired', onCredentialsRequired);
+    rfb.addEventListener('securityfailure', onSecurityFailure);
+
+    return () => {
+      rfb.removeEventListener('connect', onConnect);
+      rfb.removeEventListener('disconnect', onDisconnect);
+      rfb.removeEventListener('credentialsrequired', onCredentialsRequired);
+      rfb.removeEventListener('securityfailure', onSecurityFailure);
+      rfb.disconnect();
+      rfbRef.current = null;
+    };
+  }, [session.data?.ok, session.data?.websocket_url, t]);
+
+  const sendPassword = () => {
+    if (!password) return;
+    rfbRef.current?.sendCredentials({ password });
+    setPasswordRequired(false);
+    setPassword('');
+  };
+
+  const sessionMessage =
+    session.isLoading ? t('agents.detail.sandbox.desktopLoading') :
+    session.isError ? (session.error as Error).message :
+    session.data && !session.data.ok ? (session.data.message || t('agents.detail.sandbox.desktopNotConfigured')) :
+    null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      role="dialog"
+      aria-modal="true"
+      data-testid="agent-sandbox-desktop-modal"
+    >
+      <div className="flex h-[min(760px,92vh)] w-[min(1180px,96vw)] flex-col rounded-lg border border-border-base bg-bg-elevated shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-border-base px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold text-text-primary">
+              {t('agents.detail.sandbox.desktopTitle', { name: agentName })}
+            </h2>
+            <p className="text-xs text-text-muted">
+              {t('agents.detail.sandbox.desktopStatus', { status: connectionStatus })}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
+            data-testid="agent-sandbox-desktop-close"
+          >
+            {t('agents.detail.sandbox.desktopClose')}
+          </button>
+        </div>
+        <div className="relative min-h-0 flex-1 bg-black">
+          <div ref={screenRef} className="h-full w-full overflow-hidden" data-testid="agent-sandbox-desktop-screen" />
+          {sessionMessage && (
+            <div className="absolute inset-0 flex items-center justify-center p-6">
+              <div className="max-w-md rounded border border-border-base bg-bg-elevated p-4 text-sm text-text-primary shadow">
+                {sessionMessage}
+              </div>
+            </div>
+          )}
+          {connectionError && (
+            <div className="absolute bottom-3 left-3 rounded border border-danger/40 bg-bg-elevated px-3 py-2 text-xs text-danger shadow">
+              {connectionError}
+            </div>
+          )}
+          {passwordRequired && (
+            <form
+              className="absolute left-1/2 top-1/2 flex w-[min(360px,calc(100%-32px))] -translate-x-1/2 -translate-y-1/2 flex-col gap-2 rounded border border-border-base bg-bg-elevated p-4 shadow"
+              onSubmit={(e) => {
+                e.preventDefault();
+                sendPassword();
+              }}
+            >
+              <label className="text-xs font-medium text-text-primary" htmlFor="sandbox-vnc-password">
+                {t('agents.detail.sandbox.desktopPassword')}
+              </label>
+              <input
+                id="sandbox-vnc-password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary"
+                autoComplete="off"
+                data-testid="agent-sandbox-desktop-password"
+              />
+              <button
+                type="submit"
+                disabled={!password}
+                className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+                data-testid="agent-sandbox-desktop-password-submit"
+              >
+                {t('agents.detail.sandbox.desktopConnect')}
+              </button>
+            </form>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 
