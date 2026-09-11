@@ -504,6 +504,7 @@
         "actionStatus": "{{action}} · {{status}}",
         "desktopTitle": "{{name}} desktop",
         "desktopStatus": "Connection: {{status}}",
+        "desktopPopOutTitle": "Open in separate window",
         "desktopClose": "Close",
         "desktopLoading": "Preparing desktop session...",
         "desktopNotConfigured": "Desktop viewer is not configured for this sandbox yet.",

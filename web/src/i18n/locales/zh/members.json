@@ -504,6 +504,7 @@
         "actionStatus": "{{action}} · {{status}}",
         "desktopTitle": "{{name}} 桌面",
         "desktopStatus": "连接：{{status}}",
+        "desktopPopOutTitle": "在独立窗口打开",
         "desktopClose": "关闭",
         "desktopLoading": "正在准备桌面会话...",
         "desktopNotConfigured": "这个沙箱还没有配置桌面查看器。",

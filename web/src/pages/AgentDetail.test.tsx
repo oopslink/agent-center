@@ -12,6 +12,7 @@ vi.mock('@novnc/novnc', () => ({
   default: class FakeRFB extends EventTarget {
     scaleViewport = false;
     resizeSession = false;
+    showDotCursor = false;
     background = '';
     disconnect() {}
     sendCredentials() {}
@@ -293,6 +294,52 @@ describe('AgentDetail page', () => {
     await waitFor(() => expect(hit).toBe('open_browser'));
     expect(await screen.findByTestId('agent-sandbox-action-status')).toHaveTextContent('open_browser');
     expect(await screen.findByTestId('agent-sandbox-desktop-modal')).toBeInTheDocument();
+  });
+
+  it('supports opening the sandbox desktop viewer in a separate window', async () => {
+    stubAgent({ sandbox_enabled: true, sandbox_provider: 'tart_macos_vm' });
+    server.use(
+      http.get('/api/agents/:id/concurrency', () =>
+        HttpResponse.json({
+          agent_id: 'A1',
+          cap: 4,
+          active: 0,
+          queued: 0,
+          stale: false,
+          reachable: true,
+          has_snapshot: true,
+          snapshot_age_ms: 1000,
+          executors: [],
+          slots: [],
+          sandbox_binding: {
+            sandbox_id: 'sbx-1',
+            provider: 'tart_macos_vm',
+            vm_name: 'ac-agent-a1',
+            state: 'running',
+            updated_at: new Date(Date.now() - 60_000).toISOString(),
+          },
+          computer_use_status: 'ready',
+        }),
+      ),
+      http.get('/api/agents/:id/sandbox/desktop/session', () =>
+        HttpResponse.json({
+          ok: true,
+          status: 'ready',
+          agent_id: 'A1',
+          websocket_url: '/api/orgs/ooo/agents/A1/sandbox/desktop/ws?session=tok',
+          auth_mode: 'automatic',
+        }),
+      ),
+    );
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+
+    wrap('/agents/A1?desktop=1');
+
+    expect(await screen.findByTestId('agent-sandbox-desktop-modal')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('agent-sandbox-desktop-popout'));
+    expect(open).toHaveBeenCalledTimes(1);
+    expect(String(open.mock.calls[0][0])).toContain('desktop=1');
+    open.mockRestore();
   });
 
   it('locks sandbox start and suspend controls against the live VM state', async () => {

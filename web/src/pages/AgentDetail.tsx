@@ -122,6 +122,12 @@ export default function AgentDetail(): React.ReactElement {
   // v2.7.1 #228: active tab synced to ?tab= so a tab is shareable/bookmarkable.
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
+  const desktopParam = searchParams.get('desktop');
+  useEffect(() => {
+    if (desktopParam === '1' && agent.data?.sandbox_enabled) {
+      setSandboxDesktopOpen(true);
+    }
+  }, [agent.data?.sandbox_enabled, desktopParam]);
   const tab: AgentTab = (AGENT_TABS.some((t) => t.key === tabParam) ? tabParam : 'profile') as AgentTab;
   const setTab = (t: AgentTab) =>
     setSearchParams(
@@ -223,6 +229,24 @@ export default function AgentDetail(): React.ReactElement {
         if (openDesktop) setSandboxDesktopOpen(true);
       },
     });
+  };
+  const closeSandboxDesktop = () => {
+    setSandboxDesktopOpen(false);
+    if (desktopParam === '1') {
+      setSearchParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          p.delete('desktop');
+          return p;
+        },
+        { replace: true },
+      );
+    }
+  };
+  const popOutSandboxDesktop = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('desktop', '1');
+    window.open(url.toString(), '_blank', 'noopener,noreferrer,width=1280,height=900');
   };
 
   const lifecyclePending =
@@ -490,7 +514,8 @@ export default function AgentDetail(): React.ReactElement {
         <SandboxDesktopModal
           agentId={id}
           agentName={a.name}
-          onClose={() => setSandboxDesktopOpen(false)}
+          onClose={closeSandboxDesktop}
+          onPopOut={popOutSandboxDesktop}
         />
       )}
 
@@ -753,10 +778,12 @@ function SandboxDesktopModal({
   agentId,
   agentName,
   onClose,
+  onPopOut,
 }: {
   agentId: string;
   agentName: string;
   onClose: () => void;
+  onPopOut: () => void;
 }): React.ReactElement {
   const { t } = useTranslation('members');
   const session = useAgentSandboxDesktopSession(agentId, true);
@@ -778,6 +805,7 @@ function SandboxDesktopModal({
     });
     rfb.scaleViewport = true;
     rfb.resizeSession = false;
+    rfb.showDotCursor = true;
     rfb.background = '#111827';
     rfbRef.current = rfb;
 
@@ -847,14 +875,26 @@ function SandboxDesktopModal({
               {t('agents.detail.sandbox.desktopStatus', { status: connectionStatus })}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
-            data-testid="agent-sandbox-desktop-close"
-          >
-            {t('agents.detail.sandbox.desktopClose')}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onPopOut}
+              className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
+              title={t('agents.detail.sandbox.desktopPopOutTitle')}
+              aria-label={t('agents.detail.sandbox.desktopPopOutTitle')}
+              data-testid="agent-sandbox-desktop-popout"
+            >
+              <PopOutIcon />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
+              data-testid="agent-sandbox-desktop-close"
+            >
+              {t('agents.detail.sandbox.desktopClose')}
+            </button>
+          </div>
         </div>
         <div className="relative min-h-0 flex-1 bg-black">
           <div ref={screenRef} className="h-full w-full overflow-hidden" data-testid="agent-sandbox-desktop-screen" />
@@ -1126,6 +1166,15 @@ function BrowserIcon(): React.ReactElement {
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <rect x="3.5" y="4.5" width="13" height="11" rx="1.5" strokeLinejoin="round" />
       <path d="M4 8h12M7 6.2h.01M9 6.2h.01" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function PopOutIcon(): React.ReactElement {
+  return (
+    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
+      <path d="M8 5H5.5A1.5 1.5 0 0 0 4 6.5v8A1.5 1.5 0 0 0 5.5 16h8a1.5 1.5 0 0 0 1.5-1.5V12" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M11 4h5v5M10 10l5.5-5.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
