@@ -532,7 +532,6 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
   const baseNodeMap = useMemo(() => layoutNodes(view), [view]);
   const [dragPositions, setDragPositions] = useState<Record<string, { x: number; y: number }>>({});
   const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(() => new Set());
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [locateId, setLocateId] = useState('');
   const nodeMap = useMemo(() => new Map([...baseNodeMap.values()].map((node) => [node.id, { ...node, ...(dragPositions[node.id] ?? {}) }])), [baseNodeMap, dragPositions]);
   const visibleEdges = useMemo(() => edges.filter((edge) => !collapsedNodeIds.has(edge.source) && !collapsedNodeIds.has(edge.target)), [edges, collapsedNodeIds]);
@@ -543,8 +542,8 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
   const chartRef = useRef<ECharts | null>(null);
   const selectedKey = selected?.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0') ?? '';
   const selectedEffectIds = useMemo(() => new Set(selected?.map((scope) => scope.effect_id) ?? []), [selected]);
-  const context = useMemo(() => graphContext(visibleEdges, selectedEffectIds, focusedNodeId ?? hoveredId), [visibleEdges, focusedNodeId, hoveredId, selectedEffectIds]);
-  const hasNoiseReduction = selectedEffectIds.size > 0 || Boolean(focusedNodeId || hoveredId);
+  const context = useMemo(() => graphContext(visibleEdges, selectedEffectIds, focusedNodeId), [visibleEdges, focusedNodeId, selectedEffectIds]);
+  const hasNoiseReduction = selectedEffectIds.size > 0 || Boolean(focusedNodeId);
   const showLabels = visibleNodes.length <= 36 && visibleEdges.length < 80;
   const communityCount = useMemo(() => view.view === 'network' ? connectedComponentCount(nodes, visibleEdges) : 0, [nodes, view.view, visibleEdges]);
   const chartOption = useMemo(() => collaborationChartOption({
@@ -553,12 +552,11 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
     edges: visibleEdges,
     selectedEffectIds,
     focusedNodeId,
-    hoveredId,
     t,
     showLabels,
     hasNoiseReduction,
     context,
-  }), [view, visibleNodes, visibleEdges, selectedEffectIds, focusedNodeId, hoveredId, t, showLabels, hasNoiseReduction, context]);
+  }), [view, visibleNodes, visibleEdges, selectedEffectIds, focusedNodeId, t, showLabels, hasNoiseReduction, context]);
   const fit = useCallback(() => chartRef.current?.dispatchAction({ type: 'restore' }), []);
   const focusSelected = useCallback(() => {
     const id = focusedNodeId || [...context.nodes][0];
@@ -650,11 +648,6 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
         setFocusedNodeId(String(params.name));
       }
     };
-    const mouseover = (params: { dataType?: string; data?: unknown; name?: string }) => {
-      if (params.dataType === 'edge') setHoveredId((params.data as EChartEdgeDatum | undefined)?.edge?.source ?? null);
-      if (params.dataType === 'node') setHoveredId(String(params.name));
-    };
-    const mouseout = () => setHoveredId(null);
     const dblclick = (params: { dataType?: string; name?: string }) => {
       if (params.dataType === 'node') setCollapsedNodeIds((current) => toggleSet(current, String(params.name)));
     };
@@ -678,16 +671,12 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
       pendingNodeDrag = null;
     };
     chart.on('click', click);
-    chart.on('mouseover', mouseover);
-    chart.on('mouseout', mouseout);
     chart.on('dblclick', dblclick);
     chart.on('mousedown', mousedown);
     chart.on('mouseup', mouseup);
     chart.on('dragend', dragend);
     return () => {
       chart.off('click', click);
-      chart.off('mouseover', mouseover);
-      chart.off('mouseout', mouseout);
       chart.off('dblclick', dblclick);
       chart.off('mousedown', mousedown);
       chart.off('mouseup', mouseup);
@@ -703,7 +692,7 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
   const renderEdgeButtons = () => visibleEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0).slice(0, EDGE_LIST_RENDER_LIMIT).map((edge) => {
     const scopes = scopesForEdge(edge);
     const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0');
-    return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} onMouseEnter={() => setHoveredId(edge.source)} onMouseLeave={() => setHoveredId(null)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>;
+    return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>;
   });
   return <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-bg-surface p-2" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
     <div className="absolute left-4 top-4 z-10 flex max-w-[calc(100%-2rem)] flex-wrap items-center gap-2" data-testid="collaboration-graph-toolbar">
@@ -736,7 +725,7 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
     </div>
     <div
       ref={chartHostRef}
-      className="min-h-[340px] min-w-0 flex-1 touch-none rounded border border-border bg-bg-primary"
+      className="collaboration-dot-grid min-h-[340px] min-w-0 flex-1 touch-none rounded border border-border"
       role="img"
       aria-label={t('insight.collaboration.graph')}
       data-testid="collaboration-echarts"
@@ -750,8 +739,6 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
         key={node.id}
         type="button"
         aria-pressed={focusedNodeId === node.id}
-        onFocus={() => setHoveredId(node.id)}
-        onBlur={() => setHoveredId(null)}
         onClick={() => setFocusedNodeId(node.id)}
         onDoubleClick={() => setCollapsedNodeIds((current) => toggleSet(current, node.id))}
         onKeyDown={(event) => {
@@ -789,13 +776,12 @@ type EChartEdgeDatum = {
   edge: CollaborationEdge;
 };
 
-function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focusedNodeId, hoveredId, t, showLabels, hasNoiseReduction, context }: {
+function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focusedNodeId, t, showLabels, hasNoiseReduction, context }: {
   view: DimensionGraphView;
   nodes: PositionedNode[];
   edges: CollaborationEdge[];
   selectedEffectIds: Set<string>;
   focusedNodeId: string | null;
-  hoveredId: string | null;
   t: Translator;
   showLabels: boolean;
   hasNoiseReduction: boolean;
@@ -825,7 +811,7 @@ function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focus
       itemStyle: {
         color: NODE_COLORS[node.kind],
         opacity: active ? 0.95 : 0.16,
-        borderColor: focusedNodeId === node.id || hoveredId === node.id ? '#111827' : '#ffffff',
+        borderColor: focusedNodeId === node.id ? '#111827' : '#ffffff',
         borderWidth: focusedNodeId === node.id ? 3 : 1,
       },
       label: {
@@ -882,7 +868,7 @@ function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focus
     series: [{
       id: 'collaboration',
       type: 'graph',
-      layout: view.view === 'network' ? 'force' : 'none',
+      layout: 'none',
       coordinateSystem: undefined,
       data,
       links,
@@ -899,12 +885,6 @@ function collaborationChartOption({ view, nodes, edges, selectedEffectIds, focus
       labelLayout: { hideOverlap: true },
       scaleLimit: { min: 0.18, max: 6 },
       zoom: 1,
-      force: {
-        repulsion: veryLarge ? 120 : large ? 180 : 340,
-        gravity: view.view === 'network' ? 0.08 : 0.02,
-        edgeLength: veryLarge ? [45, 120] : [80, 210],
-        layoutAnimation: !large,
-      },
       progressive: large ? 700 : 0,
       progressiveThreshold: 500,
       autoCurveness: view.view === 'network',

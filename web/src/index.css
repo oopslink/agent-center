@@ -7,6 +7,11 @@
 .collaboration-edge--negative { stroke: #c0362c; }
 .collaboration-edge--neutral { stroke: #64748b; }
 .collaboration-edge--mixed { stroke: url('#collaboration-mixed'); }
+.collaboration-dot-grid {
+  background-color: var(--color-bg-elevated);
+  background-image: radial-gradient(circle, rgba(148, 163, 184, 0.38) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
 
 @layer utilities {
   /*

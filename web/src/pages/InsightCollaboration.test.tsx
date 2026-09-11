@@ -347,6 +347,28 @@ describe('Collaboration Insight', () => {
     expect(await screen.findByTestId('collaboration-error')).toBeVisible();
   });
 
+  it('renders the network graph on a fixed dot-grid canvas instead of force layout', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
+      graph: {
+        nodes: [
+          { id: 'agent:alpha', kind: 'agent', label: 'Agent Alpha' },
+          { id: 'agent:beta', kind: 'agent', label: 'Agent Beta' },
+        ],
+        edges: [{ ...effects[0], id: 'agent-agent-edge', effect_id: 'agent-agent-effect', source: 'agent:alpha', target: 'agent:beta', target_agent_ref: 'agent:beta', interaction_count: 1, evidence_count: 1 }],
+      },
+      effects: [{ ...effects[0], effect_id: 'agent-agent-effect', id: 'agent-agent-effect', source: 'agent:alpha', source_agent_ref: 'agent:alpha', target_agent_ref: 'agent:beta' }],
+      summary: {},
+      next_cursor: '',
+      graph_version: 'gv-network-fixed',
+    })));
+    renderAt('/organizations/acme/insights/collaboration');
+    const host = await screen.findByTestId('collaboration-echarts');
+    expect(host.className).toContain('collaboration-dot-grid');
+    const chart = await collaborationChart();
+    const option = chart.getOption() as { series?: Array<{ layout?: string }> };
+    expect(option.series?.[0]?.layout).toBe('none');
+  });
+
   it('surfaces clustered/truncated graph feedback and can request the full organization graph', async () => {
     const requests: string[] = [];
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
