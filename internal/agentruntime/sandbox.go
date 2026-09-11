@@ -410,7 +410,7 @@ func (m *LocalSandboxManager) startTartSandbox(ctx context.Context, b SandboxBin
 
 func (m *LocalSandboxManager) runTartUntilRunning(ctx context.Context, vmName string) (SandboxBinding, string) {
 	var output bytes.Buffer
-	cmd := exec.CommandContext(ctx, "tart", "run", "--no-graphics", vmName)
+	cmd := exec.Command("tart", "run", "--no-graphics", vmName)
 	cmd.Stdout = &output
 	cmd.Stderr = &output
 	if err := cmd.Start(); err != nil {
@@ -446,6 +446,9 @@ func (m *LocalSandboxManager) runTartUntilRunning(ctx context.Context, vmName st
 					runningSince = m.clock().UTC()
 				}
 				if m.clock().UTC().Sub(runningSince) >= 10*time.Second {
+					if cmd.Process != nil {
+						_ = cmd.Process.Release()
+					}
 					return SandboxBinding{State: SandboxStateRunning}, output.String()
 				}
 			} else {
