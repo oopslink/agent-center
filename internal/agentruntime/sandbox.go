@@ -445,7 +445,7 @@ func (m *LocalSandboxManager) runTartUntilRunning(ctx context.Context, vmName st
 				if runningSince.IsZero() {
 					runningSince = m.clock().UTC()
 				}
-				if m.clock().UTC().Sub(runningSince) >= 3*time.Second {
+				if m.clock().UTC().Sub(runningSince) >= 10*time.Second {
 					return SandboxBinding{State: SandboxStateRunning}, output.String()
 				}
 			} else {
