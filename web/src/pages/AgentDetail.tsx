@@ -190,6 +190,17 @@ export default function AgentDetail(): React.ReactElement {
   const canArchive = lc === 'stopped' || lc === 'error';
   const agentSubjectRef = `agent:${a.identity_member_id || a.id}`;
   const sandboxEnabled = (a.sandbox_enabled ?? false) && !isArchived;
+  const sandboxBinding = concurrency.data?.sandbox_binding ?? a.sandbox_binding;
+  const sandboxState = sandboxBinding?.state || 'unprovisioned';
+  const sandboxCommandRunning = sandboxCommand.data?.command_status === 'pending' || sandboxCommand.data?.command_status === 'running';
+  const sandboxPending = sandboxAction.isPending || sandboxCommandRunning;
+  const sandboxDeleted = sandboxState === 'deleted';
+  const sandboxStarting = sandboxState === 'provisioning' || (sandboxAction.data?.action === 'start' && sandboxPending);
+  const sandboxRunning = sandboxState === 'running';
+  const sandboxCanStart = sandboxEnabled && !sandboxPending && !sandboxDeleted && !sandboxRunning && sandboxState !== 'provisioning';
+  const sandboxCanSuspend = sandboxEnabled && !sandboxPending && (sandboxState === 'running' || sandboxState === 'ready');
+  const sandboxCanOpen = sandboxEnabled && !sandboxPending && !sandboxDeleted;
+  const sandboxCanResetDelete = sandboxEnabled && !sandboxPending && !sandboxDeleted;
   const runSandboxAction = (action: SandboxAction, openDesktop = false) => {
     sandboxAction.mutate(action, {
       onSuccess: (result) => {
@@ -353,16 +364,33 @@ export default function AgentDetail(): React.ReactElement {
 
       {sandboxEnabled && (
         <section
-          className="flex flex-wrap items-center gap-2 rounded border border-border-base bg-bg-elevated px-3 py-2"
+          className="flex flex-wrap items-center gap-3 rounded border border-border-base bg-bg-elevated px-3 py-2"
           data-testid="agent-sandbox-controls"
           aria-label={t('agents.detail.sandbox.regionAria')}
         >
-          <span className="text-xs font-medium uppercase tracking-wide text-text-muted">
-            {t('agents.detail.sandbox.label')}
-          </span>
+          <div className="min-w-[13rem] text-xs" data-testid="agent-sandbox-runtime-status">
+            <div className="font-medium uppercase tracking-wide text-text-muted">{t('agents.detail.sandbox.label')}</div>
+            <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-text-primary">
+              <span>{t('agents.detail.sandbox.stateValue', { state: sandboxState })}</span>
+              {sandboxBinding?.vm_name && <span className="text-text-muted">{sandboxBinding.vm_name}</span>}
+              {sandboxBinding?.updated_at && (
+                <span className="text-text-muted" title={sandboxBinding.updated_at}>
+                  {t(sandboxRunning ? 'agents.detail.sandbox.runningFor' : 'agents.detail.sandbox.stateFor', { age: formatAgeFrom(sandboxBinding.updated_at) })}
+                </span>
+              )}
+              {sandboxBinding?.last_health_at && (
+                <span className="text-text-muted" title={sandboxBinding.last_health_at}>
+                  {t('agents.detail.sandbox.healthAt', { time: formatLocalTime(sandboxBinding.last_health_at) })}
+                </span>
+              )}
+            </div>
+            {sandboxBinding?.last_error && <div className="mt-0.5 text-danger">{sandboxBinding.last_error}</div>}
+            {sandboxStarting && <div className="mt-0.5 text-text-muted">{t('agents.detail.sandbox.transitioning')}</div>}
+          </div>
           <SandboxActionButton
             action="open_console"
-            pending={sandboxAction.isPending}
+            pending={sandboxPending}
+            disabled={!sandboxCanOpen}
             title={t('agents.detail.sandbox.openConsoleTitle')}
             ariaLabel={t('agents.detail.sandbox.openConsoleAria')}
             testId="agent-sandbox-open-console"
@@ -372,7 +400,8 @@ export default function AgentDetail(): React.ReactElement {
           </SandboxActionButton>
           <SandboxActionButton
             action="open_browser"
-            pending={sandboxAction.isPending}
+            pending={sandboxPending}
+            disabled={!sandboxCanOpen}
             title={t('agents.detail.sandbox.openBrowserTitle')}
             ariaLabel={t('agents.detail.sandbox.openBrowserAria')}
             testId="agent-sandbox-open-browser"
@@ -382,7 +411,8 @@ export default function AgentDetail(): React.ReactElement {
           </SandboxActionButton>
           <SandboxActionButton
             action="start"
-            pending={sandboxAction.isPending}
+            pending={sandboxPending}
+            disabled={!sandboxCanStart}
             title={t('agents.detail.sandbox.startTitle')}
             ariaLabel={t('agents.detail.sandbox.startAria')}
             testId="agent-sandbox-start"
@@ -392,7 +422,8 @@ export default function AgentDetail(): React.ReactElement {
           </SandboxActionButton>
           <SandboxActionButton
             action="suspend"
-            pending={sandboxAction.isPending}
+            pending={sandboxPending}
+            disabled={!sandboxCanSuspend}
             title={t('agents.detail.sandbox.suspendTitle')}
             ariaLabel={t('agents.detail.sandbox.suspendAria')}
             testId="agent-sandbox-suspend"
@@ -402,7 +433,8 @@ export default function AgentDetail(): React.ReactElement {
           </SandboxActionButton>
           <SandboxActionButton
             action="reset"
-            pending={sandboxAction.isPending}
+            pending={sandboxPending}
+            disabled={!sandboxCanResetDelete}
             danger
             title={t('agents.detail.sandbox.resetTitle')}
             ariaLabel={t('agents.detail.sandbox.resetAria')}
@@ -413,7 +445,8 @@ export default function AgentDetail(): React.ReactElement {
           </SandboxActionButton>
           <SandboxActionButton
             action="delete"
-            pending={sandboxAction.isPending}
+            pending={sandboxPending}
+            disabled={!sandboxCanResetDelete}
             danger
             title={t('agents.detail.sandbox.deleteTitle')}
             ariaLabel={t('agents.detail.sandbox.deleteAria')}
@@ -778,6 +811,7 @@ function SandboxDesktopModal({
   const sessionMessage =
     session.isLoading ? t('agents.detail.sandbox.desktopLoading') :
     session.isError ? (session.error as Error).message :
+    session.data?.status === 'unreachable' ? (session.data.message || t('agents.detail.sandbox.desktopUnreachable')) :
     session.data && !session.data.ok ? (session.data.message || t('agents.detail.sandbox.desktopNotConfigured')) :
     null;
 
@@ -936,6 +970,7 @@ function ResetModal({
 function SandboxActionButton({
   action,
   pending,
+  disabled = false,
   danger = false,
   title,
   ariaLabel,
@@ -945,6 +980,7 @@ function SandboxActionButton({
 }: {
   action: SandboxAction;
   pending: boolean;
+  disabled?: boolean;
   danger?: boolean;
   title: string;
   ariaLabel: string;
@@ -956,7 +992,7 @@ function SandboxActionButton({
     <button
       type="button"
       onClick={() => onAction(action)}
-      disabled={pending}
+      disabled={pending || disabled}
       className={`flex min-h-[36px] min-w-[36px] items-center justify-center rounded border px-2 py-1.5 disabled:opacity-50 ${
         danger
           ? 'border-danger/40 text-danger hover:bg-danger/10'
@@ -970,6 +1006,24 @@ function SandboxActionButton({
       {children}
     </button>
   );
+}
+
+function formatLocalTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+function formatAgeFrom(value: string): string {
+  const date = new Date(value).getTime();
+  if (Number.isNaN(date)) return '—';
+  const seconds = Math.max(0, Math.floor((Date.now() - date) / 1000));
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `${hours}h ${minutes % 60}m`;
+  return `${Math.floor(hours / 24)}d ${hours % 24}h`;
 }
 
 // v2.7.1 #240: chat-bubble icon for the header "Send message" action

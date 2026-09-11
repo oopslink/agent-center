@@ -60,14 +60,16 @@ type SlotSnapshot struct {
 // runtime's own view and may lag the center profile during mixed-version config
 // propagation.
 type AgentSnapshot struct {
-	AdmissionCap   int                `json:"admission_cap,omitempty"`
-	SlotCount      int                `json:"slot_count,omitempty"`
-	ConfigVersion  int                `json:"config_version,omitempty"`
-	Integrity      string             `json:"integrity,omitempty"`
-	IntegrityError string             `json:"integrity_error,omitempty"`
-	Active         int                `json:"active"`
-	Executors      []ExecutorSnapshot `json:"executors"`
-	Slots          []SlotSnapshot     `json:"slots,omitempty"`
+	AdmissionCap      int                `json:"admission_cap,omitempty"`
+	SlotCount         int                `json:"slot_count,omitempty"`
+	ConfigVersion     int                `json:"config_version,omitempty"`
+	Integrity         string             `json:"integrity,omitempty"`
+	IntegrityError    string             `json:"integrity_error,omitempty"`
+	SandboxBinding    *SandboxBindingRow `json:"sandbox_binding,omitempty"`
+	ComputerUseStatus string             `json:"computer_use_status,omitempty"`
+	Active            int                `json:"active"`
+	Executors         []ExecutorSnapshot `json:"executors"`
+	Slots             []SlotSnapshot     `json:"slots,omitempty"`
 }
 
 // Execution state enums are the supervisor-control read model. They deliberately

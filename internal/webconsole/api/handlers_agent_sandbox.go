@@ -171,6 +171,20 @@ func (s *Server) agentSandboxDesktopSessionHandler(w http.ResponseWriter, r *htt
 		})
 		return
 	}
+	if conn, err := (&net.Dialer{Timeout: 300 * time.Millisecond}).DialContext(r.Context(), "tcp", endpoint); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":             false,
+			"status":         "unreachable",
+			"agent_id":       agentFacingID(a),
+			"websocket_url":  "",
+			"endpoint_state": "unreachable",
+			"endpoint":       maskVNCEndpoint(endpoint),
+			"message":        "Desktop viewer is configured but not reachable. Start the sandbox and try again.",
+		})
+		return
+	} else {
+		_ = conn.Close()
+	}
 	wsPath := fmt.Sprintf("/api/orgs/%s/agents/%s/sandbox/desktop/ws", r.PathValue("slug"), r.PathValue("id"))
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":             true,

@@ -223,6 +223,29 @@ describe('AgentDetail page', () => {
     stubAgent({ sandbox_enabled: true, sandbox_provider: 'tart_macos_vm' });
     let hit = '';
     server.use(
+      http.get('/api/agents/:id/concurrency', () =>
+        HttpResponse.json({
+          agent_id: 'A1',
+          cap: 4,
+          active: 0,
+          queued: 0,
+          stale: false,
+          reachable: true,
+          has_snapshot: true,
+          snapshot_age_ms: 1000,
+          executors: [],
+          slots: [],
+          sandbox_binding: {
+            sandbox_id: 'sbx-1',
+            provider: 'tart_macos_vm',
+            vm_name: 'ac-agent-a1',
+            state: 'suspended',
+            updated_at: new Date(Date.now() - 90_000).toISOString(),
+            last_health_at: '2026-05-24T03:00:00Z',
+          },
+          computer_use_status: 'unavailable',
+        }),
+      ),
       http.post('/api/agents/:id/sandbox/:action', ({ params }) => {
         hit = String(params.action);
         return HttpResponse.json({
@@ -258,6 +281,11 @@ describe('AgentDetail page', () => {
     wrap('/agents/A1');
     const controls = await screen.findByTestId('agent-sandbox-controls');
     expect(controls).toBeInTheDocument();
+    const runtimeStatus = await screen.findByTestId('agent-sandbox-runtime-status');
+    expect(runtimeStatus).toHaveTextContent('State: suspended');
+    expect(runtimeStatus).toHaveTextContent('ac-agent-a1');
+    expect(screen.getByTestId('agent-sandbox-start')).toBeEnabled();
+    expect(screen.getByTestId('agent-sandbox-suspend')).toBeDisabled();
     const btn = screen.getByTestId('agent-sandbox-open-browser');
     expect(btn).toHaveAttribute('title', 'Open browser setup');
     expect(btn.querySelector('svg')).not.toBeNull();
@@ -265,6 +293,42 @@ describe('AgentDetail page', () => {
     await waitFor(() => expect(hit).toBe('open_browser'));
     expect(await screen.findByTestId('agent-sandbox-action-status')).toHaveTextContent('open_browser');
     expect(await screen.findByTestId('agent-sandbox-desktop-modal')).toBeInTheDocument();
+  });
+
+  it('locks sandbox start and suspend controls against the live VM state', async () => {
+    stubAgent({ sandbox_enabled: true, sandbox_provider: 'tart_macos_vm' });
+    server.use(
+      http.get('/api/agents/:id/concurrency', () =>
+        HttpResponse.json({
+          agent_id: 'A1',
+          cap: 4,
+          active: 0,
+          queued: 0,
+          stale: false,
+          reachable: true,
+          has_snapshot: true,
+          snapshot_age_ms: 1000,
+          executors: [],
+          slots: [],
+          sandbox_binding: {
+            sandbox_id: 'sbx-1',
+            provider: 'tart_macos_vm',
+            vm_name: 'ac-agent-a1',
+            state: 'running',
+            updated_at: new Date(Date.now() - 3_600_000).toISOString(),
+          },
+          computer_use_status: 'ready',
+        }),
+      ),
+    );
+
+    wrap('/agents/A1');
+
+    const runtimeStatus = await screen.findByTestId('agent-sandbox-runtime-status');
+    expect(runtimeStatus).toHaveTextContent('State: running');
+    expect(runtimeStatus).toHaveTextContent('running');
+    expect(screen.getByTestId('agent-sandbox-start')).toBeDisabled();
+    expect(screen.getByTestId('agent-sandbox-suspend')).toBeEnabled();
   });
 
   it('switches tabs (Profile default) + Workspace tab is removed (#228)', async () => {

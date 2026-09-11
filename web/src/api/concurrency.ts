@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from './client';
 import { qk } from './queryKeys';
+import type { SandboxBinding } from './types';
 
 // Per-agent live concurrency slots (T593, #并发讨论2). The Center serves a snapshot
 // of the agent's worker run-slots (refreshed on the worker's adaptive heartbeat);
@@ -75,6 +76,8 @@ export interface AgentConcurrency {
   // active" case); true but no snapshot = enabled-yet-awaiting-live-data (NOT "not
   // active"). Optional for back-compat (absent → treated as the legacy nodata label).
   concurrency_enabled?: boolean;
+  sandbox_binding?: SandboxBinding;
+  computer_use_status?: string;
   snapshot_age_ms: number;
   executors: ConcurrencyExecutor[];
 }

@@ -74,6 +74,8 @@ func TestAPI_AgentConcurrency_JoinsCapAndSnapshot(t *testing.T) {
 	slot0 := 0
 	store.Put(arID(t, deps, id), concurrency.AgentSnapshot{
 		Active: 1, AdmissionCap: 3, SlotCount: 3, ConfigVersion: 7,
+		SandboxBinding:    &concurrency.SandboxBindingRow{SandboxID: "sbx-1", Provider: "tart_macos_vm", VMName: "ac-agent-viewer", State: "running"},
+		ComputerUseStatus: concurrency.ComputerUseReady,
 		Executors: []concurrency.ExecutorSnapshot{
 			{
 				ExecutorID: "e1", SlotIndex: &slot0, TaskID: "t1", CLI: "codex", Model: "gpt-5.5",
@@ -117,6 +119,16 @@ func TestAPI_AgentConcurrency_JoinsCapAndSnapshot(t *testing.T) {
 	}
 	if q, ok := body["queued"].(float64); !ok || q != 0 {
 		t.Errorf("queued = %v, want 0 (no pending tasks)", body["queued"])
+	}
+	if body["computer_use_status"] != concurrency.ComputerUseReady {
+		t.Errorf("computer_use_status = %v, want %s", body["computer_use_status"], concurrency.ComputerUseReady)
+	}
+	sb, ok := body["sandbox_binding"].(map[string]any)
+	if !ok {
+		t.Fatalf("sandbox_binding = %T, want object", body["sandbox_binding"])
+	}
+	if sb["state"] != "running" || sb["vm_name"] != "ac-agent-viewer" {
+		t.Errorf("sandbox_binding = %+v", sb)
 	}
 	execs, _ := body["executors"].([]any)
 	if len(execs) != 1 {

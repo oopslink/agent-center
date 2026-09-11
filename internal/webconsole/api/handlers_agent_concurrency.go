@@ -83,11 +83,15 @@ func (s *Server) agentConcurrencyHandler(w http.ResponseWriter, r *http.Request)
 	integrityError := ""
 	executors := []map[string]any{}
 	slots := []map[string]any{}
+	var sandboxBinding *concurrency.SandboxBindingRow
+	computerUseStatus := ""
 	if d.LiveState != nil {
 		if snap, age, found := d.LiveState.Get(liveKey, time.Now()); found {
 			hasSnapshot = true
 			snapshotAgeMs = age.Milliseconds()
 			stale = age > liveStateTTL
+			sandboxBinding = snap.SandboxBinding
+			computerUseStatus = snap.ComputerUseStatus
 			active = snap.Active
 			configVersion = snap.ConfigVersion
 			if snap.AdmissionCap > 0 {
@@ -162,6 +166,8 @@ func (s *Server) agentConcurrencyHandler(w http.ResponseWriter, r *http.Request)
 		"queued":              queued,
 		"running":             running,
 		"concurrency_enabled": concurrencyEnabled,
+		"sandbox_binding":     sandboxBinding,
+		"computer_use_status": computerUseStatus,
 		"stale":               stale,
 		"reachable":           reachable,
 		"has_snapshot":        hasSnapshot,

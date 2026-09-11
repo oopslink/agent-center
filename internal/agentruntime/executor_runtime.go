@@ -785,9 +785,27 @@ func (r *LocalRuntime) SnapshotAgentConcurrency() concurrency.AgentSnapshot {
 				snap.IntegrityError = "executor engine not attached"
 			}
 		}
+		r.attachSandboxSnapshot(&snap)
 		return snap
 	}
-	return ee.SnapshotAgentConcurrency()
+	snap := ee.SnapshotAgentConcurrency()
+	r.attachSandboxSnapshot(&snap)
+	return snap
+}
+
+func (r *LocalRuntime) attachSandboxSnapshot(snap *concurrency.AgentSnapshot) {
+	if snap == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	b, ok, err := r.snapshotSandboxBinding(ctx)
+	if err != nil || !ok {
+		return
+	}
+	row := b.Row()
+	snap.SandboxBinding = &row
+	snap.ComputerUseStatus = b.ComputerUseStatus()
 }
 
 // ---------------------------------------------------------------------------
