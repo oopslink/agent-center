@@ -226,7 +226,8 @@ describe('Collaboration Insight', () => {
     expect(await screen.findByText('More filters')).toBeVisible();
     const chart = await screen.findByTestId('collaboration-echarts');
     expect(chart.querySelector('canvas')).toBeTruthy();
-    expect(screen.getByTestId('collaboration-graph-toolbar')).toHaveTextContent('Find node');
+    expect(screen.getByTestId('collaboration-graph-toolbar')).not.toHaveTextContent('Find node');
+    expect(screen.getByTestId('collaboration-locate')).toBeInTheDocument();
     fireEvent.wheel(chart, { deltaY: -100, clientX: 360, clientY: 180 });
     await user.click(screen.getByRole('button', { name: 'Fit' }));
     fireEvent.pointerDown(chart, { pointerId: 1, clientX: 360, clientY: 180 });

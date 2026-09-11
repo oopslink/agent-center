@@ -148,14 +148,7 @@ export default function InsightCollaboration(): React.ReactElement {
       {query.data ? <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden" data-testid="collaboration-workspace">
         {activeGraph.unsupported ? <State id="collaboration-unsupported" title={t('insight.collaboration.unsupported')} body={activeGraph.reason ?? t('insight.collaboration.emptyBody')} /> : null}
         {!activeGraph.unsupported && activeGraph.edges.length === 0 ? <State id="collaboration-empty" title={t('insight.collaboration.empty')} body={t('insight.collaboration.emptyBody')} /> : null}
-        {!activeGraph.unsupported && activeGraph.edges.length > 0 ? <div className="relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
-          <CollaborationGraph view={activeGraph} summary={summary} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} t={t} />
-          <div className="absolute right-6 top-6 z-20 flex items-center gap-2">
-            {query.hasNextPage ? <button type="button" disabled={query.isFetchingNextPage} onClick={() => void query.fetchNextPage()} className="rounded border border-border bg-bg-elevated px-3 py-1.5 text-xs shadow-lg hover:bg-bg-subtle" data-testid="collaboration-load-more">{query.isFetchingNextPage ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
-            <CollaborationLODNotice view={activeGraph} canLoadMore={query.hasNextPage} loadingMore={query.isFetchingNextPage} onLoadMore={() => void query.fetchNextPage()} onShowFull={showFullGraph} t={t} />
-            <Timeline effects={effects} onSelect={setSelected} t={t} />
-          </div>
-        </div> : null}
+        {!activeGraph.unsupported && activeGraph.edges.length > 0 ? <CollaborationGraph view={activeGraph} summary={summary} selected={selected} onSelect={setSelected} onClearSelection={() => setSelected(null)} canLoadMore={query.hasNextPage} loadingMore={query.isFetchingNextPage} onLoadMore={() => void query.fetchNextPage()} onShowFull={showFullGraph} effects={effects} t={t} /> : null}
       </div> : null}
       {selected ? <EvidenceDrawer effect={effect} effectIds={selected} onClose={() => setSelected(null)} t={t} /> : null}
     </section>
@@ -560,7 +553,31 @@ function CollaborationLODNotice({ view, canLoadMore, loadingMore, onLoadMore, on
   );
 }
 
-function CollaborationGraph({ view, summary, selected, onSelect, onClearSelection, t }: { view: DimensionGraphView; summary: CollaborationSummary; selected: CollaborationEffectScope[] | null; onSelect: (scopes: CollaborationEffectScope[]) => void; onClearSelection: () => void; t: Translator }) {
+function CollaborationGraph({
+  view,
+  summary,
+  selected,
+  onSelect,
+  onClearSelection,
+  canLoadMore,
+  loadingMore,
+  onLoadMore,
+  onShowFull,
+  effects,
+  t,
+}: {
+  view: DimensionGraphView;
+  summary: CollaborationSummary;
+  selected: CollaborationEffectScope[] | null;
+  onSelect: (scopes: CollaborationEffectScope[]) => void;
+  onClearSelection: () => void;
+  canLoadMore: boolean;
+  loadingMore: boolean;
+  onLoadMore: () => void;
+  onShowFull: () => void;
+  effects: { effect_id: string; project_id: string; occurred_at: string; relation_type: string; polarity: string; source_agent_ref: string; target_task_id: string }[];
+  t: Translator;
+}) {
   const { nodes, edges } = view;
   const storageKey = `insight:collaboration:pins:${view.view}`;
   const baseNodeMap = useMemo(() => layoutNodes(view), [view]);
@@ -731,29 +748,36 @@ function CollaborationGraph({ view, summary, selected, onSelect, onClearSelectio
     return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="group rounded-md border border-border bg-bg-primary px-3 py-2 text-left text-sm hover:border-brand/50 hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default" data-testid="collaboration-relationship-row"><span className="flex items-center justify-between gap-3"><strong className="min-w-0 truncate text-text-primary">{labelFor(t, edge.relation_type)}<span className="sr-only">{` · ${labelFor(t, edge.polarity)}`}</span></strong><span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${polarityPillClass(edge.polarity)}`}>{labelFor(t, edge.polarity)}</span></span><span className="mt-1 block truncate text-xs text-text-muted">{edge.source} {'->'} {edge.target}</span><span className="mt-1 block text-xs text-text-muted">{t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · {t('insight.collaboration.evidence.count', { count: edge.evidence_count })}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</span></button>;
   });
   return <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-bg-surface p-3" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
-    <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pb-3" data-testid="collaboration-graph-toolbar">
-      <div className="flex min-w-0 flex-wrap gap-2 text-xs text-text-muted">
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 pb-3" data-testid="collaboration-graph-toolbar">
+      <div className="flex min-w-0 flex-wrap items-center gap-2 text-xs text-text-muted">
         <span className="rounded-md border border-border bg-bg-elevated px-2 py-1 font-medium text-text-primary">{t(`insight.collaboration.views.${view.view}`)}</span>
         <span className="rounded-md border border-border bg-bg-elevated px-2 py-1">{t('insight.collaboration.legend.visibleTotals', { nodes: visibleNodes.length, edges: visibleEdges.length })}</span>
         {view.view === 'network' ? <span data-testid="collaboration-network-communities">{t('insight.collaboration.legend.communities', { count: communityCount })}</span> : null}
         {view.truncated ? <span>{t('insight.collaboration.lod.cropped', { nodes: view.visibleNodeCount, edges: view.visibleEdgeCount })}</span> : null}
       </div>
-      <div className="flex min-w-0 flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elevated p-1" aria-label={t('insight.collaboration.viewport.controls')}>
-        <select aria-label={t('insight.collaboration.viewport.locate')} title={t('insight.collaboration.viewport.locateHelp')} className="h-8 max-w-[13rem] rounded border border-border bg-bg-primary px-2 text-xs text-text-primary" value={locateId} onChange={(event) => setLocateId(event.target.value)} data-testid="collaboration-locate">
-          <option value="">{t('insight.collaboration.viewport.locate')}</option>
-          {locateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-        </select>
-        <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={focusLocated} disabled={!locateId}>{t('insight.collaboration.viewport.go')}</button>
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
+        {canLoadMore ? <button type="button" disabled={loadingMore} onClick={onLoadMore} className="rounded border border-border bg-bg-elevated px-3 py-1.5 text-xs hover:bg-bg-subtle" data-testid="collaboration-load-more">{loadingMore ? t('insight.collaboration.loadingMore') : t('insight.collaboration.loadMore')}</button> : null}
+        <CollaborationLODNotice view={view} canLoadMore={canLoadMore} loadingMore={loadingMore} onLoadMore={onLoadMore} onShowFull={onShowFull} t={t} />
+        <Timeline effects={effects} onSelect={onSelect} t={t} />
+      </div>
+    </div>
+    <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-border bg-bg-elevated">
+        <div className="absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elevated/95 p-1 shadow-sm" aria-label={t('insight.collaboration.viewport.controls')}>
+          <select aria-label={t('insight.collaboration.viewport.locate')} title={t('insight.collaboration.viewport.locateHelp')} className="h-8 max-w-[15rem] rounded border border-border bg-bg-primary px-2 text-xs text-text-primary" value={locateId} onChange={(event) => setLocateId(event.target.value)} data-testid="collaboration-locate">
+            <option value="">{t('insight.collaboration.viewport.locate')}</option>
+            {locateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+          <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={focusLocated} disabled={!locateId}>{t('insight.collaboration.viewport.go')}</button>
+        </div>
+        <div className="absolute right-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elevated/95 p-1 shadow-sm">
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(1.22)} aria-label={t('insight.collaboration.viewport.zoomIn')}>+</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => zoom(0.82)} aria-label={t('insight.collaboration.viewport.zoomOut')}>-</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={focusSelected} disabled={context.nodes.size === 0}>{t('insight.collaboration.viewport.focus')}</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={fit}>{t('insight.collaboration.viewport.fit')}</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={reset}>{t('insight.collaboration.viewport.reset')}</button>
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => setDragPositions({})}>{t('insight.collaboration.viewport.unpin')}</button>
-      </div>
-    </div>
-    <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-border bg-bg-elevated">
+        </div>
         <div
           ref={chartHostRef}
           className="collaboration-dot-grid min-h-[340px] min-w-0 flex-1 touch-none"
