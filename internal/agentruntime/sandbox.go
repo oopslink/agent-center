@@ -107,11 +107,16 @@ func tartRestoreFailed(out string) bool {
 
 func (b SandboxBinding) ComputerUseStatus() string {
 	switch b.State {
-	case SandboxStateReady, SandboxStateRunning:
+	case SandboxStateRunning:
 		if strings.TrimSpace(b.ComputerUseEndpoint) != "" {
 			return concurrency.ComputerUseReady
 		}
 		return concurrency.ComputerUseLoginRequired
+	case SandboxStateReady:
+		if strings.TrimSpace(b.ComputerUseEndpoint) == "" {
+			return concurrency.ComputerUseLoginRequired
+		}
+		return concurrency.ComputerUseUnavailable
 	case SandboxStateProvisioning:
 		return concurrency.ComputerUseProvisioning
 	case SandboxStateDegraded, SandboxStateResetRequired:

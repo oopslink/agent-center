@@ -2,6 +2,17 @@ package agentruntime
 
 import "testing"
 
+func TestSandboxBindingComputerUseStatusRequiresRunningVM(t *testing.T) {
+	b := SandboxBinding{State: SandboxStateReady, ComputerUseEndpoint: "/tmp/cua.sock"}
+	if got := b.ComputerUseStatus(); got != "unavailable" {
+		t.Fatalf("ready-but-stopped computer use status = %q, want unavailable", got)
+	}
+	b.State = SandboxStateRunning
+	if got := b.ComputerUseStatus(); got != "ready" {
+		t.Fatalf("running computer use status = %q, want ready", got)
+	}
+}
+
 func TestTartStateFromJSON(t *testing.T) {
 	tests := []struct {
 		name string
