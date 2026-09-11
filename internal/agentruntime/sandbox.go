@@ -422,6 +422,7 @@ func (m *LocalSandboxManager) runTartUntilRunning(ctx context.Context, vmName st
 	defer ticker.Stop()
 	timer := time.NewTimer(45 * time.Second)
 	defer timer.Stop()
+	var runningSince time.Time
 	for {
 		select {
 		case err := <-waitCh:
@@ -436,12 +437,19 @@ func (m *LocalSandboxManager) runTartUntilRunning(ctx context.Context, vmName st
 				}, output.String()
 			}
 			if detail == "" {
-				detail = "tart run exited before VM reached running"
+				detail = "tart run exited before VM stayed running"
 			}
 			return SandboxBinding{State: SandboxStateDegraded, LastError: detail}, output.String()
 		case <-ticker.C:
 			if state, ok := tartVMState(ctx, vmName); ok && state == SandboxStateRunning {
-				return SandboxBinding{State: SandboxStateRunning}, output.String()
+				if runningSince.IsZero() {
+					runningSince = m.clock().UTC()
+				}
+				if m.clock().UTC().Sub(runningSince) >= 3*time.Second {
+					return SandboxBinding{State: SandboxStateRunning}, output.String()
+				}
+			} else {
+				runningSince = time.Time{}
 			}
 		case <-timer.C:
 			if cmd.Process != nil {
