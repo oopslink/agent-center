@@ -74,6 +74,24 @@ func TestAPI_AgentSandboxAction_EnqueuesRuntimeOwnedAction(t *testing.T) {
 	if payload["action"] != "open_console" || payload["agent_id"] == "" || payload["agent_id"] == id {
 		t.Fatalf("payload = %+v, want action and internal execution agent id", payload)
 	}
+	a, err := deps.AgentSvc.ResolveAgent(context.Background(), id)
+	if err != nil {
+		t.Fatalf("resolve agent: %v", err)
+	}
+	events, err := deps.AgentSvc.ListActivity(context.Background(), a.ID(), 10, "")
+	if err != nil {
+		t.Fatalf("list activity: %v", err)
+	}
+	if len(events) != 1 || events[0].EventType() != "lifecycle" {
+		t.Fatalf("activity = %+v, want one lifecycle event", events)
+	}
+	var activity map[string]any
+	if err := json.Unmarshal([]byte(events[0].Payload()), &activity); err != nil {
+		t.Fatalf("activity payload json: %v", err)
+	}
+	if activity["event"] != "sandbox.open_console" || activity["status"] != "accepted" || activity["command_id"] != cmds[0].ID() {
+		t.Fatalf("activity payload = %+v", activity)
+	}
 }
 
 func TestAPI_AgentSandboxDesktopSession_DistinguishesConfiguredAndReachable(t *testing.T) {

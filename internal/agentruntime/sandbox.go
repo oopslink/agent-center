@@ -59,6 +59,46 @@ type SandboxBinding struct {
 	LastError           string            `json:"last_error,omitempty"`
 }
 
+type tartVMInfo struct {
+	Running bool   `json:"Running"`
+	State   string `json:"State"`
+}
+
+func tartStateFromJSON(raw []byte) (string, bool) {
+	var info tartVMInfo
+	if err := json.Unmarshal(raw, &info); err != nil {
+		return "", false
+	}
+	if info.Running {
+		return SandboxStateRunning, true
+	}
+	switch strings.ToLower(strings.TrimSpace(info.State)) {
+	case "running":
+		return SandboxStateRunning, true
+	case "suspended":
+		return SandboxStateSuspended, true
+	case "stopped":
+		return SandboxStateReady, true
+	default:
+		return "", false
+	}
+}
+
+func tartVMState(ctx context.Context, vmName string) (string, bool) {
+	if strings.TrimSpace(vmName) == "" {
+		return "", false
+	}
+	out, err := exec.CommandContext(ctx, "tart", "get", vmName, "--format", "json").CombinedOutput()
+	if err != nil {
+		return "", false
+	}
+	return tartStateFromJSON(out)
+}
+
+func tartNotRunningError(out string) bool {
+	return strings.Contains(strings.ToLower(out), "is not running")
+}
+
 func (b SandboxBinding) ComputerUseStatus() string {
 	switch b.State {
 	case SandboxStateReady, SandboxStateRunning:
@@ -291,6 +331,11 @@ func (m *LocalSandboxManager) runTartLifecycleCommand(ctx context.Context, b San
 		b.LastError = ""
 		return b
 	case "start":
+		if state, ok := tartVMState(ctx, b.VMName); ok && state == SandboxStateRunning {
+			b.State = SandboxStateRunning
+			b.LastError = ""
+			return b
+		}
 		cmd := exec.CommandContext(ctx, "tart", "run", "--no-graphics", b.VMName)
 		if err := cmd.Start(); err != nil {
 			b.State = SandboxStateDegraded
@@ -316,6 +361,15 @@ func (m *LocalSandboxManager) runTartLifecycleCommand(ctx context.Context, b San
 	}
 	cmd := exec.CommandContext(ctx, "tart", args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
+		if op == "suspend" && tartNotRunningError(string(out)) {
+			if state, ok := tartVMState(ctx, b.VMName); ok {
+				b.State = state
+			} else {
+				b.State = SandboxStateSuspended
+			}
+			b.LastError = ""
+			return b
+		}
 		b.State = SandboxStateDegraded
 		b.LastError = strings.TrimSpace(fmt.Sprintf("tart %s failed: %v: %s", op, err, string(out)))
 		return b
@@ -397,11 +451,20 @@ func (m *LocalSandboxManager) refreshTartBinding(ctx context.Context, b SandboxB
 	if ep := sandboxEndpointEnv(b.AgentID); ep != "" {
 		b.ComputerUseEndpoint = ep
 	}
+	actualState, hasActualState := tartVMState(ctx, b.VMName)
 	if b.ComputerUseEndpoint == "" {
-		b.State = SandboxStateReady
+		if hasActualState {
+			b.State = actualState
+		} else {
+			b.State = SandboxStateReady
+		}
 		b.LastError = "Computer Use endpoint is not configured; open the VM console/browser and complete first-time setup"
 	} else {
-		b.State = SandboxStateRunning
+		if hasActualState {
+			b.State = actualState
+		} else {
+			b.State = SandboxStateRunning
+		}
 		b.LastError = ""
 		b.ComputerUseEnv = map[string]string{
 			"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS": b.ComputerUseEndpoint,

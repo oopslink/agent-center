@@ -2,10 +2,12 @@ package agentruntime
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	agentbc "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/concurrency"
 )
 
@@ -77,5 +79,40 @@ func (r *LocalRuntime) ReportSandboxCommandStatus(ctx context.Context, commandID
 	if err := rep.ReportControlCommandStatus(ctx, r.cfg.AgentID, commandID, "", status, reason, detail, "", r.now()); err != nil {
 		return fmt.Errorf("report sandbox action command status command=%s status=%s: %w", commandID, status, err)
 	}
+	r.reportSandboxActivity(commandID, action, status, reason, detail, b)
 	return nil
+}
+
+func (r *LocalRuntime) reportSandboxActivity(commandID, action, status, reason, detail string, b SandboxBinding) {
+	if r == nil || r.cfg.Reporter == nil {
+		return
+	}
+	payload := map[string]any{
+		"event":               "sandbox." + strings.TrimSpace(action),
+		"action":              strings.TrimSpace(action),
+		"scope":               strings.TrimSpace(status),
+		"status":              strings.TrimSpace(status),
+		"command_id":          strings.TrimSpace(commandID),
+		"sandbox_id":          strings.TrimSpace(b.SandboxID),
+		"provider":            strings.TrimSpace(b.Provider),
+		"vm_name":             strings.TrimSpace(b.VMName),
+		"sandbox_state":       strings.TrimSpace(b.State),
+		"computer_use_status": b.ComputerUseStatus(),
+	}
+	if reason = strings.TrimSpace(reason); reason != "" {
+		payload["reason"] = reason
+	}
+	if detail = strings.TrimSpace(detail); detail != "" {
+		payload["detail"] = detail
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		r.log("sandbox action agent=%s command=%s activity payload: %v", r.cfg.AgentID, commandID, err)
+		return
+	}
+	if err := r.cfg.Reporter.ReportAgentActivity(
+		context.Background(), r.cfg.AgentID, agentbc.EventTypeLifecycle, string(raw), "", "sandbox:"+strings.TrimSpace(commandID), r.now(),
+	); err != nil {
+		r.log("sandbox action agent=%s command=%s activity report: %v", r.cfg.AgentID, commandID, err)
+	}
 }

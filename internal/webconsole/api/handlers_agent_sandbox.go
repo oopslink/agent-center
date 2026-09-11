@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	agentbc "github.com/oopslink/agent-center/internal/agent"
 	"github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -94,6 +95,7 @@ func (s *Server) agentSandboxActionHandler(w http.ResponseWriter, r *http.Reques
 		mapDomainError(w, err)
 		return
 	}
+	s.appendSandboxActionActivity(r.Context(), d, string(a.ID()), action, "accepted", evt.ID(), "", "")
 	writeJSON(w, http.StatusAccepted, map[string]any{
 		"ok":             true,
 		"status":         "accepted",
@@ -104,6 +106,36 @@ func (s *Server) agentSandboxActionHandler(w http.ResponseWriter, r *http.Reques
 		"offset":         evt.Offset(),
 		"command_type":   evt.CommandType(),
 		"command_status": evt.Status(),
+	})
+}
+
+func (s *Server) appendSandboxActionActivity(ctx context.Context, d HandlerDeps, agentID, action, status, commandID, reason, detail string) {
+	if d.AgentSvc == nil {
+		return
+	}
+	payload := map[string]any{
+		"event":      "sandbox." + strings.TrimSpace(action),
+		"action":     strings.TrimSpace(action),
+		"scope":      strings.TrimSpace(status),
+		"status":     strings.TrimSpace(status),
+		"command_id": strings.TrimSpace(commandID),
+	}
+	if reason = strings.TrimSpace(reason); reason != "" {
+		payload["reason"] = reason
+	}
+	if detail = strings.TrimSpace(detail); detail != "" {
+		payload["detail"] = detail
+	}
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	_, _ = d.AgentSvc.AppendActivity(ctx, agentbc.NewActivityEventInput{
+		AgentID:        agentbc.AgentID(agentID),
+		InteractionRef: "sandbox:" + strings.TrimSpace(commandID),
+		EventType:      agentbc.EventTypeLifecycle,
+		Payload:        string(raw),
+		OccurredAt:     time.Now().UTC(),
 	})
 }
 
