@@ -26,6 +26,7 @@ const TaskDetail = lazy(() => import('./pages/TaskDetail'));
 // component survives only as the Org Settings > Agents section panel (imported
 // directly there), so it is no longer lazy-loaded here.
 const AgentDetail = lazy(() => import('./pages/AgentDetail'));
+const AgentSandboxDesktop = lazy(() => import('./pages/AgentDetail').then((m) => ({ default: m.AgentSandboxDesktopPage })));
 const Projects = lazy(() => import('./pages/Projects'));
 const ProjectDetail = lazy(() => import('./pages/ProjectDetail'));
 // v2.9 #286: per-project Plan orchestration (parallel list + Plan detail).
@@ -88,6 +89,14 @@ export function App(): React.ReactElement {
         {/* Legacy root redirect → first org home (v2.6-FE-6) */}
         <Route index element={<OrgRedirect />} />
         <Route path="/ai-runtime" element={<OrgRedirect to="ai-runtime" />} />
+        <Route
+          path="/organizations/:slug/agents/:id/desktop"
+          element={
+            <OrgGuard>
+              <AgentSandboxDesktop />
+            </OrgGuard>
+          }
+        />
 
         {/* /organizations/:slug — all org-scoped routes */}
         <Route

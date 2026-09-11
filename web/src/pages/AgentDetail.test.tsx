@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { server } from '@/test/mswServer';
 import { FakeEventSource } from '@/sse/fakeEventSource';
-import AgentDetail from './AgentDetail';
+import AgentDetail, { AgentSandboxDesktopPage } from './AgentDetail';
 
 vi.mock('@novnc/novnc', () => ({
   default: class FakeRFB extends EventTarget {
@@ -60,6 +60,7 @@ function wrap(path: string) {
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path="/agents/:id" element={<AgentDetail />} />
+          <Route path="/agents/:id/desktop" element={<AgentSandboxDesktopPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -220,7 +221,7 @@ describe('AgentDetail page', () => {
     expect(posted).toMatchObject({ kind: 'dm', members: ['agent:A1'] });
   });
 
-  it('sandbox-enabled agent shows VM controls and enqueues browser setup action', async () => {
+  it('sandbox-enabled agent shows VM controls and opens desktop without a browser setup action', async () => {
     stubAgent({ sandbox_enabled: true, sandbox_provider: 'tart_macos_vm' });
     let hit = '';
     server.use(
@@ -287,16 +288,17 @@ describe('AgentDetail page', () => {
     expect(runtimeStatus).toHaveTextContent('ac-agent-a1');
     expect(screen.getByTestId('agent-sandbox-start')).toBeEnabled();
     expect(screen.getByTestId('agent-sandbox-suspend')).toBeDisabled();
-    const btn = screen.getByTestId('agent-sandbox-open-browser');
-    expect(btn).toHaveAttribute('title', 'Open browser setup');
+    expect(screen.queryByTestId('agent-sandbox-open-browser')).not.toBeInTheDocument();
+    const btn = screen.getByTestId('agent-sandbox-open-console');
+    expect(btn).toHaveAttribute('title', 'Open VM desktop');
     expect(btn.querySelector('svg')).not.toBeNull();
     fireEvent.click(btn);
-    await waitFor(() => expect(hit).toBe('open_browser'));
-    expect(await screen.findByTestId('agent-sandbox-action-status')).toHaveTextContent('open_browser');
+    await waitFor(() => expect(hit).toBe('open_console'));
+    expect(await screen.findByTestId('agent-sandbox-action-status')).toHaveTextContent('open_console');
     expect(await screen.findByTestId('agent-sandbox-desktop-modal')).toBeInTheDocument();
   });
 
-  it('supports opening the sandbox desktop viewer in a separate window', async () => {
+  it('supports opening the sandbox desktop viewer in a standalone window', async () => {
     stubAgent({ sandbox_enabled: true, sandbox_provider: 'tart_macos_vm' });
     server.use(
       http.get('/api/agents/:id/concurrency', () =>
@@ -321,6 +323,27 @@ describe('AgentDetail page', () => {
           computer_use_status: 'ready',
         }),
       ),
+      http.post('/api/agents/:id/sandbox/:action', ({ params }) =>
+        HttpResponse.json({
+          ok: true,
+          status: 'accepted',
+          action: String(params.action),
+          command_id: 'cmd-1',
+          command_type: 'agent.sandbox_action',
+          command_status: 'succeeded',
+        }),
+      ),
+      http.get('/api/agents/:id/sandbox/commands/:commandId', () =>
+        HttpResponse.json({
+          ok: true,
+          agent_id: 'A1',
+          worker_id: 'w-1',
+          command_id: 'cmd-1',
+          offset: 1,
+          command_type: 'agent.sandbox_action',
+          command_status: 'succeeded',
+        }),
+      ),
       http.get('/api/agents/:id/sandbox/desktop/session', () =>
         HttpResponse.json({
           ok: true,
@@ -333,13 +356,35 @@ describe('AgentDetail page', () => {
     );
     const open = vi.spyOn(window, 'open').mockImplementation(() => null);
 
-    wrap('/agents/A1?desktop=1');
+    wrap('/agents/A1');
 
+    fireEvent.click(await screen.findByTestId('agent-sandbox-open-console'));
     expect(await screen.findByTestId('agent-sandbox-desktop-modal')).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('agent-sandbox-desktop-popout'));
     expect(open).toHaveBeenCalledTimes(1);
-    expect(String(open.mock.calls[0][0])).toContain('desktop=1');
+    expect(String(open.mock.calls[0][0])).toBe('/agents/A1/desktop');
     open.mockRestore();
+  });
+
+  it('renders the standalone sandbox desktop page without a modal wrapper', async () => {
+    stubAgent({ sandbox_enabled: true, sandbox_provider: 'tart_macos_vm' });
+    server.use(
+      http.get('/api/agents/:id/sandbox/desktop/session', () =>
+        HttpResponse.json({
+          ok: true,
+          status: 'ready',
+          agent_id: 'A1',
+          websocket_url: '/api/orgs/ooo/agents/A1/sandbox/desktop/ws?session=tok',
+          auth_mode: 'automatic',
+        }),
+      ),
+    );
+
+    wrap('/agents/A1/desktop');
+
+    expect(await screen.findByTestId('agent-sandbox-desktop-page')).toBeInTheDocument();
+    expect(await screen.findByTestId('agent-sandbox-desktop-viewer')).toBeInTheDocument();
+    expect(screen.queryByTestId('agent-sandbox-desktop-modal')).not.toBeInTheDocument();
   });
 
   it('locks sandbox start and suspend controls against the live VM state', async () => {

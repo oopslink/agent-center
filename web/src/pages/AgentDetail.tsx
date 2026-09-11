@@ -122,12 +122,6 @@ export default function AgentDetail(): React.ReactElement {
   // v2.7.1 #228: active tab synced to ?tab= so a tab is shareable/bookmarkable.
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const desktopParam = searchParams.get('desktop');
-  useEffect(() => {
-    if (desktopParam === '1' && agent.data?.sandbox_enabled) {
-      setSandboxDesktopOpen(true);
-    }
-  }, [agent.data?.sandbox_enabled, desktopParam]);
   const tab: AgentTab = (AGENT_TABS.some((t) => t.key === tabParam) ? tabParam : 'profile') as AgentTab;
   const setTab = (t: AgentTab) =>
     setSearchParams(
@@ -232,20 +226,9 @@ export default function AgentDetail(): React.ReactElement {
   };
   const closeSandboxDesktop = () => {
     setSandboxDesktopOpen(false);
-    if (desktopParam === '1') {
-      setSearchParams(
-        (prev) => {
-          const p = new URLSearchParams(prev);
-          p.delete('desktop');
-          return p;
-        },
-        { replace: true },
-      );
-    }
   };
   const popOutSandboxDesktop = () => {
-    const url = new URL(window.location.href);
-    url.searchParams.set('desktop', '1');
+    const url = org?.slug ? `/organizations/${org.slug}/agents/${id}/desktop` : `/agents/${id}/desktop`;
     window.open(url.toString(), '_blank', 'noopener,noreferrer,width=1280,height=900');
   };
 
@@ -436,17 +419,6 @@ export default function AgentDetail(): React.ReactElement {
             onAction={(action) => runSandboxAction(action, true)}
           >
             <MonitorIcon />
-          </SandboxActionButton>
-          <SandboxActionButton
-            action="open_browser"
-            pending={sandboxPending}
-            disabled={!sandboxCanOpen}
-            title={t('agents.detail.sandbox.openBrowserTitle')}
-            ariaLabel={t('agents.detail.sandbox.openBrowserAria')}
-            testId="agent-sandbox-open-browser"
-            onAction={(action) => runSandboxAction(action, true)}
-          >
-            <BrowserIcon />
           </SandboxActionButton>
           <SandboxActionButton
             action="start"
@@ -786,6 +758,81 @@ function SandboxDesktopModal({
   onPopOut: () => void;
 }): React.ReactElement {
   const { t } = useTranslation('members');
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      role="dialog"
+      aria-modal="true"
+      data-testid="agent-sandbox-desktop-modal"
+    >
+      <div className="flex h-[min(760px,92vh)] w-[min(1180px,96vw)] flex-col rounded-lg border border-border-base bg-bg-elevated shadow-xl">
+        <div className="flex items-center justify-between gap-3 border-b border-border-base px-4 py-3">
+          <h2 className="text-sm font-semibold text-text-primary">
+            {t('agents.detail.sandbox.desktopTitle', { name: agentName })}
+          </h2>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onPopOut}
+              className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
+              title={t('agents.detail.sandbox.desktopPopOutTitle')}
+              aria-label={t('agents.detail.sandbox.desktopPopOutTitle')}
+              data-testid="agent-sandbox-desktop-popout"
+            >
+              <PopOutIcon />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
+              data-testid="agent-sandbox-desktop-close"
+            >
+              {t('agents.detail.sandbox.desktopClose')}
+            </button>
+          </div>
+        </div>
+        <SandboxDesktopViewer agentId={agentId} />
+      </div>
+    </div>
+  );
+}
+
+export function AgentSandboxDesktopPage(): React.ReactElement {
+  const { t } = useTranslation('members');
+  const { id = '' } = useParams<{ id: string }>();
+  const agent = useAgent(id);
+  const agentName = agent.data?.name || id;
+
+  return (
+    <main className="flex h-screen min-h-0 flex-col bg-bg-base" data-testid="agent-sandbox-desktop-page">
+      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border-base bg-bg-elevated px-4 py-3">
+        <div>
+          <h1 className="text-sm font-semibold text-text-primary">
+            {t('agents.detail.sandbox.desktopTitle', { name: agentName })}
+          </h1>
+          <p className="text-xs text-text-muted">{t('agents.detail.sandbox.desktopStandalone')}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => window.close()}
+          className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
+        >
+          {t('agents.detail.sandbox.desktopCloseWindow')}
+        </button>
+      </div>
+      {agent.isError || (agent.data && !agent.data.sandbox_enabled) ? (
+        <div className="flex flex-1 items-center justify-center p-6 text-sm text-text-muted">
+          {agent.isError ? (agent.error as Error).message : t('agents.detail.sandbox.desktopNotConfigured')}
+        </div>
+      ) : (
+        <SandboxDesktopViewer agentId={id} />
+      )}
+    </main>
+  );
+}
+
+function SandboxDesktopViewer({ agentId }: { agentId: string }): React.ReactElement {
+  const { t } = useTranslation('members');
   const session = useAgentSandboxDesktopSession(agentId, true);
   const screenRef = useRef<HTMLDivElement | null>(null);
   const rfbRef = useRef<RFB | null>(null);
@@ -859,89 +906,53 @@ function SandboxDesktopModal({
     null;
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      role="dialog"
-      aria-modal="true"
-      data-testid="agent-sandbox-desktop-modal"
-    >
-      <div className="flex h-[min(760px,92vh)] w-[min(1180px,96vw)] flex-col rounded-lg border border-border-base bg-bg-elevated shadow-xl">
-        <div className="flex items-center justify-between gap-3 border-b border-border-base px-4 py-3">
-          <div>
-            <h2 className="text-sm font-semibold text-text-primary">
-              {t('agents.detail.sandbox.desktopTitle', { name: agentName })}
-            </h2>
-            <p className="text-xs text-text-muted">
-              {t('agents.detail.sandbox.desktopStatus', { status: connectionStatus })}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={onPopOut}
-              className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
-              title={t('agents.detail.sandbox.desktopPopOutTitle')}
-              aria-label={t('agents.detail.sandbox.desktopPopOutTitle')}
-              data-testid="agent-sandbox-desktop-popout"
-            >
-              <PopOutIcon />
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded border border-border-base px-3 py-1.5 text-sm text-text-primary hover:bg-bg-subtle"
-              data-testid="agent-sandbox-desktop-close"
-            >
-              {t('agents.detail.sandbox.desktopClose')}
-            </button>
-          </div>
-        </div>
-        <div className="relative min-h-0 flex-1 bg-black">
-          <div ref={screenRef} className="h-full w-full overflow-hidden" data-testid="agent-sandbox-desktop-screen" />
-          {sessionMessage && (
-            <div className="absolute inset-0 flex items-center justify-center p-6">
-              <div className="max-w-md rounded border border-border-base bg-bg-elevated p-4 text-sm text-text-primary shadow">
-                {sessionMessage}
-              </div>
-            </div>
-          )}
-          {connectionError && (
-            <div className="absolute bottom-3 left-3 rounded border border-danger/40 bg-bg-elevated px-3 py-2 text-xs text-danger shadow">
-              {connectionError}
-            </div>
-          )}
-          {passwordRequired && (
-            <form
-              className="absolute left-1/2 top-1/2 flex w-[min(360px,calc(100%-32px))] -translate-x-1/2 -translate-y-1/2 flex-col gap-2 rounded border border-border-base bg-bg-elevated p-4 shadow"
-              onSubmit={(e) => {
-                e.preventDefault();
-                sendPassword();
-              }}
-            >
-              <label className="text-xs font-medium text-text-primary" htmlFor="sandbox-vnc-password">
-                {t('agents.detail.sandbox.desktopPassword')}
-              </label>
-              <input
-                id="sandbox-vnc-password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary"
-                autoComplete="off"
-                data-testid="agent-sandbox-desktop-password"
-              />
-              <button
-                type="submit"
-                disabled={!password}
-                className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
-                data-testid="agent-sandbox-desktop-password-submit"
-              >
-                {t('agents.detail.sandbox.desktopConnect')}
-              </button>
-            </form>
-          )}
-        </div>
+    <div className="relative min-h-0 flex-1 bg-black" data-testid="agent-sandbox-desktop-viewer">
+      <div ref={screenRef} className="h-full w-full overflow-hidden" data-testid="agent-sandbox-desktop-screen" />
+      <div className="absolute left-3 top-3 rounded bg-black/60 px-2 py-1 text-xs text-white">
+        {t('agents.detail.sandbox.desktopStatus', { status: connectionStatus })}
       </div>
+      {sessionMessage && (
+        <div className="absolute inset-0 flex items-center justify-center p-6">
+          <div className="max-w-md rounded border border-border-base bg-bg-elevated p-4 text-sm text-text-primary shadow">
+            {sessionMessage}
+          </div>
+        </div>
+      )}
+      {connectionError && (
+        <div className="absolute bottom-3 left-3 rounded border border-danger/40 bg-bg-elevated px-3 py-2 text-xs text-danger shadow">
+          {connectionError}
+        </div>
+      )}
+      {passwordRequired && (
+        <form
+          className="absolute left-1/2 top-1/2 flex w-[min(360px,calc(100%-32px))] -translate-x-1/2 -translate-y-1/2 flex-col gap-2 rounded border border-border-base bg-bg-elevated p-4 shadow"
+          onSubmit={(e) => {
+            e.preventDefault();
+            sendPassword();
+          }}
+        >
+          <label className="text-xs font-medium text-text-primary" htmlFor="sandbox-vnc-password">
+            {t('agents.detail.sandbox.desktopPassword')}
+          </label>
+          <input
+            id="sandbox-vnc-password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="rounded border border-border-base bg-bg-elevated px-3 py-2 text-sm text-text-primary"
+            autoComplete="off"
+            data-testid="agent-sandbox-desktop-password"
+          />
+          <button
+            type="submit"
+            disabled={!password}
+            className="rounded bg-brand px-3 py-1.5 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-50"
+            data-testid="agent-sandbox-desktop-password-submit"
+          >
+            {t('agents.detail.sandbox.desktopConnect')}
+          </button>
+        </form>
+      )}
     </div>
   );
 }
@@ -1157,15 +1168,6 @@ function MonitorIcon(): React.ReactElement {
     <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
       <rect x="3.5" y="4.5" width="13" height="9" rx="1.5" strokeLinejoin="round" />
       <path d="M8 16h4M10 13.5V16" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function BrowserIcon(): React.ReactElement {
-  return (
-    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 stroke-current" strokeWidth="1.5" aria-hidden="true">
-      <rect x="3.5" y="4.5" width="13" height="11" rx="1.5" strokeLinejoin="round" />
-      <path d="M4 8h12M7 6.2h.01M9 6.2h.01" strokeLinecap="round" />
     </svg>
   );
 }
