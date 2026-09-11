@@ -308,7 +308,13 @@ function dateTimeInputToRFC3339(value: string): string {
 }
 
 function Summary({ summary, t }: { summary: { positive_count: number; negative_count: number; neutral_count: number; mixed_count: number; affected_task_count: number }; t: Translator }) {
-  return <section aria-label={t('insight.collaboration.summary')} className="grid min-w-0 grid-cols-5 gap-2 overflow-hidden">{(['positive', 'negative', 'neutral', 'mixed'] as const).map((key) => <div key={key} className="min-w-0 rounded border border-border bg-bg-surface px-3 py-2"><span className="block truncate text-xs text-text-muted">{labelFor(t, key)}</span><strong className="block text-base">{summary[`${key}_count`]}</strong></div>)}<div className="min-w-0 rounded border border-border bg-bg-surface px-3 py-2"><span className="block truncate text-xs text-text-muted">{t('insight.collaboration.affectedTasks')}</span><strong className="block text-base">{summary.affected_task_count}</strong></div></section>;
+  const items = (['positive', 'negative', 'neutral', 'mixed'] as const).map((key) => ({
+    key,
+    label: labelFor(t, key),
+    value: summary[`${key}_count`],
+    className: polarityAccentClass(key),
+  }));
+  return <section aria-label={t('insight.collaboration.summary')} className="grid min-w-0 grid-cols-2 gap-2 overflow-hidden md:grid-cols-5">{items.map((item) => <div key={item.key} className={`min-w-0 rounded-md border bg-bg-surface px-3 py-2 ${item.className}`}><span className="block truncate text-xs font-medium text-text-muted">{item.label}</span><strong className="mt-1 block text-lg leading-none text-text-primary">{item.value}</strong></div>)}<div className="min-w-0 rounded-md border border-border bg-bg-elevated px-3 py-2"><span className="block truncate text-xs font-medium text-text-muted">{t('insight.collaboration.affectedTasks')}</span><strong className="mt-1 block text-lg leading-none text-text-primary">{summary.affected_task_count}</strong></div></section>;
 }
 
 function dedupeBy<T>(items: T[], key: (item: T) => string): T[] {
@@ -689,27 +695,22 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
     setFocusedNodeId(locateId);
     chartRef.current?.dispatchAction({ type: 'focusNodeAdjacency', seriesIndex: 0, dataIndex: visibleNodes.findIndex((node) => node.id === locateId) });
   };
-  const renderEdgeButtons = () => visibleEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0).slice(0, EDGE_LIST_RENDER_LIMIT).map((edge) => {
+  const relationshipEdges = visibleEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0)
+    .sort((a, b) => b.magnitude - a.magnitude || b.interaction_count - a.interaction_count || b.evidence_count - a.evidence_count || a.id.localeCompare(b.id));
+  const renderEdgeButtons = (limit = EDGE_LIST_RENDER_LIMIT) => relationshipEdges.slice(0, limit).map((edge) => {
     const scopes = scopesForEdge(edge);
     const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0');
-    return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="rounded border border-border px-3 py-2 text-left text-sm hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default"><strong>{labelFor(t, edge.relation_type)}</strong> · {labelFor(t, edge.polarity)} · {t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · evidence {edge.evidence_count}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</button>;
+    return <button key={edge.id} type="button" disabled={scopes.length === 0} aria-pressed={selectedKey === key} onClick={() => scopes.length > 0 && onSelect(scopes)} className="group rounded-md border border-border bg-bg-primary px-3 py-2 text-left text-sm hover:border-brand/50 hover:bg-bg-subtle focus:ring-2 focus:ring-brand disabled:cursor-default" data-testid="collaboration-relationship-row"><span className="flex items-center justify-between gap-3"><strong className="min-w-0 truncate text-text-primary">{labelFor(t, edge.relation_type)}<span className="sr-only">{` · ${labelFor(t, edge.polarity)}`}</span></strong><span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${polarityPillClass(edge.polarity)}`}>{labelFor(t, edge.polarity)}</span></span><span className="mt-1 block text-xs text-text-muted">{t('insight.collaboration.magnitude', { value: edge.magnitude })} · {t('insight.collaboration.aggregatedEffects', { count: edge.interaction_count })} · {t('insight.collaboration.evidence.count', { count: edge.evidence_count })}{edge.last_occurred_at ? ` · ${new Date(edge.last_occurred_at).toLocaleString()}` : ''}</span></button>;
   });
-  return <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-bg-surface p-2" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
-    <div className="absolute left-4 top-4 z-10 flex max-w-[calc(100%-2rem)] flex-wrap items-center gap-2" data-testid="collaboration-graph-toolbar">
-      <div className="flex min-w-0 flex-wrap gap-2 rounded border border-border bg-bg-elevated/95 px-2 py-1.5 text-xs text-text-muted shadow-lg">
-        <span>{t(`insight.collaboration.views.${view.view}`)}</span>
+  return <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-bg-surface p-3" aria-label={t('insight.collaboration.graph')} data-testid="collaboration-graph">
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 pb-3" data-testid="collaboration-graph-toolbar">
+      <div className="flex min-w-0 flex-wrap gap-2 text-xs text-text-muted">
+        <span className="rounded-md border border-border bg-bg-elevated px-2 py-1 font-medium text-text-primary">{t(`insight.collaboration.views.${view.view}`)}</span>
+        <span className="rounded-md border border-border bg-bg-elevated px-2 py-1">{t('insight.collaboration.legend.visibleTotals', { nodes: visibleNodes.length, edges: visibleEdges.length })}</span>
         {view.view === 'network' ? <span data-testid="collaboration-network-communities">{t('insight.collaboration.legend.communities', { count: communityCount })}</span> : null}
         {view.truncated ? <span>{t('insight.collaboration.lod.cropped', { nodes: view.visibleNodeCount, edges: view.visibleEdgeCount })}</span> : null}
       </div>
-      <details className="relative">
-        <summary className="h-8 cursor-pointer list-none rounded border border-border bg-bg-elevated/95 px-2 py-1.5 text-xs text-text-primary shadow-lg hover:bg-bg-subtle">{t('insight.collaboration.legend.relationship')}</summary>
-        <div className="absolute left-0 mt-2 w-56 rounded border border-border bg-bg-elevated p-3 text-xs text-text-muted shadow-xl">
-          <p>━━ {t('insight.collaboration.legend.relationship')}</p>
-          <p className="mt-1">┄┄ {t('insight.collaboration.legend.effect')}</p>
-          <p className="mt-1">+/− {t('insight.collaboration.legend.mixed')}</p>
-        </div>
-      </details>
-      <div className="flex min-w-0 flex-wrap items-center gap-1 rounded border border-border bg-bg-elevated/95 p-1 shadow-lg" aria-label={t('insight.collaboration.viewport.controls')}>
+      <div className="flex min-w-0 flex-wrap items-center gap-1 rounded-md border border-border bg-bg-elevated p-1" aria-label={t('insight.collaboration.viewport.controls')}>
         <select aria-label="Locate" className="h-8 max-w-[13rem] rounded border border-border bg-bg-primary px-2 text-xs text-text-primary" value={locateId} onChange={(event) => setLocateId(event.target.value)} data-testid="collaboration-locate">
           <option value="">Locate</option>
           {locateOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -723,16 +724,31 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
         <button type="button" className="rounded border border-border px-2 py-1 text-xs hover:bg-bg-subtle" onClick={() => setDragPositions({})}>{t('insight.collaboration.viewport.unpin')}</button>
       </div>
     </div>
-    <div
-      ref={chartHostRef}
-      className="collaboration-dot-grid min-h-[340px] min-w-0 flex-1 touch-none rounded border border-border"
-      role="img"
-      aria-label={t('insight.collaboration.graph')}
-      data-testid="collaboration-echarts"
-    />
-    <div className="absolute bottom-4 left-4 z-10 flex max-w-[calc(100%-2rem)] flex-wrap gap-2">
-      <button type="button" className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" onClick={() => focusedNodeId && setCollapsedNodeIds((current) => toggleSet(current, focusedNodeId))} disabled={!focusedNodeId} data-testid="collaboration-collapse-focus">{t('insight.collaboration.viewport.collapse')}</button>
-      <button type="button" className="rounded border border-border px-3 py-1.5 text-xs hover:bg-bg-subtle" onClick={() => setCollapsedNodeIds(new Set())} disabled={collapsedNodeIds.size === 0} data-testid="collaboration-expand-all">{t('insight.collaboration.viewport.expand')}</button>
+    <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-md border border-border bg-bg-elevated">
+        <div
+          ref={chartHostRef}
+          className="collaboration-dot-grid min-h-[340px] min-w-0 flex-1 touch-none"
+          role="img"
+          aria-label={t('insight.collaboration.graph')}
+          data-testid="collaboration-echarts"
+        />
+        <div className="absolute bottom-3 left-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap gap-2">
+          <button type="button" className="rounded border border-border bg-bg-elevated/95 px-3 py-1.5 text-xs shadow-sm hover:bg-bg-subtle" onClick={() => focusedNodeId && setCollapsedNodeIds((current) => toggleSet(current, focusedNodeId))} disabled={!focusedNodeId} data-testid="collaboration-collapse-focus">{t('insight.collaboration.viewport.collapse')}</button>
+          <button type="button" className="rounded border border-border bg-bg-elevated/95 px-3 py-1.5 text-xs shadow-sm hover:bg-bg-subtle" onClick={() => setCollapsedNodeIds(new Set())} disabled={collapsedNodeIds.size === 0} data-testid="collaboration-expand-all">{t('insight.collaboration.viewport.expand')}</button>
+        </div>
+      </div>
+      <aside className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-md border border-border bg-bg-elevated p-3" data-testid="collaboration-inspector">
+        <GraphReadout view={view} visibleNodes={visibleNodes.length} visibleEdges={visibleEdges.length} t={t} />
+        <GraphLegend t={t} />
+        <section className="min-h-0 flex-1 overflow-hidden">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-text-primary">{t('insight.collaboration.topRelationships')}</h2>
+            <span className="text-xs text-text-muted">{relationshipEdges.length}</span>
+          </div>
+          <div className="grid max-h-full gap-2 overflow-y-auto pr-1">{renderEdgeButtons(18)}</div>
+        </section>
+      </aside>
     </div>
     <div className="sr-only" aria-label="Keyboard-accessible graph nodes">
       {visibleNodes.map((node) => <button
@@ -747,12 +763,29 @@ function CollaborationGraph({ view, selected, onSelect, onClearSelection, t }: {
         }}
       >{node.label}</button>)}
     </div>
-    <details className="absolute bottom-4 right-4 z-10" data-testid="collaboration-edge-drawer">
-      <summary className="cursor-pointer list-none rounded border border-border bg-bg-elevated/95 px-3 py-1.5 text-xs text-text-primary shadow-lg hover:bg-bg-subtle">{t('insight.collaboration.edgeList')}</summary>
-      <div className="mt-2 grid max-h-[min(22rem,55vh)] w-[min(40rem,calc(100vw-2rem))] gap-2 overflow-auto rounded border border-border bg-bg-elevated p-3 shadow-xl md:grid-cols-2">{renderEdgeButtons()}</div>
-    </details>
     <div className="sr-only" aria-label={t('insight.collaboration.edgeList')}>{renderEdgeButtons()}</div>
     <div className="sr-only" data-testid="collaboration-rendered-labels">{visibleNodes.map((node) => node.label).join(' ')} {visibleEdges.map((edge) => `${labelFor(t, edge.relation_type)} ${labelFor(t, edge.polarity)}`).join(' ')} {view.lod === 'cluster' ? t('insight.collaboration.lod.overviewBadge') : ''}</div>
+  </section>;
+}
+
+function GraphReadout({ view, visibleNodes, visibleEdges, t }: { view: DimensionGraphView; visibleNodes: number; visibleEdges: number; t: Translator }) {
+  return <section className="rounded-md border border-border bg-bg-primary p-3">
+    <p className="text-xs font-semibold uppercase text-text-muted">{t('insight.collaboration.readout.title')}</p>
+    <h2 className="mt-1 text-base font-semibold text-text-primary">{t(`insight.collaboration.views.${view.view}`)}</h2>
+    <p className="mt-1 text-sm leading-5 text-text-muted">{t(`insight.collaboration.readout.${view.view}`)}</p>
+    <p className="mt-3 rounded bg-bg-subtle px-2 py-1 text-xs text-text-muted">{t('insight.collaboration.legend.visibleTotals', { nodes: visibleNodes, edges: visibleEdges })}</p>
+  </section>;
+}
+
+function GraphLegend({ t }: { t: Translator }) {
+  return <section className="rounded-md border border-border bg-bg-primary p-3">
+    <h2 className="text-sm font-semibold text-text-primary">{t('insight.collaboration.legend.title')}</h2>
+    <div className="mt-2 grid grid-cols-2 gap-2 text-xs text-text-muted">
+      {(['agent', 'plan', 'stage', 'task'] as const).map((kind) => <span key={kind} className="flex min-w-0 items-center gap-2"><span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: NODE_COLORS[kind] }} /> <span className="truncate">{labelFor(t, kind)}</span></span>)}
+    </div>
+    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+      {(['positive', 'negative', 'neutral', 'mixed'] as const).map((polarity) => <span key={polarity} className={`rounded px-2 py-1 text-center font-medium ${polarityPillClass(polarity)}`}>{labelFor(t, polarity)}</span>)}
+    </div>
   </section>;
 }
 
@@ -1110,3 +1143,31 @@ function EvidenceDrawer({ effect, effectIds, onClose, t }: { effect: Pick<Collab
 function CollaborationError({ error, t }: { error: unknown; t: Translator }) { const forbidden = error instanceof ApiError && (error.status === 401 || error.status === 403); return <State id={forbidden ? 'collaboration-forbidden' : 'collaboration-error'} title={forbidden ? t('insight.collaboration.forbidden') : t('insight.collaboration.failed')} body={error instanceof Error ? error.message : undefined} danger />; }
 function State({ id, title, body, danger = false }: { id: string; title: string; body?: string; danger?: boolean }) { return <div role={danger ? 'alert' : 'status'} data-testid={id} className={`rounded border p-4 ${danger ? 'border-danger/40 bg-danger/10' : 'border-border bg-bg-surface'}`}><strong>{title}</strong>{body ? <p className="mt-1 text-sm text-text-muted">{body}</p> : null}</div>; }
 function labelFor(t: Translator, value: string): string { return t(`insight.collaboration.values.${value}`, { defaultValue: value.replaceAll('_', ' ') }); }
+
+function polarityAccentClass(polarity: CollaborationPolarity): string {
+  switch (polarity) {
+  case 'positive':
+    return 'border-emerald-200';
+  case 'negative':
+    return 'border-rose-200';
+  case 'mixed':
+    return 'border-amber-200';
+  case 'neutral':
+  default:
+    return 'border-slate-200';
+  }
+}
+
+function polarityPillClass(polarity: CollaborationPolarity): string {
+  switch (polarity) {
+  case 'positive':
+    return 'bg-emerald-100 text-emerald-800';
+  case 'negative':
+    return 'bg-rose-100 text-rose-800';
+  case 'mixed':
+    return 'bg-amber-100 text-amber-900';
+  case 'neutral':
+  default:
+    return 'bg-slate-100 text-slate-700';
+  }
+}

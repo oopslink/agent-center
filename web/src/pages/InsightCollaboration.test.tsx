@@ -161,6 +161,9 @@ describe('Collaboration Insight', () => {
     expect(graphPanel.className).toContain('overflow-hidden');
     expect(chart.getAttribute('class')).toContain('flex-1');
     expect(screen.getByTestId('collaboration-view-tabs').className).toContain('shrink-0');
+    expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Reading this view');
+    expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Legend');
+    expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Strong relationships');
 
     expect(screen.getByLabelText('Relationship')).not.toBeVisible();
     await user.click(screen.getByText('More filters'));

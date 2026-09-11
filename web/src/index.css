@@ -9,8 +9,10 @@
 .collaboration-edge--mixed { stroke: url('#collaboration-mixed'); }
 .collaboration-dot-grid {
   background-color: var(--color-bg-elevated);
-  background-image: radial-gradient(circle, rgba(148, 163, 184, 0.38) 1px, transparent 1px);
-  background-size: 18px 18px;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.14) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.14) 1px, transparent 1px);
+  background-size: 32px 32px;
 }
 
 @layer utilities {
