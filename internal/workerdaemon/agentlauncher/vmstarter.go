@@ -45,6 +45,18 @@ type TartVMStarterConfig struct {
 	Log        func(format string, args ...any)
 }
 
+type tartMount struct {
+	name string
+	host string
+}
+
+type tartGuestMountPlan struct {
+	mounts           []tartMount
+	codexHome        string
+	claudeConfigDir  string
+	builtinSkillsDir string
+}
+
 func NewTartVMStarter(cfg TartVMStarterConfig) (*TartVMStarter, error) {
 	bin := strings.TrimSpace(cfg.BinaryPath)
 	if bin == "" {
@@ -102,7 +114,8 @@ func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, err
 		return nil, fmt.Errorf("agentlauncher: create agent host home: %w", err)
 	}
 	configPath := tartConfigPath(s.baseArgs)
-	if err := s.ensureVMRunning(ctx, vmName, spec.AgentID, agentHome, s.binaryPath, configPath); err != nil {
+	mountPlan := s.guestMountPlan(spec.AgentID, agentHome, s.binaryPath, configPath)
+	if err := s.ensureVMRunning(ctx, vmName, spec.AgentID, s.binaryPath, configPath, mountPlan); err != nil {
 		return nil, err
 	}
 	ip, err := tartVMIP(ctx, vmName)
@@ -119,7 +132,8 @@ func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, err
 	guestArgs := tartGuestRuntimeArgs(s.baseArgs, guestSockDir, configPath, s.homeBase)
 	guestArgs = append([]string{"worker", "agent-runtime", "--agent-id", spec.AgentID}, guestArgs...)
 	guestArgs = append(guestArgs, spec.Args...)
-	guestEnv := append(defaultGuestEnv(), spec.Env...)
+	guestEnv := tartGuestEnv(s.baseEnv, mountPlan)
+	guestEnv = append(guestEnv, spec.Env...)
 	if err := s.startGuestRuntime(ctx, ip, guestBin, guestArgs, guestEnv); err != nil {
 		return nil, err
 	}
@@ -148,9 +162,9 @@ func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, err
 	}, nil
 }
 
-func (s *TartVMStarter) ensureVMRunning(ctx context.Context, vmName, agentID, agentHome, binaryPath, configPath string) error {
+func (s *TartVMStarter) ensureVMRunning(ctx context.Context, vmName, agentID, binaryPath, configPath string, plan tartGuestMountPlan) error {
 	if state, ok := tartGetState(ctx, vmName); ok && state == "running" {
-		if s.vmHasRequiredMounts(ctx, vmName, binaryPath, configPath) {
+		if s.vmHasRequiredMounts(ctx, vmName, binaryPath, configPath, plan) {
 			return nil
 		}
 		s.log("agentlauncher: tart vm %s is running without required runtime mounts; restarting", vmName)
@@ -169,12 +183,12 @@ func (s *TartVMStarter) ensureVMRunning(ctx context.Context, vmName, agentID, ag
 	}
 	args := []string{
 		"run", "--no-graphics",
-		"--dir", tartDirShareArg("agent-home-"+shortHash(agentID), agentHome),
-		"--dir", tartDirShareArg("agent-center-state", s.homeBase),
-		"--dir", tartDirShareArg("agent-center-bin", filepath.Dir(binaryPath)),
 	}
-	if strings.TrimSpace(configPath) != "" {
-		args = append(args, "--dir", tartDirShareArg("agent-center-config", filepath.Dir(configPath)))
+	for _, m := range plan.mounts {
+		if strings.TrimSpace(m.name) == "" || strings.TrimSpace(m.host) == "" {
+			continue
+		}
+		args = append(args, "--dir", tartDirShareArg(m.name, m.host))
 	}
 	args = append(args, vmName)
 	cmd := exec.Command("tart", args...)
@@ -221,12 +235,63 @@ func (s *TartVMStarter) ensureVMRunning(ctx context.Context, vmName, agentID, ag
 	}
 }
 
-func (s *TartVMStarter) vmHasRequiredMounts(ctx context.Context, vmName, binaryPath, configPath string) bool {
-	guestBin := tartGuestBinaryPath(binaryPath)
-	tests := []string{"test", "-x", guestBin}
+func (s *TartVMStarter) guestMountPlan(agentID, agentHome, binaryPath, configPath string) tartGuestMountPlan {
+	plan := tartGuestMountPlan{mounts: []tartMount{
+		{name: "agent-home-" + shortHash(agentID), host: agentHome},
+		{name: "agent-center-state", host: s.homeBase},
+		{name: "agent-center-bin", host: filepath.Dir(binaryPath)},
+	}}
 	if strings.TrimSpace(configPath) != "" {
-		tests = []string{"sh", "-lc", "test -x " + shellQuote(guestBin) + " && test -f " + shellQuote(tartGuestConfigPath(configPath)) + " && test -d " + shellQuote(tartGuestHomeBasePath())}
+		plan.mounts = append(plan.mounts, tartMount{name: "agent-center-config", host: filepath.Dir(configPath)})
 	}
+	if h := s.hostCodexHome(); h != "" && dirExists(h) {
+		plan.codexHome = tartGuestSharePath("agent-center-codex-source")
+		plan.mounts = append(plan.mounts, tartMount{name: "agent-center-codex-source", host: h})
+	}
+	if h := s.hostClaudeConfigDir(); h != "" && dirExists(h) {
+		plan.claudeConfigDir = tartGuestSharePath("agent-center-claude-config")
+		plan.mounts = append(plan.mounts, tartMount{name: "agent-center-claude-config", host: h})
+	}
+	if h := envValue(s.baseEnv, "CLAUDE_BUILTIN_SKILLS_DIR"); h != "" && dirExists(h) {
+		plan.builtinSkillsDir = tartGuestSharePath("agent-center-claude-builtin-skills")
+		plan.mounts = append(plan.mounts, tartMount{name: "agent-center-claude-builtin-skills", host: h})
+	}
+	return plan
+}
+
+func (s *TartVMStarter) hostCodexHome() string {
+	if h := envValue(s.baseEnv, "CODEX_HOME"); h != "" {
+		return h
+	}
+	if hd, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(hd, ".codex")
+	}
+	return ""
+}
+
+func (s *TartVMStarter) hostClaudeConfigDir() string {
+	if h := envValue(s.baseEnv, "CLAUDE_CONFIG_DIR"); h != "" {
+		return h
+	}
+	if hd, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(hd, ".claude")
+	}
+	return ""
+}
+
+func (s *TartVMStarter) vmHasRequiredMounts(ctx context.Context, vmName, binaryPath, configPath string, plan tartGuestMountPlan) bool {
+	guestBin := tartGuestBinaryPath(binaryPath)
+	checks := []string{"test -x " + shellQuote(guestBin), "test -d " + shellQuote(tartGuestHomeBasePath())}
+	if strings.TrimSpace(configPath) != "" {
+		checks = append(checks, "test -f "+shellQuote(tartGuestConfigPath(configPath)))
+	}
+	if plan.codexHome != "" {
+		checks = append(checks, "test -d "+shellQuote(plan.codexHome))
+	}
+	if plan.claudeConfigDir != "" {
+		checks = append(checks, "test -d "+shellQuote(plan.claudeConfigDir))
+	}
+	tests := []string{"sh", "-lc", strings.Join(checks, " && ")}
 	out, err := exec.CommandContext(ctx, "tart", append([]string{"exec", vmName}, tests...)...).CombinedOutput()
 	if err != nil {
 		s.log("agentlauncher: tart vm %s required mount check failed: %v: %s", vmName, err, strings.TrimSpace(string(out)))
@@ -460,11 +525,20 @@ func tartGuestConfigPath(hostConfig string) string {
 }
 
 func tartGuestHomeBasePath() string {
-	return filepath.Join("/Volumes/My Shared Files", "agent-center-state")
+	return tartGuestSharePath("agent-center-state")
+}
+
+func tartGuestSharePath(name string) string {
+	return filepath.Join("/Volumes/My Shared Files", name)
 }
 
 func tartDirShareArg(name, path string) string {
 	return name + ":" + path
+}
+
+func dirExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && st.IsDir()
 }
 
 func tartVMName(agentID string) string {
@@ -528,6 +602,50 @@ func sshBaseArgs(ip string, remote ...string) []string {
 
 func defaultGuestEnv() []string {
 	return []string{"PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"}
+}
+
+func tartGuestEnv(base []string, plan tartGuestMountPlan) []string {
+	env := withoutEnvKeys(base, "PATH", "CODEX_HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_BUILTIN_SKILLS_DIR")
+	env = append(defaultGuestEnv(), env...)
+	if plan.codexHome != "" {
+		env = append(env, "CODEX_HOME="+plan.codexHome)
+	}
+	if plan.claudeConfigDir != "" {
+		env = append(env, "CLAUDE_CONFIG_DIR="+plan.claudeConfigDir)
+	}
+	if plan.builtinSkillsDir != "" {
+		env = append(env, "CLAUDE_BUILTIN_SKILLS_DIR="+plan.builtinSkillsDir)
+	}
+	return env
+}
+
+func withoutEnvKeys(env []string, keys ...string) []string {
+	block := map[string]struct{}{}
+	for _, key := range keys {
+		block[key] = struct{}{}
+	}
+	out := make([]string, 0, len(env))
+	for _, entry := range env {
+		name, _, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		if _, banned := block[name]; banned {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func envValue(env []string, key string) string {
+	prefix := key + "="
+	for _, entry := range env {
+		if strings.HasPrefix(entry, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(entry, prefix))
+		}
+	}
+	return ""
 }
 
 func shellJoin(argv, env []string) string {
