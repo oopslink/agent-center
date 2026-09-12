@@ -122,6 +122,7 @@ func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, err
 	if err != nil {
 		return nil, err
 	}
+	sshIdentity := s.sshIdentityFile(spec.AgentID)
 	guestSockDir := tartGuestSockDir(spec.AgentID)
 	guestSock := filepath.Join(guestSockDir, agentcontrol.SocketName(spec.AgentID))
 	hostSock := filepath.Join(s.sockDir, agentcontrol.SocketName(spec.AgentID))
@@ -134,31 +135,32 @@ func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, err
 	guestArgs = append(guestArgs, spec.Args...)
 	guestEnv := tartGuestEnv(s.baseEnv, mountPlan)
 	guestEnv = append(guestEnv, spec.Env...)
-	if err := s.startGuestRuntime(ctx, ip, guestBin, guestArgs, guestEnv); err != nil {
+	if err := s.startGuestRuntime(ctx, ip, sshIdentity, guestBin, guestArgs, guestEnv); err != nil {
 		return nil, err
 	}
-	tunnel, err := s.startControlTunnel(ctx, ip, hostSock, guestSock)
+	tunnel, err := s.startControlTunnel(ctx, ip, sshIdentity, hostSock, guestSock)
 	if err != nil {
 		return nil, err
 	}
 	if err := waitForControlHealth(ctx, hostSock, spec.AgentID); err != nil {
-		s.remoteKill(context.Background(), ip, spec.AgentID)
+		s.remoteKill(context.Background(), ip, sshIdentity, spec.AgentID)
 		_ = signalProcessGroup(tunnel, syscall.SIGTERM)
 		return nil, err
 	}
 	return &tartVMProcess{
-		tunnel:     tunnel,
-		vmName:     vmName,
-		ip:         ip,
-		agentID:    spec.AgentID,
-		guestSock:  guestSock,
-		hostSock:   hostSock,
-		stdout:     s.stdout,
-		stderr:     s.stderr,
-		guestBin:   guestBin,
-		guestArgs:  guestArgs,
-		guestEnv:   guestEnv,
-		remoteKill: s.remoteKill,
+		tunnel:      tunnel,
+		vmName:      vmName,
+		ip:          ip,
+		agentID:     spec.AgentID,
+		guestSock:   guestSock,
+		hostSock:    hostSock,
+		stdout:      s.stdout,
+		stderr:      s.stderr,
+		guestBin:    guestBin,
+		guestArgs:   guestArgs,
+		guestEnv:    guestEnv,
+		sshIdentity: sshIdentity,
+		remoteKill:  s.remoteKill,
 	}, nil
 }
 
@@ -300,9 +302,24 @@ func (s *TartVMStarter) vmHasRequiredMounts(ctx context.Context, vmName, binaryP
 	return true
 }
 
-func (s *TartVMStarter) startGuestRuntime(ctx context.Context, ip, guestBin string, args, env []string) error {
+func (s *TartVMStarter) sshIdentityFile(agentID string) string {
+	if v := envValue(s.baseEnv, "AC_TART_SSH_IDENTITY_FILE"); v != "" && regularFileExists(v) {
+		return v
+	}
+	key := "AC_SANDBOX_SSH_KEY_FILE_" + strings.ToUpper(strings.NewReplacer("-", "_", ":", "_").Replace(agentID))
+	if v := envValue(s.baseEnv, key); v != "" && regularFileExists(v) {
+		return v
+	}
+	runDirKey := filepath.Join(s.homeBase, "agents", agentID, "sandbox", "run", "id_ed25519")
+	if regularFileExists(runDirKey) {
+		return runDirKey
+	}
+	return ""
+}
+
+func (s *TartVMStarter) startGuestRuntime(ctx context.Context, ip, identityFile, guestBin string, args, env []string) error {
 	remote := "mkdir -p " + shellQuote(tartGuestSockDirFromArgs(args)) + " && nohup " + shellJoin(append([]string{guestBin}, args...), env) + " >/tmp/agent-center-runtime.log 2>&1 &"
-	cmd := exec.CommandContext(ctx, "ssh", sshBaseArgs(ip, "sh", "-lc", remote)...)
+	cmd := exec.CommandContext(ctx, "ssh", sshBaseArgs(ip, identityFile, "sh", "-lc", remote)...)
 	cmd.Stdout = s.stdout
 	cmd.Stderr = s.stderr
 	if err := cmd.Run(); err != nil {
@@ -311,7 +328,7 @@ func (s *TartVMStarter) startGuestRuntime(ctx context.Context, ip, guestBin stri
 	return nil
 }
 
-func (s *TartVMStarter) startControlTunnel(ctx context.Context, ip, hostSock, guestSock string) (*exec.Cmd, error) {
+func (s *TartVMStarter) startControlTunnel(ctx context.Context, ip, identityFile, hostSock, guestSock string) (*exec.Cmd, error) {
 	args := []string{
 		"-N",
 		"-o", "BatchMode=yes",
@@ -321,8 +338,11 @@ func (s *TartVMStarter) startControlTunnel(ctx context.Context, ip, hostSock, gu
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
 		"-L", hostSock + ":" + guestSock,
-		"admin@" + ip,
 	}
+	if strings.TrimSpace(identityFile) != "" {
+		args = append(args, "-i", identityFile)
+	}
+	args = append(args, "admin@"+ip)
 	cmd := exec.CommandContext(ctx, "ssh", args...)
 	cmd.Stdout = s.stdout
 	cmd.Stderr = s.stderr
@@ -337,25 +357,26 @@ func (s *TartVMStarter) startControlTunnel(ctx context.Context, ip, hostSock, gu
 	return cmd, nil
 }
 
-func (s *TartVMStarter) remoteKill(ctx context.Context, ip, agentID string) {
+func (s *TartVMStarter) remoteKill(ctx context.Context, ip, identityFile, agentID string) {
 	pattern := "worker agent-runtime --agent-id " + agentID
-	cmd := exec.CommandContext(ctx, "ssh", sshBaseArgs(ip, "pkill", "-TERM", "-f", pattern)...)
+	cmd := exec.CommandContext(ctx, "ssh", sshBaseArgs(ip, identityFile, "pkill", "-TERM", "-f", pattern)...)
 	_ = cmd.Run()
 }
 
 type tartVMProcess struct {
-	tunnel     *exec.Cmd
-	vmName     string
-	ip         string
-	agentID    string
-	guestSock  string
-	hostSock   string
-	stdout     io.Writer
-	stderr     io.Writer
-	guestBin   string
-	guestArgs  []string
-	guestEnv   []string
-	remoteKill func(context.Context, string, string)
+	tunnel      *exec.Cmd
+	vmName      string
+	ip          string
+	agentID     string
+	guestSock   string
+	hostSock    string
+	stdout      io.Writer
+	stderr      io.Writer
+	guestBin    string
+	guestArgs   []string
+	guestEnv    []string
+	sshIdentity string
+	remoteKill  func(context.Context, string, string, string)
 }
 
 func (p *tartVMProcess) Wait() error {
@@ -396,7 +417,7 @@ func (p *tartVMProcess) Signal() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if p.remoteKill != nil {
-		p.remoteKill(ctx, p.ip, p.agentID)
+		p.remoteKill(ctx, p.ip, p.sshIdentity, p.agentID)
 	}
 	return p.signalTunnel(syscall.SIGTERM)
 }
@@ -404,7 +425,7 @@ func (p *tartVMProcess) Kill() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if p.remoteKill != nil {
-		p.remoteKill(ctx, p.ip, p.agentID)
+		p.remoteKill(ctx, p.ip, p.sshIdentity, p.agentID)
 	}
 	return p.signalTunnel(syscall.SIGKILL)
 }
@@ -541,6 +562,11 @@ func dirExists(path string) bool {
 	return err == nil && st.IsDir()
 }
 
+func regularFileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && st.Mode().IsRegular()
+}
+
 func tartVMName(agentID string) string {
 	return "ac-agent-" + shortHash(agentID)
 }
@@ -589,14 +615,17 @@ func tartVMIP(ctx context.Context, vmName string) (string, error) {
 	return ip, nil
 }
 
-func sshBaseArgs(ip string, remote ...string) []string {
+func sshBaseArgs(ip, identityFile string, remote ...string) []string {
 	args := []string{
 		"-o", "BatchMode=yes",
 		"-o", "ConnectTimeout=5",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "UserKnownHostsFile=/dev/null",
-		"admin@" + ip,
 	}
+	if strings.TrimSpace(identityFile) != "" {
+		args = append(args, "-i", identityFile)
+	}
+	args = append(args, "admin@"+ip)
 	return append(args, remote...)
 }
 

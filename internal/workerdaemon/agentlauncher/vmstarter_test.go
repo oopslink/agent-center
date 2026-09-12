@@ -1,6 +1,7 @@
 package agentlauncher
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -33,6 +34,64 @@ func TestTartGuestAdminTargetOverride(t *testing.T) {
 	t.Setenv("AC_SANDBOX_HOST_ADMIN_TARGET", "https://host.tart.internal:7300")
 	if got := tartGuestAdminTarget("http://127.0.0.1:7300"); got != "https://host.tart.internal:7300" {
 		t.Fatalf("admin target override = %q", got)
+	}
+}
+
+func TestTartVMStarterSSHIdentityFile(t *testing.T) {
+	homeBase := t.TempDir()
+	starter, err := NewTartVMStarter(TartVMStarterConfig{
+		BinaryPath: filepath.Join(t.TempDir(), "agent-center"),
+		BaseEnv:    []string{"PATH=/usr/bin"},
+		HomeBase:   homeBase,
+		SockDir:    t.TempDir(),
+	})
+	if err != nil {
+		t.Fatalf("NewTartVMStarter: %v", err)
+	}
+	agentID := "agent-1"
+	runDirKey := filepath.Join(homeBase, "agents", agentID, "sandbox", "run", "id_ed25519")
+	if err := os.MkdirAll(filepath.Dir(runDirKey), 0o755); err != nil {
+		t.Fatalf("mkdir run dir: %v", err)
+	}
+	if err := os.WriteFile(runDirKey, []byte("key"), 0o600); err != nil {
+		t.Fatalf("write run dir key: %v", err)
+	}
+	if got := starter.sshIdentityFile(agentID); got != runDirKey {
+		t.Fatalf("run dir identity = %q, want %q", got, runDirKey)
+	}
+
+	agentEnvKey := filepath.Join(t.TempDir(), "agent-env-key")
+	if err := os.WriteFile(agentEnvKey, []byte("key"), 0o600); err != nil {
+		t.Fatalf("write agent env key: %v", err)
+	}
+	starter.baseEnv = append(starter.baseEnv, "AC_SANDBOX_SSH_KEY_FILE_AGENT_1="+agentEnvKey)
+	if got := starter.sshIdentityFile(agentID); got != agentEnvKey {
+		t.Fatalf("agent env identity = %q, want %q", got, agentEnvKey)
+	}
+
+	globalKey := filepath.Join(t.TempDir(), "global-key")
+	if err := os.WriteFile(globalKey, []byte("key"), 0o600); err != nil {
+		t.Fatalf("write global key: %v", err)
+	}
+	starter.baseEnv = append(starter.baseEnv, "AC_TART_SSH_IDENTITY_FILE="+globalKey)
+	if got := starter.sshIdentityFile(agentID); got != globalKey {
+		t.Fatalf("global identity = %q, want %q", got, globalKey)
+	}
+}
+
+func TestSSHBaseArgsIncludesIdentityFile(t *testing.T) {
+	got := sshBaseArgs("192.168.64.2", "/tmp/id_ed25519", "true")
+	want := []string{
+		"-o", "BatchMode=yes",
+		"-o", "ConnectTimeout=5",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-i", "/tmp/id_ed25519",
+		"admin@192.168.64.2",
+		"true",
+	}
+	if strings.Join(got, "\x00") != strings.Join(want, "\x00") {
+		t.Fatalf("ssh args = %#v, want %#v", got, want)
 	}
 }
 
