@@ -123,6 +123,9 @@ func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, err
 		return nil, err
 	}
 	sshIdentity := s.sshIdentityFile(spec.AgentID)
+	if err := waitForSSH(ctx, ip, sshIdentity); err != nil {
+		return nil, err
+	}
 	guestSockDir := tartGuestSockDir(spec.AgentID)
 	guestSock := filepath.Join(guestSockDir, agentcontrol.SocketName(spec.AgentID))
 	hostSock := filepath.Join(s.sockDir, agentcontrol.SocketName(spec.AgentID))
@@ -471,6 +474,28 @@ func waitForControlHealth(ctx context.Context, hostSock, agentID string) error {
 		return fmt.Errorf("agentlauncher: vm_runtime control health timeout: %w", last)
 	}
 	return errors.New("agentlauncher: vm_runtime control health timeout")
+}
+
+func waitForSSH(ctx context.Context, ip, identityFile string) error {
+	deadline := time.Now().Add(60 * time.Second)
+	var last error
+	for time.Now().Before(deadline) {
+		cmd := exec.CommandContext(ctx, "ssh", sshBaseArgs(ip, identityFile, "true")...)
+		if err := cmd.Run(); err == nil {
+			return nil
+		} else {
+			last = err
+		}
+		select {
+		case <-time.After(time.Second):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	if last != nil {
+		return fmt.Errorf("agentlauncher: tart vm ssh not ready at %s: %w", ip, last)
+	}
+	return fmt.Errorf("agentlauncher: tart vm ssh not ready at %s", ip)
 }
 
 func tartGuestRuntimeArgs(base []string, guestSockDir, configPath, homeBase string) []string {
