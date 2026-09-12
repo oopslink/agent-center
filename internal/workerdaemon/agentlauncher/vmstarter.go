@@ -321,7 +321,7 @@ func (s *TartVMStarter) sshIdentityFile(agentID string) string {
 }
 
 func (s *TartVMStarter) startGuestRuntime(ctx context.Context, ip, identityFile, guestSockDir, guestBin string, args, env []string) error {
-	remote := "mkdir -p " + shellQuote(guestSockDir) + " && nohup " + shellJoin(append([]string{guestBin}, args...), env) + " >/tmp/agent-center-runtime.log 2>&1 &"
+	remote := "mkdir -p " + shellQuote(guestSockDir) + " && nohup " + shellJoin(append([]string{guestBin}, args...), env) + " </dev/null >/tmp/agent-center-runtime.log 2>&1 &"
 	cmd := exec.CommandContext(ctx, "ssh", sshBaseArgs(ip, identityFile, sshShellCommand(remote))...)
 	cmd.Stdout = s.stdout
 	cmd.Stderr = s.stderr
