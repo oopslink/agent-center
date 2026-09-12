@@ -138,7 +138,7 @@ func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, err
 	guestArgs = append(guestArgs, spec.Args...)
 	guestEnv := tartGuestEnv(s.baseEnv, mountPlan)
 	guestEnv = append(guestEnv, spec.Env...)
-	if err := s.startGuestRuntime(ctx, ip, sshIdentity, guestBin, guestArgs, guestEnv); err != nil {
+	if err := s.startGuestRuntime(ctx, ip, sshIdentity, guestSockDir, guestBin, guestArgs, guestEnv); err != nil {
 		return nil, err
 	}
 	tunnel, err := s.startControlTunnel(ctx, ip, sshIdentity, hostSock, guestSock)
@@ -320,8 +320,8 @@ func (s *TartVMStarter) sshIdentityFile(agentID string) string {
 	return ""
 }
 
-func (s *TartVMStarter) startGuestRuntime(ctx context.Context, ip, identityFile, guestBin string, args, env []string) error {
-	remote := "mkdir -p " + shellQuote(tartGuestSockDirFromArgs(args)) + " && nohup " + shellJoin(append([]string{guestBin}, args...), env) + " >/tmp/agent-center-runtime.log 2>&1 &"
+func (s *TartVMStarter) startGuestRuntime(ctx context.Context, ip, identityFile, guestSockDir, guestBin string, args, env []string) error {
+	remote := "mkdir -p " + shellQuote(guestSockDir) + " && nohup " + shellJoin(append([]string{guestBin}, args...), env) + " >/tmp/agent-center-runtime.log 2>&1 &"
 	cmd := exec.CommandContext(ctx, "ssh", sshBaseArgs(ip, identityFile, "sh", "-lc", remote)...)
 	cmd.Stdout = s.stdout
 	cmd.Stderr = s.stderr
@@ -548,15 +548,6 @@ func tartConfigPath(args []string) string {
 
 func tartGuestSockDir(agentID string) string {
 	return filepath.Join("/tmp", "agent-center", "agent-runtime-"+shortHash(agentID))
-}
-
-func tartGuestSockDirFromArgs(args []string) string {
-	for i := 0; i < len(args)-1; i++ {
-		if args[i] == "--sock-dir" {
-			return args[i+1]
-		}
-	}
-	return "/tmp/agent-center"
 }
 
 func tartGuestBinaryPath(hostBinary string) string {
