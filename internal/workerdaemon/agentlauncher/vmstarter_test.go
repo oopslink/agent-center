@@ -95,6 +95,13 @@ func TestSSHBaseArgsIncludesIdentityFile(t *testing.T) {
 	}
 }
 
+func TestSSHShellCommandQuotesRemoteCommandAsSingleArg(t *testing.T) {
+	got := sshBaseArgs("192.168.64.2", "/tmp/id_ed25519", sshShellCommand("mkdir -p '/tmp/a b' && echo ok"))
+	if got[len(got)-1] != "sh -lc 'mkdir -p '\\''/tmp/a b'\\'' && echo ok'" {
+		t.Fatalf("remote command arg = %q", got[len(got)-1])
+	}
+}
+
 func TestTartGuestMountPlanAndEnvMountsSkillsAndMemorySources(t *testing.T) {
 	homeBase := t.TempDir()
 	codexHome := t.TempDir()

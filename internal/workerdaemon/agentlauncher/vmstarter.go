@@ -322,7 +322,7 @@ func (s *TartVMStarter) sshIdentityFile(agentID string) string {
 
 func (s *TartVMStarter) startGuestRuntime(ctx context.Context, ip, identityFile, guestSockDir, guestBin string, args, env []string) error {
 	remote := "mkdir -p " + shellQuote(guestSockDir) + " && nohup " + shellJoin(append([]string{guestBin}, args...), env) + " >/tmp/agent-center-runtime.log 2>&1 &"
-	cmd := exec.CommandContext(ctx, "ssh", sshBaseArgs(ip, identityFile, "sh", "-lc", remote)...)
+	cmd := exec.CommandContext(ctx, "ssh", sshBaseArgs(ip, identityFile, sshShellCommand(remote))...)
 	cmd.Stdout = s.stdout
 	cmd.Stderr = s.stderr
 	if err := cmd.Run(); err != nil {
@@ -362,7 +362,8 @@ func (s *TartVMStarter) startControlTunnel(ctx context.Context, ip, identityFile
 
 func (s *TartVMStarter) remoteKill(ctx context.Context, ip, identityFile, agentID string) {
 	pattern := "worker agent-runtime --agent-id " + agentID
-	cmd := exec.CommandContext(ctx, "ssh", sshBaseArgs(ip, identityFile, "pkill", "-TERM", "-f", pattern)...)
+	remote := "pkill -TERM -f " + shellQuote(pattern)
+	cmd := exec.CommandContext(ctx, "ssh", sshBaseArgs(ip, identityFile, sshShellCommand(remote))...)
 	_ = cmd.Run()
 }
 
@@ -643,6 +644,10 @@ func sshBaseArgs(ip, identityFile string, remote ...string) []string {
 	}
 	args = append(args, "admin@"+ip)
 	return append(args, remote...)
+}
+
+func sshShellCommand(command string) string {
+	return "sh -lc " + shellQuote(command)
 }
 
 func defaultGuestEnv() []string {
