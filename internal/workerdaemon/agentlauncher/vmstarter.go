@@ -136,7 +136,7 @@ func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, err
 	guestArgs := tartGuestRuntimeArgs(s.baseArgs, guestSockDir, configPath, s.homeBase)
 	guestArgs = append([]string{"worker", "agent-runtime", "--agent-id", spec.AgentID}, guestArgs...)
 	guestArgs = append(guestArgs, spec.Args...)
-	guestEnv := tartGuestEnv(s.baseEnv, mountPlan)
+	guestEnv := tartGuestEnv(s.baseEnv, mountPlan, spec.AgentID)
 	guestEnv = append(guestEnv, spec.Env...)
 	if err := s.startGuestRuntime(ctx, ip, sshIdentity, guestSockDir, guestBin, guestArgs, guestEnv); err != nil {
 		return nil, err
@@ -655,8 +655,8 @@ func defaultGuestEnv() []string {
 	return []string{"PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"}
 }
 
-func tartGuestEnv(base []string, plan tartGuestMountPlan) []string {
-	env := withoutEnvKeys(base, "PATH", "CODEX_HOME", "CLAUDE_CONFIG_DIR", "CLAUDE_BUILTIN_SKILLS_DIR")
+func tartGuestEnv(base []string, plan tartGuestMountPlan, agentID string) []string {
+	env := withoutSandboxHostOnlyEnv(base)
 	env = append(defaultGuestEnv(), env...)
 	if plan.codexHome != "" {
 		env = append(env, "CODEX_HOME="+plan.codexHome)
@@ -667,7 +667,49 @@ func tartGuestEnv(base []string, plan tartGuestMountPlan) []string {
 	if plan.builtinSkillsDir != "" {
 		env = append(env, "CLAUDE_BUILTIN_SKILLS_DIR="+plan.builtinSkillsDir)
 	}
+	if ep := tartGuestComputerUseEndpoint(agentID); ep != "" {
+		env = append(env,
+			"AC_SANDBOX_COMPUTER_USE_ENDPOINT="+ep,
+			"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS="+ep,
+			"SKY_CUA_ENDPOINT="+ep,
+			"SKY_CUA_SERVICE_NATIVE_PIPE_PATH="+ep,
+		)
+	}
+	env = append(env,
+		"AC_SANDBOX_RUNTIME_INSIDE_VM=1",
+		"AC_SANDBOX_RUNTIME_PLACEMENT=vm_runtime",
+	)
 	return env
+}
+
+func withoutSandboxHostOnlyEnv(env []string) []string {
+	return withoutEnvPrefixes(env,
+		"PATH",
+		"CODEX_HOME",
+		"CLAUDE_CONFIG_DIR",
+		"CLAUDE_BUILTIN_SKILLS_DIR",
+		"AC_SANDBOX_COMPUTER_USE_ENDPOINT",
+		"AC_SANDBOX_VNC_ENDPOINT",
+		"AC_SANDBOX_VNC_PASSWORD",
+		"AC_SANDBOX_VNC_PASSWORD_FILE",
+		"AC_SANDBOX_BROWSER_COMMAND",
+		"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS",
+		"SKY_CUA_ENDPOINT",
+		"SKY_CUA_SERVICE_NATIVE_PIPE_PATH",
+	)
+}
+
+func tartGuestComputerUseEndpoint(agentID string) string {
+	suffix := strings.ToUpper(strings.NewReplacer("-", "_", ":", "_").Replace(agentID))
+	if suffix != "" {
+		if ep := strings.TrimSpace(os.Getenv("AC_SANDBOX_GUEST_COMPUTER_USE_ENDPOINT_" + suffix)); ep != "" {
+			return ep
+		}
+	}
+	if ep := strings.TrimSpace(os.Getenv("AC_SANDBOX_GUEST_COMPUTER_USE_ENDPOINT")); ep != "" {
+		return ep
+	}
+	return "/Users/admin/agent-center/run/computeruse.sock"
 }
 
 func withoutEnvKeys(env []string, keys ...string) []string {
@@ -682,6 +724,28 @@ func withoutEnvKeys(env []string, keys ...string) []string {
 			continue
 		}
 		if _, banned := block[name]; banned {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+func withoutEnvPrefixes(env []string, keys ...string) []string {
+	out := make([]string, 0, len(env))
+	for _, entry := range env {
+		name, _, ok := strings.Cut(entry, "=")
+		if !ok {
+			continue
+		}
+		blocked := false
+		for _, key := range keys {
+			if name == key || strings.HasPrefix(name, key+"_") {
+				blocked = true
+				break
+			}
+		}
+		if blocked {
 			continue
 		}
 		out = append(out, entry)

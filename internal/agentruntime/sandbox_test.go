@@ -1,10 +1,12 @@
 package agentruntime
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestSandboxBindingComputerUseStatusRequiresRunningVM(t *testing.T) {
@@ -93,5 +95,67 @@ func TestMaterializeSandboxResourcesCreatesStandardRuntimeFiles(t *testing.T) {
 	row := b.Row()
 	if row.RunDir != b.RunDir || row.VNCPasswordFile != b.VNCPasswordFile {
 		t.Fatalf("row did not project standard sandbox resources: %+v", row)
+	}
+}
+
+func TestEnsureAgentSandboxInsideVMOverlaysWithoutHostResourceMaterialization(t *testing.T) {
+	home := t.TempDir()
+	hostHome := filepath.Join(t.TempDir(), "host-agent-home")
+	if err := os.MkdirAll(filepath.Join(home, "sandbox"), 0o700); err != nil {
+		t.Fatalf("mkdir sandbox: %v", err)
+	}
+	if err := writeSandboxBinding(filepath.Join(home, "sandbox", "binding.json"), SandboxBinding{
+		SandboxID:        "sbx-existing",
+		AgentID:          "agent-1",
+		WorkerID:         "worker-1",
+		Provider:         SandboxProviderTartMacOSVM,
+		RuntimePlacement: SandboxRuntimePlacementHostEndpoint,
+		VMName:           "ac-agent-existing",
+		State:            SandboxStateDegraded,
+		HostMountPath:    hostHome,
+		VNCPasswordFile:  filepath.Join(hostHome, "sandbox", "run", "vnc_password"),
+		LastError:        "host-side error",
+	}); err != nil {
+		t.Fatalf("write binding: %v", err)
+	}
+	cua := filepath.Join(home, "computeruse.sock")
+	if err := os.WriteFile(cua, []byte("sock"), 0o600); err != nil {
+		t.Fatalf("write cua placeholder: %v", err)
+	}
+	t.Setenv("AC_SANDBOX_RUNTIME_INSIDE_VM", "1")
+	t.Setenv("AC_SANDBOX_COMPUTER_USE_ENDPOINT", cua)
+	m := NewLocalSandboxManager(func() time.Time {
+		return time.Date(2026, 9, 12, 8, 0, 0, 0, time.UTC)
+	})
+	b, err := m.EnsureAgentSandbox(context.Background(), SandboxEnsureRequest{
+		AgentID:  "agent-1",
+		WorkerID: "worker-2",
+		HomeDir:  home,
+		Config:   SandboxConfig{Enabled: true, Provider: SandboxProviderTartMacOSVM},
+	})
+	if err != nil {
+		t.Fatalf("EnsureAgentSandbox: %v", err)
+	}
+	if b.RuntimePlacement != SandboxRuntimePlacementVMRuntime {
+		t.Fatalf("runtime placement = %q", b.RuntimePlacement)
+	}
+	if b.State != SandboxStateRunning || b.LastError != "" {
+		t.Fatalf("state/error = %q/%q", b.State, b.LastError)
+	}
+	if b.HostMountPath != hostHome {
+		t.Fatalf("host mount path changed to %q, want %q", b.HostMountPath, hostHome)
+	}
+	if b.ComputerUseEndpoint != cua {
+		t.Fatalf("cua endpoint = %q, want %q", b.ComputerUseEndpoint, cua)
+	}
+	if _, err := os.Stat(filepath.Join(hostHome, "sandbox", "run", "vnc_password")); !os.IsNotExist(err) {
+		t.Fatalf("unexpected host vnc password materialization err=%v", err)
+	}
+	persisted, ok, err := readSandboxBinding(filepath.Join(home, "sandbox", "binding.json"))
+	if err != nil || !ok {
+		t.Fatalf("read persisted binding: ok=%v err=%v", ok, err)
+	}
+	if persisted.State != SandboxStateDegraded {
+		t.Fatalf("inside VM overlay should not rewrite shared host binding, got %q", persisted.State)
 	}
 }

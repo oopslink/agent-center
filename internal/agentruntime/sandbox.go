@@ -197,6 +197,7 @@ func (m *LocalSandboxManager) EnsureAgentSandbox(ctx context.Context, req Sandbo
 		return SandboxBinding{}, err
 	}
 	now := m.clock().UTC()
+	insideVM := sandboxRuntimeInsideVM()
 	if !ok || b.Provider != req.Config.Provider {
 		b = SandboxBinding{
 			SandboxID: "sbx-" + shortHash(req.AgentID+"|"+req.Config.Provider),
@@ -210,6 +211,10 @@ func (m *LocalSandboxManager) EnsureAgentSandbox(ctx context.Context, req Sandbo
 	b.WorkerID = req.WorkerID
 	b.Provider = req.Config.Provider
 	b.RuntimePlacement = sandboxRuntimePlacementEnv(req.AgentID)
+	if insideVM {
+		b = overlaySandboxBindingForVMRuntime(req, b, now)
+		return b, nil
+	}
 	b.HostMountPath = filepath.Clean(req.HomeDir)
 	b.GuestMountPath = sandboxGuestMountPath(req.AgentID)
 	if b.VMName == "" {
@@ -245,7 +250,14 @@ func (m *LocalSandboxManager) GetAgentSandbox(_ context.Context, req SandboxEnsu
 	if err != nil {
 		return SandboxBinding{}, false, err
 	}
-	return readSandboxBinding(path)
+	b, ok, err := readSandboxBinding(path)
+	if err != nil || !ok {
+		return b, ok, err
+	}
+	if sandboxRuntimeInsideVM() {
+		b = overlaySandboxBindingForVMRuntime(req, b, m.clock().UTC())
+	}
+	return b, true, nil
 }
 
 func (m *LocalSandboxManager) OpenSandboxConsole(ctx context.Context, req SandboxEnsureRequest) (SandboxBinding, error) {
@@ -653,6 +665,52 @@ func sandboxRuntimePlacementEnv(agentID string) string {
 		return placement
 	}
 	return SandboxRuntimePlacementHostEndpoint
+}
+
+func sandboxRuntimeInsideVM() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("AC_SANDBOX_RUNTIME_INSIDE_VM")))
+	return v == "1" || v == "true" || v == "yes"
+}
+
+func overlaySandboxBindingForVMRuntime(req SandboxEnsureRequest, b SandboxBinding, now time.Time) SandboxBinding {
+	if strings.TrimSpace(b.SandboxID) == "" {
+		b.SandboxID = "sbx-" + shortHash(req.AgentID+"|"+req.Config.Provider)
+	}
+	b.AgentID = req.AgentID
+	b.WorkerID = req.WorkerID
+	b.Provider = req.Config.Provider
+	b.RuntimePlacement = SandboxRuntimePlacementVMRuntime
+	if strings.TrimSpace(b.VMName) == "" {
+		b.VMName = "ac-agent-" + shortHash(req.AgentID)
+	}
+	if b.CreatedAt.IsZero() {
+		b.CreatedAt = now
+	}
+	if strings.TrimSpace(b.GuestMountPath) == "" {
+		b.GuestMountPath = filepath.Clean(req.HomeDir)
+	}
+	if strings.TrimSpace(b.RunDir) == "" {
+		b.RunDir = sandboxRunDir(req.HomeDir)
+	}
+	if strings.TrimSpace(b.BootstrapPath) == "" {
+		b.BootstrapPath = sandboxBootstrapPath(req.HomeDir)
+	}
+	if ep := sandboxEndpointEnv(req.AgentID); ep != "" && sandboxComputerUseEndpointExists(ep) {
+		b.ComputerUseEndpoint = ep
+		b.ComputerUseEnv = map[string]string{
+			"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS": ep,
+			"SKY_CUA_ENDPOINT":                       ep,
+			"SKY_CUA_SERVICE_NATIVE_PIPE_PATH":       ep,
+		}
+	} else {
+		b.ComputerUseEndpoint = ""
+		b.ComputerUseEnv = nil
+	}
+	b.State = SandboxStateRunning
+	b.LastHealthAt = now
+	b.UpdatedAt = now
+	b.LastError = ""
+	return b
 }
 
 func sandboxGuestMountPath(agentID string) string {

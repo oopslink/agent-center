@@ -123,6 +123,10 @@ func TestTartGuestMountPlanAndEnvMountsSkillsAndMemorySources(t *testing.T) {
 			"CODEX_HOME=" + codexHome,
 			"CLAUDE_CONFIG_DIR=" + claudeConfig,
 			"CLAUDE_BUILTIN_SKILLS_DIR=" + builtinSkills,
+			"AC_SANDBOX_COMPUTER_USE_ENDPOINT_AGENT_1=/tmp/host-cua.sock",
+			"AC_SANDBOX_VNC_PASSWORD_FILE_AGENT_1=/tmp/host-vnc-password",
+			"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS=/tmp/host-cua.sock",
+			"SKY_CUA_SERVICE_NATIVE_PIPE_PATH=/tmp/host-cua.sock",
 		},
 		HomeBase: homeBase,
 		SockDir:  t.TempDir(),
@@ -145,7 +149,8 @@ func TestTartGuestMountPlanAndEnvMountsSkillsAndMemorySources(t *testing.T) {
 	if len(wantMounts) != 0 {
 		t.Fatalf("missing mounts: %v; got %+v", wantMounts, plan.mounts)
 	}
-	env := tartGuestEnv(starter.baseEnv, plan)
+	t.Setenv("AC_SANDBOX_GUEST_COMPUTER_USE_ENDPOINT_AGENT_1", "/tmp/guest-cua.sock")
+	env := tartGuestEnv(starter.baseEnv, plan, "agent-1")
 	got := map[string]string{}
 	for _, entry := range env {
 		k, v, ok := strings.Cut(entry, "=")
@@ -164,6 +169,23 @@ func TestTartGuestMountPlanAndEnvMountsSkillsAndMemorySources(t *testing.T) {
 	}
 	if got["PATH"] != "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" {
 		t.Fatalf("guest PATH = %q", got["PATH"])
+	}
+	if got["AC_SANDBOX_RUNTIME_INSIDE_VM"] != "1" {
+		t.Fatalf("inside VM flag = %q", got["AC_SANDBOX_RUNTIME_INSIDE_VM"])
+	}
+	if got["AC_SANDBOX_RUNTIME_PLACEMENT"] != "vm_runtime" {
+		t.Fatalf("runtime placement = %q", got["AC_SANDBOX_RUNTIME_PLACEMENT"])
+	}
+	if got["AC_SANDBOX_COMPUTER_USE_ENDPOINT"] != "/tmp/guest-cua.sock" {
+		t.Fatalf("guest CUA endpoint = %q", got["AC_SANDBOX_COMPUTER_USE_ENDPOINT"])
+	}
+	if got["SKY_CUA_SERVICE_NATIVE_PIPE_PATH"] != "/tmp/guest-cua.sock" {
+		t.Fatalf("guest CUA pipe = %q", got["SKY_CUA_SERVICE_NATIVE_PIPE_PATH"])
+	}
+	for key := range got {
+		if strings.Contains(got[key], "host-cua") || strings.Contains(got[key], "host-vnc") {
+			t.Fatalf("guest env leaked host sandbox value %s=%q", key, got[key])
+		}
 	}
 }
 
