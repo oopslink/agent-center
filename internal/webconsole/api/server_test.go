@@ -787,6 +787,17 @@ func TestAPI_MeStorageUnavailableReturns500(t *testing.T) {
 	}
 }
 
+func TestDetachedAuthLookupContextIgnoresCanceledRequestContext(t *testing.T) {
+	baseCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest(http.MethodGet, "/api/auth/me", nil).WithContext(baseCtx)
+	authCtx, authCancel := detachedAuthLookupContext(req)
+	defer authCancel()
+	if err := authCtx.Err(); err != nil {
+		t.Fatalf("auth lookup context must not inherit canceled request context: %v", err)
+	}
+}
+
 type apiSigninBrokenIdentityRepo struct {
 	err error
 }

@@ -12,6 +12,7 @@ import (
 
 const jwtCookieName = "ac_session"
 const bootstrapLookupTimeout = 2 * time.Second
+const authLookupTimeout = 2 * time.Second
 
 type identityBootstrapCounter interface {
 	CountIdentities(ctx context.Context) (int, error)
@@ -122,7 +123,9 @@ func (s *Server) signinHandler(w http.ResponseWriter, r *http.Request) {
 	if login == "" {
 		login = body.DisplayName
 	}
-	res, err := d.SigninSvc.Execute(r.Context(), login, body.Passcode)
+	authCtx, authCancel := detachedAuthLookupContext(r)
+	defer authCancel()
+	res, err := d.SigninSvc.Execute(authCtx, login, body.Passcode)
 	if err != nil {
 		if errors.Is(err, identity.ErrAuthUnavailable) {
 			writeError(w, http.StatusInternalServerError, "auth_unavailable", "authentication temporarily unavailable")
@@ -143,7 +146,9 @@ func (s *Server) signoutHandler(w http.ResponseWriter, r *http.Request) {
 	// Best-effort: emit event for the current identity if we can verify.
 	if d.AuthSvc != nil && d.SignoutSvc != nil {
 		if cookie, err := r.Cookie(jwtCookieName); err == nil {
-			if id, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value); err == nil {
+			authCtx, authCancel := detachedAuthLookupContext(r)
+			defer authCancel()
+			if id, err := d.AuthSvc.AuthenticateToken(authCtx, cookie.Value); err == nil {
 				_ = d.SignoutSvc.Execute(r.Context(), id.ID(), "")
 			}
 		}
@@ -164,7 +169,9 @@ func (s *Server) meHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthenticated", "no session")
 		return
 	}
-	id, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
+	authCtx, authCancel := detachedAuthLookupContext(r)
+	defer authCancel()
+	id, err := d.AuthSvc.AuthenticateToken(authCtx, cookie.Value)
 	if err != nil {
 		writeAuthnError(w, err, "invalid or expired session")
 		return
@@ -188,7 +195,9 @@ func (s *Server) changePasscodeHandler(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnauthorized, "unauthenticated", "no session")
 		return
 	}
-	id, err := d.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
+	authCtx, authCancel := detachedAuthLookupContext(r)
+	defer authCancel()
+	id, err := d.AuthSvc.AuthenticateToken(authCtx, cookie.Value)
 	if err != nil {
 		writeAuthnError(w, err, "invalid session")
 		return
@@ -243,7 +252,9 @@ func authMiddleware(deps HandlerDeps) func(http.Handler) http.Handler {
 				writeError(w, http.StatusUnauthorized, "unauthenticated", "no session cookie")
 				return
 			}
-			id, err := deps.AuthSvc.AuthenticateToken(r.Context(), cookie.Value)
+			authCtx, authCancel := detachedAuthLookupContext(r)
+			id, err := deps.AuthSvc.AuthenticateToken(authCtx, cookie.Value)
+			authCancel()
 			if err != nil {
 				writeAuthnError(w, err, "invalid or expired session")
 				return
@@ -255,6 +266,10 @@ func authMiddleware(deps HandlerDeps) func(http.Handler) http.Handler {
 }
 
 type currentIdentityKey struct{}
+
+func detachedAuthLookupContext(r *http.Request) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(r.Context()), authLookupTimeout)
+}
 
 func writeAuthnError(w http.ResponseWriter, err error, unauthenticatedMessage string) {
 	if errors.Is(err, identity.ErrAuthUnavailable) {

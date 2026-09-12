@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/oopslink/agent-center/internal/admintoken"
 	authz "github.com/oopslink/agent-center/internal/authorization"
@@ -14,6 +15,8 @@ import (
 
 // authKey is the request context key holding the verified bearer.
 type authKey struct{}
+
+const authVerifyTimeout = 2 * time.Second
 
 // AuthContext is the verified bearer attached to each request after
 // middleware authentication.
@@ -169,7 +172,9 @@ func AuthMiddleware(verifier Verifier) func(http.Handler) http.Handler {
 				writeAuthError(w, err)
 				return
 			}
-			tok, err := verifier.VerifyPlaintext(r.Context(), plaintext)
+			authCtx, authCancel := detachedAdminAuthContext(r)
+			tok, err := verifier.VerifyPlaintext(authCtx, plaintext)
+			authCancel()
 			if err != nil {
 				logAuthFailure(r, "verify_plaintext", err, nil)
 				writeAuthError(w, err)
@@ -186,7 +191,10 @@ func AuthMiddleware(verifier Verifier) func(http.Handler) http.Handler {
 			// same plaintext fails (the repo CAS guarantees atomicity).
 			// Long-term tokens go through MarkUsedAsync as before.
 			if tok.IsEnroll() {
-				if err := verifier.ConsumeEnrollToken(r.Context(), tok.ID()); err != nil {
+				authCtx, authCancel := detachedAdminAuthContext(r)
+				err := verifier.ConsumeEnrollToken(authCtx, tok.ID())
+				authCancel()
+				if err != nil {
 					logAuthFailure(r, "consume_enroll", err, tok)
 					writeAuthError(w, err)
 					return
@@ -198,6 +206,10 @@ func AuthMiddleware(verifier Verifier) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func detachedAdminAuthContext(r *http.Request) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(r.Context()), authVerifyTimeout)
 }
 
 func logAuthConfigFailure(r *http.Request) {

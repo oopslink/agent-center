@@ -23,12 +23,16 @@ type fakeVerifier struct {
 	mu       sync.Mutex
 	tokens   map[string]*admintoken.AdminToken
 	errors   map[string]error
+	contexts []context.Context
+	ctxErrs  []error
 	usedHits int64
 }
 
 func (f *fakeVerifier) VerifyPlaintext(ctx context.Context, plaintext string) (*admintoken.AdminToken, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.contexts = append(f.contexts, ctx)
+	f.ctxErrs = append(f.ctxErrs, ctx.Err())
 	if err, ok := f.errors[plaintext]; ok {
 		return nil, err
 	}
@@ -46,6 +50,18 @@ func (f *fakeVerifier) MarkUsedAsync(id admintoken.TokenID) {
 func (f *fakeVerifier) ConsumeEnrollToken(ctx context.Context, id admintoken.TokenID) error {
 	atomic.AddInt64(&f.usedHits, 1)
 	return nil
+}
+
+func (f *fakeVerifier) seenContexts() []context.Context {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]context.Context(nil), f.contexts...)
+}
+
+func (f *fakeVerifier) seenContextErrs() []error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return append([]error(nil), f.ctxErrs...)
 }
 
 // downstream is the handler the middleware wraps. It echoes whether
@@ -232,6 +248,28 @@ func TestAuthMiddleware_HappyPath_InjectsAuthContextAndMarks(t *testing.T) {
 	}
 	if atomic.LoadInt64(&v.usedHits) != 1 {
 		t.Fatalf("MarkUsedAsync expected 1 hit, got %d", v.usedHits)
+	}
+}
+
+func TestAuthMiddleware_VerifyIgnoresCanceledRequestContext(t *testing.T) {
+	tok := mintAR(t)
+	v := &fakeVerifier{tokens: map[string]*admintoken.AdminToken{"acat_ok": tok}}
+	h := AuthMiddleware(v)(&recordingHandler{body: "ok"})
+	baseCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	req := httptest.NewRequest(http.MethodGet, "/admin/x", nil).WithContext(baseCtx)
+	req.Header.Set("Authorization", "Bearer acat_ok")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	ctxErrs := v.seenContextErrs()
+	if len(ctxErrs) != 1 {
+		t.Fatalf("seen verify contexts = %d, want 1", len(ctxErrs))
+	}
+	if err := ctxErrs[0]; err != nil {
+		t.Fatalf("verify context must not inherit canceled request context: %v", err)
 	}
 }
 
