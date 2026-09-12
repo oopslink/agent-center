@@ -444,26 +444,54 @@ func (p *tartVMProcess) PID() int {
 	return p.tunnel.Process.Pid
 }
 func (p *tartVMProcess) Signal() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	if p.remoteKill != nil {
 		p.remoteKill(ctx, p.ip, p.sshIdentity, p.agentID)
 	}
-	return p.signalTunnel(syscall.SIGTERM)
+	tunnelErr := p.signalTunnel(syscall.SIGTERM)
+	stopErr := p.stopVM(ctx)
+	if tunnelErr != nil {
+		return tunnelErr
+	}
+	return stopErr
 }
 func (p *tartVMProcess) Kill() error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 	if p.remoteKill != nil {
 		p.remoteKill(ctx, p.ip, p.sshIdentity, p.agentID)
 	}
-	return p.signalTunnel(syscall.SIGKILL)
+	tunnelErr := p.signalTunnel(syscall.SIGKILL)
+	stopErr := p.stopVM(ctx)
+	if tunnelErr != nil {
+		return tunnelErr
+	}
+	return stopErr
 }
 func (p *tartVMProcess) signalTunnel(sig syscall.Signal) error {
 	if p.tunnel == nil || p.tunnel.Process == nil {
 		return nil
 	}
 	return signalProcessGroup(p.tunnel, sig)
+}
+
+func (p *tartVMProcess) stopVM(ctx context.Context) error {
+	if strings.TrimSpace(p.vmName) == "" {
+		return nil
+	}
+	if state, ok := tartGetState(ctx, p.vmName); ok && state != "running" {
+		return nil
+	}
+	out, err := exec.CommandContext(ctx, "tart", "stop", p.vmName).CombinedOutput()
+	if err != nil {
+		msg := strings.TrimSpace(string(out))
+		if strings.Contains(strings.ToLower(msg), "is not running") {
+			return nil
+		}
+		return fmt.Errorf("agentlauncher: stop tart vm %s: %w: %s", p.vmName, err, msg)
+	}
+	return nil
 }
 
 func signalProcessGroup(cmd *exec.Cmd, sig syscall.Signal) error {

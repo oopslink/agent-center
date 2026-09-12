@@ -286,8 +286,10 @@ describe('AgentDetail page', () => {
     const runtimeStatus = await screen.findByTestId('agent-sandbox-runtime-status');
     expect(runtimeStatus).toHaveTextContent('State: suspended');
     expect(runtimeStatus).toHaveTextContent('ac-agent-a1');
-    expect(screen.getByTestId('agent-sandbox-start')).toBeEnabled();
-    expect(screen.getByTestId('agent-sandbox-suspend')).toBeDisabled();
+    expect(screen.queryByTestId('agent-sandbox-start')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('agent-sandbox-suspend')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('agent-sandbox-delete')).not.toBeInTheDocument();
+    expect(screen.getByTestId('agent-sandbox-reset')).toBeEnabled();
     expect(screen.queryByTestId('agent-sandbox-open-browser')).not.toBeInTheDocument();
     const btn = screen.getByTestId('agent-sandbox-open-console');
     expect(btn).toHaveAttribute('title', 'Open VM desktop');
@@ -387,7 +389,7 @@ describe('AgentDetail page', () => {
     expect(screen.queryByTestId('agent-sandbox-desktop-modal')).not.toBeInTheDocument();
   });
 
-  it('locks sandbox start and suspend controls against the live VM state', async () => {
+  it('shows sandbox state without independent lifecycle controls', async () => {
     stubAgent({ sandbox_enabled: true, sandbox_provider: 'tart_macos_vm' });
     server.use(
       http.get('/api/agents/:id/concurrency', () =>
@@ -419,8 +421,11 @@ describe('AgentDetail page', () => {
     const runtimeStatus = await screen.findByTestId('agent-sandbox-runtime-status');
     expect(runtimeStatus).toHaveTextContent('State: running');
     expect(runtimeStatus).toHaveTextContent('running');
-    expect(screen.getByTestId('agent-sandbox-start')).toBeDisabled();
-    expect(screen.getByTestId('agent-sandbox-suspend')).toBeEnabled();
+    expect(screen.queryByTestId('agent-sandbox-start')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('agent-sandbox-suspend')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('agent-sandbox-delete')).not.toBeInTheDocument();
+    expect(screen.getByTestId('agent-sandbox-open-console')).toBeEnabled();
+    expect(screen.getByTestId('agent-sandbox-reset')).toBeEnabled();
   });
 
   it('shows sandbox progress while waiting for runtime binding', async () => {
@@ -467,9 +472,9 @@ describe('AgentDetail page', () => {
     wrap('/agents/A1');
     const runtimeStatus = await screen.findByTestId('agent-sandbox-runtime-status');
     expect(runtimeStatus).toHaveTextContent('State: not provisioned');
-    fireEvent.click(screen.getByTestId('agent-sandbox-start'));
+    fireEvent.click(screen.getByTestId('agent-sandbox-reset'));
     await waitFor(() => expect(runtimeStatus).toHaveTextContent('State: waiting for runtime state'));
-    expect(runtimeStatus).toHaveTextContent('start');
+    expect(runtimeStatus).toHaveTextContent('reset');
     expect(runtimeStatus).toHaveTextContent('running');
   });
 

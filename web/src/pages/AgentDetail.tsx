@@ -197,7 +197,6 @@ export default function AgentDetail(): React.ReactElement {
   const sandboxAwaitingRuntimeState = sandboxEnabled && !sandboxBinding && (sandboxPending || sandboxCommandStatus === 'succeeded');
   const sandboxState = sandboxBinding?.state || (sandboxAwaitingRuntimeState ? 'syncing' : 'unprovisioned');
   const sandboxDeleted = sandboxState === 'deleted';
-  const sandboxStarting = sandboxState === 'provisioning' || (sandboxAction.data?.action === 'start' && sandboxPending);
   const sandboxRunning = sandboxState === 'running';
   const sandboxStateLabel = sandboxBinding
     ? t('agents.detail.sandbox.stateValue', { state: sandboxState })
@@ -209,13 +208,11 @@ export default function AgentDetail(): React.ReactElement {
       })
     : sandboxAwaitingRuntimeState
       ? t('agents.detail.sandbox.waitingForRuntimeState')
-      : sandboxStarting
+      : sandboxState === 'provisioning'
         ? t('agents.detail.sandbox.transitioning')
         : null;
-  const sandboxCanStart = sandboxEnabled && !sandboxPending && !sandboxDeleted && !sandboxRunning && sandboxState !== 'provisioning';
-  const sandboxCanSuspend = sandboxEnabled && !sandboxPending && (sandboxState === 'running' || sandboxState === 'ready');
   const sandboxCanOpen = sandboxEnabled && !sandboxPending && !sandboxDeleted;
-  const sandboxCanResetDelete = sandboxEnabled && !sandboxPending && !sandboxDeleted;
+  const sandboxCanReset = sandboxEnabled && !sandboxPending && !sandboxDeleted;
   const runSandboxAction = (action: SandboxAction, openDesktop = false) => {
     sandboxAction.mutate(action, {
       onSuccess: (result) => {
@@ -421,31 +418,9 @@ export default function AgentDetail(): React.ReactElement {
             <MonitorIcon />
           </SandboxActionButton>
           <SandboxActionButton
-            action="start"
-            pending={sandboxPending}
-            disabled={!sandboxCanStart}
-            title={t('agents.detail.sandbox.startTitle')}
-            ariaLabel={t('agents.detail.sandbox.startAria')}
-            testId="agent-sandbox-start"
-            onAction={(action) => runSandboxAction(action)}
-          >
-            <PlayIcon />
-          </SandboxActionButton>
-          <SandboxActionButton
-            action="suspend"
-            pending={sandboxPending}
-            disabled={!sandboxCanSuspend}
-            title={t('agents.detail.sandbox.suspendTitle')}
-            ariaLabel={t('agents.detail.sandbox.suspendAria')}
-            testId="agent-sandbox-suspend"
-            onAction={(action) => runSandboxAction(action)}
-          >
-            <StopIcon />
-          </SandboxActionButton>
-          <SandboxActionButton
             action="reset"
             pending={sandboxPending}
-            disabled={!sandboxCanResetDelete}
+            disabled={!sandboxCanReset}
             danger
             title={t('agents.detail.sandbox.resetTitle')}
             ariaLabel={t('agents.detail.sandbox.resetAria')}
@@ -453,18 +428,6 @@ export default function AgentDetail(): React.ReactElement {
             onAction={(action) => runSandboxAction(action)}
           >
             <ResetIcon />
-          </SandboxActionButton>
-          <SandboxActionButton
-            action="delete"
-            pending={sandboxPending}
-            disabled={!sandboxCanResetDelete}
-            danger
-            title={t('agents.detail.sandbox.deleteTitle')}
-            ariaLabel={t('agents.detail.sandbox.deleteAria')}
-            testId="agent-sandbox-delete"
-            onAction={(action) => runSandboxAction(action)}
-          >
-            <TrashIcon />
           </SandboxActionButton>
           {(sandboxCommand.data || sandboxAction.data) && (
             <span className="text-xs text-text-muted" data-testid="agent-sandbox-action-status">
