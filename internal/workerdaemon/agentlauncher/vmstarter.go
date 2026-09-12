@@ -529,7 +529,7 @@ func tartGuestAdminTarget(target string) string {
 		return override
 	}
 	t := strings.TrimSpace(target)
-	for _, prefix := range []string{"http://127.0.0.1:", "https://127.0.0.1:", "http://localhost:", "https://localhost:"} {
+	for _, prefix := range []string{"http://127.0.0.1:", "https://127.0.0.1:", "tcp://127.0.0.1:", "http://localhost:", "https://localhost:", "tcp://localhost:"} {
 		if strings.HasPrefix(t, prefix) {
 			scheme := strings.SplitN(prefix, "://", 2)[0]
 			return scheme + "://192.168.64.1:" + strings.TrimPrefix(t, prefix)

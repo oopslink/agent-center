@@ -37,6 +37,15 @@ func TestTartGuestAdminTargetOverride(t *testing.T) {
 	}
 }
 
+func TestTartGuestAdminTargetRewritesTCPLocalhost(t *testing.T) {
+	if got := tartGuestAdminTarget("tcp://localhost:7300"); got != "tcp://192.168.64.1:7300" {
+		t.Fatalf("tcp localhost admin target = %q", got)
+	}
+	if got := tartGuestAdminTarget("tcp://127.0.0.1:7300"); got != "tcp://192.168.64.1:7300" {
+		t.Fatalf("tcp 127 admin target = %q", got)
+	}
+}
+
 func TestTartVMStarterSSHIdentityFile(t *testing.T) {
 	homeBase := t.TempDir()
 	starter, err := NewTartVMStarter(TartVMStarterConfig{
