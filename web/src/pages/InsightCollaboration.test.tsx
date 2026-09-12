@@ -375,6 +375,47 @@ describe('Collaboration Insight', () => {
     expect(option.series?.[0]?.layout).toBe('none');
   });
 
+  it('uses distinct visuals for clustered agent and project overview nodes', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
+      graph: {
+        nodes: [
+          { id: 'cluster:P1:agent', kind: 'cluster', label: 'Agents (12)', project_id: 'P1' },
+          { id: 'cluster:project:P1', kind: 'cluster', label: 'Projects (1)', project_id: 'P1' },
+        ],
+        edges: [{
+          ...effects[0],
+          id: 'cluster-edge',
+          source: 'cluster:P1:agent',
+          target: 'cluster:project:P1',
+          interaction_count: 12,
+          evidence_count: 12,
+        }],
+        lod: 'cluster',
+        clusters: [],
+        truncated: false,
+      },
+      effects: [],
+      summary: {},
+      graph_version: 'gv-cluster-visuals',
+      next_cursor: '',
+    })));
+    renderAt('/organizations/acme/insights/collaboration');
+
+    expect(await screen.findByTestId('collaboration-inspector')).toHaveTextContent('Project');
+    expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Cluster');
+    const chart = await collaborationChart();
+    const option = chart.getOption() as { series?: Array<{ data?: Array<{ id: string; category?: string; symbol?: string; itemStyle?: { color?: string } }> }> };
+    const data = option.series?.[0]?.data ?? [];
+    const agentCluster = data.find((node) => node.id === 'cluster:P1:agent');
+    const projectCluster = data.find((node) => node.id === 'cluster:project:P1');
+
+    expect(agentCluster?.category).toBe('agent');
+    expect(agentCluster?.symbol).toBe('circle');
+    expect(projectCluster?.category).toBe('project');
+    expect(projectCluster?.symbol).toBe('triangle');
+    expect(projectCluster?.itemStyle?.color).not.toBe(agentCluster?.itemStyle?.color);
+  });
+
   it('surfaces clustered/truncated graph feedback and can request the full organization graph', async () => {
     const requests: string[] = [];
     server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
