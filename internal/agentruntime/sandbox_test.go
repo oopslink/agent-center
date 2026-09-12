@@ -1,6 +1,11 @@
 package agentruntime
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+)
 
 func TestSandboxBindingComputerUseStatusRequiresRunningVM(t *testing.T) {
 	b := SandboxBinding{State: SandboxStateReady, ComputerUseEndpoint: "/tmp/cua.sock"}
@@ -53,5 +58,30 @@ func TestTartRestoreFailed(t *testing.T) {
 	}
 	if tartRestoreFailed("VM is not running") {
 		t.Fatal("unexpected restore-failure match")
+	}
+}
+
+func TestMaterializeSandboxResourcesCreatesStandardRuntimeFiles(t *testing.T) {
+	home := t.TempDir()
+	b, err := materializeSandboxResources(home, SandboxBinding{AgentID: "agent-1"})
+	if err != nil {
+		t.Fatalf("materialize sandbox resources: %v", err)
+	}
+	if b.RunDir != filepath.Join(home, "sandbox", "run") {
+		t.Fatalf("run dir = %q", b.RunDir)
+	}
+	if b.VNCPasswordFile != filepath.Join(b.RunDir, "vnc_password") {
+		t.Fatalf("vnc password file = %q", b.VNCPasswordFile)
+	}
+	raw, err := os.ReadFile(b.VNCPasswordFile)
+	if err != nil {
+		t.Fatalf("read vnc password: %v", err)
+	}
+	if len(strings.TrimSpace(string(raw))) != 8 {
+		t.Fatalf("generated vnc password length = %d, want 8", len(strings.TrimSpace(string(raw))))
+	}
+	row := b.Row()
+	if row.RunDir != b.RunDir || row.VNCPasswordFile != b.VNCPasswordFile {
+		t.Fatalf("row did not project standard sandbox resources: %+v", row)
 	}
 }

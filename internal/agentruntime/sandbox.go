@@ -3,11 +3,13 @@ package agentruntime
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -52,6 +54,10 @@ type SandboxBinding struct {
 	State               string            `json:"state"`
 	ComputerUseEndpoint string            `json:"computer_use_endpoint,omitempty"`
 	ComputerUseEnv      map[string]string `json:"computer_use_env,omitempty"`
+	VNCEndpoint         string            `json:"vnc_endpoint,omitempty"`
+	VNCPasswordFile     string            `json:"vnc_password_file,omitempty"`
+	BrowserCommand      string            `json:"browser_command,omitempty"`
+	RunDir              string            `json:"run_dir,omitempty"`
 	BootstrapPath       string            `json:"bootstrap_path,omitempty"`
 	ConsoleCommand      string            `json:"console_command,omitempty"`
 	CreatedAt           time.Time         `json:"created_at"`
@@ -131,6 +137,10 @@ func (b SandboxBinding) Row() concurrency.SandboxBindingRow {
 		SandboxID: b.SandboxID, AgentID: b.AgentID, WorkerID: b.WorkerID,
 		Provider: b.Provider, VMName: b.VMName, State: b.State,
 		ComputerUseEndpoint: b.ComputerUseEndpoint,
+		VNCEndpoint:         b.VNCEndpoint,
+		VNCPasswordFile:     b.VNCPasswordFile,
+		BrowserCommand:      b.BrowserCommand,
+		RunDir:              b.RunDir,
 		BootstrapPath:       b.BootstrapPath,
 		ConsoleCommand:      b.ConsoleCommand,
 		CreatedAt:           b.CreatedAt, UpdatedAt: b.UpdatedAt, LastHealthAt: b.LastHealthAt,
@@ -198,10 +208,19 @@ func (m *LocalSandboxManager) EnsureAgentSandbox(ctx context.Context, req Sandbo
 	if bp := sandboxBootstrapPath(req.HomeDir); bp != "" {
 		b.BootstrapPath = bp
 	}
+	materializeErr := error(nil)
+	if next, err := materializeSandboxResources(req.HomeDir, b); err != nil {
+		b = next
+		b.State = SandboxStateDegraded
+		b.LastError = "materialize sandbox resources: " + err.Error()
+		materializeErr = err
+	} else {
+		b = next
+	}
 	if err := writeSandboxBootstrap(req.HomeDir, b); err != nil {
 		b.State = SandboxStateDegraded
 		b.LastError = "write sandbox bootstrap: " + err.Error()
-	} else {
+	} else if materializeErr == nil {
 		b = m.refreshTartBinding(ctx, b)
 	}
 	if err := writeSandboxBinding(path, b); err != nil {
@@ -232,6 +251,7 @@ func (m *LocalSandboxManager) openSandbox(ctx context.Context, req SandboxEnsure
 		return b, err
 	}
 	b = m.runTartLifecycleCommand(ctx, b, "open_console")
+	b = m.refreshStandardEndpoints(ctx, b)
 	if browser && b.State != SandboxStateDegraded {
 		b = m.runSandboxBrowserCommand(ctx, b)
 	}
@@ -247,6 +267,7 @@ func (m *LocalSandboxManager) StartSandbox(ctx context.Context, req SandboxEnsur
 		return b, err
 	}
 	b = m.runTartLifecycleCommand(ctx, b, "start")
+	b = m.refreshStandardEndpoints(ctx, b)
 	if err := m.persistBinding(req.HomeDir, b); err != nil {
 		return SandboxBinding{}, err
 	}
@@ -271,6 +292,9 @@ func (m *LocalSandboxManager) ResetSandbox(ctx context.Context, req SandboxEnsur
 		return b, err
 	}
 	b = m.runTartLifecycleCommand(ctx, b, "reset")
+	if next, err := materializeSandboxResources(req.HomeDir, b); err == nil {
+		b = m.refreshStandardEndpoints(ctx, next)
+	}
 	if err := m.persistBinding(req.HomeDir, b); err != nil {
 		return SandboxBinding{}, err
 	}
@@ -296,6 +320,9 @@ func (m *LocalSandboxManager) Health(ctx context.Context, req SandboxEnsureReque
 		return b, err
 	}
 	b = m.refreshTartBinding(ctx, b)
+	if next, err := materializeSandboxResources(req.HomeDir, b); err == nil {
+		b = m.refreshStandardEndpoints(ctx, next)
+	}
 	if err := m.persistBinding(req.HomeDir, b); err != nil {
 		return SandboxBinding{}, err
 	}
@@ -497,7 +524,7 @@ func (m *LocalSandboxManager) resetTartSandbox(ctx context.Context, b SandboxBin
 }
 
 func (m *LocalSandboxManager) runSandboxBrowserCommand(ctx context.Context, b SandboxBinding) SandboxBinding {
-	command := sandboxBrowserCommandEnv(b.AgentID)
+	command := firstNonEmptySandboxValue(b.BrowserCommand, sandboxBrowserCommandEnv(b.AgentID))
 	if command == "" {
 		b.LastError = "sandbox browser command is not configured; VM desktop was opened"
 		return b
@@ -510,6 +537,30 @@ func (m *LocalSandboxManager) runSandboxBrowserCommand(ctx context.Context, b Sa
 	}
 	b.State = SandboxStateRunning
 	b.LastError = ""
+	return b
+}
+
+func (m *LocalSandboxManager) refreshStandardEndpoints(ctx context.Context, b SandboxBinding) SandboxBinding {
+	if ep := sandboxVNCEndpointEnv(b.AgentID); ep != "" {
+		b.VNCEndpoint = ep
+	} else if b.State == SandboxStateRunning {
+		if ip := tartVMIP(ctx, b.VMName); ip != "" {
+			b.VNCEndpoint = net.JoinHostPort(ip, "5900")
+			b.BrowserCommand = firstNonEmptySandboxValue(b.BrowserCommand, sandboxBrowserCommandForIP(ip))
+			if err := configureTartVNCPassword(ctx, b, ip); err != nil && b.LastError == "" {
+				b.LastError = "configure sandbox VNC password: " + err.Error()
+			}
+		}
+	}
+	if command := sandboxBrowserCommandEnv(b.AgentID); command != "" {
+		b.BrowserCommand = command
+	}
+	if ep := sandboxEndpointEnv(b.AgentID); ep != "" {
+		b.ComputerUseEndpoint = ep
+	} else if b.ComputerUseEndpoint != "" && !sandboxComputerUseEndpointExists(b.ComputerUseEndpoint) {
+		b.ComputerUseEndpoint = ""
+		b.ComputerUseEnv = nil
+	}
 	return b
 }
 
@@ -563,6 +614,7 @@ func (m *LocalSandboxManager) refreshTartBinding(ctx context.Context, b SandboxB
 			"SKY_CUA_SERVICE_NATIVE_PIPE_PATH":       b.ComputerUseEndpoint,
 		}
 	}
+	b = m.refreshStandardEndpoints(ctx, b)
 	b.LastHealthAt = now
 	select {
 	case <-ctx.Done():
@@ -587,6 +639,146 @@ func sandboxBrowserCommandEnv(agentID string) string {
 		return cmd
 	}
 	return strings.TrimSpace(os.Getenv("AC_SANDBOX_BROWSER_COMMAND"))
+}
+
+func sandboxVNCEndpointEnv(agentID string) string {
+	key := "AC_SANDBOX_VNC_ENDPOINT_" + strings.ToUpper(strings.NewReplacer("-", "_", ":", "_").Replace(agentID))
+	if ep := strings.TrimSpace(os.Getenv(key)); ep != "" {
+		return ep
+	}
+	return strings.TrimSpace(os.Getenv("AC_SANDBOX_VNC_ENDPOINT"))
+}
+
+func sandboxVNCPasswordFileEnv(agentID string) string {
+	key := "AC_SANDBOX_VNC_PASSWORD_FILE_" + strings.ToUpper(strings.NewReplacer("-", "_", ":", "_").Replace(agentID))
+	if path := strings.TrimSpace(os.Getenv(key)); path != "" {
+		return path
+	}
+	return strings.TrimSpace(os.Getenv("AC_SANDBOX_VNC_PASSWORD_FILE"))
+}
+
+func sandboxComputerUseEndpointExists(endpoint string) bool {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return false
+	}
+	if strings.HasPrefix(endpoint, "/") {
+		st, err := os.Stat(endpoint)
+		return err == nil && !st.IsDir()
+	}
+	return true
+}
+
+func tartVMIP(ctx context.Context, vmName string) string {
+	if strings.TrimSpace(vmName) == "" {
+		return ""
+	}
+	cmdCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(cmdCtx, "tart", "ip", vmName).CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	ip := strings.TrimSpace(string(out))
+	if net.ParseIP(ip) == nil {
+		return ""
+	}
+	return ip
+}
+
+func sandboxBrowserCommandForIP(ip string) string {
+	ip = strings.TrimSpace(ip)
+	if ip == "" {
+		return ""
+	}
+	return fmt.Sprintf("ssh -o BatchMode=yes -o ConnectTimeout=5 admin@%s /usr/bin/open -a Safari", ip)
+}
+
+func configureTartVNCPassword(ctx context.Context, b SandboxBinding, ip string) error {
+	if strings.TrimSpace(ip) == "" || strings.TrimSpace(b.VNCPasswordFile) == "" || strings.TrimSpace(b.RunDir) == "" {
+		return nil
+	}
+	marker := filepath.Join(b.RunDir, "vnc_configured")
+	if _, err := os.Stat(marker); err == nil {
+		return nil
+	}
+	raw, err := os.ReadFile(b.VNCPasswordFile)
+	if err != nil {
+		return err
+	}
+	password := strings.TrimSpace(string(raw))
+	if password == "" {
+		return errors.New("empty VNC password")
+	}
+	cmdCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
+	defer cancel()
+	script := fmt.Sprintf("sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -privs -all -users admin -clientopts -setvnclegacy -vnclegacy yes -setvncpw -vncpw %s -restart -agent -console\n", shellQuote(password))
+	cmd := exec.CommandContext(cmdCtx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "admin@"+ip, "sh", "-s")
+	cmd.Stdin = strings.NewReader(script)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return errors.New(strings.TrimSpace(fmt.Sprintf("%v: %s", err, string(out))))
+	}
+	return os.WriteFile(marker, []byte(time.Now().UTC().Format(time.RFC3339Nano)+"\n"), 0o600)
+}
+
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
+}
+
+func materializeSandboxResources(home string, b SandboxBinding) (SandboxBinding, error) {
+	runDir := sandboxRunDir(home)
+	if runDir == "" {
+		return b, errors.New("agentruntime: sandbox home required")
+	}
+	if err := os.MkdirAll(runDir, 0o700); err != nil {
+		return b, err
+	}
+	b.RunDir = runDir
+	if path := sandboxVNCPasswordFileEnv(b.AgentID); path != "" {
+		b.VNCPasswordFile = path
+	} else if strings.TrimSpace(b.VNCPasswordFile) == "" {
+		b.VNCPasswordFile = filepath.Join(runDir, "vnc_password")
+	}
+	if strings.TrimSpace(b.VNCPasswordFile) != "" {
+		if _, err := os.Stat(b.VNCPasswordFile); os.IsNotExist(err) {
+			password, genErr := randomVNCPassword()
+			if genErr != nil {
+				return b, genErr
+			}
+			if err := os.MkdirAll(filepath.Dir(b.VNCPasswordFile), 0o700); err != nil {
+				return b, err
+			}
+			if err := os.WriteFile(b.VNCPasswordFile, []byte(password+"\n"), 0o600); err != nil {
+				return b, err
+			}
+		} else if err != nil {
+			return b, err
+		}
+	}
+	b.VNCEndpoint = firstNonEmptySandboxValue(sandboxVNCEndpointEnv(b.AgentID), b.VNCEndpoint)
+	b.BrowserCommand = firstNonEmptySandboxValue(sandboxBrowserCommandEnv(b.AgentID), b.BrowserCommand)
+	return b, nil
+}
+
+func randomVNCPassword() (string, error) {
+	const alphabet = "abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	buf := make([]byte, 8)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	for i, v := range buf {
+		buf[i] = alphabet[int(v)%len(alphabet)]
+	}
+	return string(buf), nil
+}
+
+func firstNonEmptySandboxValue(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func (m *LocalSandboxManager) clock() time.Time {
@@ -624,6 +816,13 @@ func sandboxBootstrapPath(home string) string {
 	return filepath.Join(home, "sandbox", "bootstrap")
 }
 
+func sandboxRunDir(home string) string {
+	if strings.TrimSpace(home) == "" {
+		return ""
+	}
+	return filepath.Join(home, "sandbox", "run")
+}
+
 func writeSandboxBootstrap(home string, b SandboxBinding) error {
 	root := sandboxBootstrapPath(home)
 	if root == "" {
@@ -648,20 +847,33 @@ Console:
 
     %s
 
+Standard host-side resources:
+
+    run_dir: %s
+    vnc_endpoint: %s
+    vnc_password_file: %s
+    computer_use_endpoint: %s
+    browser_command: %s
+
 Browser setup is manual in v1: open the VM console, open the browser inside the
 guest, and sign in there. Login state must remain inside this agent VM.
-`, b.AgentID, b.WorkerID, b.Provider, b.VMName, b.ConsoleCommand)
+`, b.AgentID, b.WorkerID, b.Provider, b.VMName, b.ConsoleCommand, b.RunDir, b.VNCEndpoint, b.VNCPasswordFile, b.ComputerUseEndpoint, b.BrowserCommand)
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte(readme), 0o600); err != nil {
 		return err
 	}
 	manifest := map[string]any{
-		"agent_id":        b.AgentID,
-		"worker_id":       b.WorkerID,
-		"provider":        b.Provider,
-		"vm_name":         b.VMName,
-		"console_command": b.ConsoleCommand,
-		"created_at":      b.CreatedAt,
-		"updated_at":      b.UpdatedAt,
+		"agent_id":              b.AgentID,
+		"worker_id":             b.WorkerID,
+		"provider":              b.Provider,
+		"vm_name":               b.VMName,
+		"run_dir":               b.RunDir,
+		"vnc_endpoint":          b.VNCEndpoint,
+		"vnc_password_file":     b.VNCPasswordFile,
+		"computer_use_endpoint": b.ComputerUseEndpoint,
+		"browser_command":       b.BrowserCommand,
+		"console_command":       b.ConsoleCommand,
+		"created_at":            b.CreatedAt,
+		"updated_at":            b.UpdatedAt,
 	}
 	raw, err := json.MarshalIndent(manifest, "", "  ")
 	if err != nil {

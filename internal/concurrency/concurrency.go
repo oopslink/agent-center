@@ -134,6 +134,10 @@ type SandboxBindingRow struct {
 	VMName              string    `json:"vm_name,omitempty"`
 	State               string    `json:"state,omitempty"`
 	ComputerUseEndpoint string    `json:"computer_use_endpoint,omitempty"`
+	VNCEndpoint         string    `json:"vnc_endpoint,omitempty"`
+	VNCPasswordFile     string    `json:"vnc_password_file,omitempty"`
+	BrowserCommand      string    `json:"browser_command,omitempty"`
+	RunDir              string    `json:"run_dir,omitempty"`
 	BootstrapPath       string    `json:"bootstrap_path,omitempty"`
 	ConsoleCommand      string    `json:"console_command,omitempty"`
 	CreatedAt           time.Time `json:"created_at,omitempty"`

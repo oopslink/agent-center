@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/clock"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/environment"
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	envsqlite "github.com/oopslink/agent-center/internal/environment/sqlite"
@@ -144,6 +146,67 @@ func TestAPI_AgentSandboxDesktopSession_DistinguishesConfiguredAndReachable(t *t
 	_ = json.NewDecoder(resp.Body).Decode(&body)
 	if body["ok"] != false || body["status"] != "unreachable" || body["endpoint_state"] != "unreachable" {
 		t.Fatalf("unreachable session = %+v", body)
+	}
+}
+
+func TestAPI_AgentSandboxDesktopSession_ReadsRuntimeBinding(t *testing.T) {
+	deps, db := setupAPIWithAuth(t)
+	deps.LiveState = concurrency.NewInMemoryStore()
+	sess := setupTestSession(t, db, deps)
+	saveWorkerInOrg(t, db, sess.OrgID, "w-1")
+	s := newTestServer(t, deps)
+	defer s.Close()
+
+	resp := orgScopedPost(t, s.URL+"/api/members/agent",
+		`{"display_name":"viewer","model":"claude","cli":"codex","worker_id":"w-1","sandbox_enabled":true,"sandbox_provider":"tart_macos_vm"}`, sess)
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("create: got %d", resp.StatusCode)
+	}
+	var created map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&created)
+	id, _ := created["identity_id"].(string)
+	if id == "" {
+		t.Fatalf("missing agent id: %v", created)
+	}
+	a, err := deps.AgentSvc.ResolveAgent(context.Background(), id)
+	if err != nil {
+		t.Fatalf("resolve agent: %v", err)
+	}
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer ln.Close()
+	passwordPath := t.TempDir() + "/vnc_password"
+	if err := os.WriteFile(passwordPath, []byte("secret\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	deps.LiveState.Put(string(a.ID()), concurrency.AgentSnapshot{
+		SandboxBinding: &concurrency.SandboxBindingRow{
+			SandboxID:       "sbx-1",
+			AgentID:         string(a.ID()),
+			Provider:        "tart_macos_vm",
+			VMName:          "ac-agent-viewer",
+			State:           "running",
+			VNCEndpoint:     ln.Addr().String(),
+			VNCPasswordFile: passwordPath,
+		},
+		ComputerUseStatus: concurrency.ComputerUseReady,
+		Executors:         []concurrency.ExecutorSnapshot{},
+	}, time.Now())
+
+	resp = orgScopedGet(t, s.URL+"/api/agents/"+id+"/sandbox/desktop/session", sess)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("desktop session ready: got %d", resp.StatusCode)
+	}
+	var body map[string]any
+	_ = json.NewDecoder(resp.Body).Decode(&body)
+	if body["ok"] != true || body["status"] != "ready" || body["auth_mode"] != "automatic" {
+		t.Fatalf("ready session from runtime binding = %+v", body)
+	}
+	if body["endpoint"] != fmt.Sprintf("localhost:%d", ln.Addr().(*net.TCPAddr).Port) {
+		t.Fatalf("masked endpoint = %v", body["endpoint"])
 	}
 }
 

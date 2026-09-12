@@ -18,6 +18,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	agentbc "github.com/oopslink/agent-center/internal/agent"
+	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/environment"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -198,7 +199,8 @@ func (s *Server) agentSandboxDesktopSessionHandler(w http.ResponseWriter, r *htt
 		writeError(w, http.StatusConflict, "sandbox_disabled", "enable sandbox before opening desktop")
 		return
 	}
-	endpoint, configured := sandboxVNCEndpoint(a.ID().String(), agentFacingID(a))
+	binding := sandboxBindingFromLiveState(d, string(a.ID()))
+	endpoint, configured := sandboxVNCEndpointFromBinding(binding, a.ID().String(), agentFacingID(a))
 	if !configured {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"ok":             false,
@@ -235,7 +237,7 @@ func (s *Server) agentSandboxDesktopSessionHandler(w http.ResponseWriter, r *htt
 		"status":         "ready",
 		"agent_id":       agentFacingID(a),
 		"websocket_url":  wsPath,
-		"auth_mode":      sandboxVNCAuthMode(a.ID().String(), agentFacingID(a)),
+		"auth_mode":      sandboxVNCAuthModeFromBinding(binding, a.ID().String(), agentFacingID(a)),
 		"endpoint_state": "configured",
 		"endpoint":       maskVNCEndpoint(endpoint),
 	})
@@ -251,7 +253,8 @@ func (s *Server) agentSandboxDesktopWSHandler(w http.ResponseWriter, r *http.Req
 		writeError(w, http.StatusConflict, "sandbox_disabled", "enable sandbox before opening desktop")
 		return
 	}
-	endpoint, configured := sandboxVNCEndpoint(a.ID().String(), agentFacingID(a))
+	binding := sandboxBindingFromLiveState(d, string(a.ID()))
+	endpoint, configured := sandboxVNCEndpointFromBinding(binding, a.ID().String(), agentFacingID(a))
 	if !configured {
 		writeError(w, http.StatusConflict, "vnc_not_configured", "VNC endpoint is not configured for this sandbox")
 		return
@@ -271,7 +274,7 @@ func (s *Server) agentSandboxDesktopWSHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 	defer ws.Close()
-	if err := negotiateVNCForWeb(r.Context(), ws, tcp, sandboxVNCPassword(a.ID().String(), agentFacingID(a))); err != nil {
+	if err := negotiateVNCForWeb(r.Context(), ws, tcp, sandboxVNCPasswordFromBinding(binding, a.ID().String(), agentFacingID(a))); err != nil {
 		return
 	}
 	ctx, cancel := context.WithCancel(r.Context())
@@ -483,11 +486,40 @@ func vncSecurityTypesForWeb(types []byte, autoPassword bool) []byte {
 	return append([]byte(nil), types...)
 }
 
+func sandboxBindingFromLiveState(d HandlerDeps, agentID string) *concurrency.SandboxBindingRow {
+	if d.LiveState == nil || strings.TrimSpace(agentID) == "" {
+		return nil
+	}
+	snap, _, ok := d.LiveState.Get(agentID, time.Now())
+	if !ok || snap.SandboxBinding == nil {
+		return nil
+	}
+	return snap.SandboxBinding
+}
+
+func sandboxVNCAuthModeFromBinding(binding *concurrency.SandboxBindingRow, agentIDs ...string) string {
+	if sandboxVNCPasswordFromBinding(binding, agentIDs...) != "" {
+		return "automatic"
+	}
+	return "password"
+}
+
 func sandboxVNCAuthMode(agentIDs ...string) string {
 	if sandboxVNCPassword(agentIDs...) != "" {
 		return "automatic"
 	}
 	return "password"
+}
+
+func sandboxVNCPasswordFromBinding(binding *concurrency.SandboxBindingRow, agentIDs ...string) string {
+	if binding != nil {
+		if path := strings.TrimSpace(binding.VNCPasswordFile); path != "" {
+			if raw, err := os.ReadFile(path); err == nil {
+				return strings.TrimSpace(string(raw))
+			}
+		}
+	}
+	return sandboxVNCPassword(agentIDs...)
 }
 
 func sandboxVNCPassword(agentIDs ...string) string {
@@ -553,6 +585,15 @@ func consumeSandboxVNCSession(token, agentID string) bool {
 		return false
 	}
 	return sess.AgentID == strings.TrimSpace(agentID)
+}
+
+func sandboxVNCEndpointFromBinding(binding *concurrency.SandboxBindingRow, agentIDs ...string) (string, bool) {
+	if binding != nil {
+		if ep := strings.TrimSpace(binding.VNCEndpoint); ep != "" {
+			return ep, true
+		}
+	}
+	return sandboxVNCEndpoint(agentIDs...)
 }
 
 func sandboxVNCEndpoint(agentIDs ...string) (string, bool) {
