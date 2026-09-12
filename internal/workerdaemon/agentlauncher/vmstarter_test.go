@@ -116,6 +116,7 @@ func TestTartGuestMountPlanAndEnvMountsSkillsAndMemorySources(t *testing.T) {
 	codexHome := t.TempDir()
 	claudeConfig := t.TempDir()
 	builtinSkills := t.TempDir()
+	agentSkills := t.TempDir()
 	starter, err := NewTartVMStarter(TartVMStarterConfig{
 		BinaryPath: filepath.Join(t.TempDir(), "agent-center"),
 		BaseEnv: []string{
@@ -123,6 +124,7 @@ func TestTartGuestMountPlanAndEnvMountsSkillsAndMemorySources(t *testing.T) {
 			"CODEX_HOME=" + codexHome,
 			"CLAUDE_CONFIG_DIR=" + claudeConfig,
 			"CLAUDE_BUILTIN_SKILLS_DIR=" + builtinSkills,
+			"AC_AGENT_SKILLS_DIR=" + agentSkills,
 			"AC_SANDBOX_COMPUTER_USE_ENDPOINT_AGENT_1=/tmp/host-cua.sock",
 			"AC_SANDBOX_VNC_PASSWORD_FILE_AGENT_1=/tmp/host-vnc-password",
 			"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS=/tmp/host-cua.sock",
@@ -142,6 +144,7 @@ func TestTartGuestMountPlanAndEnvMountsSkillsAndMemorySources(t *testing.T) {
 		"agent-center-codex-source":          true,
 		"agent-center-claude-config":         true,
 		"agent-center-claude-builtin-skills": true,
+		"agent-center-agent-skills":          true,
 	}
 	for _, m := range plan.mounts {
 		delete(wantMounts, m.name)
@@ -166,6 +169,9 @@ func TestTartGuestMountPlanAndEnvMountsSkillsAndMemorySources(t *testing.T) {
 	}
 	if got["CLAUDE_BUILTIN_SKILLS_DIR"] != tartGuestSharePath("agent-center-claude-builtin-skills") {
 		t.Fatalf("guest CLAUDE_BUILTIN_SKILLS_DIR = %q", got["CLAUDE_BUILTIN_SKILLS_DIR"])
+	}
+	if got["AC_AGENT_SKILLS_DIR"] != tartGuestSharePath("agent-center-agent-skills") {
+		t.Fatalf("guest AC_AGENT_SKILLS_DIR = %q", got["AC_AGENT_SKILLS_DIR"])
 	}
 	if got["PATH"] != "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin" {
 		t.Fatalf("guest PATH = %q", got["PATH"])

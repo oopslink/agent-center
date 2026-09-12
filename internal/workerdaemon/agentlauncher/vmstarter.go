@@ -55,6 +55,7 @@ type tartGuestMountPlan struct {
 	codexHome        string
 	claudeConfigDir  string
 	builtinSkillsDir string
+	agentSkillsDir   string
 }
 
 func NewTartVMStarter(cfg TartVMStarterConfig) (*TartVMStarter, error) {
@@ -261,6 +262,10 @@ func (s *TartVMStarter) guestMountPlan(agentID, agentHome, binaryPath, configPat
 		plan.builtinSkillsDir = tartGuestSharePath("agent-center-claude-builtin-skills")
 		plan.mounts = append(plan.mounts, tartMount{name: "agent-center-claude-builtin-skills", host: h})
 	}
+	if h := s.hostAgentSkillsDir(); h != "" && dirExists(h) {
+		plan.agentSkillsDir = tartGuestSharePath("agent-center-agent-skills")
+		plan.mounts = append(plan.mounts, tartMount{name: "agent-center-agent-skills", host: h})
+	}
 	return plan
 }
 
@@ -284,6 +289,16 @@ func (s *TartVMStarter) hostClaudeConfigDir() string {
 	return ""
 }
 
+func (s *TartVMStarter) hostAgentSkillsDir() string {
+	if h := envValue(s.baseEnv, "AC_AGENT_SKILLS_DIR"); h != "" {
+		return h
+	}
+	if hd, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(hd, ".agents", "skills")
+	}
+	return ""
+}
+
 func (s *TartVMStarter) vmHasRequiredMounts(ctx context.Context, vmName, binaryPath, configPath string, plan tartGuestMountPlan) bool {
 	guestBin := tartGuestBinaryPath(binaryPath)
 	checks := []string{"test -x " + shellQuote(guestBin), "test -d " + shellQuote(tartGuestHomeBasePath())}
@@ -295,6 +310,9 @@ func (s *TartVMStarter) vmHasRequiredMounts(ctx context.Context, vmName, binaryP
 	}
 	if plan.claudeConfigDir != "" {
 		checks = append(checks, "test -d "+shellQuote(plan.claudeConfigDir))
+	}
+	if plan.agentSkillsDir != "" {
+		checks = append(checks, "test -d "+shellQuote(plan.agentSkillsDir))
 	}
 	tests := []string{"sh", "-lc", strings.Join(checks, " && ")}
 	out, err := exec.CommandContext(ctx, "tart", append([]string{"exec", vmName}, tests...)...).CombinedOutput()
@@ -321,7 +339,14 @@ func (s *TartVMStarter) sshIdentityFile(agentID string) string {
 }
 
 func (s *TartVMStarter) startGuestRuntime(ctx context.Context, ip, identityFile, guestSockDir, guestBin string, args, env []string) error {
-	remote := "mkdir -p " + shellQuote(guestSockDir) + " && nohup " + shellJoin(append([]string{guestBin}, args...), env) + " </dev/null >/tmp/agent-center-runtime.log 2>&1 &"
+	setup := []string{"mkdir -p " + shellQuote(guestSockDir)}
+	if skillsDir := envValue(env, "AC_AGENT_SKILLS_DIR"); skillsDir != "" {
+		setup = append(setup,
+			"mkdir -p \"$HOME/.agents\"",
+			"if [ -L \"$HOME/.agents/skills\" ] || [ ! -e \"$HOME/.agents/skills\" ]; then ln -sfn "+shellQuote(skillsDir)+" \"$HOME/.agents/skills\"; fi",
+		)
+	}
+	remote := strings.Join(setup, " && ") + " && nohup " + shellJoin(append([]string{guestBin}, args...), env) + " </dev/null >/tmp/agent-center-runtime.log 2>&1 &"
 	sshArgs := append([]string{"-f", "-n"}, sshBaseArgs(ip, identityFile, sshShellCommand(remote))...)
 	cmd := exec.CommandContext(ctx, "ssh", sshArgs...)
 	cmd.Stdout = s.stdout
@@ -666,6 +691,9 @@ func tartGuestEnv(base []string, plan tartGuestMountPlan, agentID string) []stri
 	}
 	if plan.builtinSkillsDir != "" {
 		env = append(env, "CLAUDE_BUILTIN_SKILLS_DIR="+plan.builtinSkillsDir)
+	}
+	if plan.agentSkillsDir != "" {
+		env = append(env, "AC_AGENT_SKILLS_DIR="+plan.agentSkillsDir)
 	}
 	if ep := tartGuestComputerUseEndpoint(agentID); ep != "" {
 		env = append(env,
