@@ -243,7 +243,11 @@ func TestDefaultSkillLayerRoots_ResolvesPluginAndSymlinkedUserSkills(t *testing.
 		t.Fatal(err)
 	}
 
+	agentSkills := filepath.Join(tmp, ".agents", "skills")
+	writeSkillMDAt(t, filepath.Join(agentSkills, "dogfood"), "dogfood", "agent harness skill")
+
 	t.Setenv("CLAUDE_CONFIG_DIR", claude)
+	t.Setenv("AC_AGENT_SKILLS_DIR", agentSkills)
 	roots := defaultSkillLayerRoots(filepath.Join(tmp, "home"), filepath.Join(tmp, "tasks"))
 	got := skillscan.Scan(roots)
 
@@ -256,5 +260,8 @@ func TestDefaultSkillLayerRoots_ResolvesPluginAndSymlinkedUserSkills(t *testing.
 	}
 	if s, ok := byName["superpowers"]; !ok || s.Layer != skillscan.LayerPlugin {
 		t.Fatalf("plugin skill 'superpowers' not resolved (F2); got=%+v", got)
+	}
+	if s, ok := byName["dogfood"]; !ok || s.Layer != skillscan.LayerUser {
+		t.Fatalf("agent harness skill 'dogfood' not resolved; got=%+v", got)
 	}
 }

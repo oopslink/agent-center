@@ -99,7 +99,8 @@ func skillReportEntries(skills []skillscan.Skill) []map[string]any {
 // (cfg.SkillLayerRoots, used by tests) and otherwise derives the real dirs:
 //   - project: the agent's mounted skills (home/skills, the --skill-path target) plus
 //     its project cwd (tasks/.claude/skills).
-//   - user:    $HOME/.claude/skills (honors $CLAUDE_CONFIG_DIR when set).
+//   - user:    $HOME/.claude/skills (honors $CLAUDE_CONFIG_DIR when set), plus
+//     AC_AGENT_SKILLS_DIR when injected by a sandbox/agent harness.
 //   - plugin:  each $HOME/.claude/plugins/<plugin>/skills.
 //   - built-in: $CLAUDE_BUILTIN_SKILLS_DIR when set (the CLI install path is not
 //     discoverable from here, so it is opt-in via env rather than fabricated).
@@ -132,6 +133,9 @@ func defaultSkillLayerRoots(home, tasksDir string) skillscan.LayerRoots {
 	if claudeConfig != "" {
 		roots.User = []string{filepath.Join(claudeConfig, "skills")}
 		roots.Plugin = pluginSkillRoots(filepath.Join(claudeConfig, "plugins"))
+	}
+	if agentSkills := os.Getenv("AC_AGENT_SKILLS_DIR"); agentSkills != "" {
+		roots.User = append(roots.User, agentSkills)
 	}
 	return roots
 }
