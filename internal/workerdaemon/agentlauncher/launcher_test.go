@@ -93,6 +93,30 @@ func immediateAfter(time.Duration) <-chan time.Time {
 	return ch
 }
 
+func TestPlacementStarter_DispatchesByRuntimePlacement(t *testing.T) {
+	host := newFakeStarter()
+	vm := newFakeStarter()
+	starter := &PlacementStarter{Host: host, VM: vm}
+	if _, err := starter.Start(context.Background(), AgentSpec{AgentID: "host"}); err != nil {
+		t.Fatalf("host Start: %v", err)
+	}
+	if _, err := starter.Start(context.Background(), AgentSpec{
+		AgentID: "vm",
+		Sandbox: SandboxSpec{
+			Enabled:          true,
+			RuntimePlacement: RuntimePlacementVMRuntime,
+		},
+	}); err != nil {
+		t.Fatalf("vm Start: %v", err)
+	}
+	if host.count("host") != 1 || host.count("vm") != 0 {
+		t.Fatalf("host starts: host=%d vm=%d", host.count("host"), host.count("vm"))
+	}
+	if vm.count("vm") != 1 || vm.count("host") != 0 {
+		t.Fatalf("vm starts: vm=%d host=%d", vm.count("vm"), vm.count("host"))
+	}
+}
+
 func newTestLauncher(t *testing.T, s *fakeStarter) *LocalProcessLauncher {
 	t.Helper()
 	l, err := New(Config{Starter: s, After: immediateAfter, StopGrace: time.Second})

@@ -54,6 +54,29 @@ type SandboxSpec struct {
 	RuntimePlacement string
 }
 
+// PlacementStarter dispatches a launch to the placement-specific starter. The
+// default host path remains the existing process launcher; vm_runtime is explicit
+// so it cannot accidentally fall back to host execution.
+type PlacementStarter struct {
+	Host ProcessStarter
+	VM   ProcessStarter
+}
+
+var _ ProcessStarter = (*PlacementStarter)(nil)
+
+func (s *PlacementStarter) Start(ctx context.Context, spec AgentSpec) (Process, error) {
+	if spec.Sandbox.Enabled && spec.Sandbox.RuntimePlacement == RuntimePlacementVMRuntime {
+		if s == nil || s.VM == nil {
+			return nil, errors.New("agentlauncher: vm_runtime placement requires a sandbox VM starter")
+		}
+		return s.VM.Start(ctx, spec)
+	}
+	if s == nil || s.Host == nil {
+		return nil, errors.New("agentlauncher: host runtime placement requires a host starter")
+	}
+	return s.Host.Start(ctx, spec)
+}
+
 // AgentLauncher ensures a desired agent's runtime unit is running and rebuilds it on
 // exit. The controller declares desired state (Ensure per wanted agent, Stop per
 // removed one); the launcher owns the process lifecycle + rebuild.

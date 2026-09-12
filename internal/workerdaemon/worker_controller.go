@@ -499,7 +499,7 @@ func (h controllerHandler) handleRuntimeFs(ctx context.Context, payload []byte) 
 // buildWorkerController wires the launcher + controller for the worker. sockDir is a
 // SHORT per-worker runtime dir (unix socket path limit) the agent processes bind their
 // control sockets in; the launched agent-runtime processes are told the same dir.
-func buildWorkerController(opts RunOptions, targetSpec, token, fingerprint string, client *AdminClient, logf func(string)) (*workercontroller.Controller, error) {
+func buildWorkerController(opts RunOptions, targetSpec, token, fingerprint, homeBase string, client *AdminClient, logf func(string)) (*workercontroller.Controller, error) {
 	sockDir, err := workerSockDir(opts.WorkerID)
 	if err != nil {
 		return nil, err
@@ -523,13 +523,25 @@ func buildWorkerController(opts RunOptions, targetSpec, token, fingerprint strin
 	if s := strings.TrimSpace(fingerprint); s != "" {
 		baseArgs = append(baseArgs, "--server-fingerprint", s)
 	}
+	baseEnv := withoutEnv(os.Environ(), "AC_EXECUTOR_GIT_WORKTREE")
 	starter, err := agentlauncher.NewExecStarter(agentlauncher.ExecStarterConfig{
 		BaseArgs: baseArgs,
-		BaseEnv:  withoutEnv(os.Environ(), "AC_EXECUTOR_GIT_WORKTREE"),
+		BaseEnv:  baseEnv,
 	})
 	if err != nil {
 		return nil, err
 	}
+	vmStarter, err := agentlauncher.NewTartVMStarter(agentlauncher.TartVMStarterConfig{
+		BaseArgs: baseArgs,
+		BaseEnv:  baseEnv,
+		HomeBase: homeBase,
+		SockDir:  sockDir,
+		Log:      func(f string, a ...any) { logf(fmt.Sprintf(f, a...)) },
+	})
+	if err != nil {
+		return nil, err
+	}
+	placementStarter := &agentlauncher.PlacementStarter{Host: starter, VM: vmStarter}
 	// Durable pid store (T860 gap5) so a worker restart re-adopts surviving agent
 	// processes instead of double-spawning. Lives in the short per-worker sock dir.
 	pidStore, err := agentlauncher.NewFilePIDStore(filepath.Join(sockDir, "agent-pids.json"))
@@ -537,7 +549,7 @@ func buildWorkerController(opts RunOptions, targetSpec, token, fingerprint strin
 		return nil, err
 	}
 	launcher, err := agentlauncher.New(agentlauncher.Config{
-		Starter: starter,
+		Starter: placementStarter,
 		PIDs:    pidStore,
 		// T860 gap4: a poison agent that crash-loops past MaxAttempts stops being rebuilt;
 		// report it terminally errored so the center sees a stuck agent instead of a
