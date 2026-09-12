@@ -23,6 +23,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/oopslink/agent-center/internal/persistence"
 )
 
 // ServerDeps is the dependency bag for Server-level state shared
@@ -37,6 +39,9 @@ type ServerDeps struct {
 	Branch     string
 	Commit     string
 	BuiltAt    string
+	DBHealth   interface {
+		Snapshot() persistence.DBHealthSnapshot
+	}
 }
 
 // Server is the admin endpoint HTTP server. v2.2 bound only to a unix

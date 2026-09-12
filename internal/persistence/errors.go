@@ -53,3 +53,21 @@ func IsSQLiteInterrupt(err error) bool {
 	return strings.Contains(msg, "interrupted (9)") ||
 		strings.Contains(msg, "SQLITE_INTERRUPT")
 }
+
+// IsSQLiteBusy reports whether err is a transient SQLite write-lock conflict
+// (SQLITE_BUSY = 5 or SQLITE_BUSY_SNAPSHOT = 517). The primary result code
+// lives in the low byte of the extended code, so both map to 5.
+func IsSQLiteBusy(err error) bool {
+	if err == nil {
+		return false
+	}
+	var se *sqlite.Error
+	if errors.As(err, &se) {
+		return se.Code()&0xff == sqlitelib.SQLITE_BUSY
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "database is locked") ||
+		strings.Contains(msg, "SQLITE_BUSY") ||
+		strings.Contains(msg, "SQLITE_BUSY_SNAPSHOT") ||
+		strings.Contains(msg, "SQLITE_LOCKED")
+}

@@ -6,8 +6,6 @@ import (
 	"errors"
 	"math/rand"
 	"time"
-
-	"modernc.org/sqlite"
 )
 
 // txKey is the unexported context key used to carry an active *sql.Tx.
@@ -173,16 +171,9 @@ func txBackoff(attempt int) time.Duration {
 var retryableTxErr = isSQLiteRetryableTx
 
 func isSQLiteRetryableTx(err error) bool {
-	return isSQLiteBusy(err) || IsSQLiteInterrupt(err)
+	return IsSQLiteBusy(err) || IsSQLiteInterrupt(err)
 }
 
-// isSQLiteBusy reports whether err is a transient SQLite write-lock conflict
-// (SQLITE_BUSY = 5 or SQLITE_BUSY_SNAPSHOT = 517). The primary result code
-// lives in the low byte of the extended code, so both map to 5.
 func isSQLiteBusy(err error) bool {
-	var se *sqlite.Error
-	if errors.As(err, &se) {
-		return se.Code()&0xff == 5 // SQLITE_BUSY primary code
-	}
-	return false
+	return IsSQLiteBusy(err)
 }

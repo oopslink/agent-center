@@ -726,6 +726,8 @@ func TestAPI_SigninAcceptsEmailLogin(t *testing.T) {
 func TestAPI_SigninStorageUnavailableReturns500(t *testing.T) {
 	deps, _ := setupAPIWithAuth(t)
 	deps.SigninSvc = identity.NewSigninService(&apiSigninBrokenIdentityRepo{err: errors.New("sqlite interrupted")}, testSigningKey)
+	health := &recordingDBHealth{}
+	deps.DBHealth = health
 	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
 	s := httptest.NewServer(WithDeps(deps)(srv.Handler()))
 	defer s.Close()
@@ -751,11 +753,16 @@ func TestAPI_SigninStorageUnavailableReturns500(t *testing.T) {
 	if body["error"] != "auth_unavailable" {
 		t.Fatalf("error = %v, want auth_unavailable", body["error"])
 	}
+	if health.authUnavailable != 1 {
+		t.Fatalf("auth unavailable records=%d, want 1", health.authUnavailable)
+	}
 }
 
 func TestAPI_MeStorageUnavailableReturns500(t *testing.T) {
 	deps, _ := setupAPIWithAuth(t)
 	deps.AuthSvc = identity.NewAuthService(&apiAuthBrokenIdentityRepo{err: errors.New("sqlite interrupted")}, testSigningKey)
+	health := &recordingDBHealth{}
+	deps.DBHealth = health
 	srv := NewServer("127.0.0.1:0", Deps{SPA: stubSPA()})
 	s := httptest.NewServer(WithDeps(deps)(srv.Handler()))
 	defer s.Close()
@@ -785,6 +792,22 @@ func TestAPI_MeStorageUnavailableReturns500(t *testing.T) {
 	if body["error"] != "auth_unavailable" {
 		t.Fatalf("error = %v, want auth_unavailable", body["error"])
 	}
+	if health.authUnavailable != 1 {
+		t.Fatalf("auth unavailable records=%d, want 1", health.authUnavailable)
+	}
+}
+
+type recordingDBHealth struct {
+	errors          []error
+	authUnavailable int
+}
+
+func (r *recordingDBHealth) RecordError(_ string, err error) {
+	r.errors = append(r.errors, err)
+}
+
+func (r *recordingDBHealth) RecordAuthUnavailable(_ string) {
+	r.authUnavailable++
 }
 
 func TestDetachedAuthLookupContextIgnoresCanceledRequestContext(t *testing.T) {

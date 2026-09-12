@@ -143,6 +143,11 @@ type Verifier interface {
 	ConsumeEnrollToken(ctx context.Context, id admintoken.TokenID) error
 }
 
+type dbHealthRecorder interface {
+	RecordError(source string, err error)
+	RecordAuthUnavailable(source string)
+}
+
 // AuthMiddleware wraps the admin mux. Every request except whitelisted
 // public paths must carry a valid bearer. On 200-path the request ctx
 // is enriched with AuthContext.
@@ -151,7 +156,11 @@ type Verifier interface {
 //   - GET /admin/health — uptime / readiness probe
 //
 // All other paths return 401 on missing/invalid/revoked tokens.
-func AuthMiddleware(verifier Verifier) func(http.Handler) http.Handler {
+func AuthMiddleware(verifier Verifier, health ...dbHealthRecorder) func(http.Handler) http.Handler {
+	var dbHealth dbHealthRecorder
+	if len(health) > 0 {
+		dbHealth = health[0]
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if isPublicPath(r) {
@@ -176,6 +185,7 @@ func AuthMiddleware(verifier Verifier) func(http.Handler) http.Handler {
 			tok, err := verifier.VerifyPlaintext(authCtx, plaintext)
 			authCancel()
 			if err != nil {
+				recordAdminAuthDBHealth(dbHealth, "admin.auth.verify_plaintext", err)
 				logAuthFailure(r, "verify_plaintext", err, nil)
 				writeAuthError(w, err)
 				return
@@ -195,6 +205,7 @@ func AuthMiddleware(verifier Verifier) func(http.Handler) http.Handler {
 				err := verifier.ConsumeEnrollToken(authCtx, tok.ID())
 				authCancel()
 				if err != nil {
+					recordAdminAuthDBHealth(dbHealth, "admin.auth.consume_enroll", err)
 					logAuthFailure(r, "consume_enroll", err, tok)
 					writeAuthError(w, err)
 					return
@@ -206,6 +217,13 @@ func AuthMiddleware(verifier Verifier) func(http.Handler) http.Handler {
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
+}
+
+func recordAdminAuthDBHealth(dbHealth dbHealthRecorder, source string, err error) {
+	if dbHealth == nil {
+		return
+	}
+	dbHealth.RecordError(source, err)
 }
 
 func detachedAdminAuthContext(r *http.Request) (context.Context, context.CancelFunc) {

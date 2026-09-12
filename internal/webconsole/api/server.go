@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/oopslink/agent-center/internal/files"
+	"github.com/oopslink/agent-center/internal/persistence"
 )
 
 // Server is the Web Console HTTP server.
@@ -58,6 +59,9 @@ type Deps struct {
 	Commit    string
 	BuiltAt   string
 	StartedAt string
+	DBHealth  interface {
+		Snapshot() persistence.DBHealthSnapshot
+	}
 }
 
 // AppFacade narrows the cli.App surface that handlers need (we don't
@@ -590,10 +594,14 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	if v == "" {
 		v = "dev"
 	}
-	writeJSON(w, http.StatusOK, map[string]any{
+	body := map[string]any{
 		"status":  "ok",
 		"version": v,
-	})
+	}
+	if s.deps.DBHealth != nil {
+		body["db_health"] = s.deps.DBHealth.Snapshot()
+	}
+	writeJSON(w, http.StatusOK, body)
 }
 
 // systemVersionHandler returns the full build identity for the Settings version

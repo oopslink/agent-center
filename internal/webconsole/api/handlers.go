@@ -167,6 +167,10 @@ type HandlerDeps struct {
 	SigninSvc  *identity.SigninService
 	SignoutSvc *identity.SignoutService
 	AuthSvc    *identity.AuthService
+	DBHealth   interface {
+		RecordError(source string, err error)
+		RecordAuthUnavailable(source string)
+	}
 
 	// v2.6-FE-5: Passcode change service for PATCH /api/auth/me/passcode.
 	PasscodeChangeSvc *identity.PasscodeChangeService

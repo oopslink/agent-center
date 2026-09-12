@@ -197,10 +197,11 @@ func TestAuthMiddleware_UnexpectedErrorReturnsGeneric401(t *testing.T) {
 	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, nil)))
 	defer slog.SetDefault(prevLogger)
 
+	health := &recordingAdminDBHealth{}
 	v := &fakeVerifier{
-		errors: map[string]error{"acat_x": errors.New("boom")},
+		errors: map[string]error{"acat_x": errors.New("SQL logic error: interrupted (9)")},
 	}
-	h := AuthMiddleware(v)(&recordingHandler{})
+	h := AuthMiddleware(v, health)(&recordingHandler{})
 	req := httptest.NewRequest(http.MethodGet, "/admin/x", nil)
 	req.Header.Set("Authorization", "Bearer acat_x")
 	rec := httptest.NewRecorder()
@@ -217,7 +218,7 @@ func TestAuthMiddleware_UnexpectedErrorReturnsGeneric401(t *testing.T) {
 		"stage=verify_plaintext",
 		"code=auth_failed",
 		"path=/admin/x",
-		"err=boom",
+		"err=\"SQL logic error: interrupted (9)\"",
 	} {
 		if !strings.Contains(logBody, want) {
 			t.Fatalf("auth failure log missing %q in %s", want, logBody)
@@ -226,7 +227,20 @@ func TestAuthMiddleware_UnexpectedErrorReturnsGeneric401(t *testing.T) {
 	if strings.Contains(logBody, "acat_x") {
 		t.Fatalf("auth failure log leaked bearer plaintext: %s", logBody)
 	}
+	if len(health.errors) != 1 || !strings.Contains(health.errors[0].Error(), "interrupted (9)") {
+		t.Fatalf("db health errors=%v, want interrupted auth error", health.errors)
+	}
 }
+
+type recordingAdminDBHealth struct {
+	errors []error
+}
+
+func (r *recordingAdminDBHealth) RecordError(_ string, err error) {
+	r.errors = append(r.errors, err)
+}
+
+func (r *recordingAdminDBHealth) RecordAuthUnavailable(string) {}
 
 func TestAuthMiddleware_HappyPath_InjectsAuthContextAndMarks(t *testing.T) {
 	tok := mintAR(t)

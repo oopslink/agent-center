@@ -117,6 +117,7 @@ func buildWebConsoleHandler(a *App, bus *sse.Bus) http.Handler {
 		SigninSvc:            a.IdentitySigninSvc,
 		SignoutSvc:           a.IdentitySignoutSvc,
 		AuthSvc:              a.IdentityAuthSvc,
+		DBHealth:             a.DBHealth,
 		PasscodeChangeSvc:    a.IdentityPasscodeChangeSvc,
 		IdentityRepo:         a.IdentityRepo,
 		OrgRepo:              a.IdentityOrgRepo,
@@ -633,6 +634,7 @@ func runWebConsole(ctx context.Context, a *App, bus *sse.Bus, addr string, enrol
 		Commit:    ResolvedBuildCommit(),
 		BuiltAt:   ResolvedBuildBuiltAt(),
 		StartedAt: time.Now().UTC().Format(time.RFC3339Nano),
+		DBHealth:  a.DBHealth,
 	})
 	// Wrap the inner mux with deps middleware; install it as the
 	// server's handler so the loopback guard in api.Server.ListenAndServe

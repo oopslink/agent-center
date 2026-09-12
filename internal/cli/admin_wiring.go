@@ -110,6 +110,7 @@ func runAdminEndpoint(ctx context.Context, app *App, tc AdminTransportConfig, lo
 		Branch:     ResolvedBuildBranch(),
 		Commit:     ResolvedBuildCommit(),
 		BuiltAt:    ResolvedBuildBuiltAt(),
+		DBHealth:   app.DBHealth,
 	})
 	// Wrap the inner mux with deps middleware (parallel to
 	// webconsole_wiring.go pattern), then rate-limit (v2.3-7c task #27),
@@ -117,7 +118,7 @@ func runAdminEndpoint(ctx context.Context, app *App, tc AdminTransportConfig, lo
 	// bearer (v2.3-3a task #28). SetHandler applies to BOTH unix + tcp
 	// legs (server.go fans it out).
 	rateLimitSink := newAdminRateLimitSink(app)
-	srv.SetHandler(api.AuthMiddleware(app.AdminTokenSvc)(
+	srv.SetHandler(api.AuthMiddleware(app.AdminTokenSvc, app.DBHealth)(
 		api.RateLimitMiddleware(api.RateLimitDefaults, rateLimitSink)(
 			api.WithDeps(deps)(srv.Handler()))))
 	go func() {

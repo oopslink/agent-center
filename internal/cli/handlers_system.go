@@ -82,6 +82,24 @@ func (s *syncWriter) Write(p []byte) (int, error) {
 	return s.w.Write(p)
 }
 
+func newServerDBHealthMonitor(errw io.Writer) *persistence.DBHealthMonitor {
+	return persistence.NewDBHealthMonitor(persistence.DBHealthMonitorConfig{
+		Recover: func(s persistence.DBHealthSnapshot) {
+			fmt.Fprintf(errw,
+				"[server] db-health recovery triggered reason=%s interrupted=%d busy=%d auth_unavailable=%d; exiting for launchd restart\n",
+				s.LastRecoveryReason,
+				s.SQLiteInterruptCount,
+				s.SQLiteBusyCount,
+				s.AuthUnavailableCount,
+			)
+			go func() {
+				time.Sleep(250 * time.Millisecond)
+				os.Exit(75)
+			}()
+		},
+	})
+}
+
 // ServerCommand returns the `server` mode command. It needs to construct
 // its own deps (open DB, run migrations) because it's the entry point
 // before any other command runs.
@@ -121,6 +139,7 @@ func ServerCommand() *Command {
 					fmt.Fprintln(out, "migrations applied; exiting (--migrate-only)")
 					return ExitOK
 				}
+				dbHealth := newServerDBHealthMonitor(errw)
 				// Wire the always-on UnknownEventEscalator. Bridge BC
 				// inbound + feishu adapter removed in P10 § 3.9 per
 				// ADR-0031.
@@ -129,6 +148,7 @@ func ServerCommand() *Command {
 					fmt.Fprintf(errw, "Error: app_bootstrap: %v\n", err)
 					return ExitBusinessError
 				}
+				app.DBHealth = dbHealth
 				reconcileTeamMemoryFromApp(ctx, app, func(msg string) {
 					fmt.Fprintf(errw, "[server] %s\n", msg)
 				})

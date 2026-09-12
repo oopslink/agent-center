@@ -128,6 +128,7 @@ func (s *Server) signinHandler(w http.ResponseWriter, r *http.Request) {
 	res, err := d.SigninSvc.Execute(authCtx, login, body.Passcode)
 	if err != nil {
 		if errors.Is(err, identity.ErrAuthUnavailable) {
+			recordAuthUnavailable(d, "web.auth.signin", err)
 			writeError(w, http.StatusInternalServerError, "auth_unavailable", "authentication temporarily unavailable")
 			return
 		}
@@ -150,6 +151,8 @@ func (s *Server) signoutHandler(w http.ResponseWriter, r *http.Request) {
 			defer authCancel()
 			if id, err := d.AuthSvc.AuthenticateToken(authCtx, cookie.Value); err == nil {
 				_ = d.SignoutSvc.Execute(r.Context(), id.ID(), "")
+			} else if errors.Is(err, identity.ErrAuthUnavailable) {
+				recordAuthUnavailable(d, "web.auth.signout", err)
 			}
 		}
 	}
@@ -173,6 +176,9 @@ func (s *Server) meHandler(w http.ResponseWriter, r *http.Request) {
 	defer authCancel()
 	id, err := d.AuthSvc.AuthenticateToken(authCtx, cookie.Value)
 	if err != nil {
+		if errors.Is(err, identity.ErrAuthUnavailable) {
+			recordAuthUnavailable(d, "web.auth.me", err)
+		}
 		writeAuthnError(w, err, "invalid or expired session")
 		return
 	}
@@ -199,6 +205,9 @@ func (s *Server) changePasscodeHandler(w http.ResponseWriter, r *http.Request) {
 	defer authCancel()
 	id, err := d.AuthSvc.AuthenticateToken(authCtx, cookie.Value)
 	if err != nil {
+		if errors.Is(err, identity.ErrAuthUnavailable) {
+			recordAuthUnavailable(d, "web.auth.change_passcode", err)
+		}
 		writeAuthnError(w, err, "invalid session")
 		return
 	}
@@ -256,6 +265,9 @@ func authMiddleware(deps HandlerDeps) func(http.Handler) http.Handler {
 			id, err := deps.AuthSvc.AuthenticateToken(authCtx, cookie.Value)
 			authCancel()
 			if err != nil {
+				if errors.Is(err, identity.ErrAuthUnavailable) {
+					recordAuthUnavailable(deps, "web.auth.middleware", err)
+				}
 				writeAuthnError(w, err, "invalid or expired session")
 				return
 			}
@@ -277,6 +289,14 @@ func writeAuthnError(w http.ResponseWriter, err error, unauthenticatedMessage st
 		return
 	}
 	writeError(w, http.StatusUnauthorized, "unauthenticated", unauthenticatedMessage)
+}
+
+func recordAuthUnavailable(d HandlerDeps, source string, err error) {
+	if d.DBHealth == nil {
+		return
+	}
+	d.DBHealth.RecordAuthUnavailable(source)
+	d.DBHealth.RecordError(source, err)
 }
 
 // CurrentIdentity retrieves the authenticated identity injected by authMiddleware.

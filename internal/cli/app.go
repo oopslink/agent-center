@@ -83,9 +83,10 @@ type App struct {
 
 	// DB / Clock / IDGen / Service / Repo fields below are wired only
 	// in server mode (NewApp). CLI mode (NewClientApp) leaves them nil.
-	DB    *sql.DB
-	Clock clock.Clock
-	IDGen idgen.Generator
+	DB       *sql.DB
+	Clock    clock.Clock
+	IDGen    idgen.Generator
+	DBHealth *persistence.DBHealthMonitor
 
 	// RuntimeImportValidationKey signs AI Runtime Preview/Apply tokens. It is
 	// derived from the restart-stable server master key.

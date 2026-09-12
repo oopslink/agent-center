@@ -18,7 +18,7 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(map[string]any{
+	body := map[string]any{
 		"ok":        true,
 		"transport": transport,
 		"endpoint":  "admin",
@@ -26,7 +26,11 @@ func (s *Server) healthHandler(w http.ResponseWriter, r *http.Request) {
 		"branch":    fallbackHealthIdentity(s.deps.Branch, "unknown"),
 		"commit":    fallbackHealthIdentity(s.deps.Commit, "unknown"),
 		"built_at":  fallbackHealthIdentity(s.deps.BuiltAt, "unknown"),
-	})
+	}
+	if s.deps.DBHealth != nil {
+		body["db_health"] = s.deps.DBHealth.Snapshot()
+	}
+	_ = json.NewEncoder(w).Encode(body)
 }
 
 func fallbackHealthIdentity(v, fallback string) string {
