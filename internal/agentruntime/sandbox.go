@@ -713,7 +713,14 @@ func configureTartVNCPassword(ctx context.Context, b SandboxBinding, ip string) 
 	cmdCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
 	script := fmt.Sprintf("sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -privs -all -users admin -clientopts -setvnclegacy -vnclegacy yes -setvncpw -vncpw %s -restart -agent -console\n", shellQuote(password))
-	cmd := exec.CommandContext(cmdCtx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", "admin@"+ip, "sh", "-s")
+	cmd := exec.CommandContext(cmdCtx, "ssh",
+		"-o", "BatchMode=yes",
+		"-o", "ConnectTimeout=5",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"admin@"+ip,
+		"sh", "-s",
+	)
 	cmd.Stdin = strings.NewReader(script)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return errors.New(strings.TrimSpace(fmt.Sprintf("%v: %s", err, string(out))))
