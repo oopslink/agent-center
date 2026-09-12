@@ -165,7 +165,7 @@ describe('Collaboration Insight', () => {
     expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Legend');
     expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Strong relationships');
     expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Affected tasks');
-    expect(screen.getByTestId('collaboration-filter-help')).toHaveTextContent('Filters reload the dataset');
+    expect(screen.getByTestId('collaboration-filter-help')).toHaveTextContent('Top filters reload the dataset');
 
     expect(screen.getByLabelText('Relationship')).not.toBeVisible();
     await user.click(screen.getByText('More filters'));
@@ -238,6 +238,12 @@ describe('Collaboration Insight', () => {
     expect(longNode).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Zoom in' }));
     await user.click(screen.getByRole('button', { name: 'Reset' }));
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent(longLabel);
+    await user.selectOptions(screen.getByTestId('collaboration-locate'), 'agent:other');
+    await waitFor(() => expect(screen.getByTestId('collaboration-rendered-labels')).not.toHaveTextContent(longLabel));
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Other Agent');
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Other Task');
+    await user.click(screen.getByRole('button', { name: 'Restore' }));
     expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent(longLabel);
     screen.getByRole('button', { name: longLabel }).focus();
     await user.keyboard('{Enter}');
@@ -516,7 +522,7 @@ describe('Collaboration Insight', () => {
     })));
     renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1&task_id=T1'));
     expect(await screen.findByTestId('collaboration-unsupported')).toBeVisible();
-    expect(screen.getByTestId('collaboration-filter-help')).toHaveTextContent('Filters reload the dataset');
+    expect(screen.getByTestId('collaboration-filter-help')).toHaveTextContent('Top filters reload the dataset');
     expect(screen.queryByTestId('collaboration-inspector')).not.toBeInTheDocument();
   });
 
