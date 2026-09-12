@@ -201,6 +201,10 @@ func (c *Controller) ReconcileWithAdoptionSpecs(ctx context.Context, desired []a
 // the answer names a different agent, or Adopt fails.
 func (c *Controller) tryAdopt(ctx context.Context, spec agentlauncher.AgentSpec, pid int) bool {
 	agentID := spec.AgentID
+	if spec.Sandbox.Enabled && spec.Sandbox.RuntimePlacement == agentlauncher.RuntimePlacementVMRuntime {
+		c.log("workercontroller: skip pid adoption for vm_runtime agent=%s pid=%d (respawning in sandbox)", agentID, pid)
+		return false
+	}
 	if !agentlauncher.PIDAlive(pid) {
 		return false // fast pre-filter: pid gone
 	}

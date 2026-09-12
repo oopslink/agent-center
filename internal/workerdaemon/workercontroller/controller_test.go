@@ -407,6 +407,29 @@ func TestReconcileWithAdoption_AdoptsLiveSurvivor(t *testing.T) {
 	}
 }
 
+func TestReconcileWithAdoption_VMRuntimeSkipsHostPIDAdoption(t *testing.T) {
+	l := newFakeLauncher()
+	l.adoptPIDs["a"] = os.Getpid()
+	c := newAdoptController(t, l, "a", nil)
+
+	c.ReconcileWithAdoptionSpecs(context.Background(), []agentlauncher.AgentSpec{{
+		AgentID: "a",
+		Sandbox: agentlauncher.SandboxSpec{
+			Enabled:          true,
+			RuntimePlacement: agentlauncher.RuntimePlacementVMRuntime,
+		},
+	}})
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if l.adoptN["a"] != 0 {
+		t.Errorf("Adopt(a) called %d times, want 0 for vm_runtime", l.adoptN["a"])
+	}
+	if l.ensureN["a"] != 1 {
+		t.Errorf("Ensure(a) called %d times, want 1 for vm_runtime respawn", l.ensureN["a"])
+	}
+}
+
 // TestReconcileWithAdoption_RespawnsOnProbeMismatch: pid alive but the socket serves a
 // DIFFERENT agent (recycled pid / stale socket) → respawn, not adopt.
 func TestReconcileWithAdoption_RespawnsOnProbeMismatch(t *testing.T) {
