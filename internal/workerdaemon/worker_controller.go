@@ -573,7 +573,18 @@ func buildWorkerController(opts RunOptions, targetSpec, token, fingerprint, home
 	return workercontroller.New(workercontroller.Config{
 		Launcher: launcher,
 		SockDir:  sockDir,
-		Log:      func(f string, a ...any) { logf(fmt.Sprintf(f, a...)) },
+		OnEnsureError: func(agentID string, err error) {
+			msg := "agent runtime launch failed"
+			if err != nil {
+				msg = msg + ": " + err.Error()
+			}
+			rctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			if rerr := client.ReportAgentLifecycle(rctx, agentID, "error", msg, time.Now()); rerr != nil {
+				logf(fmt.Sprintf("controller: report ensure error agent=%s: %v", agentID, rerr))
+			}
+		},
+		Log: func(f string, a ...any) { logf(fmt.Sprintf(f, a...)) },
 	})
 }
 

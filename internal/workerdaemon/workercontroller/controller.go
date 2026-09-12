@@ -14,9 +14,12 @@ package workercontroller
 import (
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/oopslink/agent-center/internal/concurrency"
@@ -44,10 +47,11 @@ type clientFactory func(sockPath string) controlClient
 
 // Controller reconciles desired agents → launched processes and proxies commands.
 type Controller struct {
-	launcher  agentlauncher.AgentLauncher
-	sockDir   string
-	newClient clientFactory
-	log       func(format string, args ...any)
+	launcher      agentlauncher.AgentLauncher
+	sockDir       string
+	newClient     clientFactory
+	onEnsureError func(agentID string, err error)
+	log           func(format string, args ...any)
 
 	mu      sync.Mutex
 	clients map[string]controlClient // agentID → control client
@@ -67,6 +71,8 @@ type Config struct {
 	NewClient func(sockPath string) controlClient
 	// DeliverTimeout bounds one command delivery (zero → 5s).
 	DeliverTimeout time.Duration
+	// OnEnsureError is called when a desired-running runtime unit cannot be launched.
+	OnEnsureError func(agentID string, err error)
 	// Log is optional.
 	Log func(format string, args ...any)
 }
@@ -92,12 +98,13 @@ func New(cfg Config) (*Controller, error) {
 		nc = func(sock string) controlClient { return agentcontrol.NewClient(sock, to) }
 	}
 	return &Controller{
-		launcher:  cfg.Launcher,
-		sockDir:   cfg.SockDir,
-		newClient: nc,
-		log:       log,
-		clients:   make(map[string]controlClient),
-		specs:     make(map[string]agentlauncher.AgentSpec),
+		launcher:      cfg.Launcher,
+		sockDir:       cfg.SockDir,
+		newClient:     nc,
+		log:           log,
+		onEnsureError: cfg.OnEnsureError,
+		clients:       make(map[string]controlClient),
+		specs:         make(map[string]agentlauncher.AgentSpec),
 	}, nil
 }
 
@@ -185,6 +192,9 @@ func (c *Controller) ReconcileWithAdoptionSpecs(ctx context.Context, desired []a
 		}
 		if err := c.launcher.Ensure(spec); err != nil {
 			c.log("workercontroller: ensure agent=%s: %v", id, err)
+			if c.onEnsureError != nil {
+				c.onEnsureError(id, err)
+			}
 		}
 	}
 	for _, id := range c.launcher.Running() {
@@ -203,6 +213,9 @@ func (c *Controller) tryAdopt(ctx context.Context, spec agentlauncher.AgentSpec,
 	agentID := spec.AgentID
 	if spec.Sandbox.Enabled && spec.Sandbox.RuntimePlacement == agentlauncher.RuntimePlacementVMRuntime {
 		c.log("workercontroller: skip pid adoption for vm_runtime agent=%s pid=%d (respawning in sandbox)", agentID, pid)
+		if err := terminateSurvivorPID(pid); err != nil {
+			c.log("workercontroller: terminate old host runtime for vm_runtime agent=%s pid=%d: %v", agentID, pid, err)
+		}
 		return false
 	}
 	if !agentlauncher.PIDAlive(pid) {
@@ -223,6 +236,28 @@ func (c *Controller) tryAdopt(ctx context.Context, spec agentlauncher.AgentSpec,
 	}
 	c.log("workercontroller: re-adopted surviving agent=%s pid=%d", agentID, pid)
 	return true
+}
+
+func terminateSurvivorPID(pid int) error {
+	if pid <= 0 || !agentlauncher.PIDAlive(pid) {
+		return nil
+	}
+	if pid == os.Getpid() {
+		return nil
+	}
+	if pgid, err := syscall.Getpgid(pid); err == nil && pgid == pid {
+		if err := syscall.Kill(-pid, syscall.SIGTERM); err == nil {
+			return nil
+		}
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		return fmt.Errorf("signal pid %d: %w", pid, err)
+	}
+	return nil
 }
 
 // EnsureAgent launches one agent if not already up (used when a command targets an

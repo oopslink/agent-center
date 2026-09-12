@@ -69,6 +69,30 @@ func TestReconcileSpecs_PreservesPerAgentEnv(t *testing.T) {
 		t.Fatalf("on env = %v", got)
 	}
 }
+
+func TestReconcileWithAdoptionSpecsReportsEnsureError(t *testing.T) {
+	l := newFakeLauncher()
+	startErr := errors.New("sandbox vm not ready")
+	l.ensERR["agent-1"] = startErr
+	var gotAgent string
+	var gotErr error
+	c, err := New(Config{
+		Launcher: l,
+		SockDir:  t.TempDir(),
+		OnEnsureError: func(agentID string, err error) {
+			gotAgent = agentID
+			gotErr = err
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.ReconcileWithAdoptionSpecs(context.Background(), []agentlauncher.AgentSpec{{AgentID: "agent-1"}})
+	if gotAgent != "agent-1" || !errors.Is(gotErr, startErr) {
+		t.Fatalf("ensure error callback agent=%q err=%v", gotAgent, gotErr)
+	}
+}
+
 func (l *fakeLauncher) Stop(agentID string) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
