@@ -22,6 +22,9 @@ import (
 const (
 	SandboxProviderTartMacOSVM = "tart_macos_vm"
 
+	SandboxRuntimePlacementHostEndpoint = "host_endpoint"
+	SandboxRuntimePlacementVMRuntime    = "vm_runtime"
+
 	SandboxStateProvisioning  = "provisioning"
 	SandboxStateReady         = "ready"
 	SandboxStateRunning       = "running"
@@ -50,8 +53,11 @@ type SandboxBinding struct {
 	AgentID             string            `json:"agent_id"`
 	WorkerID            string            `json:"worker_id"`
 	Provider            string            `json:"provider"`
+	RuntimePlacement    string            `json:"runtime_placement,omitempty"`
 	VMName              string            `json:"vm_name"`
 	State               string            `json:"state"`
+	HostMountPath       string            `json:"host_mount_path,omitempty"`
+	GuestMountPath      string            `json:"guest_mount_path,omitempty"`
 	ComputerUseEndpoint string            `json:"computer_use_endpoint,omitempty"`
 	ComputerUseEnv      map[string]string `json:"computer_use_env,omitempty"`
 	VNCEndpoint         string            `json:"vnc_endpoint,omitempty"`
@@ -135,7 +141,9 @@ func (b SandboxBinding) ComputerUseStatus() string {
 func (b SandboxBinding) Row() concurrency.SandboxBindingRow {
 	return concurrency.SandboxBindingRow{
 		SandboxID: b.SandboxID, AgentID: b.AgentID, WorkerID: b.WorkerID,
-		Provider: b.Provider, VMName: b.VMName, State: b.State,
+		Provider: b.Provider, RuntimePlacement: b.RuntimePlacement, VMName: b.VMName, State: b.State,
+		HostMountPath:       b.HostMountPath,
+		GuestMountPath:      b.GuestMountPath,
 		ComputerUseEndpoint: b.ComputerUseEndpoint,
 		VNCEndpoint:         b.VNCEndpoint,
 		VNCPasswordFile:     b.VNCPasswordFile,
@@ -201,6 +209,9 @@ func (m *LocalSandboxManager) EnsureAgentSandbox(ctx context.Context, req Sandbo
 	b.AgentID = req.AgentID
 	b.WorkerID = req.WorkerID
 	b.Provider = req.Config.Provider
+	b.RuntimePlacement = sandboxRuntimePlacementEnv(req.AgentID)
+	b.HostMountPath = filepath.Clean(req.HomeDir)
+	b.GuestMountPath = sandboxGuestMountPath(req.AgentID)
 	if b.VMName == "" {
 		b.VMName = "ac-agent-" + shortHash(req.AgentID)
 	}
@@ -633,6 +644,26 @@ func sandboxEndpointEnv(agentID string) string {
 	return strings.TrimSpace(os.Getenv("AC_SANDBOX_COMPUTER_USE_ENDPOINT"))
 }
 
+func sandboxRuntimePlacementEnv(agentID string) string {
+	key := "AC_SANDBOX_RUNTIME_PLACEMENT_" + strings.ToUpper(strings.NewReplacer("-", "_", ":", "_").Replace(agentID))
+	if placement := strings.TrimSpace(os.Getenv(key)); placement != "" {
+		return placement
+	}
+	if placement := strings.TrimSpace(os.Getenv("AC_SANDBOX_RUNTIME_PLACEMENT")); placement != "" {
+		return placement
+	}
+	return SandboxRuntimePlacementHostEndpoint
+}
+
+func sandboxGuestMountPath(agentID string) string {
+	tag := strings.TrimSpace(agentID)
+	if tag == "" {
+		tag = "agent"
+	}
+	tag = strings.NewReplacer("/", "_", ":", "_").Replace(tag)
+	return filepath.Join("/Volumes/My Shared Files", "agent-home-"+shortHash(tag))
+}
+
 func sandboxBrowserCommandEnv(agentID string) string {
 	key := "AC_SANDBOX_BROWSER_COMMAND_" + strings.ToUpper(strings.NewReplacer("-", "_", ":", "_").Replace(agentID))
 	if cmd := strings.TrimSpace(os.Getenv(key)); cmd != "" {
@@ -741,6 +772,13 @@ func materializeSandboxResources(home string, b SandboxBinding) (SandboxBinding,
 		return b, err
 	}
 	b.RunDir = runDir
+	b.HostMountPath = filepath.Clean(home)
+	if strings.TrimSpace(b.GuestMountPath) == "" {
+		b.GuestMountPath = sandboxGuestMountPath(b.AgentID)
+	}
+	if strings.TrimSpace(b.RuntimePlacement) == "" {
+		b.RuntimePlacement = sandboxRuntimePlacementEnv(b.AgentID)
+	}
 	if path := sandboxVNCPasswordFileEnv(b.AgentID); path != "" {
 		b.VNCPasswordFile = path
 	} else if strings.TrimSpace(b.VNCPasswordFile) == "" {
@@ -843,6 +881,7 @@ func writeSandboxBootstrap(home string, b SandboxBinding) error {
 Agent ID: %s
 Worker ID: %s
 Provider: %s
+Runtime placement: %s
 VM name: %s
 
 This directory is the host-side bootstrap bundle for the agent sandbox. The Tart
@@ -857,6 +896,8 @@ Console:
 Standard host-side resources:
 
     run_dir: %s
+    host_mount_path: %s
+    guest_mount_path: %s
     vnc_endpoint: %s
     vnc_password_file: %s
     computer_use_endpoint: %s
@@ -864,7 +905,7 @@ Standard host-side resources:
 
 Browser setup is manual in v1: open the VM console, open the browser inside the
 guest, and sign in there. Login state must remain inside this agent VM.
-`, b.AgentID, b.WorkerID, b.Provider, b.VMName, b.ConsoleCommand, b.RunDir, b.VNCEndpoint, b.VNCPasswordFile, b.ComputerUseEndpoint, b.BrowserCommand)
+`, b.AgentID, b.WorkerID, b.Provider, b.RuntimePlacement, b.VMName, b.ConsoleCommand, b.RunDir, b.HostMountPath, b.GuestMountPath, b.VNCEndpoint, b.VNCPasswordFile, b.ComputerUseEndpoint, b.BrowserCommand)
 	if err := os.WriteFile(filepath.Join(root, "README.md"), []byte(readme), 0o600); err != nil {
 		return err
 	}
@@ -872,8 +913,11 @@ guest, and sign in there. Login state must remain inside this agent VM.
 		"agent_id":              b.AgentID,
 		"worker_id":             b.WorkerID,
 		"provider":              b.Provider,
+		"runtime_placement":     b.RuntimePlacement,
 		"vm_name":               b.VMName,
 		"run_dir":               b.RunDir,
+		"host_mount_path":       b.HostMountPath,
+		"guest_mount_path":      b.GuestMountPath,
 		"vnc_endpoint":          b.VNCEndpoint,
 		"vnc_password_file":     b.VNCPasswordFile,
 		"computer_use_endpoint": b.ComputerUseEndpoint,

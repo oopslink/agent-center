@@ -29,11 +29,29 @@ import (
 type AgentSpec struct {
 	// AgentID identifies the agent (becomes the process's --agent-id).
 	AgentID string
+	// Sandbox carries the launcher-visible sandbox placement decision. The
+	// agent-runtime still receives the full profile via reconcile, but the launcher
+	// must know placement because it owns the runtime unit boundary.
+	Sandbox SandboxSpec
 	// Args are extra argv appended after the launcher's base args (e.g. per-agent
 	// overrides); usually empty — the process self-configures from the center.
 	Args []string
 	// Env is a per-agent environment overlay merged over the launcher's base env.
 	Env []string
+}
+
+const (
+	RuntimePlacementHostEndpoint = "host_endpoint"
+	RuntimePlacementVMRuntime    = "vm_runtime"
+)
+
+// SandboxSpec is the launcher-facing subset of an agent's sandbox profile. It keeps
+// the "where does the agent-runtime unit live?" decision outside the session-level
+// Computer Use endpoint wiring.
+type SandboxSpec struct {
+	Enabled          bool
+	Provider         string
+	RuntimePlacement string
 }
 
 // AgentLauncher ensures a desired agent's runtime unit is running and rebuilds it on

@@ -59,6 +59,23 @@ func TestExecStarter_RequiresAgentID(t *testing.T) {
 	}
 }
 
+func TestExecStarter_RefusesVMRuntimePlacement(t *testing.T) {
+	s, err := NewExecStarter(ExecStarterConfig{BinaryPath: "/bin/sh"})
+	if err != nil {
+		t.Fatalf("NewExecStarter: %v", err)
+	}
+	_, err = s.Start(context.Background(), AgentSpec{
+		AgentID: "a",
+		Sandbox: SandboxSpec{
+			Enabled:          true,
+			RuntimePlacement: RuntimePlacementVMRuntime,
+		},
+	})
+	if err == nil {
+		t.Fatal("vm_runtime placement must not fall back to host exec")
+	}
+}
+
 func TestNewExecStarter_DefaultsBinaryToSelf(t *testing.T) {
 	s, err := NewExecStarter(ExecStarterConfig{})
 	if err != nil {

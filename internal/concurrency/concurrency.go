@@ -131,8 +131,11 @@ type SandboxBindingRow struct {
 	AgentID             string    `json:"agent_id,omitempty"`
 	WorkerID            string    `json:"worker_id,omitempty"`
 	Provider            string    `json:"provider,omitempty"`
+	RuntimePlacement    string    `json:"runtime_placement,omitempty"`
 	VMName              string    `json:"vm_name,omitempty"`
 	State               string    `json:"state,omitempty"`
+	HostMountPath       string    `json:"host_mount_path,omitempty"`
+	GuestMountPath      string    `json:"guest_mount_path,omitempty"`
 	ComputerUseEndpoint string    `json:"computer_use_endpoint,omitempty"`
 	VNCEndpoint         string    `json:"vnc_endpoint,omitempty"`
 	VNCPasswordFile     string    `json:"vnc_password_file,omitempty"`

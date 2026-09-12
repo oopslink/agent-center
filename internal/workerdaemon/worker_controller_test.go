@@ -60,17 +60,38 @@ func newTestHandler(t *testing.T) (controllerHandler, *stubLauncher) {
 }
 
 func TestAgentRuntimeSpec_IsPerAgent(t *testing.T) {
-	off := agentRuntimeSpec("off", false)
-	on := agentRuntimeSpec("on", true)
+	t.Setenv("AC_SANDBOX_RUNTIME_PLACEMENT", "")
+	off := agentRuntimeSpec("off", false, false, "")
+	on := agentRuntimeSpec("on", true, false, "")
 	if len(off.Env) != 0 {
 		t.Fatalf("off env = %v, want empty", off.Env)
 	}
 	if len(on.Env) != 1 || on.Env[0] != "AC_EXECUTOR_GIT_WORKTREE=1" {
 		t.Fatalf("on env = %v", on.Env)
 	}
+	sandboxed := agentRuntimeSpec("sandboxed", false, true, "tart_macos_vm")
+	if !sandboxed.Sandbox.Enabled || sandboxed.Sandbox.Provider != "tart_macos_vm" {
+		t.Fatalf("sandbox spec = %+v", sandboxed.Sandbox)
+	}
+	if sandboxed.Sandbox.RuntimePlacement != agentlauncher.RuntimePlacementHostEndpoint {
+		t.Fatalf("runtime placement = %q", sandboxed.Sandbox.RuntimePlacement)
+	}
 	base := withoutEnv([]string{"PATH=/bin", "AC_EXECUTOR_GIT_WORKTREE=1"}, "AC_EXECUTOR_GIT_WORKTREE")
 	if len(base) != 1 || base[0] != "PATH=/bin" {
 		t.Fatalf("filtered base env = %v", base)
+	}
+}
+
+func TestAgentRuntimeSpec_SandboxRuntimePlacementEnv(t *testing.T) {
+	t.Setenv("AC_SANDBOX_RUNTIME_PLACEMENT", agentlauncher.RuntimePlacementVMRuntime)
+	spec := agentRuntimeSpec("agent-1", false, true, "tart_macos_vm")
+	if got := spec.Sandbox.RuntimePlacement; got != agentlauncher.RuntimePlacementVMRuntime {
+		t.Fatalf("runtime placement = %q, want %q", got, agentlauncher.RuntimePlacementVMRuntime)
+	}
+	t.Setenv("AC_SANDBOX_RUNTIME_PLACEMENT_AGENT_1", agentlauncher.RuntimePlacementHostEndpoint)
+	spec = agentRuntimeSpec("agent-1", false, true, "tart_macos_vm")
+	if got := spec.Sandbox.RuntimePlacement; got != agentlauncher.RuntimePlacementHostEndpoint {
+		t.Fatalf("agent-specific runtime placement = %q", got)
 	}
 }
 

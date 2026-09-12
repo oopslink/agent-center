@@ -95,6 +95,8 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 		TaskID              string `json:"task_id"`
 		DesiredLifecycle    string `json:"desired_lifecycle"`
 		ExecutorGitWorktree bool   `json:"executor_git_worktree"`
+		SandboxEnabled      bool   `json:"sandbox_enabled"`
+		SandboxProvider     string `json:"sandbox_provider"`
 		ResetScope          string `json:"reset_scope"`
 	}
 	_ = json.Unmarshal([]byte(cmd.Payload), &idp)
@@ -151,7 +153,7 @@ func (h controllerHandler) Handle(ctx context.Context, cmd ControlCommand) error
 		return nil
 	}
 	if cmd.CommandType == cmdTypeAgentReconcile {
-		if err := h.ctrl.EnsureAgentSpec(agentRuntimeSpec(agentID, idp.ExecutorGitWorktree)); err != nil {
+		if err := h.ctrl.EnsureAgentSpec(agentRuntimeSpec(agentID, idp.ExecutorGitWorktree, idp.SandboxEnabled, idp.SandboxProvider)); err != nil {
 			return err
 		}
 	}
@@ -588,7 +590,7 @@ func reconcileControllerFromResumeState(ctx context.Context, ctrl *workercontrol
 	var desired []agentlauncher.AgentSpec
 	for _, ra := range state.Agents {
 		if strings.EqualFold(strings.TrimSpace(ra.DesiredLifecycle), "running") {
-			desired = append(desired, agentRuntimeSpec(ra.AgentID, ra.ExecutorGitWorktree))
+			desired = append(desired, agentRuntimeSpec(ra.AgentID, ra.ExecutorGitWorktree, ra.SandboxEnabled, ra.SandboxProvider))
 		}
 	}
 	// T860 gap5: adopt-aware boot reconcile — re-adopt agent processes that survived a
@@ -598,12 +600,30 @@ func reconcileControllerFromResumeState(ctx context.Context, ctrl *workercontrol
 	logf(fmt.Sprintf("controller: reconciled %d desired-running agent(s) at boot", len(desired)))
 }
 
-func agentRuntimeSpec(agentID string, gitWorktree bool) agentlauncher.AgentSpec {
+func agentRuntimeSpec(agentID string, gitWorktree, sandboxEnabled bool, sandboxProvider string) agentlauncher.AgentSpec {
 	spec := agentlauncher.AgentSpec{AgentID: agentID}
 	if gitWorktree {
 		spec.Env = []string{"AC_EXECUTOR_GIT_WORKTREE=1"}
 	}
+	if sandboxEnabled {
+		spec.Sandbox = agentlauncher.SandboxSpec{
+			Enabled:          true,
+			Provider:         strings.TrimSpace(sandboxProvider),
+			RuntimePlacement: sandboxRuntimePlacement(agentID),
+		}
+	}
 	return spec
+}
+
+func sandboxRuntimePlacement(agentID string) string {
+	key := "AC_SANDBOX_RUNTIME_PLACEMENT_" + strings.ToUpper(strings.NewReplacer("-", "_", ":", "_").Replace(agentID))
+	if v := strings.TrimSpace(os.Getenv(key)); v != "" {
+		return v
+	}
+	if v := strings.TrimSpace(os.Getenv("AC_SANDBOX_RUNTIME_PLACEMENT")); v != "" {
+		return v
+	}
+	return agentlauncher.RuntimePlacementHostEndpoint
 }
 
 func withoutEnv(env []string, key string) []string {

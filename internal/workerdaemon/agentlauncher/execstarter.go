@@ -80,6 +80,9 @@ func (s *ExecStarter) Start(ctx context.Context, spec AgentSpec) (Process, error
 	if spec.AgentID == "" {
 		return nil, errors.New("agentlauncher: exec start requires agent_id")
 	}
+	if spec.Sandbox.Enabled && spec.Sandbox.RuntimePlacement == RuntimePlacementVMRuntime {
+		return nil, errors.New("agentlauncher: vm_runtime placement requires a sandbox VM starter; refusing host exec")
+	}
 	args := append([]string{}, s.subcommands...)
 	args = append(args, "--agent-id", spec.AgentID)
 	args = append(args, s.baseArgs...)

@@ -63,6 +63,7 @@ func TestTartRestoreFailed(t *testing.T) {
 
 func TestMaterializeSandboxResourcesCreatesStandardRuntimeFiles(t *testing.T) {
 	home := t.TempDir()
+	t.Setenv("AC_SANDBOX_RUNTIME_PLACEMENT", SandboxRuntimePlacementVMRuntime)
 	b, err := materializeSandboxResources(home, SandboxBinding{AgentID: "agent-1"})
 	if err != nil {
 		t.Fatalf("materialize sandbox resources: %v", err)
@@ -72,6 +73,15 @@ func TestMaterializeSandboxResourcesCreatesStandardRuntimeFiles(t *testing.T) {
 	}
 	if b.VNCPasswordFile != filepath.Join(b.RunDir, "vnc_password") {
 		t.Fatalf("vnc password file = %q", b.VNCPasswordFile)
+	}
+	if b.RuntimePlacement != SandboxRuntimePlacementVMRuntime {
+		t.Fatalf("runtime placement = %q", b.RuntimePlacement)
+	}
+	if b.HostMountPath != home {
+		t.Fatalf("host mount path = %q, want %q", b.HostMountPath, home)
+	}
+	if !strings.HasPrefix(b.GuestMountPath, "/Volumes/My Shared Files/agent-home-") {
+		t.Fatalf("guest mount path = %q", b.GuestMountPath)
 	}
 	raw, err := os.ReadFile(b.VNCPasswordFile)
 	if err != nil {
