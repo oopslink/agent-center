@@ -490,8 +490,6 @@
         "waitingForRuntimeState": "Waiting for runtime state...",
         "openConsoleTitle": "Open VM desktop",
         "openConsoleAria": "Open sandbox VM desktop",
-        "resetTitle": "Reset sandbox environment",
-        "resetAria": "Reset sandbox desktop environment",
         "actionAccepted": "{{action}} accepted · {{status}}",
         "actionStatus": "{{action}} · {{status}}",
         "desktopTitle": "{{name}} desktop",

@@ -221,7 +221,7 @@ describe('AgentDetail page', () => {
     expect(posted).toMatchObject({ kind: 'dm', members: ['agent:A1'] });
   });
 
-  it('sandbox-enabled agent shows VM controls and opens desktop without a browser setup action', async () => {
+  it('sandbox-enabled agent shows VM status and opens desktop without lifecycle actions', async () => {
     stubAgent({ sandbox_enabled: true, sandbox_provider: 'tart_macos_vm' });
     let hit = '';
     server.use(
@@ -289,7 +289,7 @@ describe('AgentDetail page', () => {
     expect(screen.queryByTestId('agent-sandbox-start')).not.toBeInTheDocument();
     expect(screen.queryByTestId('agent-sandbox-suspend')).not.toBeInTheDocument();
     expect(screen.queryByTestId('agent-sandbox-delete')).not.toBeInTheDocument();
-    expect(screen.getByTestId('agent-sandbox-reset')).toBeEnabled();
+    expect(screen.queryByTestId('agent-sandbox-reset')).not.toBeInTheDocument();
     expect(screen.queryByTestId('agent-sandbox-open-browser')).not.toBeInTheDocument();
     const btn = screen.getByTestId('agent-sandbox-open-console');
     expect(btn).toHaveAttribute('title', 'Open VM desktop');
@@ -424,8 +424,8 @@ describe('AgentDetail page', () => {
     expect(screen.queryByTestId('agent-sandbox-start')).not.toBeInTheDocument();
     expect(screen.queryByTestId('agent-sandbox-suspend')).not.toBeInTheDocument();
     expect(screen.queryByTestId('agent-sandbox-delete')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('agent-sandbox-reset')).not.toBeInTheDocument();
     expect(screen.getByTestId('agent-sandbox-open-console')).toBeEnabled();
-    expect(screen.getByTestId('agent-sandbox-reset')).toBeEnabled();
   });
 
   it('shows sandbox progress while waiting for runtime binding', async () => {
@@ -467,14 +467,23 @@ describe('AgentDetail page', () => {
           command_status: 'running',
         }),
       ),
+      http.get('/api/agents/:id/sandbox/desktop/session', () =>
+        HttpResponse.json({
+          ok: false,
+          status: 'not_configured',
+          agent_id: 'A1',
+          websocket_url: '',
+          message: 'VNC endpoint is not configured for this sandbox',
+        }),
+      ),
     );
 
     wrap('/agents/A1');
     const runtimeStatus = await screen.findByTestId('agent-sandbox-runtime-status');
     expect(runtimeStatus).toHaveTextContent('State: not provisioned');
-    fireEvent.click(screen.getByTestId('agent-sandbox-reset'));
+    fireEvent.click(screen.getByTestId('agent-sandbox-open-console'));
     await waitFor(() => expect(runtimeStatus).toHaveTextContent('State: waiting for runtime state'));
-    expect(runtimeStatus).toHaveTextContent('reset');
+    expect(runtimeStatus).toHaveTextContent('open_console');
     expect(runtimeStatus).toHaveTextContent('running');
   });
 

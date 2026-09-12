@@ -490,8 +490,6 @@
         "waitingForRuntimeState": "正在等待 runtime 状态...",
         "openConsoleTitle": "打开 VM 桌面",
         "openConsoleAria": "打开沙箱 VM 桌面",
-        "resetTitle": "重置沙箱环境",
-        "resetAria": "重置沙箱桌面环境",
         "actionAccepted": "{{action}} 已接受 · {{status}}",
         "actionStatus": "{{action}} · {{status}}",
         "desktopTitle": "{{name}} 桌面",

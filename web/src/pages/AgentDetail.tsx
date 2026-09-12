@@ -212,7 +212,6 @@ export default function AgentDetail(): React.ReactElement {
         ? t('agents.detail.sandbox.transitioning')
         : null;
   const sandboxCanOpen = sandboxEnabled && !sandboxPending && !sandboxDeleted;
-  const sandboxCanReset = sandboxEnabled && !sandboxPending && !sandboxDeleted;
   const runSandboxAction = (action: SandboxAction, openDesktop = false) => {
     sandboxAction.mutate(action, {
       onSuccess: (result) => {
@@ -416,18 +415,6 @@ export default function AgentDetail(): React.ReactElement {
             onAction={(action) => runSandboxAction(action, true)}
           >
             <MonitorIcon />
-          </SandboxActionButton>
-          <SandboxActionButton
-            action="reset"
-            pending={sandboxPending}
-            disabled={!sandboxCanReset}
-            danger
-            title={t('agents.detail.sandbox.resetTitle')}
-            ariaLabel={t('agents.detail.sandbox.resetAria')}
-            testId="agent-sandbox-reset"
-            onAction={(action) => runSandboxAction(action)}
-          >
-            <ResetIcon />
           </SandboxActionButton>
           {(sandboxCommand.data || sandboxAction.data) && (
             <span className="text-xs text-text-muted" data-testid="agent-sandbox-action-status">
