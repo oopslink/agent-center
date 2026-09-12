@@ -73,7 +73,7 @@ func TestAgentRuntimeSpec_IsPerAgent(t *testing.T) {
 	if !sandboxed.Sandbox.Enabled || sandboxed.Sandbox.Provider != "tart_macos_vm" {
 		t.Fatalf("sandbox spec = %+v", sandboxed.Sandbox)
 	}
-	if sandboxed.Sandbox.RuntimePlacement != agentlauncher.RuntimePlacementHostEndpoint {
+	if sandboxed.Sandbox.RuntimePlacement != agentlauncher.RuntimePlacementVMRuntime {
 		t.Fatalf("runtime placement = %q", sandboxed.Sandbox.RuntimePlacement)
 	}
 	base := withoutEnv([]string{"PATH=/bin", "AC_EXECUTOR_GIT_WORKTREE=1"}, "AC_EXECUTOR_GIT_WORKTREE")

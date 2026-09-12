@@ -44,6 +44,10 @@ type AgentRuntimeOptions struct {
 	// SockDir is the SHORT per-worker runtime dir the control socket binds in (must
 	// match the worker controller's SockDir). Required.
 	SockDir string
+	// AgentHomeBase overrides the worker-state root used for agents/<id>. Sandbox
+	// launchers set this to the VM-mounted host state root so durable data remains on
+	// the host while all runtime code runs in the guest.
+	AgentHomeBase string
 	// TickInterval drives Tick + RunWatchdog (zero → 1s).
 	TickInterval time.Duration
 	// Worker bootstrap (mirrors RunOptions): the process re-uses the worker's config,
@@ -252,6 +256,9 @@ func buildAgentRuntime(opts AgentRuntimeOptions, cfg config.Config, client *Admi
 		disableUsage = true
 	}
 	homeBase := agentHomeBase(cfg, opts.Run.ConfigPath, opts.Run.WorkerID)
+	if override := strings.TrimSpace(opts.AgentHomeBase); override != "" {
+		homeBase = override
+	}
 	rc := agentruntime.LocalRuntimeConfig{
 		AgentID:            opts.AgentID,
 		Reporter:           client,

@@ -635,7 +635,7 @@ func sandboxRuntimePlacement(agentID string) string {
 	if v := strings.TrimSpace(os.Getenv("AC_SANDBOX_RUNTIME_PLACEMENT")); v != "" {
 		return v
 	}
-	return agentlauncher.RuntimePlacementHostEndpoint
+	return agentlauncher.RuntimePlacementVMRuntime
 }
 
 func withoutEnv(env []string, key string) []string {

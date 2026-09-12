@@ -116,7 +116,7 @@ func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, err
 		return nil, fmt.Errorf("agentlauncher: remove stale host socket: %w", err)
 	}
 	guestBin := tartGuestBinaryPath(s.binaryPath)
-	guestArgs := tartGuestRuntimeArgs(s.baseArgs, guestSockDir, configPath)
+	guestArgs := tartGuestRuntimeArgs(s.baseArgs, guestSockDir, configPath, s.homeBase)
 	guestArgs = append([]string{"worker", "agent-runtime", "--agent-id", spec.AgentID}, guestArgs...)
 	guestArgs = append(guestArgs, spec.Args...)
 	guestEnv := append(defaultGuestEnv(), spec.Env...)
@@ -150,7 +150,13 @@ func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, err
 
 func (s *TartVMStarter) ensureVMRunning(ctx context.Context, vmName, agentID, agentHome, binaryPath, configPath string) error {
 	if state, ok := tartGetState(ctx, vmName); ok && state == "running" {
-		return nil
+		if s.vmHasRequiredMounts(ctx, vmName, binaryPath, configPath) {
+			return nil
+		}
+		s.log("agentlauncher: tart vm %s is running without required runtime mounts; restarting", vmName)
+		if out, err := exec.CommandContext(ctx, "tart", "stop", vmName).CombinedOutput(); err != nil {
+			return fmt.Errorf("agentlauncher: stop tart vm %s before remount: %w: %s", vmName, err, strings.TrimSpace(string(out)))
+		}
 	}
 	if _, ok := tartGetState(ctx, vmName); !ok {
 		base := strings.TrimSpace(os.Getenv("AC_TART_BASE_IMAGE"))
@@ -164,6 +170,7 @@ func (s *TartVMStarter) ensureVMRunning(ctx context.Context, vmName, agentID, ag
 	args := []string{
 		"run", "--no-graphics",
 		"--dir", tartDirShareArg("agent-home-"+shortHash(agentID), agentHome),
+		"--dir", tartDirShareArg("agent-center-state", s.homeBase),
 		"--dir", tartDirShareArg("agent-center-bin", filepath.Dir(binaryPath)),
 	}
 	if strings.TrimSpace(configPath) != "" {
@@ -212,6 +219,20 @@ func (s *TartVMStarter) ensureVMRunning(ctx context.Context, vmName, agentID, ag
 			return ctx.Err()
 		}
 	}
+}
+
+func (s *TartVMStarter) vmHasRequiredMounts(ctx context.Context, vmName, binaryPath, configPath string) bool {
+	guestBin := tartGuestBinaryPath(binaryPath)
+	tests := []string{"test", "-x", guestBin}
+	if strings.TrimSpace(configPath) != "" {
+		tests = []string{"sh", "-lc", "test -x " + shellQuote(guestBin) + " && test -f " + shellQuote(tartGuestConfigPath(configPath)) + " && test -d " + shellQuote(tartGuestHomeBasePath())}
+	}
+	out, err := exec.CommandContext(ctx, "tart", append([]string{"exec", vmName}, tests...)...).CombinedOutput()
+	if err != nil {
+		s.log("agentlauncher: tart vm %s required mount check failed: %v: %s", vmName, err, strings.TrimSpace(string(out)))
+		return false
+	}
+	return true
 }
 
 func (s *TartVMStarter) startGuestRuntime(ctx context.Context, ip, guestBin string, args, env []string) error {
@@ -366,7 +387,7 @@ func waitForControlHealth(ctx context.Context, hostSock, agentID string) error {
 	return errors.New("agentlauncher: vm_runtime control health timeout")
 }
 
-func tartGuestRuntimeArgs(base []string, guestSockDir, configPath string) []string {
+func tartGuestRuntimeArgs(base []string, guestSockDir, configPath, homeBase string) []string {
 	out := append([]string{}, base...)
 	for i := 0; i < len(out); i++ {
 		if out[i] == "--sock-dir" && i+1 < len(out) {
@@ -377,9 +398,32 @@ func tartGuestRuntimeArgs(base []string, guestSockDir, configPath string) []stri
 		if out[i] == "--config" && i+1 < len(out) && strings.TrimSpace(configPath) != "" {
 			out[i+1] = tartGuestConfigPath(configPath)
 			i++
+			continue
+		}
+		if out[i] == "--admin-target" && i+1 < len(out) {
+			out[i+1] = tartGuestAdminTarget(out[i+1])
+			i++
 		}
 	}
+	if strings.TrimSpace(homeBase) != "" {
+		out = append(out, "--agent-home-base", tartGuestHomeBasePath())
+	}
 	return out
+}
+
+func tartGuestAdminTarget(target string) string {
+	override := strings.TrimSpace(os.Getenv("AC_SANDBOX_HOST_ADMIN_TARGET"))
+	if override != "" {
+		return override
+	}
+	t := strings.TrimSpace(target)
+	for _, prefix := range []string{"http://127.0.0.1:", "https://127.0.0.1:", "http://localhost:", "https://localhost:"} {
+		if strings.HasPrefix(t, prefix) {
+			scheme := strings.SplitN(prefix, "://", 2)[0]
+			return scheme + "://192.168.64.1:" + strings.TrimPrefix(t, prefix)
+		}
+	}
+	return t
 }
 
 func tartConfigPath(args []string) string {
@@ -413,6 +457,10 @@ func tartGuestConfigPath(hostConfig string) string {
 		return ""
 	}
 	return filepath.Join("/Volumes/My Shared Files", "agent-center-config", filepath.Base(hostConfig))
+}
+
+func tartGuestHomeBasePath() string {
+	return filepath.Join("/Volumes/My Shared Files", "agent-center-state")
 }
 
 func tartDirShareArg(name, path string) string {

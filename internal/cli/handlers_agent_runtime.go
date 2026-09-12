@@ -35,6 +35,7 @@ func AgentRuntimeCommand() *Command {
 			workerID := fs.String("worker-id", "", "worker identity (required)")
 			agentID := fs.String("agent-id", "", "the agent this process serves (required)")
 			sockDir := fs.String("sock-dir", "", "short per-worker runtime dir the control socket binds in (required)")
+			agentHomeBase := fs.String("agent-home-base", "", "per-agent state root override; used by sandbox launchers")
 			tickInterval := fs.Duration("tick-interval", time.Second, "Tick + watchdog interval")
 			adminToken := fs.String("admin-token", "", "admin bearer token; falls back to AGENT_CENTER_ADMIN_TOKEN env")
 			adminTarget := fs.String("admin-target", "", "admin endpoint (default: cfg.server.admin_socket_path)")
@@ -64,9 +65,10 @@ func AgentRuntimeCommand() *Command {
 					wkVersion = acVersion + "+" + bc
 				}
 				err := workerdaemon.RunAgentRuntime(ctx, workerdaemon.AgentRuntimeOptions{
-					AgentID:      *agentID,
-					SockDir:      *sockDir,
-					TickInterval: *tickInterval,
+					AgentID:       *agentID,
+					SockDir:       *sockDir,
+					AgentHomeBase: *agentHomeBase,
+					TickInterval:  *tickInterval,
 					Run: workerdaemon.RunOptions{
 						ConfigPath:         cfgPathV,
 						WorkerID:           workerIDv,
