@@ -1001,27 +1001,33 @@ function DecisionDashboard({ dashboard, onFocusNode, t }: { dashboard: DecisionD
     { key: 'agents', label: t('insight.collaboration.decision.keyAgents'), value: `${dashboard.keyAgents.length}`, detail: dashboard.keyAgents[0]?.label ?? t('insight.collaboration.decision.none'), className: 'border-border bg-bg-surface' },
     { key: 'work', label: t('insight.collaboration.decision.impactedWork'), value: `${dashboard.impactedWork.length}`, detail: dashboard.impactedWork[0]?.label ?? t('insight.collaboration.decision.none'), className: 'border-border bg-bg-surface' },
   ];
-  return <section className="mb-3 shrink-0 rounded-lg bg-bg-elevated/70 p-3 shadow-sm ring-1 ring-white/5" data-testid="collaboration-decision-dashboard">
-    <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase text-text-muted">{t('insight.collaboration.decision.title')}</p>
-        <h2 className="mt-1 text-base font-semibold text-text-primary">{dashboard.scope}</h2>
-        <p className="mt-1 max-w-3xl text-sm leading-5 text-text-secondary">{dashboard.answer}</p>
+  return <section className="mb-2 shrink-0 rounded-lg bg-bg-elevated/70 p-2 shadow-sm ring-1 ring-white/5" data-testid="collaboration-decision-dashboard">
+    <div className="flex min-w-0 flex-wrap items-center gap-2">
+      <div className="min-w-[16rem] flex-1">
+        <p className="text-[10px] font-semibold uppercase leading-4 text-text-muted">{t('insight.collaboration.decision.title')}</p>
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1">
+          <h2 className="truncate text-sm font-semibold text-text-primary">{dashboard.scope}</h2>
+          <p className="min-w-0 flex-1 truncate text-xs text-text-secondary">{dashboard.answer}</p>
+        </div>
       </div>
-      <p className="rounded-md bg-bg-primary px-2 py-1 text-xs text-text-muted shadow-sm ring-1 ring-white/5">{dashboard.evidenceCoverage}</p>
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+        {stats.map((item) => <span key={item.key} className={`inline-flex h-8 min-w-0 max-w-[11rem] items-center gap-1.5 rounded-md border px-2 text-xs ${item.className}`} title={`${item.label}: ${item.value} · ${item.detail}`}>
+          <span className="truncate text-text-muted">{item.label}</span>
+          <strong className="text-sm leading-none text-text-primary">{item.value}</strong>
+        </span>)}
+        <span className="inline-flex h-8 max-w-[14rem] items-center rounded-md bg-bg-primary px-2 text-xs text-text-muted shadow-sm ring-1 ring-white/5" title={dashboard.evidenceCoverage}>{dashboard.evidenceCoverage}</span>
+      </div>
     </div>
-    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-      {stats.map((item) => <div key={item.key} className={`min-w-0 rounded-md border px-3 py-2 ${item.className}`}>
-        <span className="block truncate text-xs font-medium text-text-muted">{item.label}</span>
-        <strong className="mt-1 block text-xl leading-none text-text-primary">{item.value}</strong>
-        <span className="mt-1 block truncate text-xs text-text-muted">{item.detail}</span>
-      </div>)}
-    </div>
-    <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-3">
-      <DecisionRankList title={t('insight.collaboration.decision.agentRank')} items={dashboard.keyAgents} onFocusNode={onFocusNode} empty={t('insight.collaboration.decision.noAgents')} t={t} />
-      <DecisionRankList title={t('insight.collaboration.decision.workRank')} items={dashboard.impactedWork} onFocusNode={onFocusNode} empty={t('insight.collaboration.decision.noWork')} t={t} />
-      <DecisionActions actions={dashboard.actions} onFocusNode={onFocusNode} t={t} />
-    </div>
+    <details className="group mt-1">
+      <summary className="inline-flex cursor-pointer list-none items-center rounded-md px-1.5 py-1 text-xs text-text-muted hover:bg-bg-subtle">
+        {t('insight.collaboration.decision.details')}
+      </summary>
+      <div className="mt-2 grid min-w-0 gap-2 lg:grid-cols-3">
+        <DecisionRankList title={t('insight.collaboration.decision.agentRank')} items={dashboard.keyAgents} onFocusNode={onFocusNode} empty={t('insight.collaboration.decision.noAgents')} t={t} />
+        <DecisionRankList title={t('insight.collaboration.decision.workRank')} items={dashboard.impactedWork} onFocusNode={onFocusNode} empty={t('insight.collaboration.decision.noWork')} t={t} />
+        <DecisionActions actions={dashboard.actions} onFocusNode={onFocusNode} t={t} />
+      </div>
+    </details>
   </section>;
 }
 
