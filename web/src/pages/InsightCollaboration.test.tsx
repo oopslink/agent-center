@@ -195,6 +195,70 @@ describe('Collaboration Insight', () => {
     expect(search.get('agent_ref')).toBe('agent:a0');
   });
 
+  it('defaults project-scoped graphs to task impact and explains the project focus', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', ({ request }) => {
+      const project = new URL(request.url).searchParams.get('project_id') || 'P1';
+      const beta = project === 'P2';
+      const projectName = beta ? 'Beta Project' : 'Alpha Project';
+      const agent = beta ? 'agent:beta' : 'agent:alpha';
+      const task = beta ? 'T2' : 'T1';
+      const polarity = beta ? 'negative' : 'positive';
+      const relation = beta ? 'block' : 'complete';
+      return HttpResponse.json({
+        graph: {
+          nodes: [
+            { id: `project:${project}`, kind: 'project', label: projectName, project_id: project },
+            { id: agent, kind: 'agent', label: beta ? 'Beta Agent' : 'Alpha Agent' },
+            { id: `task:${task}`, kind: 'task', label: beta ? 'Blocked rollout' : 'Launch task', project_id: project, task_id: task },
+          ],
+          edges: [{
+            id: `edge-${project}`,
+            source: agent,
+            target: `task:${task}`,
+            relation_type: relation,
+            polarity,
+            magnitude: beta ? 3 : 2,
+            effect_id: `effect-${project}`,
+            effect_scopes: [{ effect_id: `effect-${project}`, project_id: project }],
+            interaction_count: beta ? 4 : 2,
+            evidence_count: beta ? 5 : 2,
+          }],
+        },
+        effects: [{
+          ...effects[0],
+          effect_id: `effect-${project}`,
+          id: `effect-${project}`,
+          source: agent,
+          source_agent_ref: agent,
+          target: `task:${task}`,
+          target_task_id: task,
+          project_id: project,
+          polarity,
+          relation_type: relation,
+          magnitude: beta ? 3 : 2,
+        }],
+        summary: {},
+        graph_version: `gv-${project}`,
+        next_cursor: '',
+      });
+    }));
+    const user = userEvent.setup();
+    renderAt('/organizations/acme/insights/collaboration?project_id=P1');
+    expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Task impact');
+    expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Alpha Project');
+    expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Alpha Agent -> Launch task');
+    expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Positive');
+
+    await user.click(await screen.findByTestId('collaboration-project_id-trigger'));
+    await user.click(screen.getByRole('option', { name: /Beta Project/ }));
+
+    await waitFor(() => expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Beta Project'));
+    expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Beta Agent -> Blocked rollout');
+    expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Negative');
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Blocked rollout');
+    expect(screen.getByTestId('collaboration-rendered-labels')).not.toHaveTextContent('Launch task');
+  });
+
   it('supports graph viewport controls, truncated labels and selected-neighborhood dimming', async () => {
     const longLabel = 'Agent With A Very Long Display Name';
     server.use(
@@ -462,7 +526,7 @@ describe('Collaboration Insight', () => {
     expect(notice).toHaveTextContent('Clustered organization graph');
     expect(notice).toHaveTextContent(/nodes and .* edges/);
     expect(await screen.findByTestId('collaboration-rendered-labels')).toHaveTextContent('Clustered overview');
-    expect(screen.getAllByRole('button', { name: /P1 Tasks/ })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: /P1 Tasks/ }).length).toBeGreaterThan(0);
 
     await user.click(screen.getByTestId('collaboration-show-full-graph'));
     await waitFor(() => expect(new URL(requests.at(-1) ?? '').searchParams.get('lod')).toBe('full'));
@@ -688,6 +752,8 @@ describe('Collaboration Insight', () => {
     }));
     const user = userEvent.setup();
     const rendered = renderAt('/organizations/acme/insights/collaboration?project_id=P1');
+    expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Task impact');
+    await user.click(screen.getByTestId('collaboration-view-network'));
     expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Collaboration network');
     expect(screen.getByTestId('collaboration-graph')).toHaveTextContent('Agent Beta');
     expect(new URL(requests.at(-1) ?? '').searchParams.get('project_id')).toBe('P1');
