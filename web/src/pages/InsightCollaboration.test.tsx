@@ -295,6 +295,55 @@ describe('Collaboration Insight', () => {
     expect(screen.getByTestId('collaboration-rendered-labels')).not.toHaveTextContent('Launch task');
   });
 
+  it('projects the same collaboration data into distinct network, impact, and lineage graphs', async () => {
+    const sourceEffect = { ...effects[3], effect_id: 'ce-source', id: 'ce-source', source: 'agent:b0', source_agent_ref: 'agent:b0', target: 'task:T1', target_task_id: 'T1', relation_type: 'complete', polarity: 'positive', magnitude: 3 as 1 | 2 | 3 };
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
+      graph: {
+        nodes: [
+          { id: 'project:P1', kind: 'project', label: 'Alpha Project', project_id: 'P1' },
+          { id: 'plan:PL1', kind: 'plan', label: 'Delivery Plan', project_id: 'P1', plan_id: 'PL1' },
+          { id: 'stage:S1', kind: 'stage', label: 'Build', project_id: 'P1', plan_id: 'PL1', stage_id: 'S1' },
+          { id: 'task:T1', kind: 'task', label: 'Task One', project_id: 'P1', plan_id: 'PL1', stage_id: 'S1', task_id: 'T1' },
+          { id: 'agent:a0', kind: 'agent', label: 'Assignee Agent' },
+          { id: 'agent:b0', kind: 'agent', label: 'Helper Agent' },
+        ],
+        edges: [
+          { id: 'project-plan', source: 'project:P1', target: 'plan:PL1', relation_type: 'project_plan', polarity: 'neutral', magnitude: 1, interaction_count: 0, evidence_count: 0 },
+          { id: 'plan-stage', source: 'plan:PL1', target: 'stage:S1', relation_type: 'plan_stage', polarity: 'neutral', magnitude: 1, interaction_count: 0, evidence_count: 0 },
+          { id: 'stage-task', source: 'stage:S1', target: 'task:T1', relation_type: 'stage_task', polarity: 'neutral', magnitude: 1, interaction_count: 0, evidence_count: 0 },
+          { id: 'agent-task', source: 'agent:a0', target: 'task:T1', relation_type: 'agent_task', polarity: 'neutral', magnitude: 1, interaction_count: 0, evidence_count: 0 },
+          { ...sourceEffect, id: 'effect-edge', interaction_count: 1, evidence_count: 1, effect_scopes: [{ effect_id: sourceEffect.effect_id, project_id: 'P1' }] },
+        ],
+        lod: 'full',
+        clusters: [],
+        truncated: false,
+      },
+      effects: [sourceEffect],
+      summary: { positive_count: 1, negative_count: 0, neutral_count: 0, mixed_count: 0, affected_task_count: 1 },
+      graph_version: 'gv-distinct-tabs',
+      next_cursor: '',
+    })));
+
+    const user = userEvent.setup();
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1', 'network'));
+
+    expect(await screen.findByTestId('collaboration-rendered-labels')).toHaveTextContent('Assignee Agent');
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Helper Agent');
+    expect(screen.getByTestId('collaboration-rendered-labels')).not.toHaveTextContent('Task One');
+
+    await user.click(screen.getByTestId('collaboration-view-impact'));
+    await waitFor(() => expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Task One'));
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Alpha Project');
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Complete Positive');
+    expect(screen.getByTestId('collaboration-rendered-labels')).not.toHaveTextContent('Build');
+
+    await user.click(screen.getByTestId('collaboration-view-lineage'));
+    await waitFor(() => expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Build'));
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Delivery Plan');
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Stage to Task');
+    expect(screen.getByTestId('collaboration-rendered-labels')).not.toHaveTextContent('Helper Agent');
+  });
+
   it('supports graph viewport controls, truncated labels and selected-neighborhood dimming', async () => {
     const longLabel = 'Agent With A Very Long Display Name';
     server.use(

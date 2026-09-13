@@ -32,7 +32,7 @@
       "readout": { "title": "如何看这张图", "network": "看谁正在影响谁，用来定位活跃协作社区和 Agent 之间的交接关系。", "impact": "看 Agent 和 Plan 如何影响任务，用来发现正向或反向压力最强的工作。", "lineage": "看 Plan、Stage、Task 的结构连接，用来追踪协作作用落在交付链路的哪个位置。" },
       "legend": { "title": "图例", "relationship": "指派关系", "effect": "状态变化作用", "mixed": "正负混合", "communities": "{{count}} 个社区", "visibleTotals": "{{nodes}} 个节点 · {{edges}} 条关系" },
       "evidence": { "title": "作用证据", "close": "关闭证据", "loading": "正在加载证据", "failed": "证据加载失败", "count": "证据 {{count}}" },
-      "values": { "assign": "指派", "reassign": "重新指派", "complete": "完成", "block": "阻塞", "unblock": "解除阻塞", "dependency_release": "依赖释放", "review_accept": "评审通过", "review_reject": "评审拒绝", "contains_stage": "包含 Stage", "contains_task": "包含 Task", "contains_plan": "包含 Plan", "agent": "Agent", "project": "项目", "plan": "Plan", "stage": "Stage", "task": "Task", "cluster": "聚类", "positive": "正向", "negative": "反向", "neutral": "中性", "mixed": "混合" }
+      "values": { "assign": "指派", "reassign": "重新指派", "complete": "完成", "block": "阻塞", "unblock": "解除阻塞", "dependency_release": "依赖释放", "review_accept": "评审通过", "review_reject": "评审拒绝", "project_plan": "项目到 Plan", "plan_stage": "Plan 到 Stage", "plan_task": "Plan 到 Task", "project_task": "项目到 Task", "stage_task": "Stage 到 Task", "task_dependency": "Task 依赖", "agent_task": "Agent 指派", "agent_plan": "Agent 负责 Plan", "contains_stage": "包含 Stage", "contains_task": "包含 Task", "contains_plan": "包含 Plan", "agent": "Agent", "project": "项目", "plan": "Plan", "stage": "Stage", "task": "Task", "cluster": "聚类", "positive": "正向", "negative": "反向", "neutral": "中性", "mixed": "混合" }
     },
     "executions": {
       "title": "任务执行记录",
