@@ -342,6 +342,9 @@ func (m *LocalSandboxManager) Health(ctx context.Context, req SandboxEnsureReque
 	if err != nil || !ok {
 		return b, err
 	}
+	if sandboxRuntimeInsideVM() {
+		return overlaySandboxBindingForVMRuntime(req, b, m.clock().UTC()), nil
+	}
 	b = m.refreshTartBinding(ctx, b)
 	if next, err := materializeSandboxResources(req.HomeDir, b); err == nil {
 		b = m.refreshStandardEndpoints(ctx, next)

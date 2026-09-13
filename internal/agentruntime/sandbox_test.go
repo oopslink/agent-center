@@ -186,3 +186,50 @@ func TestEnsureAgentSandboxInsideVMOverlaysWithoutHostResourceMaterialization(t 
 		t.Fatalf("inside VM overlay should not rewrite shared host binding, got %q", persisted.State)
 	}
 }
+
+func TestHealthInsideVMDoesNotRequireHostTart(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "sandbox"), 0o700); err != nil {
+		t.Fatalf("mkdir sandbox: %v", err)
+	}
+	if err := writeSandboxBinding(filepath.Join(home, "sandbox", "binding.json"), SandboxBinding{
+		SandboxID:        "sbx-existing",
+		AgentID:          "agent-1",
+		WorkerID:         "worker-1",
+		Provider:         SandboxProviderTartMacOSVM,
+		RuntimePlacement: SandboxRuntimePlacementHostEndpoint,
+		VMName:           "ac-agent-existing",
+		State:            SandboxStateDegraded,
+		LastError:        "tart CLI not found on worker host",
+	}); err != nil {
+		t.Fatalf("write binding: %v", err)
+	}
+	cua := filepath.Join(home, "computeruse.sock")
+	if err := os.WriteFile(cua, []byte("sock"), 0o600); err != nil {
+		t.Fatalf("write cua placeholder: %v", err)
+	}
+	t.Setenv("AC_SANDBOX_RUNTIME_INSIDE_VM", "1")
+	t.Setenv("AC_SANDBOX_COMPUTER_USE_ENDPOINT", cua)
+	m := NewLocalSandboxManager(func() time.Time {
+		return time.Date(2026, 9, 13, 13, 0, 0, 0, time.UTC)
+	})
+	b, err := m.Health(context.Background(), SandboxEnsureRequest{
+		AgentID:  "agent-1",
+		WorkerID: "worker-2",
+		HomeDir:  home,
+		Config:   SandboxConfig{Enabled: true, Provider: SandboxProviderTartMacOSVM},
+	})
+	if err != nil {
+		t.Fatalf("Health: %v", err)
+	}
+	if b.State != SandboxStateRunning || b.LastError != "" {
+		t.Fatalf("inside VM health state/error = %q/%q", b.State, b.LastError)
+	}
+	persisted, ok, err := readSandboxBinding(filepath.Join(home, "sandbox", "binding.json"))
+	if err != nil || !ok {
+		t.Fatalf("read persisted binding: ok=%v err=%v", ok, err)
+	}
+	if persisted.State != SandboxStateDegraded {
+		t.Fatalf("inside VM health should not rewrite shared host binding, got %q", persisted.State)
+	}
+}
