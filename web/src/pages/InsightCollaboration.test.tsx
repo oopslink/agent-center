@@ -344,6 +344,64 @@ describe('Collaboration Insight', () => {
     expect(screen.getByTestId('collaboration-rendered-labels')).not.toHaveTextContent('Helper Agent');
   });
 
+  it('keeps task impact readable when the API omits concrete effect graph nodes', async () => {
+    const orphanEffect = { ...effects[3], effect_id: 'ce-orphan', id: 'ce-orphan', source: 'agent:orphan', source_agent_ref: 'agent:orphan', target: 'task:T-missing', target_task_id: 'T-missing', relation_type: 'complete', polarity: 'positive', evidence_event_ids: ['evt-orphan'] };
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
+      graph: {
+        nodes: [{ id: 'project:P1', kind: 'project', label: 'Alpha Project', project_id: 'P1' }],
+        edges: [],
+        lod: 'full',
+        clusters: [],
+        truncated: false,
+      },
+      effects: [orphanEffect],
+      summary: { positive_count: 1, negative_count: 0, neutral_count: 0, mixed_count: 0, affected_task_count: 1 },
+      graph_version: 'gv-orphan-impact',
+      next_cursor: '',
+    })));
+
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1', 'impact'));
+
+    expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Task impact');
+    expect(screen.queryByTestId('collaboration-unsupported')).not.toBeInTheDocument();
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('agent:orphan');
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('T-missing');
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Complete Positive');
+  });
+
+  it('shows task impact structure instead of unsupported when no effect edge is visible yet', async () => {
+    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
+      graph: {
+        nodes: [
+          { id: 'project:P1', kind: 'project', label: 'Alpha Project', project_id: 'P1' },
+          { id: 'plan:PL1', kind: 'plan', label: 'Delivery Plan', project_id: 'P1', plan_id: 'PL1' },
+          { id: 'task:T1', kind: 'task', label: 'Task One', project_id: 'P1', plan_id: 'PL1', task_id: 'T1' },
+          { id: 'agent:a0', kind: 'agent', label: 'Assignee Agent' },
+        ],
+        edges: [
+          { id: 'project-plan', source: 'project:P1', target: 'plan:PL1', relation_type: 'project_plan', polarity: 'neutral', magnitude: 1, interaction_count: 0, evidence_count: 0 },
+          { id: 'plan-task', source: 'plan:PL1', target: 'task:T1', relation_type: 'plan_task', polarity: 'neutral', magnitude: 1, interaction_count: 0, evidence_count: 0 },
+          { id: 'agent-task', source: 'agent:a0', target: 'task:T1', relation_type: 'agent_task', polarity: 'neutral', magnitude: 1, interaction_count: 0, evidence_count: 0 },
+        ],
+        lod: 'full',
+        clusters: [],
+        truncated: false,
+      },
+      effects: [],
+      summary: { positive_count: 0, negative_count: 0, neutral_count: 0, mixed_count: 0, affected_task_count: 0 },
+      graph_version: 'gv-structure-impact',
+      next_cursor: '',
+    })));
+
+    renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1', 'impact'));
+
+    expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Task impact');
+    expect(screen.queryByTestId('collaboration-unsupported')).not.toBeInTheDocument();
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Delivery Plan');
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Task One');
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Agent assignment');
+  });
+
   it('supports graph viewport controls, truncated labels and selected-neighborhood dimming', async () => {
     const longLabel = 'Agent With A Very Long Display Name';
     server.use(

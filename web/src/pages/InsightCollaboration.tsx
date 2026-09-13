@@ -460,6 +460,15 @@ function agentNetworkGraph(graph: CollaborationGraphView, effects: Collaboration
 
 function taskImpactGraph(graph: CollaborationGraphView, effects: CollaborationEffect[]): DimensionGraphView {
   const nodesByID = new Map(graph.nodes.filter((node) => ['agent', 'task', 'plan', 'project'].includes(semanticNodeKind(node))).map((node) => [node.id, node]));
+  for (const effect of effects) {
+    if (effect.source_agent_ref && !nodesByID.has(effect.source_agent_ref)) {
+      nodesByID.set(effect.source_agent_ref, { id: effect.source_agent_ref, kind: 'agent', label: effect.source_agent_ref });
+    }
+    if (effect.target_task_id) {
+      const taskID = `task:${effect.target_task_id}`;
+      if (!nodesByID.has(taskID)) nodesByID.set(taskID, { id: taskID, kind: 'task', label: effect.target_task_id, project_id: effect.project_id, task_id: effect.target_task_id });
+    }
+  }
   const taskTargets = new Map(effects.filter((effect) => effect.target_task_id).map((effect) => [effect.effect_id, `task:${effect.target_task_id}`]));
   const edges = graph.edges
     .map((edge) => {
@@ -471,10 +480,43 @@ function taskImpactGraph(graph: CollaborationGraphView, effects: CollaborationEf
       return targetID === edge.target ? edge : { ...edge, target: targetID };
     })
     .filter((edge): edge is CollaborationEdge => Boolean(edge));
-  const used = new Set(edges.flatMap((edge) => [edge.source, edge.target]));
+  const representedEffectIds = new Set(graph.edges.flatMap((edge) => [edge.effect_id ?? '', ...(edge.effect_ids ?? []), ...(edge.effect_scopes?.map((scope) => scope.effect_id) ?? [])].filter(Boolean)));
+  const syntheticEdges = effects
+    .filter((effect) => effect.effect_id && effect.target_task_id && !effect.target_agent_ref && !representedEffectIds.has(effect.effect_id))
+    .map((effect): CollaborationEdge | null => {
+      const target = effect.target_task_id ? `task:${effect.target_task_id}` : '';
+      if (!effect.source_agent_ref || !target || !nodesByID.has(effect.source_agent_ref) || !nodesByID.has(target)) return null;
+      return {
+        id: `impact:${effect.effect_id}`,
+        source: effect.source_agent_ref,
+        target,
+        relation_type: effect.relation_type,
+        polarity: effect.polarity,
+        magnitude: effect.magnitude,
+        effect_id: effect.effect_id,
+        effect_scopes: [{ effect_id: effect.effect_id, project_id: effect.project_id }],
+        interaction_count: 1,
+        evidence_count: effect.evidence_event_ids.length,
+        first_occurred_at: effect.occurred_at,
+        last_occurred_at: effect.occurred_at,
+      };
+    })
+    .filter((edge): edge is CollaborationEdge => Boolean(edge));
+  const effectEdges = [...edges, ...syntheticEdges];
+  const fallbackStructure = effectEdges.length > 0 ? [] : graph.edges.filter((edge) => {
+    if (!isImpactStructureRelation(edge.relation_type)) return false;
+    const source = nodesByID.get(edge.source);
+    const target = nodesByID.get(edge.target);
+    if (!source || !target) return false;
+    const sourceKind = semanticNodeKind(source);
+    const targetKind = semanticNodeKind(target);
+    return ['project', 'plan', 'agent'].includes(sourceKind) && ['plan', 'task'].includes(targetKind);
+  });
+  const visibleImpactEdges = effectEdges.length > 0 ? effectEdges : fallbackStructure;
+  const used = new Set(visibleImpactEdges.flatMap((edge) => [edge.source, edge.target]));
   const scopedProjects = new Map(graph.nodes.filter((node) => semanticNodeKind(node) === 'project').map((node) => [node.project_id || node.id.replace(/^project:/, ''), node]));
   const structuralEdges: CollaborationEdge[] = [];
-  for (const targetID of [...used]) {
+  if (effectEdges.length > 0) for (const targetID of [...used]) {
     const target = nodesByID.get(targetID);
     const targetKind = target ? semanticNodeKind(target) : undefined;
     if (!target || (targetKind !== 'task' && targetKind !== 'plan')) continue;
@@ -492,7 +534,7 @@ function taskImpactGraph(graph: CollaborationGraphView, effects: CollaborationEf
       evidence_count: 0,
     });
   }
-  return dimensionResult([...nodesByID.values()].filter((node) => used.has(node.id)), [...structuralEdges, ...edges], 'impact');
+  return dimensionResult([...nodesByID.values()].filter((node) => used.has(node.id)), [...structuralEdges, ...visibleImpactEdges], 'impact');
 }
 
 function planLineageGraph(graph: CollaborationGraphView): DimensionGraphView {
@@ -518,6 +560,10 @@ function isStructuralRelation(relation: string): boolean {
 
 function isLineageRelation(relation: string): boolean {
   return ['project_plan', 'plan_stage', 'plan_task', 'project_task', 'stage_task', 'task_dependency', 'contains_plan', 'contains_task', 'contains_stage'].includes(relation);
+}
+
+function isImpactStructureRelation(relation: string): boolean {
+  return ['project_plan', 'plan_task', 'project_task', 'agent_task', 'agent_plan', 'contains_plan', 'contains_task'].includes(relation);
 }
 
 function dimensionResult(nodes: CollaborationNode[], edges: CollaborationEdge[], view: CollaborationViewKind): DimensionGraphView {
