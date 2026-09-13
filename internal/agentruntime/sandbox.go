@@ -569,9 +569,12 @@ func (m *LocalSandboxManager) refreshStandardEndpoints(ctx context.Context, b Sa
 	} else if b.State == SandboxStateRunning {
 		if ip := tartVMIP(ctx, b.VMName); ip != "" {
 			b.VNCEndpoint = net.JoinHostPort(ip, "5900")
-			b.BrowserCommand = firstNonEmptySandboxValue(b.BrowserCommand, sandboxBrowserCommandForIP(ip))
+			b.BrowserCommand = firstNonEmptySandboxValue(b.BrowserCommand, sandboxBrowserCommandForBinding(b, ip), sandboxBrowserCommandForIP(ip))
 			if err := configureTartVNCPassword(ctx, b, ip); err != nil && b.LastError == "" {
 				b.LastError = "configure sandbox VNC password: " + err.Error()
+			}
+			if err := bootstrapTartGuest(ctx, b, ip); err != nil {
+				b.LastError = appendSandboxLastError(b.LastError, "bootstrap sandbox guest: "+err.Error())
 			}
 		}
 	}
@@ -783,6 +786,60 @@ func sandboxBrowserCommandForIP(ip string) string {
 	return fmt.Sprintf("ssh -o BatchMode=yes -o ConnectTimeout=5 admin@%s /usr/bin/open -a Safari", ip)
 }
 
+func sandboxBrowserCommandForBinding(b SandboxBinding, ip string) string {
+	ip = strings.TrimSpace(ip)
+	if ip == "" {
+		return ""
+	}
+	args := sandboxSSHBaseArgs(b, ip)
+	args = append(args, "/usr/bin/open -a Safari")
+	return strings.Join(args, " ")
+}
+
+func sandboxSSHBaseArgs(b SandboxBinding, ip string) []string {
+	args := []string{
+		"ssh",
+		"-o", "BatchMode=yes",
+		"-o", "ConnectTimeout=5",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+	}
+	if key := sandboxSSHKeyPath(b); key != "" {
+		args = append(args, "-i", key)
+	}
+	return append(args, "admin@"+ip)
+}
+
+func sandboxSSHExecArgs(b SandboxBinding, ip string, remote ...string) []string {
+	args := sandboxSSHBaseArgs(b, ip)
+	return append(args, remote...)
+}
+
+func sandboxSCPBaseArgs(b SandboxBinding) []string {
+	args := []string{
+		"scp",
+		"-o", "BatchMode=yes",
+		"-o", "ConnectTimeout=5",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+	}
+	if key := sandboxSSHKeyPath(b); key != "" {
+		args = append(args, "-i", key)
+	}
+	return args
+}
+
+func sandboxSSHKeyPath(b SandboxBinding) string {
+	if strings.TrimSpace(b.RunDir) == "" {
+		return ""
+	}
+	key := filepath.Join(b.RunDir, "id_ed25519")
+	if st, err := os.Stat(key); err == nil && !st.IsDir() {
+		return key
+	}
+	return ""
+}
+
 func configureTartVNCPassword(ctx context.Context, b SandboxBinding, ip string) error {
 	if strings.TrimSpace(ip) == "" || strings.TrimSpace(b.VNCPasswordFile) == "" || strings.TrimSpace(b.RunDir) == "" {
 		return nil
@@ -802,19 +859,101 @@ func configureTartVNCPassword(ctx context.Context, b SandboxBinding, ip string) 
 	cmdCtx, cancel := context.WithTimeout(ctx, 12*time.Second)
 	defer cancel()
 	script := fmt.Sprintf("sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -privs -all -users admin -clientopts -setvnclegacy -vnclegacy yes -setvncpw -vncpw %s -restart -agent -console\n", shellQuote(password))
-	cmd := exec.CommandContext(cmdCtx, "ssh",
-		"-o", "BatchMode=yes",
-		"-o", "ConnectTimeout=5",
-		"-o", "StrictHostKeyChecking=no",
-		"-o", "UserKnownHostsFile=/dev/null",
-		"admin@"+ip,
-		"sh", "-s",
-	)
+	args := sandboxSSHExecArgs(b, ip, "sh", "-s")
+	cmd := exec.CommandContext(cmdCtx, args[0], args[1:]...)
 	cmd.Stdin = strings.NewReader(script)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return errors.New(strings.TrimSpace(fmt.Sprintf("%v: %s", err, string(out))))
 	}
 	return os.WriteFile(marker, []byte(time.Now().UTC().Format(time.RFC3339Nano)+"\n"), 0o600)
+}
+
+func bootstrapTartGuest(ctx context.Context, b SandboxBinding, ip string) error {
+	if strings.TrimSpace(ip) == "" {
+		return nil
+	}
+	if err := configureTartGuestDesktop(ctx, b, ip); err != nil {
+		return err
+	}
+	return ensureTartGuestCodexCLI(ctx, b, ip)
+}
+
+func configureTartGuestDesktop(ctx context.Context, b SandboxBinding, ip string) error {
+	cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	script := strings.Join([]string{
+		"defaults -currentHost write com.apple.screensaver askForPassword -int 0",
+		"defaults -currentHost write com.apple.screensaver idleTime -int 0",
+		"defaults write com.apple.screensaver askForPassword -int 0",
+		"defaults write com.apple.screensaver idleTime -int 0",
+		"sudo pmset -a sleep 0 displaysleep 0 disksleep 0 powernap 0 standby 0",
+		"sudo defaults write /Library/Preferences/com.apple.loginwindow autoLoginUser admin",
+		"true",
+	}, "\n") + "\n"
+	args := sandboxSSHExecArgs(b, ip, "sh", "-s")
+	cmd := exec.CommandContext(cmdCtx, args[0], args[1:]...)
+	cmd.Stdin = strings.NewReader(script)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return errors.New(strings.TrimSpace(fmt.Sprintf("desktop setup failed: %v: %s", err, string(out))))
+	}
+	return nil
+}
+
+func ensureTartGuestCodexCLI(ctx context.Context, b SandboxBinding, ip string) error {
+	if guestCodexReady(ctx, b, ip) {
+		return nil
+	}
+	hostCodex := sandboxHostCodexCLIPath()
+	if hostCodex == "" {
+		return errors.New("host codex CLI not found; set AC_SANDBOX_CODEX_BINARY or install codex on the worker host")
+	}
+	remoteTmp := "/tmp/agent-center-codex"
+	copyCtx, copyCancel := context.WithTimeout(ctx, 45*time.Second)
+	defer copyCancel()
+	scpArgs := append(sandboxSCPBaseArgs(b), hostCodex, "admin@"+ip+":"+remoteTmp)
+	if out, err := exec.CommandContext(copyCtx, scpArgs[0], scpArgs[1:]...).CombinedOutput(); err != nil {
+		return errors.New(strings.TrimSpace(fmt.Sprintf("copy codex CLI failed: %v: %s", err, string(out))))
+	}
+	installCtx, installCancel := context.WithTimeout(ctx, 12*time.Second)
+	defer installCancel()
+	script := strings.Join([]string{
+		"mkdir -p /opt/homebrew/bin",
+		"sudo install -m 0755 /tmp/agent-center-codex /opt/homebrew/bin/codex",
+		"/opt/homebrew/bin/codex --version >/dev/null",
+		"rm -f /tmp/agent-center-codex",
+		"true",
+	}, "\n") + "\n"
+	args := sandboxSSHExecArgs(b, ip, "sh", "-s")
+	cmd := exec.CommandContext(installCtx, args[0], args[1:]...)
+	cmd.Stdin = strings.NewReader(script)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return errors.New(strings.TrimSpace(fmt.Sprintf("install codex CLI failed: %v: %s", err, string(out))))
+	}
+	return nil
+}
+
+func guestCodexReady(ctx context.Context, b SandboxBinding, ip string) bool {
+	cmdCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	args := sandboxSSHExecArgs(b, ip, "sh", "-lc", "test -x /opt/homebrew/bin/codex && /opt/homebrew/bin/codex --version >/dev/null")
+	return exec.CommandContext(cmdCtx, args[0], args[1:]...).Run() == nil
+}
+
+func sandboxHostCodexCLIPath() string {
+	if path := strings.TrimSpace(os.Getenv("AC_SANDBOX_CODEX_BINARY")); path != "" {
+		if st, err := os.Stat(path); err == nil && !st.IsDir() {
+			return path
+		}
+		return ""
+	}
+	if path, err := exec.LookPath("codex"); err == nil {
+		return path
+	}
+	defaultPath := "/opt/homebrew/bin/codex"
+	if st, err := os.Stat(defaultPath); err == nil && !st.IsDir() {
+		return defaultPath
+	}
+	return ""
 }
 
 func shellQuote(s string) string {
@@ -882,6 +1021,18 @@ func firstNonEmptySandboxValue(values ...string) string {
 		}
 	}
 	return ""
+}
+
+func appendSandboxLastError(current, next string) string {
+	current = strings.TrimSpace(current)
+	next = strings.TrimSpace(next)
+	if current == "" {
+		return next
+	}
+	if next == "" || strings.Contains(current, next) {
+		return current
+	}
+	return current + "; " + next
 }
 
 func (m *LocalSandboxManager) clock() time.Time {

@@ -98,6 +98,33 @@ func TestMaterializeSandboxResourcesCreatesStandardRuntimeFiles(t *testing.T) {
 	}
 }
 
+func TestSandboxBrowserCommandUsesAgentSSHKey(t *testing.T) {
+	runDir := t.TempDir()
+	key := filepath.Join(runDir, "id_ed25519")
+	if err := os.WriteFile(key, []byte("key"), 0o600); err != nil {
+		t.Fatalf("write key: %v", err)
+	}
+	b := SandboxBinding{RunDir: runDir}
+	got := sandboxBrowserCommandForBinding(b, "192.168.64.2")
+	if !strings.Contains(got, "-i "+key) {
+		t.Fatalf("browser command %q does not include sandbox ssh key %q", got, key)
+	}
+	if !strings.Contains(got, "admin@192.168.64.2") || !strings.Contains(got, "/usr/bin/open -a Safari") {
+		t.Fatalf("browser command missing target/open command: %q", got)
+	}
+}
+
+func TestSandboxHostCodexCLIPathHonorsEnv(t *testing.T) {
+	codex := filepath.Join(t.TempDir(), "codex")
+	if err := os.WriteFile(codex, []byte("codex"), 0o755); err != nil {
+		t.Fatalf("write codex: %v", err)
+	}
+	t.Setenv("AC_SANDBOX_CODEX_BINARY", codex)
+	if got := sandboxHostCodexCLIPath(); got != codex {
+		t.Fatalf("codex path = %q, want %q", got, codex)
+	}
+}
+
 func TestEnsureAgentSandboxInsideVMOverlaysWithoutHostResourceMaterialization(t *testing.T) {
 	home := t.TempDir()
 	hostHome := filepath.Join(t.TempDir(), "host-agent-home")
