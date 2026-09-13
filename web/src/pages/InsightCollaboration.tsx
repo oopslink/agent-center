@@ -885,6 +885,7 @@ function CollaborationGraph({
   };
   const relationshipEdges = locatedEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0)
     .sort((a, b) => b.magnitude - a.magnitude || b.interaction_count - a.interaction_count || b.evidence_count - a.evidence_count || a.id.localeCompare(b.id));
+  const decisionDashboard = useMemo(() => buildDecisionDashboard(projectId, projectLabel, visibleNodes, relationshipEdges, effects, nodeLabelByID, t), [projectId, projectLabel, visibleNodes, relationshipEdges, effects, nodeLabelByID, t]);
   const projectFocus = useMemo(() => buildProjectFocus(projectId, projectLabel, view, relationshipEdges, effects, nodeLabelByID, t), [projectId, projectLabel, view, relationshipEdges, effects, nodeLabelByID, t]);
   const knowledgeGraph = useMemo(() => buildKnowledgeGraphAnalysis(projectId, projectFocus?.projectLabel || projectLabel, visibleNodes, relationshipEdges, effects, nodeLabelByID, t), [projectId, projectFocus?.projectLabel, projectLabel, visibleNodes, relationshipEdges, effects, nodeLabelByID, t]);
   const renderEdgeButtons = (limit = EDGE_LIST_RENDER_LIMIT) => relationshipEdges.slice(0, limit).map((edge) => {
@@ -906,6 +907,7 @@ function CollaborationGraph({
         <Timeline effects={effects} onSelect={onSelect} t={t} />
       </div>
     </div>
+    <DecisionDashboard dashboard={decisionDashboard} onFocusNode={applyLocate} t={t} />
     <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="relative flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg bg-bg-elevated/70 shadow-inner ring-1 ring-white/5">
         <div className="absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-1 rounded-lg bg-bg-elevated/90 p-1.5 shadow-lg shadow-black/10 ring-1 ring-white/10 backdrop-blur" aria-label={t('insight.collaboration.viewport.controls')}>
@@ -975,6 +977,94 @@ function GraphReadout({ view, visibleNodes, visibleEdges, t }: { view: Dimension
     <p className="mt-1 text-sm leading-5 text-text-muted">{t(`insight.collaboration.readout.${view.view}`)}</p>
     <p className="mt-3 rounded-md bg-bg-subtle px-2 py-1 text-xs text-text-muted">{t('insight.collaboration.legend.visibleTotals', { nodes: visibleNodes, edges: visibleEdges })}</p>
   </section>;
+}
+
+type DecisionRank = { id: string; label: string; detail: string; score: number; polarity: CollaborationPolarity };
+type DecisionAction = { title: string; body: string; targetId?: string; tone: 'risk' | 'opportunity' | 'neutral' };
+type DecisionDashboardData = {
+  scope: string;
+  healthScore: number;
+  healthStatus: 'healthy' | 'watch' | 'risk';
+  riskCount: number;
+  conflictCount: number;
+  evidenceCoverage: string;
+  answer: string;
+  keyAgents: DecisionRank[];
+  impactedWork: DecisionRank[];
+  actions: DecisionAction[];
+};
+
+function DecisionDashboard({ dashboard, onFocusNode, t }: { dashboard: DecisionDashboardData; onFocusNode: (id: string) => void; t: Translator }) {
+  const stats = [
+    { key: 'health', label: t('insight.collaboration.decision.health'), value: `${dashboard.healthScore}`, detail: t(`insight.collaboration.decision.status.${dashboard.healthStatus}`), className: healthCardClass(dashboard.healthStatus) },
+    { key: 'risk', label: t('insight.collaboration.decision.risk'), value: `${dashboard.riskCount}`, detail: t('insight.collaboration.decision.conflicts', { count: dashboard.conflictCount }), className: dashboard.riskCount > 0 ? 'border-danger/30 bg-danger/10' : 'border-success/30 bg-success/10' },
+    { key: 'agents', label: t('insight.collaboration.decision.keyAgents'), value: `${dashboard.keyAgents.length}`, detail: dashboard.keyAgents[0]?.label ?? t('insight.collaboration.decision.none'), className: 'border-border bg-bg-surface' },
+    { key: 'work', label: t('insight.collaboration.decision.impactedWork'), value: `${dashboard.impactedWork.length}`, detail: dashboard.impactedWork[0]?.label ?? t('insight.collaboration.decision.none'), className: 'border-border bg-bg-surface' },
+  ];
+  return <section className="mb-3 shrink-0 rounded-lg bg-bg-elevated/70 p-3 shadow-sm ring-1 ring-white/5" data-testid="collaboration-decision-dashboard">
+    <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-xs font-semibold uppercase text-text-muted">{t('insight.collaboration.decision.title')}</p>
+        <h2 className="mt-1 text-base font-semibold text-text-primary">{dashboard.scope}</h2>
+        <p className="mt-1 max-w-3xl text-sm leading-5 text-text-secondary">{dashboard.answer}</p>
+      </div>
+      <p className="rounded-md bg-bg-primary px-2 py-1 text-xs text-text-muted shadow-sm ring-1 ring-white/5">{dashboard.evidenceCoverage}</p>
+    </div>
+    <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      {stats.map((item) => <div key={item.key} className={`min-w-0 rounded-md border px-3 py-2 ${item.className}`}>
+        <span className="block truncate text-xs font-medium text-text-muted">{item.label}</span>
+        <strong className="mt-1 block text-xl leading-none text-text-primary">{item.value}</strong>
+        <span className="mt-1 block truncate text-xs text-text-muted">{item.detail}</span>
+      </div>)}
+    </div>
+    <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-3">
+      <DecisionRankList title={t('insight.collaboration.decision.agentRank')} items={dashboard.keyAgents} onFocusNode={onFocusNode} empty={t('insight.collaboration.decision.noAgents')} t={t} />
+      <DecisionRankList title={t('insight.collaboration.decision.workRank')} items={dashboard.impactedWork} onFocusNode={onFocusNode} empty={t('insight.collaboration.decision.noWork')} t={t} />
+      <DecisionActions actions={dashboard.actions} onFocusNode={onFocusNode} t={t} />
+    </div>
+  </section>;
+}
+
+function DecisionRankList({ title, items, onFocusNode, empty, t }: { title: string; items: DecisionRank[]; onFocusNode: (id: string) => void; empty: string; t: Translator }) {
+  return <section className="min-w-0 rounded-md bg-bg-primary/80 p-3 shadow-sm ring-1 ring-white/5">
+    <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
+    {items.length > 0 ? <ol className="mt-2 space-y-1.5">{items.slice(0, 4).map((item) => <li key={item.id}>
+      <button type="button" onClick={() => onFocusNode(item.id)} className="flex w-full min-w-0 items-start justify-between gap-3 rounded-md bg-bg-surface px-2 py-1.5 text-left hover:bg-bg-subtle focus:ring-2 focus:ring-brand">
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-medium text-text-primary">{item.label}</span>
+          <span className="block truncate text-xs text-text-muted">{item.detail}</span>
+        </span>
+        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold ${polarityPillClass(item.polarity)}`}>{labelFor(t, item.polarity)}</span>
+      </button>
+    </li>)}</ol> : <p className="mt-2 rounded-md bg-bg-surface px-2 py-1.5 text-xs text-text-muted">{empty}</p>}
+  </section>;
+}
+
+function DecisionActions({ actions, onFocusNode, t }: { actions: DecisionAction[]; onFocusNode: (id: string) => void; t: Translator }) {
+  return <section className="min-w-0 rounded-md bg-bg-primary/80 p-3 shadow-sm ring-1 ring-white/5">
+    <h3 className="text-sm font-semibold text-text-primary">{t('insight.collaboration.decision.actions')}</h3>
+    <ol className="mt-2 space-y-1.5">{actions.slice(0, 4).map((action) => <li key={`${action.title}:${action.body}`} className={`rounded-md border px-2 py-1.5 ${actionToneClass(action.tone)}`}>
+      {action.targetId ? <button type="button" onClick={() => onFocusNode(action.targetId ?? '')} className="block w-full text-left focus:ring-2 focus:ring-brand">
+        <strong className="block text-sm text-text-primary">{action.title}</strong>
+        <span className="mt-0.5 block text-xs leading-5 text-text-muted">{action.body}</span>
+      </button> : <>
+        <strong className="block text-sm text-text-primary">{action.title}</strong>
+        <span className="mt-0.5 block text-xs leading-5 text-text-muted">{action.body}</span>
+      </>}
+    </li>)}</ol>
+  </section>;
+}
+
+function healthCardClass(status: DecisionDashboardData['healthStatus']): string {
+  if (status === 'healthy') return 'border-success/30 bg-success/10';
+  if (status === 'watch') return 'border-warning/30 bg-warning/10';
+  return 'border-danger/30 bg-danger/10';
+}
+
+function actionToneClass(tone: DecisionAction['tone']): string {
+  if (tone === 'risk') return 'border-danger/30 bg-danger/10';
+  if (tone === 'opportunity') return 'border-success/30 bg-success/10';
+  return 'border-border bg-bg-surface';
 }
 
 type ProjectFocusSummary = {
@@ -1066,6 +1156,141 @@ function buildKnowledgeGraphAnalysis(
   return { title, entityMix, relationMix, evidenceCoverage, centralEntity, triples, paths, conflicts };
 }
 
+function buildDecisionDashboard(
+  projectId: string | undefined,
+  projectLabel: string | undefined,
+  nodes: CollaborationNode[],
+  relationshipEdges: CollaborationEdge[],
+  effects: Array<{ project_id: string; polarity: string; relation_type: string; source_agent_ref: string; target_task_id: string; evidence_event_ids?: string[] }>,
+  nodeLabelByID: Map<string, string>,
+  t: Translator,
+): DecisionDashboardData {
+  const scope = projectId
+    ? t('insight.collaboration.decision.projectScope', { project: projectLabel || projectId })
+    : t('insight.collaboration.decision.orgScope');
+  const positive = relationshipEdges.filter((edge) => edge.polarity === 'positive').length;
+  const riskyEdges = relationshipEdges.filter((edge) => edge.polarity === 'negative' || edge.polarity === 'mixed');
+  const conflictTargets = conflictingTargetSummaries(relationshipEdges, nodeLabelByID, t);
+  const total = relationshipEdges.length;
+  const evidenceEdges = relationshipEdges.filter((edge) => edge.evidence_count > 0 || scopesForEdge(edge).length > 0).length;
+  const score = total === 0 ? 50 : clamp(Math.round(55 + (positive / total) * 35 - (riskyEdges.length / total) * 45 - conflictTargets.length * 6 + (evidenceEdges / total) * 10), 0, 100);
+  const healthStatus: DecisionDashboardData['healthStatus'] = score >= 75 ? 'healthy' : score >= 50 ? 'watch' : 'risk';
+  const keyAgents = rankDecisionNodes(nodes, relationshipEdges, nodeLabelByID, (node) => semanticNodeKind(node) === 'agent', t);
+  const impactedWork = rankDecisionNodes(nodes, relationshipEdges, nodeLabelByID, (node) => ['task', 'plan'].includes(semanticNodeKind(node)), t);
+  const evidenceTotal = effects.reduce((sum, effect) => sum + (effect.evidence_event_ids?.length ?? 0), 0) || relationshipEdges.reduce((sum, edge) => sum + edge.evidence_count, 0);
+  const evidenceCoverage = t('insight.collaboration.decision.evidenceCoverage', { edges: evidenceEdges, total, evidence: evidenceTotal });
+  const answer = t(`insight.collaboration.decision.answer.${healthStatus}`, {
+    risks: riskyEdges.length,
+    agents: keyAgents.length,
+    work: impactedWork.length,
+    strongest: impactedWork[0]?.label ?? keyAgents[0]?.label ?? t('insight.collaboration.decision.none'),
+  });
+  return {
+    scope,
+    healthScore: score,
+    healthStatus,
+    riskCount: riskyEdges.length,
+    conflictCount: conflictTargets.length,
+    evidenceCoverage,
+    answer,
+    keyAgents,
+    impactedWork,
+    actions: buildDecisionActions(projectId, relationshipEdges, conflictTargets, nodeLabelByID, t),
+  };
+}
+
+function rankDecisionNodes(
+  nodes: CollaborationNode[],
+  edges: CollaborationEdge[],
+  nodeLabelByID: Map<string, string>,
+  include: (node: CollaborationNode) => boolean,
+  t: Translator,
+): DecisionRank[] {
+  const included = new Set(nodes.filter(include).map((node) => node.id));
+  const stats = new Map<string, { score: number; positive: number; risk: number; neutral: number; effects: number }>();
+  for (const edge of edges) {
+    for (const id of [edge.source, edge.target]) {
+      if (!included.has(id)) continue;
+      const current = stats.get(id) ?? { score: 0, positive: 0, risk: 0, neutral: 0, effects: 0 };
+      current.score += Math.max(1, edge.magnitude) + Math.max(1, edge.interaction_count);
+      current.effects += Math.max(1, edge.interaction_count);
+      if (edge.polarity === 'positive') current.positive += 1;
+      else if (edge.polarity === 'negative' || edge.polarity === 'mixed') current.risk += 1;
+      else current.neutral += 1;
+      stats.set(id, current);
+    }
+  }
+  return [...stats.entries()]
+    .map(([id, stat]) => {
+      const polarity: CollaborationPolarity = stat.risk > 0 ? 'negative' : stat.positive > 0 ? 'positive' : 'neutral';
+      return {
+        id,
+        label: nodeName(id, nodeLabelByID),
+        detail: t('insight.collaboration.decision.rankDetail', { score: stat.score, effects: stat.effects, risks: stat.risk }),
+        score: stat.score,
+        polarity,
+      };
+    })
+    .sort((a, b) => b.score - a.score || a.label.localeCompare(b.label))
+    .slice(0, 6);
+}
+
+function buildDecisionActions(
+  projectId: string | undefined,
+  edges: CollaborationEdge[],
+  conflicts: string[],
+  nodeLabelByID: Map<string, string>,
+  t: Translator,
+): DecisionAction[] {
+  const actions: DecisionAction[] = [];
+  const risky = edges.filter((edge) => edge.polarity === 'negative' || edge.polarity === 'mixed')
+    .sort((a, b) => b.magnitude - a.magnitude || b.interaction_count - a.interaction_count || b.evidence_count - a.evidence_count);
+  const positive = edges.filter((edge) => edge.polarity === 'positive')
+    .sort((a, b) => b.magnitude - a.magnitude || b.interaction_count - a.interaction_count || b.evidence_count - a.evidence_count);
+  if (!projectId) actions.push({
+    title: t('insight.collaboration.decision.actionChooseScope'),
+    body: t('insight.collaboration.decision.actionChooseScopeBody'),
+    tone: 'neutral',
+  });
+  if (conflicts.length > 0 && risky[0]) actions.push({
+    title: t('insight.collaboration.decision.actionConflict'),
+    body: conflicts[0],
+    targetId: risky[0].target,
+    tone: 'risk',
+  });
+  if (risky[0]) actions.push({
+    title: t('insight.collaboration.decision.actionReviewRisk'),
+    body: t('insight.collaboration.decision.actionReviewRiskBody', {
+      relation: labelFor(t, risky[0].relation_type),
+      endpoints: readableEdgeEndpoints(risky[0], nodeLabelByID),
+      polarity: labelFor(t, risky[0].polarity),
+    }),
+    targetId: risky[0].target,
+    tone: 'risk',
+  });
+  if (positive[0]) actions.push({
+    title: t('insight.collaboration.decision.actionAmplify'),
+    body: t('insight.collaboration.decision.actionAmplifyBody', {
+      relation: labelFor(t, positive[0].relation_type),
+      endpoints: readableEdgeEndpoints(positive[0], nodeLabelByID),
+    }),
+    targetId: positive[0].target,
+    tone: 'opportunity',
+  });
+  if (edges.length > 0) actions.push({
+    title: t('insight.collaboration.decision.actionEvidence'),
+    body: t('insight.collaboration.decision.actionEvidenceBody'),
+    targetId: (risky[0] ?? positive[0] ?? edges[0])?.target,
+    tone: 'neutral',
+  });
+  if (actions.length === 0) actions.push({
+    title: t('insight.collaboration.decision.actionNoData'),
+    body: t('insight.collaboration.decision.actionNoDataBody'),
+    tone: 'neutral',
+  });
+  return actions.slice(0, 4);
+}
+
 function GraphLegend({ t }: { t: Translator }) {
   return <section className="rounded-lg bg-bg-primary/80 p-3 shadow-sm ring-1 ring-white/5">
     <h2 className="text-sm font-semibold text-text-primary">{t('insight.collaboration.legend.title')}</h2>
@@ -1154,6 +1379,10 @@ function countBy<T>(items: T[], key: (item: T) => string): Map<string, number> {
 function formatCounts(counts: Map<string, number>, label: (value: string) => string, empty: string): string {
   const items = [...counts.entries()].sort((a, b) => b[1] - a[1] || label(a[0]).localeCompare(label(b[0]))).slice(0, 3);
   return items.length ? items.map(([key, count]) => `${label(key)} ${count}`).join(' · ') : empty;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function centralNodeLabel(nodes: CollaborationNode[], edges: CollaborationEdge[], nodeLabelByID: Map<string, string>): string {

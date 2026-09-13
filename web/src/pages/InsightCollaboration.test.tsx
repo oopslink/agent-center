@@ -165,6 +165,9 @@ describe('Collaboration Insight', () => {
     expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Legend');
     expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Strong relationships');
     expect(screen.getByTestId('collaboration-inspector')).toHaveTextContent('Affected tasks');
+    expect(screen.getByTestId('collaboration-decision-dashboard')).toHaveTextContent('Decision summary');
+    expect(screen.getByTestId('collaboration-decision-dashboard')).toHaveTextContent('Who is driving the work');
+    expect(screen.getByTestId('collaboration-decision-dashboard')).toHaveTextContent('Recommended next moves');
     expect(screen.getByTestId('collaboration-filter-help')).toHaveTextContent('Top filters reload the dataset');
 
     expect(screen.getByLabelText('Relationship')).not.toBeVisible();
@@ -273,6 +276,9 @@ describe('Collaboration Insight', () => {
     const user = userEvent.setup();
     renderAt('/organizations/acme/insights/collaboration?project_id=P1');
     expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Task impact');
+    expect(screen.getByTestId('collaboration-decision-dashboard')).toHaveTextContent('Alpha Project collaboration diagnosis');
+    expect(screen.getByTestId('collaboration-decision-dashboard')).toHaveTextContent('Health');
+    expect(screen.getByTestId('collaboration-decision-dashboard')).toHaveTextContent('Recommended next moves');
     expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Alpha Project');
     expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Alpha Agent -> Launch task');
     expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Positive');
