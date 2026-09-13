@@ -105,12 +105,14 @@ export default function InsightCollaboration(): React.ReactElement {
   const activeView = viewFromParams(params);
   const filters = filtersFromParams(params);
   const projects = useProjects();
+  const members = useMembers();
   const query = useInfiniteCollaborationEffects(filters);
   const effects = useMemo(() => dedupeBy(query.data?.pages.flatMap((page) => page.effects) ?? [], (item) => item.effect_id), [query.data?.pages]);
   const selectedIds = selected?.map((item) => item.effect_id) ?? [];
   const effect = effects.find((item) => selectedIds.includes(item.effect_id)) ?? null;
   const view = useMemo(() => accumulateGraph(query.data?.pages ?? []), [query.data?.pages]);
-  const activeGraph = useMemo(() => buildDimensionGraph(activeView, view, effects, t), [activeView, view, effects, t]);
+  const identityLabels = useMemo(() => identityDisplayLabels(members.data ?? []), [members.data]);
+  const activeGraph = useMemo(() => resolveGraphNodeLabels(buildDimensionGraph(activeView, view, effects, t), identityLabels), [activeView, view, effects, t, identityLabels]);
   const summary = useMemo(() => summarizeEffects(effects), [effects]);
   const selectedProjectLabel = useMemo(() => projects.data?.find((project) => project.id === filters.project_id)?.name || filters.project_id, [filters.project_id, projects.data]);
   const showFullGraph = () => {
@@ -535,6 +537,32 @@ function taskImpactGraph(graph: CollaborationGraphView, effects: CollaborationEf
     });
   }
   return dimensionResult([...nodesByID.values()].filter((node) => used.has(node.id)), [...structuralEdges, ...visibleImpactEdges], 'impact');
+}
+
+function identityDisplayLabels(members: Array<{ kind: 'user' | 'agent'; identity_id: string; display_name?: string }>): Map<string, string> {
+  const labels = new Map<string, string>();
+  for (const member of members) {
+    if (!member.display_name) continue;
+    const ref = identityRefOf({ kind: member.kind, identity_id: member.identity_id });
+    labels.set(ref, member.display_name);
+    labels.set(normalizeIdentityRef(ref), member.display_name);
+  }
+  return labels;
+}
+
+function resolveGraphNodeLabels(view: DimensionGraphView, identityLabels: Map<string, string>): DimensionGraphView {
+  if (identityLabels.size === 0) return view;
+  let changed = false;
+  const resolve = (node: CollaborationNode): CollaborationNode => {
+    if (semanticNodeKind(node) !== 'agent') return node;
+    const label = identityLabels.get(node.id) ?? identityLabels.get(normalizeIdentityRef(node.id));
+    if (!label || label === node.label) return node;
+    changed = true;
+    return { ...node, label };
+  };
+  const nodes = view.nodes.map(resolve);
+  const clusters = view.clusters.map(resolve);
+  return changed ? { ...view, nodes, clusters } : view;
 }
 
 function planLineageGraph(graph: CollaborationGraphView): DimensionGraphView {

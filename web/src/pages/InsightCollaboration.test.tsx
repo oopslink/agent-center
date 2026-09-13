@@ -187,7 +187,9 @@ describe('Collaboration Insight', () => {
     await user.click(screen.getByRole('option', { name: /Deploy analytics/ }));
     await user.click(await screen.findByTestId('collaboration-agent_ref-trigger'));
     await user.type(screen.getByTestId('collaboration-agent_ref-search'), 'runner');
-    await user.click(screen.getByRole('option', { name: /Runner A/ }));
+    const runnerOption = screen.getAllByTestId('collaboration-agent_ref-option').find((option) => option.textContent?.includes('Runner A'));
+    expect(runnerOption).toBeTruthy();
+    await user.click(runnerOption!);
     await waitFor(() => expect(new URL(requested).searchParams.get('task_id')).toBe('T2'));
     const search = new URL(requested).searchParams;
     expect(search.get('project_id')).toBe('P1');
@@ -327,7 +329,7 @@ describe('Collaboration Insight', () => {
     const user = userEvent.setup();
     renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1', 'network'));
 
-    expect(await screen.findByTestId('collaboration-rendered-labels')).toHaveTextContent('Assignee Agent');
+    expect(await screen.findByTestId('collaboration-rendered-labels')).toHaveTextContent('Runner A');
     expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Helper Agent');
     expect(screen.getByTestId('collaboration-rendered-labels')).not.toHaveTextContent('Task One');
 
@@ -346,25 +348,31 @@ describe('Collaboration Insight', () => {
 
   it('keeps task impact readable when the API omits concrete effect graph nodes', async () => {
     const orphanEffect = { ...effects[3], effect_id: 'ce-orphan', id: 'ce-orphan', source: 'agent:orphan', source_agent_ref: 'agent:orphan', target: 'task:T-missing', target_task_id: 'T-missing', relation_type: 'complete', polarity: 'positive', evidence_event_ids: ['evt-orphan'] };
-    server.use(http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
-      graph: {
-        nodes: [{ id: 'project:P1', kind: 'project', label: 'Alpha Project', project_id: 'P1' }],
-        edges: [],
-        lod: 'full',
-        clusters: [],
-        truncated: false,
-      },
-      effects: [orphanEffect],
-      summary: { positive_count: 1, negative_count: 0, neutral_count: 0, mixed_count: 0, affected_task_count: 1 },
-      graph_version: 'gv-orphan-impact',
-      next_cursor: '',
-    })));
+    server.use(
+      http.get('/api/orgs/:slug/members', () => HttpResponse.json([
+        { id: 'm-orphan', organization_id: 'org-1', identity_id: 'agent:orphan', kind: 'agent', role: 'member', status: 'joined', joined_at: '2026-09-03T00:00:00Z', display_name: 'Orphan Agent' },
+      ])),
+      http.get('/api/orgs/:slug/insights/collaboration-effects', () => HttpResponse.json({
+        graph: {
+          nodes: [{ id: 'project:P1', kind: 'project', label: 'Alpha Project', project_id: 'P1' }],
+          edges: [],
+          lod: 'full',
+          clusters: [],
+          truncated: false,
+        },
+        effects: [orphanEffect],
+        summary: { positive_count: 1, negative_count: 0, neutral_count: 0, mixed_count: 0, affected_task_count: 1 },
+        graph_version: 'gv-orphan-impact',
+        next_cursor: '',
+      })),
+    );
 
     renderAt(withView('/organizations/acme/insights/collaboration?project_id=P1', 'impact'));
 
     expect(await screen.findByTestId('collaboration-graph')).toHaveTextContent('Task impact');
     expect(screen.queryByTestId('collaboration-unsupported')).not.toBeInTheDocument();
-    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('agent:orphan');
+    await waitFor(() => expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Orphan Agent'));
+    expect(screen.getByTestId('collaboration-rendered-labels')).not.toHaveTextContent('agent:orphan');
     expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('T-missing');
     expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Complete Positive');
   });
