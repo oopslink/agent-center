@@ -209,6 +209,7 @@ describe('Collaboration Insight', () => {
           nodes: [
             { id: `project:${project}`, kind: 'project', label: projectName, project_id: project },
             { id: agent, kind: 'agent', label: beta ? 'Beta Agent' : 'Alpha Agent' },
+            ...(beta ? [{ id: 'agent:reviewer', kind: 'agent', label: 'Review Agent' }] : []),
             { id: `task:${task}`, kind: 'task', label: beta ? 'Blocked rollout' : 'Launch task', project_id: project, task_id: task },
           ],
           edges: [{
@@ -222,7 +223,18 @@ describe('Collaboration Insight', () => {
             effect_scopes: [{ effect_id: `effect-${project}`, project_id: project }],
             interaction_count: beta ? 4 : 2,
             evidence_count: beta ? 5 : 2,
-          }],
+          }, ...(beta ? [{
+            id: `edge-${project}-positive`,
+            source: 'agent:reviewer',
+            target: `task:${task}`,
+            relation_type: 'review_accept',
+            polarity: 'positive',
+            magnitude: 1,
+            effect_id: `effect-${project}-positive`,
+            effect_scopes: [{ effect_id: `effect-${project}-positive`, project_id: project }],
+            interaction_count: 1,
+            evidence_count: 1,
+          }] : [])],
         },
         effects: [{
           ...effects[0],
@@ -236,7 +248,21 @@ describe('Collaboration Insight', () => {
           polarity,
           relation_type: relation,
           magnitude: beta ? 3 : 2,
-        }],
+          evidence_event_ids: beta ? ['evt-beta-1', 'evt-beta-2'] : ['evt-alpha-1'],
+        }, ...(beta ? [{
+          ...effects[0],
+          effect_id: `effect-${project}-positive`,
+          id: `effect-${project}-positive`,
+          source: 'agent:reviewer',
+          source_agent_ref: 'agent:reviewer',
+          target: `task:${task}`,
+          target_task_id: task,
+          project_id: project,
+          polarity: 'positive',
+          relation_type: 'review_accept',
+          magnitude: 1 as 1 | 2 | 3,
+          evidence_event_ids: ['evt-beta-3'],
+        }] : [])],
         summary: {},
         graph_version: `gv-${project}`,
         next_cursor: '',
@@ -248,6 +274,12 @@ describe('Collaboration Insight', () => {
     expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Alpha Project');
     expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Alpha Agent -> Launch task');
     expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Positive');
+    expect(screen.getByTestId('collaboration-kg-analysis')).toHaveTextContent('Knowledge graph analysis');
+    expect(screen.getByTestId('collaboration-kg-analysis')).toHaveTextContent('Alpha Project subgraph');
+    expect(screen.getByTestId('collaboration-kg-analysis')).toHaveTextContent('Alpha Agent — Complete / Positive → Launch task');
+    expect(screen.getByTestId('collaboration-kg-analysis')).toHaveTextContent('Alpha Project → Alpha Agent → Launch task');
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Alpha Project');
+    expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('contains Task');
 
     await user.click(await screen.findByTestId('collaboration-project_id-trigger'));
     await user.click(screen.getByRole('option', { name: /Beta Project/ }));
@@ -255,6 +287,10 @@ describe('Collaboration Insight', () => {
     await waitFor(() => expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Beta Project'));
     expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Beta Agent -> Blocked rollout');
     expect(screen.getByTestId('collaboration-project-focus')).toHaveTextContent('Negative');
+    expect(screen.getByTestId('collaboration-kg-analysis')).toHaveTextContent('Beta Project subgraph');
+    expect(screen.getByTestId('collaboration-kg-analysis')).toHaveTextContent('Beta Agent — Block / Negative → Blocked rollout');
+    expect(screen.getByTestId('collaboration-kg-analysis')).toHaveTextContent('Conflicting signals');
+    expect(screen.getByTestId('collaboration-kg-analysis')).toHaveTextContent('Blocked rollout has 2 incoming signals');
     expect(screen.getByTestId('collaboration-rendered-labels')).toHaveTextContent('Blocked rollout');
     expect(screen.getByTestId('collaboration-rendered-labels')).not.toHaveTextContent('Launch task');
   });

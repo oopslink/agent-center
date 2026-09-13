@@ -448,7 +448,7 @@ function agentNetworkGraph(graph: CollaborationGraphView, effects: Collaboration
 }
 
 function taskImpactGraph(graph: CollaborationGraphView, effects: CollaborationEffect[]): DimensionGraphView {
-  const nodesByID = new Map(graph.nodes.filter((node) => node.kind === 'agent' || node.kind === 'task' || node.kind === 'plan').map((node) => [node.id, node]));
+  const nodesByID = new Map(graph.nodes.filter((node) => ['agent', 'task', 'plan', 'project'].includes(node.kind)).map((node) => [node.id, node]));
   const taskTargets = new Map(effects.filter((effect) => effect.target_task_id).map((effect) => [effect.effect_id, `task:${effect.target_task_id}`]));
   const edges = graph.edges
     .map((edge) => {
@@ -460,7 +460,26 @@ function taskImpactGraph(graph: CollaborationGraphView, effects: CollaborationEf
     })
     .filter((edge): edge is CollaborationEdge => Boolean(edge));
   const used = new Set(edges.flatMap((edge) => [edge.source, edge.target]));
-  return dimensionResult([...nodesByID.values()].filter((node) => used.has(node.id)), edges, 'impact');
+  const scopedProjects = new Map(graph.nodes.filter((node) => node.kind === 'project').map((node) => [node.project_id || node.id.replace(/^project:/, ''), node]));
+  const structuralEdges: CollaborationEdge[] = [];
+  for (const targetID of [...used]) {
+    const target = nodesByID.get(targetID);
+    if (!target || (target.kind !== 'task' && target.kind !== 'plan')) continue;
+    const project = target.project_id ? scopedProjects.get(target.project_id) : scopedProjects.size === 1 ? [...scopedProjects.values()][0] : undefined;
+    if (!project) continue;
+    used.add(project.id);
+    structuralEdges.push({
+      id: `kg-scope:${project.id}:${target.id}`,
+      source: project.id,
+      target: target.id,
+      relation_type: target.kind === 'plan' ? 'contains_plan' : 'contains_task',
+      polarity: 'neutral',
+      magnitude: 1,
+      interaction_count: 0,
+      evidence_count: 0,
+    });
+  }
+  return dimensionResult([...nodesByID.values()].filter((node) => used.has(node.id)), [...structuralEdges, ...edges], 'impact');
 }
 
 function planLineageGraph(graph: CollaborationGraphView): DimensionGraphView {
@@ -766,6 +785,7 @@ function CollaborationGraph({
   const relationshipEdges = locatedEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0)
     .sort((a, b) => b.magnitude - a.magnitude || b.interaction_count - a.interaction_count || b.evidence_count - a.evidence_count || a.id.localeCompare(b.id));
   const projectFocus = useMemo(() => buildProjectFocus(projectId, projectLabel, view, relationshipEdges, effects, nodeLabelByID, t), [projectId, projectLabel, view, relationshipEdges, effects, nodeLabelByID, t]);
+  const knowledgeGraph = useMemo(() => buildKnowledgeGraphAnalysis(projectId, projectFocus?.projectLabel || projectLabel, visibleNodes, relationshipEdges, effects, nodeLabelByID, t), [projectId, projectFocus?.projectLabel, projectLabel, visibleNodes, relationshipEdges, effects, nodeLabelByID, t]);
   const renderEdgeButtons = (limit = EDGE_LIST_RENDER_LIMIT) => relationshipEdges.slice(0, limit).map((edge) => {
     const scopes = scopesForEdge(edge);
     const key = scopes.map((scope) => `${scope.effect_id}\0${scope.project_id}`).join('\0');
@@ -815,6 +835,7 @@ function CollaborationGraph({
         </div>
       </div>
       <aside className="flex min-h-0 flex-col gap-3 overflow-hidden rounded-lg bg-bg-elevated/70 p-3 shadow-sm ring-1 ring-white/5" data-testid="collaboration-inspector">
+        {knowledgeGraph ? <KnowledgeGraphAnalysisPanel analysis={knowledgeGraph} t={t} /> : null}
         {projectFocus ? <ProjectFocus focus={projectFocus} t={t} /> : null}
         <Summary summary={summary} t={t} />
         <GraphReadout view={view} visibleNodes={visibleNodes.length} visibleEdges={visibleEdges.length} t={t} />
@@ -865,6 +886,40 @@ type ProjectFocusSummary = {
   topAgents: string[];
 };
 
+type KnowledgeGraphAnalysis = {
+  title: string;
+  entityMix: string;
+  relationMix: string;
+  evidenceCoverage: string;
+  centralEntity: string;
+  triples: string[];
+  paths: string[];
+  conflicts: string[];
+};
+
+function KnowledgeGraphAnalysisPanel({ analysis, t }: { analysis: KnowledgeGraphAnalysis; t: Translator }) {
+  return <section className="rounded-lg bg-bg-primary/80 p-3 shadow-sm ring-1 ring-white/5" data-testid="collaboration-kg-analysis">
+    <p className="text-xs font-semibold uppercase text-text-muted">{t('insight.collaboration.kg.title')}</p>
+    <h2 className="mt-1 text-base font-semibold text-text-primary">{analysis.title}</h2>
+    <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+      <div className="rounded-md bg-bg-subtle px-2 py-1.5"><span className="block text-text-muted">{t('insight.collaboration.kg.entities')}</span><strong className="mt-0.5 block text-text-primary">{analysis.entityMix}</strong></div>
+      <div className="rounded-md bg-bg-subtle px-2 py-1.5"><span className="block text-text-muted">{t('insight.collaboration.kg.relations')}</span><strong className="mt-0.5 block text-text-primary">{analysis.relationMix}</strong></div>
+      <div className="col-span-2 rounded-md bg-bg-subtle px-2 py-1.5"><span className="block text-text-muted">{t('insight.collaboration.kg.central')}</span><strong className="mt-0.5 block text-text-primary">{analysis.centralEntity}</strong></div>
+      <div className="col-span-2 rounded-md bg-bg-subtle px-2 py-1.5"><span className="block text-text-muted">{t('insight.collaboration.kg.evidence')}</span><strong className="mt-0.5 block text-text-primary">{analysis.evidenceCoverage}</strong></div>
+    </div>
+    <KGList title={t('insight.collaboration.kg.triples')} items={analysis.triples} empty={t('insight.collaboration.kg.noTriples')} />
+    <KGList title={t('insight.collaboration.kg.paths')} items={analysis.paths} empty={t('insight.collaboration.kg.noPaths')} />
+    <KGList title={t('insight.collaboration.kg.conflicts')} items={analysis.conflicts} empty={t('insight.collaboration.kg.noConflicts')} />
+  </section>;
+}
+
+function KGList({ title, items, empty }: { title: string; items: string[]; empty: string }) {
+  return <div className="mt-3">
+    <p className="text-xs font-medium text-text-muted">{title}</p>
+    {items.length > 0 ? <ol className="mt-1 space-y-1">{items.slice(0, 3).map((item) => <li key={item} className="rounded-md bg-bg-surface px-2 py-1.5 text-xs leading-5 text-text-secondary">{item}</li>)}</ol> : <p className="mt-1 rounded-md bg-bg-surface px-2 py-1.5 text-xs text-text-muted">{empty}</p>}
+  </div>;
+}
+
 function ProjectFocus({ focus, t }: { focus: ProjectFocusSummary; t: Translator }) {
   return <section className="rounded-lg bg-bg-primary/80 p-3 shadow-sm ring-1 ring-white/5" data-testid="collaboration-project-focus">
     <p className="text-xs font-semibold uppercase text-text-muted">{t('insight.collaboration.projectFocus.title')}</p>
@@ -879,6 +934,35 @@ function ProjectFocus({ focus, t }: { focus: ProjectFocusSummary; t: Translator 
     <p className="mt-1 text-sm leading-5 text-text-primary">{focus.strongest}</p>
     {focus.topAgents.length > 0 ? <p className="mt-2 text-xs leading-5 text-text-muted">{t('insight.collaboration.projectFocus.topAgents', { agents: focus.topAgents.join(', ') })}</p> : null}
   </section>;
+}
+
+function buildKnowledgeGraphAnalysis(
+  projectId: string | undefined,
+  projectLabel: string | undefined,
+  nodes: CollaborationNode[],
+  relationshipEdges: CollaborationEdge[],
+  effects: Array<{ project_id: string; polarity: string; relation_type: string; source_agent_ref: string; target_task_id: string; evidence_count?: number; evidence_event_ids?: string[] }>,
+  nodeLabelByID: Map<string, string>,
+  t: Translator,
+): KnowledgeGraphAnalysis | null {
+  if (!projectId) return null;
+  const title = t('insight.collaboration.kg.projectSubgraph', { project: projectLabel || projectId });
+  const effectEdges = relationshipEdges.filter((edge) => edge.effect_id || edge.interaction_count > 0);
+  const nodeCounts = countBy(nodes, (node) => node.kind);
+  const relationCounts = countBy(effectEdges, (edge) => edge.relation_type);
+  const entityMix = formatCounts(nodeCounts, (kind) => labelFor(t, kind), t('insight.collaboration.kg.emptyCount'));
+  const relationMix = formatCounts(relationCounts, (relation) => labelFor(t, relation), t('insight.collaboration.kg.emptyCount'));
+  const centralEntity = centralNodeLabel(nodes, effectEdges, nodeLabelByID) || projectLabel || projectId;
+  const triples = effectEdges.slice(0, 5).map((edge) => `${nodeName(edge.source, nodeLabelByID)} — ${labelFor(t, edge.relation_type)} / ${labelFor(t, edge.polarity)} → ${nodeName(edge.target, nodeLabelByID)}`);
+  const paths = effectEdges
+    .filter((edge) => isAgentRef(edge.source))
+    .slice(0, 5)
+    .map((edge) => `${projectLabel || projectId} → ${nodeName(edge.source, nodeLabelByID)} → ${nodeName(edge.target, nodeLabelByID)} (${labelFor(t, edge.polarity)}, ${t('insight.collaboration.magnitude', { value: edge.magnitude })})`);
+  const conflicts = conflictingTargetSummaries(effectEdges, nodeLabelByID, t);
+  const projectEffects = effects.filter((effect) => effect.project_id === projectId || effects.every((item) => item.project_id === projectId));
+  const evidenceTotal = projectEffects.reduce((total, effect) => total + (effect.evidence_event_ids?.length ?? 0), 0) || effectEdges.reduce((total, edge) => total + edge.evidence_count, 0);
+  const evidenceCoverage = t('insight.collaboration.kg.evidenceValue', { edges: effectEdges.filter((edge) => edge.evidence_count > 0 || scopesForEdge(edge).length > 0).length, total: effectEdges.length, evidence: evidenceTotal });
+  return { title, entityMix, relationMix, evidenceCoverage, centralEntity, triples, paths, conflicts };
 }
 
 function GraphLegend({ t }: { t: Translator }) {
@@ -948,6 +1032,60 @@ function readableEdgeEndpoints(edge: CollaborationEdge, nodeLabelByID: Map<strin
   const source = nodeLabelByID.get(edge.source) || normalizeIdentityRef(edge.source);
   const target = nodeLabelByID.get(edge.target) || normalizeIdentityRef(edge.target);
   return `${source} -> ${target}`;
+}
+
+function nodeName(id: string, nodeLabelByID: Map<string, string>): string {
+  return nodeLabelByID.get(id) || normalizeIdentityRef(id);
+}
+
+function isAgentRef(value: string): boolean {
+  return value.startsWith('agent:');
+}
+
+function countBy<T>(items: T[], key: (item: T) => string): Map<string, number> {
+  return items.reduce((counts, item) => {
+    const value = key(item);
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+    return counts;
+  }, new Map<string, number>());
+}
+
+function formatCounts(counts: Map<string, number>, label: (value: string) => string, empty: string): string {
+  const items = [...counts.entries()].sort((a, b) => b[1] - a[1] || label(a[0]).localeCompare(label(b[0]))).slice(0, 3);
+  return items.length ? items.map(([key, count]) => `${label(key)} ${count}`).join(' · ') : empty;
+}
+
+function centralNodeLabel(nodes: CollaborationNode[], edges: CollaborationEdge[], nodeLabelByID: Map<string, string>): string {
+  const nodeIDs = new Set(nodes.map((node) => node.id));
+  const weightedDegree = new Map<string, number>();
+  for (const edge of edges) {
+    if (nodeIDs.has(edge.source)) weightedDegree.set(edge.source, (weightedDegree.get(edge.source) ?? 0) + edge.magnitude + Math.max(1, edge.interaction_count));
+    if (nodeIDs.has(edge.target)) weightedDegree.set(edge.target, (weightedDegree.get(edge.target) ?? 0) + edge.magnitude + Math.max(1, edge.interaction_count));
+  }
+  const [id] = [...weightedDegree.entries()].sort((a, b) => b[1] - a[1] || nodeName(a[0], nodeLabelByID).localeCompare(nodeName(b[0], nodeLabelByID)))[0] ?? [];
+  return id ? nodeName(id, nodeLabelByID) : '';
+}
+
+function conflictingTargetSummaries(edges: CollaborationEdge[], nodeLabelByID: Map<string, string>, t: Translator): string[] {
+  const byTarget = new Map<string, CollaborationEdge[]>();
+  for (const edge of edges) {
+    const bucket = byTarget.get(edge.target) ?? [];
+    bucket.push(edge);
+    byTarget.set(edge.target, bucket);
+  }
+  return [...byTarget.entries()].flatMap(([target, targetEdges]) => {
+    const hasPositive = targetEdges.some((edge) => edge.polarity === 'positive');
+    const hasNegative = targetEdges.some((edge) => edge.polarity === 'negative');
+    const hasMixed = targetEdges.some((edge) => edge.polarity === 'mixed');
+    if (!((hasPositive && hasNegative) || hasMixed)) return [];
+    const strongest = [...targetEdges].sort((a, b) => b.magnitude - a.magnitude || b.interaction_count - a.interaction_count)[0];
+    return [t('insight.collaboration.kg.conflictValue', {
+      target: nodeName(target, nodeLabelByID),
+      relation: labelFor(t, strongest.relation_type),
+      polarity: labelFor(t, strongest.polarity),
+      count: targetEdges.length,
+    })];
+  }).slice(0, 3);
 }
 
 type EChartNodeDatum = {
@@ -1235,12 +1373,14 @@ function layoutLanes(nodes: CollaborationNode[], view: CollaborationViewKind): P
 }
 
 function layoutImpact(nodes: CollaborationNode[]): PositionedNode[] {
+  const projects = nodes.filter((node) => node.kind === 'project');
   const agents = nodes.filter((node) => node.kind === 'agent');
   const plans = nodes.filter((node) => node.kind === 'plan');
   const tasks = nodes.filter((node) => node.kind === 'task');
-  const others = nodes.filter((node) => !['agent', 'plan', 'task'].includes(node.kind));
+  const others = nodes.filter((node) => !['agent', 'plan', 'task', 'project'].includes(node.kind));
   return [
-    ...spreadColumn(agents, 135, 120, 560),
+    ...spreadColumn(projects, 85, 150, 500),
+    ...spreadColumn(agents, 230, 120, 560),
     ...spreadColumn(plans, 390, 130, 540),
     ...packByKind(tasks, { x: 590, y: 90, width: 340, height: 500 }),
     ...packByKind(others, { x: 330, y: 90, width: 260, height: 500 }),
