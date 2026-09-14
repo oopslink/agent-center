@@ -299,13 +299,16 @@ func TestHealthInsideVMRestoresMissingComputerUseEndpoint(t *testing.T) {
 	}
 	oldOpen := sandboxComputerUseOpenBinary
 	oldKill := sandboxComputerUseKillBinary
+	oldLaunchctl := sandboxComputerUseLaunchctl
 	oldApp := sandboxComputerUseAppPath
 	sandboxComputerUseOpenBinary = bin
 	sandboxComputerUseKillBinary = ""
+	sandboxComputerUseLaunchctl = ""
 	sandboxComputerUseAppPath = appPath
 	t.Cleanup(func() {
 		sandboxComputerUseOpenBinary = oldOpen
 		sandboxComputerUseKillBinary = oldKill
+		sandboxComputerUseLaunchctl = oldLaunchctl
 		sandboxComputerUseAppPath = oldApp
 	})
 	t.Setenv("TEST_CUA_ENDPOINT", cua)

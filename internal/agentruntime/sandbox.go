@@ -39,6 +39,8 @@ var ErrUnsupportedSandboxProvider = errors.New("agentruntime: unsupported sandbo
 var (
 	sandboxComputerUseOpenBinary     = "/usr/bin/open"
 	sandboxComputerUseKillBinary     = "pkill"
+	sandboxComputerUseLaunchctl      = "launchctl"
+	sandboxComputerUseLaunchAgentPat = "/Users/admin/Library/LaunchAgents/*computeruse-app.plist"
 	sandboxComputerUseAppPath        = "/Users/admin/agent-center/computer-use/Codex Computer Use.app"
 	sandboxComputerUseProcessPattern = "/Users/admin/agent-center/computer-use/Codex Computer Use.app/Contents/MacOS/SkyComputerUseService"
 )
@@ -750,11 +752,18 @@ func restoreVMRuntimeComputerUseEndpoint(ctx context.Context, endpoint string) e
 		return fmt.Errorf("computer use app not found at %s", appPath)
 	}
 	killStaleVMRuntimeComputerUseService(ctx)
+	if kickstartVMRuntimeComputerUseLaunchAgent(ctx) {
+		return waitForComputerUseEndpoint(ctx, endpoint)
+	}
 	openCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	if out, err := exec.CommandContext(openCtx, openBinary, "-a", appPath).CombinedOutput(); err != nil {
 		return errors.New(strings.TrimSpace(fmt.Sprintf("open computer use app failed: %v: %s", err, string(out))))
 	}
+	return waitForComputerUseEndpoint(ctx, endpoint)
+}
+
+func waitForComputerUseEndpoint(ctx context.Context, endpoint string) error {
 	deadline := time.Now().Add(6 * time.Second)
 	for {
 		if sandboxComputerUseEndpointExists(endpoint) {
@@ -769,6 +778,32 @@ func restoreVMRuntimeComputerUseEndpoint(ctx context.Context, endpoint string) e
 		case <-time.After(250 * time.Millisecond):
 		}
 	}
+}
+
+func kickstartVMRuntimeComputerUseLaunchAgent(ctx context.Context) bool {
+	launchctl := strings.TrimSpace(sandboxComputerUseLaunchctl)
+	pattern := strings.TrimSpace(sandboxComputerUseLaunchAgentPat)
+	if launchctl == "" || pattern == "" {
+		return false
+	}
+	matches, err := filepath.Glob(pattern)
+	if err != nil || len(matches) == 0 {
+		return false
+	}
+	uid := os.Getuid()
+	for _, path := range matches {
+		label := strings.TrimSuffix(filepath.Base(path), ".plist")
+		if label == "" {
+			continue
+		}
+		cmdCtx, cancel := context.WithTimeout(ctx, 6*time.Second)
+		err := exec.CommandContext(cmdCtx, launchctl, "kickstart", "-k", fmt.Sprintf("gui/%d/%s", uid, label)).Run()
+		cancel()
+		if err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func killStaleVMRuntimeComputerUseService(ctx context.Context) {
