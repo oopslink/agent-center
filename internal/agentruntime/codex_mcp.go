@@ -166,9 +166,8 @@ func writeCodexMCPConfig(home string, runtimeJSON, baseConfig []byte, sourceCode
 	if err := os.MkdirAll(codexHome, 0o700); err != nil {
 		return "", fmt.Errorf("codex_session: mkdir codex-home: %w", err)
 	}
-	// Keep Computer Use's MCP server ahead of the large agent-center registry.
-	// Codex may omit lower-priority tools from model-visible ALL_TOOLS in big
-	// task prompts, so node_repl must be introduced before the broad control MCP.
+	// Keep the generated sections in a stable order. Server startup health, not
+	// TOML table order, determines whether Computer Use tools are available.
 	content := bytesTrimSpace(baseConfig)
 	if nodeRepl := codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome, computerUse); len(nodeRepl) > 0 {
 		content = mergeCodexBaseAndGeneratedConfig(content, nodeRepl)
@@ -269,6 +268,8 @@ func codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome string, computerUse C
 	b.WriteString("\n[mcp_servers.node_repl]\n")
 	fmt.Fprintf(&b, "command = %s\n", tomlString(nodeRuntime.nodeRepl))
 	b.WriteString("args = []\n")
+	// A sandbox configured for Computer Use must not silently run without it.
+	b.WriteString("required = true\n")
 	b.WriteString("startup_timeout_sec = 120\n")
 	b.WriteString("env = { ")
 	for i, k := range keys {

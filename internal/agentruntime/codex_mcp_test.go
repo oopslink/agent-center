@@ -194,6 +194,7 @@ func TestWriteCodexMCPConfigFromSource_AddsNodeReplWhenComputerUseAvailable(t *t
 	s := string(b)
 	for _, want := range []string{
 		`[mcp_servers.node_repl]`,
+		`required = true`,
 		`command = "` + nodeRepl + `"`,
 		`startup_timeout_sec = 120`,
 		`CODEX_HOME = "` + codexHome + `"`,
@@ -212,7 +213,7 @@ func TestWriteCodexMCPConfigFromSource_AddsNodeReplWhenComputerUseAvailable(t *t
 	nodeReplIdx := strings.Index(s, `[mcp_servers.node_repl]`)
 	agentCenterIdx := strings.Index(s, `[mcp_servers.agent-center]`)
 	if nodeReplIdx < 0 || agentCenterIdx < 0 || nodeReplIdx > agentCenterIdx {
-		t.Fatalf("node_repl must be generated before agent-center so Computer Use tools survive large registries; got:\n%s", s)
+		t.Fatalf("generated MCP section order changed; got:\n%s", s)
 	}
 }
 

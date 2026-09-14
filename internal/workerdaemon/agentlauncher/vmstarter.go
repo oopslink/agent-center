@@ -921,7 +921,24 @@ func tartGuestEnv(base []string, plan tartGuestMountPlan, agentID string) []stri
 }
 
 func withoutSandboxHostOnlyEnv(env []string) []string {
+	// SSH supplies the guest user's identity and local directories. Inheriting
+	// the worker's TMPDIR makes node_repl exit before the MCP handshake because
+	// that macOS per-user directory does not exist in the VM.
 	return withoutEnvPrefixes(env,
+		"HOME",
+		"USER",
+		"LOGNAME",
+		"TMPDIR",
+		"TMP",
+		"TEMP",
+		"PWD",
+		"OLDPWD",
+		"SSH_AUTH_SOCK",
+		"XDG_CONFIG_HOME",
+		"XDG_CACHE_HOME",
+		"XDG_DATA_HOME",
+		"XDG_STATE_HOME",
+		"XDG_RUNTIME_DIR",
 		"PATH",
 		"CODEX_HOME",
 		"CLAUDE_CONFIG_DIR",

@@ -2,6 +2,7 @@ package agentlauncher
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -244,6 +245,33 @@ func TestTartGuestEnvDoesNotLeakHostProxyWithoutSandboxProxy(t *testing.T) {
 		if got[key] != "" {
 			t.Fatalf("%s leaked into guest env as %q", key, got[key])
 		}
+	}
+}
+
+func TestTartGuestEnvPreservesGuestIdentityAndTempDirectory(t *testing.T) {
+	guestHome, guestTemp := t.TempDir(), t.TempDir()
+	hostOnly := []string{
+		"HOME", "USER", "LOGNAME", "TMPDIR", "TMP", "TEMP", "PWD", "OLDPWD",
+		"SSH_AUTH_SOCK", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME",
+		"XDG_STATE_HOME", "XDG_RUNTIME_DIR",
+	}
+	base := []string{"APP_SETTING=preserved"}
+	for _, key := range hostOnly {
+		base = append(base, key+"=/missing/host/path")
+	}
+	env := tartGuestEnv(base, tartGuestMountPlan{}, "agent-1")
+	for _, key := range hostOnly {
+		if got := envValue(env, key); got != "" {
+			t.Fatalf("host %s leaked into guest: %q", key, got)
+		}
+	}
+	// Exercise the actual remote env command with a guest login environment.
+	// Before the fix, mktemp fails on the nonexistent host TMPDIR.
+	command := shellJoin([]string{"/bin/sh", "-c", `test "$HOME" = "$EXPECTED_HOME" && test "$APP_SETTING" = preserved && p=$(mktemp) && rm "$p"`}, env)
+	cmd := exec.Command("/bin/sh", "-c", command)
+	cmd.Env = []string{"PATH=/usr/bin:/bin", "HOME=" + guestHome, "TMPDIR=" + guestTemp, "EXPECTED_HOME=" + guestHome}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("guest child cannot use its own home/temp directory: %v: %s", err, out)
 	}
 }
 
