@@ -36,6 +36,11 @@ const (
 
 var ErrUnsupportedSandboxProvider = errors.New("agentruntime: unsupported sandbox provider")
 
+var (
+	sandboxComputerUseOpenBinary = "/usr/bin/open"
+	sandboxComputerUseAppPath    = "/Users/admin/agent-center/computer-use/Codex Computer Use.app"
+)
+
 type SandboxConfig struct {
 	Enabled  bool
 	Provider string
@@ -212,7 +217,7 @@ func (m *LocalSandboxManager) EnsureAgentSandbox(ctx context.Context, req Sandbo
 	b.Provider = req.Config.Provider
 	b.RuntimePlacement = sandboxRuntimePlacementEnv(req.AgentID)
 	if insideVM {
-		b = overlaySandboxBindingForVMRuntime(req, b, now)
+		b = overlaySandboxBindingForVMRuntime(ctx, req, b, now)
 		return b, nil
 	}
 	b.HostMountPath = filepath.Clean(req.HomeDir)
@@ -245,7 +250,7 @@ func (m *LocalSandboxManager) EnsureAgentSandbox(ctx context.Context, req Sandbo
 	return b, nil
 }
 
-func (m *LocalSandboxManager) GetAgentSandbox(_ context.Context, req SandboxEnsureRequest) (SandboxBinding, bool, error) {
+func (m *LocalSandboxManager) GetAgentSandbox(ctx context.Context, req SandboxEnsureRequest) (SandboxBinding, bool, error) {
 	path, err := sandboxBindingPath(req.HomeDir)
 	if err != nil {
 		return SandboxBinding{}, false, err
@@ -255,7 +260,7 @@ func (m *LocalSandboxManager) GetAgentSandbox(_ context.Context, req SandboxEnsu
 		return b, ok, err
 	}
 	if sandboxRuntimeInsideVM() {
-		b = overlaySandboxBindingForVMRuntime(req, b, m.clock().UTC())
+		b = overlaySandboxBindingForVMRuntime(ctx, req, b, m.clock().UTC())
 	}
 	return b, true, nil
 }
@@ -343,7 +348,7 @@ func (m *LocalSandboxManager) Health(ctx context.Context, req SandboxEnsureReque
 		return b, err
 	}
 	if sandboxRuntimeInsideVM() {
-		return overlaySandboxBindingForVMRuntime(req, b, m.clock().UTC()), nil
+		return overlaySandboxBindingForVMRuntime(ctx, req, b, m.clock().UTC()), nil
 	}
 	b = m.refreshTartBinding(ctx, b)
 	if next, err := materializeSandboxResources(req.HomeDir, b); err == nil {
@@ -678,7 +683,7 @@ func sandboxRuntimeInsideVM() bool {
 	return v == "1" || v == "true" || v == "yes"
 }
 
-func overlaySandboxBindingForVMRuntime(req SandboxEnsureRequest, b SandboxBinding, now time.Time) SandboxBinding {
+func overlaySandboxBindingForVMRuntime(ctx context.Context, req SandboxEnsureRequest, b SandboxBinding, now time.Time) SandboxBinding {
 	if strings.TrimSpace(b.SandboxID) == "" {
 		b.SandboxID = "sbx-" + shortHash(req.AgentID+"|"+req.Config.Provider)
 	}
@@ -701,22 +706,66 @@ func overlaySandboxBindingForVMRuntime(req SandboxEnsureRequest, b SandboxBindin
 	if strings.TrimSpace(b.BootstrapPath) == "" {
 		b.BootstrapPath = sandboxBootstrapPath(req.HomeDir)
 	}
-	if ep := sandboxEndpointEnv(req.AgentID); ep != "" && sandboxComputerUseEndpointExists(ep) {
-		b.ComputerUseEndpoint = ep
-		b.ComputerUseEnv = map[string]string{
-			"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS": ep,
-			"SKY_CUA_ENDPOINT":                       ep,
-			"SKY_CUA_SERVICE_NATIVE_PIPE_PATH":       ep,
+	if ep := sandboxEndpointEnv(req.AgentID); ep != "" {
+		if !sandboxComputerUseEndpointExists(ep) {
+			_ = restoreVMRuntimeComputerUseEndpoint(ctx, ep)
+		}
+		if sandboxComputerUseEndpointExists(ep) {
+			b.ComputerUseEndpoint = ep
+			b.ComputerUseEnv = map[string]string{
+				"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS": ep,
+				"SKY_CUA_ENDPOINT":                       ep,
+				"SKY_CUA_SERVICE_NATIVE_PIPE_PATH":       ep,
+			}
+			b.LastError = ""
+		} else {
+			b.ComputerUseEndpoint = ""
+			b.ComputerUseEnv = nil
+			b.LastError = "Computer Use service socket is not available; attempted to reopen the VM service"
 		}
 	} else {
 		b.ComputerUseEndpoint = ""
 		b.ComputerUseEnv = nil
+		b.LastError = ""
 	}
 	b.State = SandboxStateRunning
 	b.LastHealthAt = now
 	b.UpdatedAt = now
-	b.LastError = ""
 	return b
+}
+
+func restoreVMRuntimeComputerUseEndpoint(ctx context.Context, endpoint string) error {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" || sandboxComputerUseEndpointExists(endpoint) {
+		return nil
+	}
+	openBinary := strings.TrimSpace(sandboxComputerUseOpenBinary)
+	appPath := strings.TrimSpace(sandboxComputerUseAppPath)
+	if openBinary == "" || appPath == "" {
+		return errors.New("computer use opener is not configured")
+	}
+	if st, err := os.Stat(appPath); err != nil || !st.IsDir() {
+		return fmt.Errorf("computer use app not found at %s", appPath)
+	}
+	openCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
+	defer cancel()
+	if out, err := exec.CommandContext(openCtx, openBinary, "-a", appPath).CombinedOutput(); err != nil {
+		return errors.New(strings.TrimSpace(fmt.Sprintf("open computer use app failed: %v: %s", err, string(out))))
+	}
+	deadline := time.Now().Add(6 * time.Second)
+	for {
+		if sandboxComputerUseEndpointExists(endpoint) {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("computer use endpoint did not appear at %s", endpoint)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(250 * time.Millisecond):
+		}
+	}
 }
 
 func sandboxGuestMountPath(agentID string) string {

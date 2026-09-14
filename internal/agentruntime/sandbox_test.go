@@ -273,3 +273,54 @@ func TestHealthInsideVMDoesNotRequireHostTart(t *testing.T) {
 		t.Fatalf("inside VM health should not rewrite shared host binding, got %q", persisted.State)
 	}
 }
+
+func TestHealthInsideVMRestoresMissingComputerUseEndpoint(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(home, "sandbox"), 0o700); err != nil {
+		t.Fatalf("mkdir sandbox: %v", err)
+	}
+	if err := writeSandboxBinding(filepath.Join(home, "sandbox", "binding.json"), SandboxBinding{
+		SandboxID: "sbx-existing",
+		AgentID:   "agent-1",
+		WorkerID:  "worker-1",
+		Provider:  SandboxProviderTartMacOSVM,
+		State:     SandboxStateRunning,
+	}); err != nil {
+		t.Fatalf("write binding: %v", err)
+	}
+	cua := filepath.Join(home, "computeruse.sock")
+	appPath := filepath.Join(home, "Codex Computer Use.app")
+	if err := os.MkdirAll(appPath, 0o755); err != nil {
+		t.Fatalf("mkdir app: %v", err)
+	}
+	bin := filepath.Join(home, "fake-open")
+	if err := os.WriteFile(bin, []byte("#!/bin/sh\n: > \"$TEST_CUA_ENDPOINT\"\n"), 0o755); err != nil {
+		t.Fatalf("write fake open: %v", err)
+	}
+	oldOpen := sandboxComputerUseOpenBinary
+	oldApp := sandboxComputerUseAppPath
+	sandboxComputerUseOpenBinary = bin
+	sandboxComputerUseAppPath = appPath
+	t.Cleanup(func() {
+		sandboxComputerUseOpenBinary = oldOpen
+		sandboxComputerUseAppPath = oldApp
+	})
+	t.Setenv("TEST_CUA_ENDPOINT", cua)
+	t.Setenv("AC_SANDBOX_RUNTIME_INSIDE_VM", "1")
+	t.Setenv("AC_SANDBOX_COMPUTER_USE_ENDPOINT", cua)
+	m := NewLocalSandboxManager(func() time.Time {
+		return time.Date(2026, 9, 14, 4, 0, 0, 0, time.UTC)
+	})
+	b, err := m.Health(context.Background(), SandboxEnsureRequest{
+		AgentID:  "agent-1",
+		WorkerID: "worker-2",
+		HomeDir:  home,
+		Config:   SandboxConfig{Enabled: true, Provider: SandboxProviderTartMacOSVM},
+	})
+	if err != nil {
+		t.Fatalf("Health: %v", err)
+	}
+	if b.ComputerUseEndpoint != cua || b.LastError != "" {
+		t.Fatalf("endpoint/error = %q/%q, want %q/empty", b.ComputerUseEndpoint, b.LastError, cua)
+	}
+}
