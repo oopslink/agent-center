@@ -607,6 +607,83 @@ func TestOnEvent_CodexRegistryMissingThenSuccessDoesNotCountCleanTurn(t *testing
 	}
 }
 
+func TestOnEvent_CodexAssistantTextMissingNodeReplIsFatalAndClearsThread(t *testing.T) {
+	rt, rep, fatal := fullRuntime(t)
+	homeBase := t.TempDir()
+	home := filepath.Join(homeBase, "agents", "agent-x")
+	if err := os.MkdirAll(home, 0o755); err != nil {
+		t.Fatalf("mkdir home: %v", err)
+	}
+	if _, err := sessioninstance.AcquireInstance(home, "thread-without-node-repl", 123); err != nil {
+		t.Fatalf("AcquireInstance: %v", err)
+	}
+	rt.cfg.AgentHomeBase = homeBase
+	rt.cfg.WorkerID = "worker-test"
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.CurrentTaskID = "task-1"
+		s.Sandbox.Enabled = true
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "assistant_text",
+		Text: "当前会话未提供 node_repl MCP，因此 Computer Use 不可用。",
+	})
+	if !*fatal {
+		t.Fatal("assistant text reporting missing node_repl must mark Codex session fatal")
+	}
+	st, err := sessioninstance.ReadInstance(home)
+	if err != nil {
+		t.Fatalf("ReadInstance: %v", err)
+	}
+	if st.SessionID != "" {
+		t.Fatalf("SessionID = %q, want cleared after node_repl registry-missing fatal", st.SessionID)
+	}
+	rep.mu.Lock()
+	defer rep.mu.Unlock()
+	if len(rep.activity) == 0 || rep.activity[len(rep.activity)-1] != "computer_use_registry_missing" {
+		t.Fatalf("activity = %v, want computer_use_registry_missing", rep.activity)
+	}
+}
+
+func TestOnEvent_CodexNodeReplRegistryMissingThenSuccessDoesNotCountCleanTurn(t *testing.T) {
+	rt, _, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+		s.Sandbox.Enabled = true
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "assistant_text",
+		Text: "Computer Use 在当前会话中确实不可用：`node_repl` 没有加载。",
+	})
+	if !*fatal {
+		t.Fatal("missing node_repl text must mark Codex session fatal")
+	}
+	rt.onEvent(claudestream.StreamEvent{
+		Type:    "result",
+		Subtype: "success",
+		IsError: false,
+	})
+	rt.mu.Lock()
+	defer rt.mu.Unlock()
+	if rt.state.CodexCleanTurns != 0 {
+		t.Fatalf("CodexCleanTurns = %d, want 0 after node_repl registry-missing success result", rt.state.CodexCleanTurns)
+	}
+}
+
+func TestOnEvent_CodexMissingNodeReplWithoutSandboxIsNotFatal(t *testing.T) {
+	rt, _, fatal := fullRuntime(t)
+	rt.withState(func(s *SessionState) {
+		s.CLI = CLICodex
+	})
+	rt.onEvent(claudestream.StreamEvent{
+		Type: "assistant_text",
+		Text: "当前会话未提供 node_repl MCP，因此 Computer Use 不可用。",
+	})
+	if *fatal {
+		t.Fatal("node_repl text without sandbox must not restart a non-Computer-Use Codex agent")
+	}
+}
+
 func TestOnEvent_NonCodexMissingAgentCenterTextIsNotFatal(t *testing.T) {
 	rt, _, fatal := fullRuntime(t)
 	rt.withState(func(s *SessionState) { s.CLI = "claude" })

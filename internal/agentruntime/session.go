@@ -224,6 +224,12 @@ type SessionState struct {
 	// count as a clean supervisor turn or preserve the poisoned thread.
 	SawCodexRegistryMissing bool
 
+	// SawCodexComputerUseRegistryMissing is set when Computer Use is configured for
+	// the agent but the model-side Codex registry did not expose node_repl. Codex may
+	// still complete the turn after reporting this blocker; treat it like a poisoned
+	// registry so the next turn starts with a fresh tool catalog.
+	SawCodexComputerUseRegistryMissing bool
+
 	// Lifecycle coordination (onExit three-state).
 	ExpectedStop  bool
 	Detaching     bool

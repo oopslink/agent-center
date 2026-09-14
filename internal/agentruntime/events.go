@@ -33,6 +33,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 	var sawIncomplete bool
 	var sawCodexPoisoningTransport bool
 	var sawCodexRegistryMissing bool
+	var sawCodexComputerUseRegistryMissing bool
 	workItemRef = st.CurrentTaskID
 	switch ev.Type {
 	case "tool_use":
@@ -77,6 +78,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 			st.SawIncompleteTurn = false // fresh turn → drop a stale truncation marker
 			st.SawCodexPoisoningTransport = false
 			st.SawCodexRegistryMissing = false
+			st.SawCodexComputerUseRegistryMissing = false
 		}
 	case "result":
 		st.ToolNames = nil
@@ -88,6 +90,8 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 		st.SawCodexPoisoningTransport = false
 		sawCodexRegistryMissing = st.SawCodexRegistryMissing
 		st.SawCodexRegistryMissing = false
+		sawCodexComputerUseRegistryMissing = st.SawCodexComputerUseRegistryMissing
+		st.SawCodexComputerUseRegistryMissing = false
 	}
 	taskForEvent = st.EventTaskID
 	r.mu.Unlock()
@@ -115,6 +119,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 	r.maybeReportCenterBypassAlert(agentID, workItemRef, ev)
 	r.maybeFailCodexPoisonedTransport(agentID, workItemRef, ev, sawCodexPoisoningTransport)
 	r.maybeFailCodexMissingAgentCenterRegistry(agentID, workItemRef, ev)
+	r.maybeFailCodexMissingComputerUseRegistry(agentID, workItemRef, ev)
 	if clearEventTask {
 		r.mu.Lock()
 		st.LastEventTaskID = st.EventTaskID
@@ -144,7 +149,7 @@ func (r *LocalRuntime) onEvent(ev claudestream.StreamEvent) {
 			return
 		}
 	}
-	if ev.Type == "result" && !ev.IsError && sawCodexRegistryMissing {
+	if ev.Type == "result" && !ev.IsError && (sawCodexRegistryMissing || sawCodexComputerUseRegistryMissing) {
 		r.log("codex agent=%s turn completed after registry-missing assistant text; skipping clean-turn handling", agentID)
 		return
 	}
@@ -256,6 +261,47 @@ func (r *LocalRuntime) maybeFailCodexMissingAgentCenterRegistry(agentID, workIte
 	}
 }
 
+func (r *LocalRuntime) maybeFailCodexMissingComputerUseRegistry(agentID, workItemRef string, ev claudestream.StreamEvent) {
+	if !r.isCodexRuntime() {
+		return
+	}
+	r.mu.Lock()
+	sandboxEnabled := r.state.Sandbox.Enabled
+	r.mu.Unlock()
+	if !sandboxEnabled {
+		return
+	}
+	if !codexComputerUseRegistryMissing(ev) {
+		return
+	}
+	r.mu.Lock()
+	r.state.SawCodexComputerUseRegistryMissing = true
+	r.mu.Unlock()
+	payload, _ := json.Marshal(map[string]any{
+		"type":          "codex_computer_use_registry_missing",
+		"required":      "mcp__node_repl__js",
+		"work_item_ref": workItemRef,
+	})
+	if r.cfg.Reporter != nil {
+		if err := r.cfg.Reporter.ReportAgentActivity(
+			context.Background(), agentID, "computer_use_registry_missing", string(payload), workItemRef, "", time.Now(),
+		); err != nil {
+			r.log("codex agent=%s computer-use registry missing activity report: %v", agentID, err)
+		}
+	}
+	if home, _, _, err := r.agentPaths(agentID); err == nil {
+		if cerr := sessioninstance.ClearSessionID(home); cerr != nil {
+			r.log("codex agent=%s clear computer-use registry-missing thread_id failed: %v", agentID, cerr)
+		}
+	} else {
+		r.log("codex agent=%s locate home for computer-use registry-missing thread_id clear failed: %v", agentID, err)
+	}
+	r.log("codex agent=%s real tool registry missing mcp__node_repl__js; failing session", agentID)
+	if r.cfg.OnFatal != nil {
+		r.cfg.OnFatal("codex real tool registry missing mcp__node_repl__js")
+	}
+}
+
 func (r *LocalRuntime) maybeFailCodexPoisonedTransport(agentID, workItemRef string, ev claudestream.StreamEvent, sawCodexPoisoningTransport bool) {
 	if !r.isCodexRuntime() {
 		return
@@ -348,6 +394,37 @@ func codexAgentCenterRegistryMissing(ev claudestream.StreamEvent) bool {
 			"not provided", "missing", "not found", "could not find", "cannot find", "unavailable", "not available",
 			"is not a function", "not a function", "direct call failed",
 			"未提供", "找不到", "未找到", "未发现", "未暴露", "未加载", "未挂载", "缺失", "不可调用", "不可用", "没有", "直接调用失败",
+		} {
+			if strings.Contains(text, sig) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func codexComputerUseRegistryMissing(ev claudestream.StreamEvent) bool {
+	switch ev.Type {
+	case "unknown":
+		if len(ev.Raw) == 0 {
+			return false
+		}
+		raw := strings.ToLower(string(ev.Raw))
+		if strings.Contains(raw, "node_repl") && strings.Contains(raw, "[]") {
+			return true
+		}
+	case "assistant_text":
+		text := strings.ToLower(ev.Text)
+		if !strings.Contains(text, "node_repl") && !strings.Contains(text, "computer use") && !strings.Contains(text, "电脑使用") {
+			return false
+		}
+		if !strings.Contains(text, "node_repl") {
+			return false
+		}
+		for _, sig := range []string{
+			"not provided", "missing", "not found", "could not find", "cannot find", "unavailable", "not available",
+			"not exposed", "not loaded", "no node_repl", "does not include node_repl",
+			"未提供", "找不到", "未找到", "未发现", "未暴露", "未加载", "未挂载", "缺失", "不可调用", "不可用", "没有",
 		} {
 			if strings.Contains(text, sig) {
 				return true
