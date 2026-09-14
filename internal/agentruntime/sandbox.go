@@ -37,8 +37,10 @@ const (
 var ErrUnsupportedSandboxProvider = errors.New("agentruntime: unsupported sandbox provider")
 
 var (
-	sandboxComputerUseOpenBinary = "/usr/bin/open"
-	sandboxComputerUseAppPath    = "/Users/admin/agent-center/computer-use/Codex Computer Use.app"
+	sandboxComputerUseOpenBinary     = "/usr/bin/open"
+	sandboxComputerUseKillBinary     = "pkill"
+	sandboxComputerUseAppPath        = "/Users/admin/agent-center/computer-use/Codex Computer Use.app"
+	sandboxComputerUseProcessPattern = "/Users/admin/agent-center/computer-use/Codex Computer Use.app/Contents/MacOS/SkyComputerUseService"
 )
 
 type SandboxConfig struct {
@@ -747,6 +749,7 @@ func restoreVMRuntimeComputerUseEndpoint(ctx context.Context, endpoint string) e
 	if st, err := os.Stat(appPath); err != nil || !st.IsDir() {
 		return fmt.Errorf("computer use app not found at %s", appPath)
 	}
+	killStaleVMRuntimeComputerUseService(ctx)
 	openCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 	if out, err := exec.CommandContext(openCtx, openBinary, "-a", appPath).CombinedOutput(); err != nil {
@@ -766,6 +769,17 @@ func restoreVMRuntimeComputerUseEndpoint(ctx context.Context, endpoint string) e
 		case <-time.After(250 * time.Millisecond):
 		}
 	}
+}
+
+func killStaleVMRuntimeComputerUseService(ctx context.Context) {
+	killBinary := strings.TrimSpace(sandboxComputerUseKillBinary)
+	pattern := strings.TrimSpace(sandboxComputerUseProcessPattern)
+	if killBinary == "" || pattern == "" {
+		return
+	}
+	killCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	_ = exec.CommandContext(killCtx, killBinary, "-f", pattern).Run()
 }
 
 func sandboxGuestMountPath(agentID string) string {

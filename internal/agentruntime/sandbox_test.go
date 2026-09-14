@@ -298,11 +298,14 @@ func TestHealthInsideVMRestoresMissingComputerUseEndpoint(t *testing.T) {
 		t.Fatalf("write fake open: %v", err)
 	}
 	oldOpen := sandboxComputerUseOpenBinary
+	oldKill := sandboxComputerUseKillBinary
 	oldApp := sandboxComputerUseAppPath
 	sandboxComputerUseOpenBinary = bin
+	sandboxComputerUseKillBinary = ""
 	sandboxComputerUseAppPath = appPath
 	t.Cleanup(func() {
 		sandboxComputerUseOpenBinary = oldOpen
+		sandboxComputerUseKillBinary = oldKill
 		sandboxComputerUseAppPath = oldApp
 	})
 	t.Setenv("TEST_CUA_ENDPOINT", cua)
