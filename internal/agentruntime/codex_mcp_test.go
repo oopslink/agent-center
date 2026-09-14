@@ -211,6 +211,55 @@ func TestWriteCodexMCPConfigFromSource_AddsNodeReplWhenComputerUseAvailable(t *t
 	}
 }
 
+func TestWriteCodexMCPConfigFromSource_AddsNodeReplFromSourceCodexHomeCUANode(t *testing.T) {
+	home := t.TempDir()
+	src := t.TempDir()
+	nodeRoot := filepath.Join(src, "cua_node")
+	nodeRepl := filepath.Join(nodeRoot, "bin", "node_repl")
+	node := filepath.Join(nodeRoot, "bin", "node")
+	modules := filepath.Join(nodeRoot, "lib", "node_modules")
+	service := filepath.Join(src, "computer-use", "Codex Computer Use.app", "Contents", "MacOS", "SkyComputerUseService")
+	for _, p := range []string{nodeRepl, node, service} {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(modules, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(src, "config.toml"), []byte(`model = "gpt-5-codex"`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime := []byte(`{"mcpServers":{"agent-center":{"command":"/opt/agent-center-worker","args":["worker","mcp-host"],"env":{}}}}`)
+
+	codexHome, err := WriteCodexMCPConfigFromSource(home, runtime, src, CodexComputerUseConfig{
+		Enabled:  true,
+		Endpoint: "vm://agent-x",
+	})
+	if err != nil {
+		t.Fatalf("WriteCodexMCPConfigFromSource: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(codexHome, codexConfigFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	for _, want := range []string{
+		`[mcp_servers.node_repl]`,
+		`command = "` + nodeRepl + `"`,
+		`NODE_REPL_NODE_MODULE_DIRS = "` + modules + `"`,
+		`NODE_REPL_NODE_PATH = "` + node + `"`,
+		`SKY_CUA_SERVICE_PATH = "` + service + `"`,
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("node_repl config missing %q; got:\n%s", want, s)
+		}
+	}
+}
+
 func TestWriteCodexMCPConfigFromSource_DoesNotAddNodeReplWithoutSandboxComputerUse(t *testing.T) {
 	home := t.TempDir()
 	src := t.TempDir()

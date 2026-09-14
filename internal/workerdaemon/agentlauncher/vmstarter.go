@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -99,6 +100,8 @@ func NewTartVMStarter(cfg TartVMStarterConfig) (*TartVMStarter, error) {
 
 var _ ProcessStarter = (*TartVMStarter)(nil)
 
+var hostCodexCUANodeRoot = "/Applications/ChatGPT.app/Contents/Resources/cua_node"
+
 func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, error) {
 	if spec.AgentID == "" {
 		return nil, errors.New("agentlauncher: tart vm start requires agent_id")
@@ -139,20 +142,38 @@ func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, err
 	guestArgs = append(guestArgs, spec.Args...)
 	guestEnv := tartGuestEnv(s.baseEnv, mountPlan, spec.AgentID)
 	guestEnv = append(guestEnv, spec.Env...)
+	proxyConfig := sandboxProxyConfigFromEnv(s.baseEnv, spec.AgentID)
+	var proxyTunnel *exec.Cmd
+	if proxyConfig.enabled {
+		proxyTunnel, err = s.startProxyTunnel(ctx, ip, sshIdentity, proxyConfig)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if err := s.startGuestRuntime(ctx, ip, sshIdentity, guestSockDir, guestBin, guestArgs, guestEnv); err != nil {
+		if proxyTunnel != nil {
+			_ = signalProcessGroup(proxyTunnel, syscall.SIGTERM)
+		}
 		return nil, err
 	}
 	tunnel, err := s.startControlTunnel(ctx, ip, sshIdentity, hostSock, guestSock)
 	if err != nil {
+		if proxyTunnel != nil {
+			_ = signalProcessGroup(proxyTunnel, syscall.SIGTERM)
+		}
 		return nil, err
 	}
 	if err := waitForControlHealth(ctx, hostSock, spec.AgentID); err != nil {
 		s.remoteKill(context.Background(), ip, sshIdentity, spec.AgentID)
 		_ = signalProcessGroup(tunnel, syscall.SIGTERM)
+		if proxyTunnel != nil {
+			_ = signalProcessGroup(proxyTunnel, syscall.SIGTERM)
+		}
 		return nil, err
 	}
 	return &tartVMProcess{
 		tunnel:      tunnel,
+		proxyTunnel: proxyTunnel,
 		vmName:      vmName,
 		ip:          ip,
 		agentID:     spec.AgentID,
@@ -251,6 +272,9 @@ func (s *TartVMStarter) guestMountPlan(agentID, agentHome, binaryPath, configPat
 		plan.mounts = append(plan.mounts, tartMount{name: "agent-center-config", host: filepath.Dir(configPath)})
 	}
 	if h := s.hostCodexHome(); h != "" && dirExists(h) {
+		for _, warning := range ensureHostCodexCUANodeRuntime(h) {
+			s.log("agentlauncher: codex computer-use node runtime: %s", warning)
+		}
 		plan.codexHome = tartGuestSharePath("agent-center-codex-source")
 		plan.mounts = append(plan.mounts, tartMount{name: "agent-center-codex-source", host: h})
 	}
@@ -297,6 +321,112 @@ func (s *TartVMStarter) hostAgentSkillsDir() string {
 		return filepath.Join(hd, ".agents", "skills")
 	}
 	return ""
+}
+
+func ensureHostCodexCUANodeRuntime(codexHome string) []string {
+	dstRoot := filepath.Join(strings.TrimSpace(codexHome), "cua_node")
+	if codexCUANodeRuntimeReady(dstRoot) {
+		return nil
+	}
+	srcRoot := strings.TrimSpace(os.Getenv("AC_SANDBOX_CODEX_CUA_NODE_ROOT"))
+	if srcRoot == "" {
+		srcRoot = hostCodexCUANodeRoot
+	}
+	if !codexCUANodeRuntimeReady(srcRoot) {
+		return []string{fmt.Sprintf("source cua_node runtime is unavailable at %s", srcRoot)}
+	}
+	tmpRoot := dstRoot + ".tmp"
+	if err := os.RemoveAll(tmpRoot); err != nil {
+		return []string{fmt.Sprintf("remove stale tmp cua_node runtime: %v", err)}
+	}
+	if err := copyDir(srcRoot, tmpRoot); err != nil {
+		_ = os.RemoveAll(tmpRoot)
+		return []string{fmt.Sprintf("copy cua_node runtime from %s to %s: %v", srcRoot, dstRoot, err)}
+	}
+	if err := os.RemoveAll(dstRoot); err != nil {
+		_ = os.RemoveAll(tmpRoot)
+		return []string{fmt.Sprintf("replace stale cua_node runtime at %s: %v", dstRoot, err)}
+	}
+	if err := os.Rename(tmpRoot, dstRoot); err != nil {
+		_ = os.RemoveAll(tmpRoot)
+		return []string{fmt.Sprintf("activate cua_node runtime at %s: %v", dstRoot, err)}
+	}
+	return nil
+}
+
+func codexCUANodeRuntimeReady(root string) bool {
+	root = strings.TrimSpace(root)
+	if root == "" {
+		return false
+	}
+	return regularFileExists(filepath.Join(root, "bin", "node_repl")) &&
+		regularFileExists(filepath.Join(root, "bin", "node")) &&
+		dirExists(filepath.Join(root, "lib", "node_modules"))
+}
+
+func copyDir(src, dst string) error {
+	info, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("%s is not a directory", src)
+	}
+	if err := os.MkdirAll(dst, info.Mode().Perm()); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+		entryInfo, err := os.Lstat(srcPath)
+		if err != nil {
+			return err
+		}
+		if entryInfo.Mode()&os.ModeSymlink != 0 {
+			target, err := os.Readlink(srcPath)
+			if err != nil {
+				return err
+			}
+			if err := os.Symlink(target, dstPath); err != nil {
+				return err
+			}
+			continue
+		}
+		if entryInfo.IsDir() {
+			if err := copyDir(srcPath, dstPath); err != nil {
+				return err
+			}
+			continue
+		}
+		if !entryInfo.Mode().IsRegular() {
+			continue
+		}
+		if err := copyFile(srcPath, dstPath, entryInfo.Mode().Perm()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyFile(src, dst string, mode os.FileMode) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, in); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
 }
 
 func (s *TartVMStarter) vmHasRequiredMounts(ctx context.Context, vmName, binaryPath, configPath string, plan tartGuestMountPlan) bool {
@@ -386,6 +516,37 @@ func (s *TartVMStarter) startControlTunnel(ctx context.Context, ip, identityFile
 	return cmd, nil
 }
 
+func (s *TartVMStarter) startProxyTunnel(ctx context.Context, ip, identityFile string, proxy sandboxProxyConfig) (*exec.Cmd, error) {
+	if !proxy.enabled {
+		return nil, nil
+	}
+	args := []string{
+		"-N",
+		"-o", "BatchMode=yes",
+		"-o", "ConnectTimeout=5",
+		"-o", "ExitOnForwardFailure=yes",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "UserKnownHostsFile=/dev/null",
+		"-R", fmt.Sprintf("127.0.0.1:%s:%s:%s", proxy.guestPort, proxy.host, proxy.port),
+	}
+	if strings.TrimSpace(identityFile) != "" {
+		args = append(args, "-i", identityFile)
+	}
+	args = append(args, "admin@"+ip)
+	cmd := exec.CommandContext(ctx, "ssh", args...)
+	cmd.Stdout = s.stdout
+	cmd.Stderr = s.stderr
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("agentlauncher: start sandbox proxy tunnel: %w", err)
+	}
+	time.Sleep(250 * time.Millisecond)
+	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
+		return nil, errors.New("agentlauncher: sandbox proxy tunnel exited during startup")
+	}
+	return cmd, nil
+}
+
 func (s *TartVMStarter) remoteKill(ctx context.Context, ip, identityFile, agentID string) {
 	pattern := "worker agent-runtime --agent-id " + agentID
 	remote := "pkill -TERM -f " + shellQuote(pattern)
@@ -395,6 +556,7 @@ func (s *TartVMStarter) remoteKill(ctx context.Context, ip, identityFile, agentI
 
 type tartVMProcess struct {
 	tunnel      *exec.Cmd
+	proxyTunnel *exec.Cmd
 	vmName      string
 	ip          string
 	agentID     string
@@ -412,6 +574,11 @@ type tartVMProcess struct {
 func (p *tartVMProcess) Wait() error {
 	tunnelDone := make(chan error, 1)
 	go func() { tunnelDone <- p.tunnel.Wait() }()
+	var proxyDone chan error
+	if p.proxyTunnel != nil {
+		proxyDone = make(chan error, 1)
+		go func() { proxyDone <- p.proxyTunnel.Wait() }()
+	}
 	ticker := time.NewTicker(5 * time.Second)
 	defer ticker.Stop()
 	client := agentcontrol.NewClient(p.hostSock, 2*time.Second)
@@ -420,6 +587,8 @@ func (p *tartVMProcess) Wait() error {
 		select {
 		case err := <-tunnelDone:
 			return err
+		case err := <-proxyDone:
+			return fmt.Errorf("agentlauncher: sandbox proxy tunnel exited: %w", err)
 		case <-ticker.C:
 			got, err := client.Probe(context.Background())
 			if err == nil && got == p.agentID {
@@ -470,6 +639,9 @@ func (p *tartVMProcess) Kill() error {
 	return stopErr
 }
 func (p *tartVMProcess) signalTunnel(sig syscall.Signal) error {
+	if p.proxyTunnel != nil && p.proxyTunnel.Process != nil {
+		_ = signalProcessGroup(p.proxyTunnel, sig)
+	}
 	if p.tunnel == nil || p.tunnel.Process == nil {
 		return nil
 	}
@@ -711,6 +883,16 @@ func defaultGuestEnv() []string {
 func tartGuestEnv(base []string, plan tartGuestMountPlan, agentID string) []string {
 	env := withoutSandboxHostOnlyEnv(base)
 	env = append(defaultGuestEnv(), env...)
+	if proxy := sandboxProxyConfigFromEnv(base, agentID); proxy.enabled {
+		env = append(env,
+			"HTTP_PROXY="+proxy.guestURL(),
+			"HTTPS_PROXY="+proxy.guestURL(),
+			"http_proxy="+proxy.guestURL(),
+			"https_proxy="+proxy.guestURL(),
+			"NO_PROXY="+proxy.noProxy,
+			"no_proxy="+proxy.noProxy,
+		)
+	}
 	if plan.codexHome != "" {
 		env = append(env, "CODEX_HOME="+plan.codexHome)
 	}
@@ -749,10 +931,98 @@ func withoutSandboxHostOnlyEnv(env []string) []string {
 		"AC_SANDBOX_VNC_PASSWORD",
 		"AC_SANDBOX_VNC_PASSWORD_FILE",
 		"AC_SANDBOX_BROWSER_COMMAND",
+		"AC_SANDBOX_HOST_PROXY",
+		"AC_SANDBOX_GUEST_PROXY_PORT",
+		"HTTP_PROXY",
+		"HTTPS_PROXY",
+		"ALL_PROXY",
+		"NO_PROXY",
+		"http_proxy",
+		"https_proxy",
+		"all_proxy",
+		"no_proxy",
 		"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS",
 		"SKY_CUA_ENDPOINT",
 		"SKY_CUA_SERVICE_NATIVE_PIPE_PATH",
 	)
+}
+
+type sandboxProxyConfig struct {
+	enabled   bool
+	host      string
+	port      string
+	guestPort string
+	noProxy   string
+}
+
+func (p sandboxProxyConfig) guestURL() string {
+	return "http://127.0.0.1:" + p.guestPort
+}
+
+func sandboxProxyConfigFromEnv(base []string, agentID string) sandboxProxyConfig {
+	raw := scopedEnvValue(base, "AC_SANDBOX_HOST_PROXY", agentID)
+	if strings.TrimSpace(raw) == "" {
+		return sandboxProxyConfig{}
+	}
+	host, port, ok := parseProxyHostPort(raw)
+	if !ok {
+		return sandboxProxyConfig{}
+	}
+	guestPort := scopedEnvValue(base, "AC_SANDBOX_GUEST_PROXY_PORT", agentID)
+	if strings.TrimSpace(guestPort) == "" {
+		guestPort = port
+	}
+	noProxy := scopedEnvValue(base, "AC_SANDBOX_PROXY_NO_PROXY", agentID)
+	if strings.TrimSpace(noProxy) == "" {
+		noProxy = "127.0.0.1,localhost,192.168.64.1,192.168.64.0/24"
+	}
+	return sandboxProxyConfig{
+		enabled:   true,
+		host:      host,
+		port:      port,
+		guestPort: guestPort,
+		noProxy:   noProxy,
+	}
+}
+
+func parseProxyHostPort(raw string) (string, string, bool) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", "", false
+	}
+	if strings.Contains(s, "://") {
+		u, err := url.Parse(s)
+		if err != nil {
+			return "", "", false
+		}
+		host := strings.TrimSpace(u.Hostname())
+		port := strings.TrimSpace(u.Port())
+		if host == "" || port == "" {
+			return "", "", false
+		}
+		return host, port, true
+	}
+	host, port, err := net.SplitHostPort(s)
+	if err == nil {
+		return host, port, true
+	}
+	if strings.Count(s, ":") == 1 {
+		parts := strings.SplitN(s, ":", 2)
+		if strings.TrimSpace(parts[0]) != "" && strings.TrimSpace(parts[1]) != "" {
+			return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]), true
+		}
+	}
+	return "", "", false
+}
+
+func scopedEnvValue(base []string, key, agentID string) string {
+	suffix := strings.ToUpper(strings.NewReplacer("-", "_", ":", "_").Replace(agentID))
+	if suffix != "" {
+		if v := envValue(base, key+"_"+suffix); v != "" {
+			return v
+		}
+	}
+	return envValue(base, key)
 }
 
 func tartGuestComputerUseEndpoint(agentID string) string {

@@ -114,6 +114,22 @@ func TestSSHShellCommandQuotesRemoteCommandAsSingleArg(t *testing.T) {
 func TestTartGuestMountPlanAndEnvMountsSkillsAndMemorySources(t *testing.T) {
 	homeBase := t.TempDir()
 	codexHome := t.TempDir()
+	cuaSource := filepath.Join(t.TempDir(), "cua_node")
+	for _, p := range []string{
+		filepath.Join(cuaSource, "bin", "node_repl"),
+		filepath.Join(cuaSource, "bin", "node"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(cuaSource, "lib", "node_modules", "@oai"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("AC_SANDBOX_CODEX_CUA_NODE_ROOT", cuaSource)
 	claudeConfig := t.TempDir()
 	builtinSkills := t.TempDir()
 	agentSkills := t.TempDir()
@@ -127,6 +143,7 @@ func TestTartGuestMountPlanAndEnvMountsSkillsAndMemorySources(t *testing.T) {
 			"AC_AGENT_SKILLS_DIR=" + agentSkills,
 			"AC_SANDBOX_COMPUTER_USE_ENDPOINT_AGENT_1=/tmp/host-cua.sock",
 			"AC_SANDBOX_VNC_PASSWORD_FILE_AGENT_1=/tmp/host-vnc-password",
+			"AC_SANDBOX_HOST_PROXY_AGENT_1=http://127.0.0.1:7897",
 			"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS=/tmp/host-cua.sock",
 			"SKY_CUA_SERVICE_NATIVE_PIPE_PATH=/tmp/host-cua.sock",
 		},
@@ -151,6 +168,15 @@ func TestTartGuestMountPlanAndEnvMountsSkillsAndMemorySources(t *testing.T) {
 	}
 	if len(wantMounts) != 0 {
 		t.Fatalf("missing mounts: %v; got %+v", wantMounts, plan.mounts)
+	}
+	for _, p := range []string{
+		filepath.Join(codexHome, "cua_node", "bin", "node_repl"),
+		filepath.Join(codexHome, "cua_node", "bin", "node"),
+		filepath.Join(codexHome, "cua_node", "lib", "node_modules"),
+	} {
+		if _, err := os.Stat(p); err != nil {
+			t.Fatalf("expected cua_node runtime at %s: %v", p, err)
+		}
 	}
 	t.Setenv("AC_SANDBOX_GUEST_COMPUTER_USE_ENDPOINT_AGENT_1", "/tmp/guest-cua.sock")
 	env := tartGuestEnv(starter.baseEnv, plan, "agent-1")
@@ -188,9 +214,35 @@ func TestTartGuestMountPlanAndEnvMountsSkillsAndMemorySources(t *testing.T) {
 	if got["SKY_CUA_SERVICE_NATIVE_PIPE_PATH"] != "/tmp/guest-cua.sock" {
 		t.Fatalf("guest CUA pipe = %q", got["SKY_CUA_SERVICE_NATIVE_PIPE_PATH"])
 	}
+	if got["HTTP_PROXY"] != "http://127.0.0.1:7897" || got["HTTPS_PROXY"] != "http://127.0.0.1:7897" {
+		t.Fatalf("guest proxy env HTTP=%q HTTPS=%q", got["HTTP_PROXY"], got["HTTPS_PROXY"])
+	}
+	if got["NO_PROXY"] != "127.0.0.1,localhost,192.168.64.1,192.168.64.0/24" {
+		t.Fatalf("guest NO_PROXY = %q", got["NO_PROXY"])
+	}
 	for key := range got {
 		if strings.Contains(got[key], "host-cua") || strings.Contains(got[key], "host-vnc") {
 			t.Fatalf("guest env leaked host sandbox value %s=%q", key, got[key])
+		}
+	}
+}
+
+func TestTartGuestEnvDoesNotLeakHostProxyWithoutSandboxProxy(t *testing.T) {
+	env := tartGuestEnv([]string{
+		"HTTP_PROXY=http://127.0.0.1:7897",
+		"HTTPS_PROXY=http://127.0.0.1:7897",
+		"NO_PROXY=localhost",
+	}, tartGuestMountPlan{}, "agent-1")
+	got := map[string]string{}
+	for _, entry := range env {
+		k, v, ok := strings.Cut(entry, "=")
+		if ok {
+			got[k] = v
+		}
+	}
+	for _, key := range []string{"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"} {
+		if got[key] != "" {
+			t.Fatalf("%s leaked into guest env as %q", key, got[key])
 		}
 	}
 }
