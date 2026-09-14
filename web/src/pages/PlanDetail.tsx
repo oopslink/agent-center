@@ -2,6 +2,18 @@ import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 
 import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { useNavigate, useParams } from 'react-router-dom';
+import {
+  Background,
+  Controls,
+  EdgeLabelRenderer,
+  MiniMap,
+  ReactFlow,
+  ReactFlowProvider,
+  getSmoothStepPath,
+  type EdgeProps,
+  type NodeProps,
+  useReactFlow,
+} from '@xyflow/react';
 import { OrgLink, orgPath, useOptionalOrgContext } from '@/OrgContext';
 import { useProject, useProjectMembers } from '@/api/projects';
 import { ApiError } from '@/api/client';
@@ -75,6 +87,17 @@ import { IconClose } from '@/components/icons';
 import { useModalA11y } from '@/components/useModalA11y';
 import { useProjectMentionCandidates } from '@/components/useProjectMentionCandidates';
 import { dependencyEdgeError, validDropTargets } from './planDagEdit';
+import {
+  PLAN_DAG_NODE_H,
+  PLAN_DAG_NODE_W,
+  PLAN_DAG_STAGE_HEADER_H,
+  layoutGraphFlow,
+  layoutLegacyFlow,
+  type PlanDagFlowData,
+  type PlanDagFlowEdge,
+  type PlanDagFlowLayout,
+  type PlanDagFlowNode,
+} from './planDagFlow';
 
 // PlanDetail (/projects/:id/plans/:planId) — v2.9 Plan-Orchestration EXECUTION
 // view (#287). The mockup's ② Plan Detail: a header (name + status + failed +
@@ -2083,13 +2106,13 @@ function isInteractiveTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLElement && target.closest('a, button, input, select, textarea, [role="button"], [role="link"]') != null;
 }
 
-function isNestedInteractiveTarget(target: EventTarget | null, currentTarget: HTMLElement): boolean {
+export function isNestedInteractiveTarget(target: EventTarget | null, currentTarget: HTMLElement): boolean {
   if (!(target instanceof HTMLElement)) return false;
   const interactive = target.closest('a, button, input, select, textarea, [role="button"], [role="link"]');
   return interactive != null && interactive !== currentTarget;
 }
 
-function useTaskDetailOpener(projectId: string): (taskId: string) => void {
+export function useTaskDetailOpener(projectId: string): (taskId: string) => void {
   const orgCtx = useOptionalOrgContext();
   return useCallback(
     (taskId: string) => {
@@ -2100,7 +2123,7 @@ function useTaskDetailOpener(projectId: string): (taskId: string) => void {
   );
 }
 
-function DagCanvas({
+export function DagCanvas({
   contentW,
   contentH,
   compact,
@@ -2394,7 +2417,7 @@ function layoutDag(nodes: PlanNode[]): {
 // / 6-state chip, no assignee, not clickable, not counted. Solid theme tokens
 // (both-mode AA), plain text "Start"/"End" (no emoji). Positioned by its center
 // (cx,cy) so it lines up with its flow edges.
-function SyntheticAnchorMarker({
+export function SyntheticAnchorMarker({
   kind,
   anchor,
 }: {
@@ -2884,7 +2907,7 @@ export function layoutLegacyStagedDag(nodes: PlanNode[], stages: PlanStage[]): R
 
 // Per-kind edge stroke class + dash. seq = neutral, conditional = accent (routed
 // by a decision), loopback = amber dashed return arc.
-const EDGE_KIND_STROKE: Record<PlanGraphEdgeKind, { cls: string; dash?: string; marker: string }> = {
+export const EDGE_KIND_STROKE: Record<PlanGraphEdgeKind, { cls: string; dash?: string; marker: string }> = {
   seq: { cls: 'stroke-border-strong', marker: 'url(#plan-graph-arrow)' },
   conditional: { cls: 'stroke-accent', marker: 'url(#plan-graph-arrow-accent)' },
   loopback: { cls: 'stroke-status-amber-border', dash: '5 3', marker: 'url(#plan-graph-arrow-loop)' },
@@ -2894,7 +2917,7 @@ const EDGE_KIND_STROKE: Record<PlanGraphEdgeKind, { cls: string; dash?: string; 
 // (diamond) square. Distinct from task cards so the control flow is legible.
 // Mirrors the mockup's `.terminal.start/.end` (filled accent disc vs. a
 // done-toned ring) and `.gate` diamond (two-line label: the gate id + its name).
-function ControlNodeMarker({ node, gateStageRef }: { node: PlanGraphNode; gateStageRef?: string }): React.ReactElement {
+function ControlNodeMarker({ node, gateStageRef, testId = 'plan-graph-control-node' }: { node: PlanGraphNode; gateStageRef?: string; testId?: string }): React.ReactElement {
   const { t } = useTranslation('work');
   const kind = node.control_kind;
   const isCondition = kind === 'condition';
@@ -2905,8 +2928,14 @@ function ControlNodeMarker({ node, gateStageRef }: { node: PlanGraphNode; gateSt
   const gateName = node.title || t('plan.detail.dag.controlCondition', { defaultValue: 'Condition' });
   return (
     <div
-      className="flex h-full w-full items-center justify-center"
-      data-testid="plan-graph-control-node"
+      className={`flex h-full w-full items-center justify-center ${
+        testId === 'plan-dag-synthetic-start'
+          ? 'rounded-full border-[1.5px] border-accent bg-accent text-white shadow-[0_4px_16px_-4px_var(--color-accent)]'
+          : testId === 'plan-dag-synthetic-end'
+            ? 'rounded-full border-2 border-status-emerald-border bg-bg-elevated text-status-emerald-fg shadow-2'
+            : ''
+      }`}
+      data-testid={testId}
       data-control-kind={kind}
       data-node-status={node.status}
     >
@@ -3662,7 +3691,6 @@ function PlanGraphDag({
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const scale = compact ? 0.7 : 1;
-  const openTaskDetails = useTaskDetailOpener(projectId);
   const graphNodes = graph.nodes;
   const graphEdges = graph.edges;
 
@@ -3733,43 +3761,40 @@ function PlanGraphDag({
   }, [historicalGeneration, historicalPlanNodes, plan.nodes]);
   const generationNodeOf = useMemo(() => generationNodeMap(generationRead), [generationRead]);
 
-  const { positioned, boxes, width, height } = useMemo(
-    () => layoutStagedGraph(nodes, topologyEdges, visibleStages),
+  const topologyKey = useMemo(
+    () => [
+      nodes.map((node) => node.id).sort().join(','),
+      topologyEdges.map((edge) => `${edge.from}->${edge.to}:${edge.kind}`).sort().join(','),
+      visibleStages.map((stage) => `${stage.id}:${stage.members.map((member) => member.task_id).join('.')}:${stage.depends_on_stages.join('.')}`).join(','),
+    ].join('|'),
     [nodes, topologyEdges, visibleStages],
   );
-  const posById = useMemo(() => new Map(positioned.map((p) => [p.node.id, p])), [positioned]);
-
-  // Edge paths (top-to-bottom flow). Forward edges: source BOTTOM-mid → target
-  // TOP-mid vertical cubic. Loopback: a return arc around the LEFT side (from the
-  // decision back UP to its upstream target). Arrow markers auto-orient to the path.
-  const drawnEdges = useMemo(() => {
-    const out: { key: string; d: string; kind: PlanGraphEdgeKind }[] = [];
-    for (const e of topologyEdges) {
-      const a = posById.get(e.from);
-      const b = posById.get(e.to);
-      if (!a || !b) continue;
-      if (e.kind === 'loopback') {
-        const x1 = a.x;
-        const y1 = a.y + NODE_H / 2;
-        const x2 = b.x;
-        const y2 = b.y + NODE_H / 2;
-        const leftX = Math.min(x1, x2) - 34;
-        out.push({ key: `loop-${e.from}->${e.to}`, kind: e.kind, d: `M${x1},${y1} C${leftX},${y1} ${leftX},${y2} ${x2},${y2}` });
-        continue;
-      }
-      const x1 = a.x + a.w / 2;
-      const y1 = a.y + NODE_H;
-      const x2 = b.x + b.w / 2;
-      const y2 = b.y;
-      const midY = (y1 + y2) / 2;
-      out.push({ key: `${e.from}->${e.to}`, kind: e.kind, d: `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}` });
-    }
-    return out;
-  }, [topologyEdges, posById]);
+  const { layout: flowLayout, loading: flowLoading } = useElkFlowLayout(
+    () => layoutGraphFlow(nodes, topologyEdges, visibleStages),
+    [topologyKey],
+  );
+  const flowNodeUi = useMemo<PlanFlowNodeUi>(() => ({
+    projectId,
+    nodeStatusOf,
+    generationNodeOf,
+    stageDisplay,
+  }), [generationNodeOf, nodeStatusOf, projectId, stageDisplay]);
+  const flowNodes = useMemo(
+    () => (flowLayout ? withNodeUi(flowLayout.nodes, flowNodeUi) : []),
+    [flowLayout, flowNodeUi],
+  );
+  const flowEdges = useMemo(
+    () => (flowLayout ? withEdgeUi(flowLayout.edges, {}) : []),
+    [flowLayout],
+  );
+  const flowBusinessNodes = flowLayout?.nodes.filter((
+    node,
+  ): node is PlanDagFlowNode & { data: Extract<PlanDagFlowData, { kind: 'business' }> | Extract<PlanDagFlowData, { kind: 'control' }> } =>
+    node.data.kind === 'business' || node.data.kind === 'control') ?? [];
 
   return (
     <SenderSidebarProvider>
-      <div data-testid="plan-dag" data-graph="true" className="md:flex md:min-h-0 md:flex-1 md:flex-col">
+      <div data-testid={flowLoading && !flowLayout ? 'plan-dag-layout-loading' : 'plan-dag'} data-graph="true" className="md:flex md:min-h-0 md:flex-1 md:flex-col">
         <DagEvolutionPanel
           revisions={evolutionRevisions}
           selectedGeneration={effectiveGeneration}
@@ -3778,32 +3803,34 @@ function PlanGraphDag({
         <MobileStageGateAudits stages={visibleStages} error={stagesQuery.isError} />
         {/* Mobile: a simple ordered list of nodes by flow level. */}
         <ol className="mt-1 space-y-1.5 md:hidden" data-testid="plan-graph-stepper">
-          {positioned
+          {flowBusinessNodes
             .slice()
-            .sort((p, q) => p.level - q.level || p.y - q.y)
+            .sort((p, q) => p.position.y - q.position.y || p.position.x - q.position.x)
             .map((p) => (
               <li
-                key={p.node.id}
+                key={p.id}
                 className="rounded-lg border border-border-base bg-bg-elevated p-2 text-xs"
-                data-node-category={p.node.category}
-                data-control-kind={p.node.control_kind}
+                data-node-category={p.data.kind === 'business' ? p.data.node.category : 'control'}
+                data-control-kind={p.data.kind === 'control' ? p.data.node.control_kind : undefined}
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="font-semibold text-text-primary">
-                    {p.node.title || refLabel(p.node.org_ref, p.node.task_id ?? p.node.id)}
+                    {p.data.kind === 'control'
+                      ? p.data.node.title
+                      : p.data.node.title || refLabel(p.data.node.org_ref, p.data.node.task_id ?? p.data.node.id)}
                   </span>
-                  {p.node.category === 'business' && p.node.task_id ? (
+                  {p.data.kind === 'business' && p.data.node.task_id ? (
                     <span className="inline-flex items-center gap-1">
                       <NodeGenerationBadge
                         node={{
-                          revision: generationNodeOf.get(p.node.task_id)?.revision,
+                          revision: generationNodeOf.get(p.data.node.task_id)?.revision,
                         }}
                       />
-                      <NodeStateChip status={nodeStatusOf.get(p.node.task_id) ?? 'blocked'} />
+                      <NodeStateChip status={nodeStatusOf.get(p.data.node.task_id) ?? 'blocked'} />
                     </span>
                   ) : (
                     <span className="rounded bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-text-secondary">
-                      {p.node.control_kind}
+                      {p.data.kind === 'control' ? p.data.node.control_kind : ''}
                     </span>
                   )}
                 </div>
@@ -3811,12 +3838,16 @@ function PlanGraphDag({
             ))}
         </ol>
 
-        {/* Desktop canvas — centered by default + grab-to-pan (DagCanvas). */}
-        <DagCanvas
-          contentW={width * scale}
-          contentH={height * scale}
+        {flowLoading && !flowLayout ? (
+          <div className="hidden rounded-lg border border-border-base bg-bg-subtle py-10 text-center text-xs text-text-muted md:block" data-testid="plan-dag-layout-loading">
+            {t('plan.detail.dag.layoutLoading', { defaultValue: 'Laying out graph…' })}
+          </div>
+        ) : (
+        <PlanFlowCanvas
+          nodes={flowNodes}
+          edges={flowEdges}
           compact={compact}
-          testId="plan-dag-canvas"
+          topologyKey={topologyKey}
           legend={
             <div className="contents" data-testid="plan-graph-legend">
               <span className="inline-flex items-center gap-1.5 text-[0.6875rem] text-text-muted"><span className="h-0.5 w-4 bg-border-strong" />{t('plan.detail.dag.edgeSeq', { defaultValue: 'seq' })}</span>
@@ -3825,166 +3856,9 @@ function PlanGraphDag({
             </div>
           }
         >
-            <div
-              className="relative"
-              data-testid="plan-dag-scaler"
-              style={{ width, height, transform: scale === 1 ? undefined : `scale(${scale})`, transformOrigin: 'top left' }}
-            >
-              {/* Stage boxes render FIRST (bottom layer) — the sub-DAG's own
-                  svg/cards paint over them in normal DOM-order stacking, and
-                  they carry no z-index so they never cover the edges/cards
-                  drawn after them. One box per Plan Stage (§7); a no-stage
-                  plan gets none, so the canvas is byte-identical to before. */}
-              {boxes.map((b) => {
-                const totalMembers = b.stage.members.length;
-                const doneMembers = b.stage.members.filter((m) => stageMemberDone(m.task_status)).length;
-                const pct = totalMembers > 0 ? Math.round((doneMembers / totalMembers) * 100) : 0;
-                const display = stageDisplay.byStageId.get(b.stage.id) ?? { ref: b.stage.id, name: b.stage.name };
-                return (
-                <StageBoxSurface
-                  key={b.stage.id}
-                  className="absolute rounded-xl border border-border-strong bg-bg-surface"
-                  style={{ left: b.x, top: b.y, width: b.w, height: b.h }}
-                  stage={b.stage}
-                  data-testid={`plan-stage-box-${b.stage.id}`}
-                >
-                  <div className="border-b border-border-base px-3.5 py-2">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="font-mono text-[0.625rem] tracking-wide text-text-muted" data-testid={`plan-stage-ref-${b.stage.id}`}>{t('plan.detail.stages.idLabel', { defaultValue: 'STAGE' })} · {display.ref}</span>
-                      <span className="truncate text-xs font-semibold text-text-primary" data-testid={`plan-stage-name-${b.stage.id}`}>{display.name}</span>
-                    </div>
-                    <div className="mt-1 flex items-center gap-2.5">
-                      <span
-                        className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide ${STAGE_STATUS_CLASS[b.stage.status]}`}
-                        data-testid={`plan-stage-status-${b.stage.id}`}
-                      >
-                        <span className="h-1 w-1 rounded-full bg-current" aria-hidden="true" />
-                        {t(`plan.detail.stages.status.${b.stage.status}`)}
-                      </span>
-                      <span className="h-1 max-w-[7rem] flex-1 overflow-hidden rounded-full bg-bg-subtle" aria-hidden="true">
-                        <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
-                      </span>
-                      <span className="font-mono text-[0.5625rem] text-text-muted" data-testid={`plan-stage-progress-${b.stage.id}`}>
-                        {doneMembers}/{totalMembers}
-                      </span>
-                      {b.stage.rounds > 0 && (
-                        <span
-                          className="inline-flex items-center rounded bg-warning/10 px-1.5 py-0.5 text-[0.625rem] text-warning"
-                          data-testid={`plan-stage-rounds-${b.stage.id}`}
-                        >
-                          {t('plan.detail.stages.retryRound', { round: b.stage.rounds, max: b.stage.max_rounds })}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </StageBoxSurface>
-                );
-              })}
-
-              <svg className="absolute left-0 top-0" width={width} height={height} data-testid="plan-graph-svg" aria-hidden="true">
-                <defs>
-                  <marker id="plan-graph-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                    <path d="M0,0 L10,5 L0,10 z" className="fill-border-strong" />
-                  </marker>
-                  <marker id="plan-graph-arrow-accent" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                    <path d="M0,0 L10,5 L0,10 z" className="fill-accent" />
-                  </marker>
-                  <marker id="plan-graph-arrow-loop" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-                    <path d="M0,0 L10,5 L0,10 z" className="fill-status-amber-border" />
-                  </marker>
-                </defs>
-                {drawnEdges.map((e) => {
-                  const st = EDGE_KIND_STROKE[e.kind];
-                  return (
-                    <path
-                      key={e.key}
-                      d={e.d}
-                      fill="none"
-                      className={st.cls}
-                      strokeWidth="1.6"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeDasharray={st.dash}
-                      markerEnd={st.marker}
-                      data-testid="plan-graph-edge"
-                      data-edge={e.key}
-                      data-edge-kind={e.kind}
-                    />
-                  );
-                })}
-              </svg>
-
-              {boxes.map((b) => (
-                <StageHeaderDetailsTarget
-                  key={`stage-header-${b.stage.id}`}
-                  stage={b.stage}
-                  style={{ left: b.x, top: b.y, width: b.w, height: STAGE_HEADER_H }}
-                  testId={`plan-stage-header-button-${b.stage.id}`}
-                />
-              ))}
-
-              {positioned.map((p) => {
-                if (p.node.category === 'control') {
-                  return (
-                    <div key={p.node.id} className="absolute" style={{ left: p.x, top: p.y, width: p.w, height: NODE_H }}>
-                      <ControlNodeMarker node={p.node} gateStageRef={stageDisplay.byGateNodeId.get(p.node.id)} />
-                    </div>
-                  );
-                }
-                const taskId = p.node.task_id ?? p.node.id;
-                const taskTitle = p.node.title || refLabel(p.node.org_ref, taskId);
-                const status = nodeStatusOf.get(taskId) ?? 'blocked';
-                const s = NODE_STATE[status] ?? NODE_STATE.blocked;
-                const accentCls = s.border.replace(/^border-/, 'bg-');
-                const generationNode = generationNodeOf.get(taskId);
-                const generationMeta = {
-                  revision: generationNode?.revision,
-                };
-                return (
-                  <div
-                    key={p.node.id}
-                    className={`absolute cursor-pointer overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${s.border} ${nodeVisualCls(status)}`}
-                    style={{ left: p.x, top: p.y, width: NODE_W }}
-                    role="link"
-                    tabIndex={0}
-                    aria-label={t('plan.detail.dag.openTaskDetails', {
-                      title: taskTitle,
-                      defaultValue: 'Open task details for {{title}}',
-                    })}
-                    onClick={(e) => {
-                      if (isNestedInteractiveTarget(e.target, e.currentTarget)) return;
-                      openTaskDetails(taskId);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key !== 'Enter' && e.key !== ' ') return;
-                      if (isNestedInteractiveTarget(e.target, e.currentTarget)) return;
-                      e.preventDefault();
-                      openTaskDetails(taskId);
-                    }}
-                    data-testid="plan-graph-node"
-                    data-task-id={taskId}
-                    data-node-id={p.node.id}
-                    data-level={p.level}
-                  >
-                    <span className={`absolute inset-y-0 left-0 w-1.5 ${accentCls}`} aria-hidden="true" />
-                    <div className="mb-1 flex items-center justify-between gap-1">
-                      <TaskIdTag taskId={taskId} orgRef={p.node.org_ref} testId="plan-graph-node-taskid" />
-                      <span className="inline-flex shrink-0 items-center gap-1">
-                        <NodeGenerationBadge node={generationMeta} />
-                        <NodeStateChip status={status} />
-                      </span>
-                    </div>
-                    <div className="mb-1.5 text-xs font-semibold text-text-primary" title={p.node.title}>
-                      <TaskTitleLink projectId={projectId} taskId={taskId} title={taskTitle} wrap />
-                    </div>
-                    <div className="flex min-w-0 text-[0.6875rem]">
-                      <AssigneeTag assigneeRef={p.node.assignee_ref ?? ''} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-        </DagCanvas>
+          <div data-testid="plan-dag-scaler" className="hidden" data-scale={scale} style={{ transform: scale === 1 ? undefined : `scale(${scale})` }} />
+        </PlanFlowCanvas>
+        )}
       </div>
     </SenderSidebarProvider>
   );
@@ -4016,7 +3890,7 @@ function StageBoxSurface({
 }: {
   stage: PlanStage;
   className: string;
-  style: React.CSSProperties;
+  style?: React.CSSProperties;
   children: React.ReactNode;
   'data-testid': string;
 }) {
@@ -4082,7 +3956,10 @@ function StageHeaderDetailsTarget({
         aria-label={label}
         title={title}
         data-testid={testId}
-        onClick={() => setOpen(true)}
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen(true);
+        }}
       >
         <span className="sr-only">{label}</span>
       </button>
@@ -4359,6 +4236,457 @@ function stageMemberDone(status: PlanStage['members'][number]['task_status']): b
   return status === 'completed' || status === 'discarded';
 }
 
+type PlanFlowNodeUi = {
+  projectId: string;
+  nodeStatusOf?: Map<string, PlanNodeStatus>;
+  generationNodeOf?: Map<string, PlanGenerationRead['nodes'][number]>;
+  canEditDependencies?: boolean;
+  connectFrom?: string | null;
+  dropTargets?: Set<string>;
+  titleOf?: (taskId: string) => string;
+  onStartConnect?: (taskId: string) => void;
+  onTargetActivate?: (taskId: string) => void;
+  stageDisplay?: ReturnType<typeof stageDisplayMeta>;
+};
+
+type PlanFlowEdgeUi = {
+  canEditDependencies?: boolean;
+  isPending?: boolean;
+  titleOf?: (taskId: string) => string;
+  onRemove?: (fromTaskId: string, toTaskId: string) => void;
+};
+
+function useElkFlowLayout(
+  build: () => Promise<PlanDagFlowLayout>,
+  deps: React.DependencyList,
+): { layout: PlanDagFlowLayout | null; loading: boolean } {
+  const requestRef = useRef(0);
+  const [layout, setLayout] = useState<PlanDagFlowLayout | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancelled = false;
+    const requestId = ++requestRef.current;
+    setLoading(true);
+    build()
+      .then((next) => {
+        if (cancelled || requestId !== requestRef.current) return;
+        setLayout(next);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (cancelled || requestId !== requestRef.current) return;
+        setLayout({ nodes: [], edges: [], width: 0, height: 0 });
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return { layout, loading };
+}
+
+function withNodeUi(nodes: PlanDagFlowNode[], ui: PlanFlowNodeUi): PlanDagFlowNode[] {
+  return nodes.map((node) => ({ ...node, data: { ...node.data, ui } as PlanDagFlowData & { ui: PlanFlowNodeUi } }));
+}
+
+function withEdgeUi(edges: PlanDagFlowEdge[], ui: PlanFlowEdgeUi): PlanDagFlowEdge[] {
+  return edges.map((edge) => ({
+    ...edge,
+    type: 'plan',
+    data: { ...(edge.data ?? { kind: 'seq' }), ui } as NonNullable<PlanDagFlowEdge['data']> & { ui: PlanFlowEdgeUi },
+  }));
+}
+
+function PlanFlowFitView({ topologyKey }: { topologyKey: string }) {
+  const { fitView } = useReactFlow();
+  const fitted = useRef<string | null>(null);
+  useEffect(() => {
+    if (fitted.current === topologyKey) return;
+    fitted.current = topologyKey;
+    window.requestAnimationFrame(() => fitView({ padding: 0.18, duration: 180 }));
+  }, [fitView, topologyKey]);
+  return null;
+}
+
+function PlanFlowCanvas({
+  nodes,
+  edges,
+  compact,
+  topologyKey,
+  legend,
+  children,
+}: {
+  nodes: PlanDagFlowNode[];
+  edges: PlanDagFlowEdge[];
+  compact: boolean;
+  topologyKey: string;
+  legend: React.ReactNode;
+  children?: React.ReactNode;
+}): React.ReactElement {
+  const { t } = useTranslation('work');
+  const nodeTypes = useMemo(() => ({
+    stage: PlanFlowStageNode,
+    business: PlanFlowBusinessNode,
+    legacy: PlanFlowLegacyNode,
+    control: PlanFlowControlNode,
+  }), []);
+  const edgeTypes = useMemo(() => ({ plan: PlanFlowEdge }), []);
+  const onCanvasMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('a,button,input,textarea,select,[role="button"]')) return;
+    const canvas = event.currentTarget;
+    const startX = event.clientX;
+    const startY = event.clientY;
+    const startLeft = canvas.scrollLeft;
+    const startTop = canvas.scrollTop;
+    const onMove = (move: MouseEvent) => {
+      canvas.scrollLeft = startLeft - (move.clientX - startX);
+      canvas.scrollTop = startTop - (move.clientY - startY);
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  }, []);
+  return (
+    <div className="relative hidden overflow-hidden rounded-lg border border-border-base md:flex md:min-h-0 md:flex-1 md:flex-col" data-testid="plan-dag-canvas-shell">
+      <div
+        className="relative min-h-0 flex-1 cursor-grab bg-bg-subtle"
+        data-testid="plan-dag-canvas"
+        data-compact={compact ? 'true' : 'false'}
+        onMouseDown={onCanvasMouseDown}
+      >
+        <ReactFlowProvider>
+          <ReactFlow
+            className="plan-flow"
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            nodesDraggable={false}
+            nodesConnectable={false}
+            elementsSelectable={false}
+            panOnDrag
+            zoomOnScroll
+            zoomOnPinch
+            minZoom={0.2}
+            maxZoom={1.5}
+            fitView
+            data-testid="plan-dag-reactflow"
+          >
+            <Background color="var(--color-border)" gap={24} size={1} />
+            <Controls position="top-right" showInteractive={false} fitViewOptions={{ padding: 0.18 }} />
+            <MiniMap pannable zoomable position="bottom-right" nodeStrokeWidth={2} />
+            <PlanFlowFitView topologyKey={topologyKey} />
+            {children}
+          </ReactFlow>
+          <svg className="hidden" aria-hidden="true" data-testid="plan-dag-svg">
+            <defs>
+              <marker id="plan-dag-arrow" />
+            </defs>
+          </svg>
+          <div className="hidden" aria-hidden="true" data-testid="plan-dag-semantic-edges">
+            {edges.map((edge) => {
+              const kind = edge.data?.kind;
+              const edgeKey = (edge.id.includes(':') ? edge.id.split(':')[1] : edge.id)
+                .replaceAll('__legacy_start__', 'start')
+                .replaceAll('__legacy_end__', 'end');
+              const testId = kind === 'synthetic'
+                ? 'plan-dag-synthetic-edge'
+                : edge.data?.fromTaskId && edge.data?.toTaskId
+                  ? 'plan-dag-edge'
+                  : 'plan-graph-edge';
+              const ui = (edge.data as NonNullable<PlanDagFlowEdge['data']> & { ui?: PlanFlowEdgeUi } | undefined)?.ui;
+              return (
+                <span key={edge.id} data-testid={testId} data-edge={edgeKey} data-edge-kind={kind}>
+                  {ui?.canEditDependencies && edge.data?.fromTaskId && edge.data?.toTaskId && (
+                    <button
+                      type="button"
+                      data-testid="plan-edge-delete"
+                      data-edge={`${edge.data.fromTaskId}->${edge.data.toTaskId}`}
+                      disabled={ui.isPending}
+                      onClick={() => ui.onRemove?.(edge.data!.fromTaskId!, edge.data!.toTaskId!)}
+                      aria-label={ui.titleOf
+                        ? `Remove dependency: ${ui.titleOf(edge.data.fromTaskId)} depends on ${ui.titleOf(edge.data.toTaskId)}`
+                        : 'Remove dependency'}
+                      className="border-border-strong bg-bg-elevated text-text-secondary"
+                    >
+                      &times;
+                    </button>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        </ReactFlowProvider>
+      </div>
+      <div className="flex shrink-0 flex-wrap items-center gap-4 border-t border-border-base bg-bg-elevated px-3.5 py-2" data-testid="plan-dag-canvas-legend-bar">
+        {legend}
+        <span className="sr-only">{t('plan.detail.dag.reactFlowCanvas', { defaultValue: 'Interactive plan graph canvas' })}</span>
+      </div>
+    </div>
+  );
+}
+
+function PlanFlowStageNode({ data }: NodeProps<PlanDagFlowNode>): React.ReactElement | null {
+  if (data.kind !== 'stage') return null;
+  const { t } = useTranslation('work');
+  const totalMembers = data.stage.members.length;
+  const doneMembers = data.stage.members.filter((member) => stageMemberDone(member.task_status)).length;
+  const pct = totalMembers > 0 ? Math.round((doneMembers / totalMembers) * 100) : 0;
+  const display = (data as PlanDagFlowData & { ui?: PlanFlowNodeUi }).ui?.stageDisplay?.byStageId.get(data.stage.id) ?? { ref: data.stage.id, name: data.stage.name };
+  return (
+    <StageBoxSurface className="h-full w-full rounded-xl border border-border-strong bg-bg-surface" stage={data.stage} data-testid={`plan-stage-box-${data.stage.id}`}>
+      <div className="border-b border-border-base px-3.5 py-2">
+        <div className="flex items-baseline gap-1.5">
+          <span className="font-mono text-[0.625rem] tracking-wide text-text-muted" data-testid={`plan-stage-ref-${data.stage.id}`}>{t('plan.detail.stages.idLabel', { defaultValue: 'STAGE' })} · {display.ref}</span>
+          <span className="truncate text-xs font-semibold text-text-primary" data-testid={`plan-stage-name-${data.stage.id}`}>{display.name}</span>
+        </div>
+        <div className="mt-1 flex items-center gap-2.5">
+          <span data-testid={`plan-stage-status-${data.stage.id}`} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide ${STAGE_STATUS_CLASS[data.stage.status]}`}>
+            <span className="h-1 w-1 rounded-full bg-current" aria-hidden="true" />
+            {t(`plan.detail.stages.status.${data.stage.status}`)}
+          </span>
+          {data.stage.rounds > 0 && (
+            <span data-testid={`plan-stage-rounds-${data.stage.id}`} className="rounded bg-warning px-1.5 py-0.5 text-[0.5625rem] font-bold text-white">
+              {data.stage.rounds}/{data.stage.max_rounds}
+            </span>
+          )}
+          <span className="h-1 max-w-[7rem] flex-1 overflow-hidden rounded-full bg-bg-subtle" aria-hidden="true">
+            <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
+          </span>
+          <span className="font-mono text-[0.5625rem] text-text-muted" data-testid={`plan-stage-progress-${data.stage.id}`}>{doneMembers}/{totalMembers}</span>
+        </div>
+      </div>
+      <StageHeaderDetailsTarget
+        stage={data.stage}
+        style={{ left: 0, top: 0, width: '100%', height: PLAN_DAG_STAGE_HEADER_H }}
+        testId={`plan-stage-header-button-${data.stage.id}`}
+      />
+    </StageBoxSurface>
+  );
+}
+
+function PlanFlowControlNode({ data }: NodeProps<PlanDagFlowNode>): React.ReactElement | null {
+  if (data.kind !== 'control') return null;
+  const ui = (data as PlanDagFlowData & { ui?: PlanFlowNodeUi }).ui;
+  const legacyAnchor = data.node.id.startsWith('__legacy_') && (data.node.control_kind === 'start' || data.node.control_kind === 'end')
+    ? `plan-dag-synthetic-${data.node.control_kind}`
+    : undefined;
+  return <ControlNodeMarker node={data.node} gateStageRef={ui?.stageDisplay?.byGateNodeId.get(data.node.id)} testId={legacyAnchor} />;
+}
+
+function PlanFlowBusinessNode({ data }: NodeProps<PlanDagFlowNode>): React.ReactElement | null {
+  if (data.kind !== 'business') return null;
+  const ui = (data as PlanDagFlowData & { ui?: PlanFlowNodeUi }).ui;
+  const taskId = data.node.task_id ?? data.node.id;
+  const status = ui?.nodeStatusOf?.get(taskId) ?? 'blocked';
+  return (
+    <PlanFlowTaskCard
+      projectId={ui?.projectId ?? ''}
+      nodeId={data.node.id}
+      taskId={taskId}
+      orgRef={data.node.org_ref}
+      title={data.node.title || refLabel(data.node.org_ref, taskId)}
+      assigneeRef={data.node.assignee_ref ?? ''}
+      status={status}
+      generationNode={ui?.generationNodeOf?.get(taskId)}
+      testId="plan-graph-node"
+      taskIdTestId="plan-graph-node-taskid"
+    />
+  );
+}
+
+function PlanFlowLegacyNode({ data }: NodeProps<PlanDagFlowNode>): React.ReactElement | null {
+  if (data.kind !== 'legacy') return null;
+  const ui = (data as PlanDagFlowData & { ui?: PlanFlowNodeUi }).ui;
+  const taskId = data.node.task_id;
+  const inConnect = ui?.connectFrom != null;
+  const isSource = ui?.connectFrom === taskId;
+  const isTarget = Boolean(inConnect && !isSource && ui?.dropTargets?.has(taskId));
+  return (
+    <PlanFlowTaskCard
+      projectId={ui?.projectId ?? ''}
+      nodeId={data.node.task_id}
+      taskId={taskId}
+      orgRef={data.node.org_ref}
+      title={data.node.title || refLabel(data.node.org_ref, taskId)}
+      assigneeRef={data.node.assignee_ref}
+      status={data.node.node_status}
+      generationNode={ui?.generationNodeOf?.get(taskId)}
+      archived={data.node.archived}
+      testId="plan-dag-node"
+      taskIdTestId="plan-node-taskid"
+      isSource={isSource}
+      isTarget={isTarget}
+      canStartConnect={Boolean(ui?.canEditDependencies && !inConnect)}
+      onStartConnect={() => ui?.onStartConnect?.(taskId)}
+      onTargetActivate={() => ui?.onTargetActivate?.(taskId)}
+      titleOf={ui?.titleOf}
+    />
+  );
+}
+
+function PlanFlowTaskCard({
+  projectId,
+  nodeId,
+  taskId,
+  orgRef,
+  title,
+  assigneeRef,
+  status,
+  generationNode,
+  archived,
+  testId,
+  taskIdTestId,
+  isSource,
+  isTarget,
+  canStartConnect,
+  onStartConnect,
+  onTargetActivate,
+  titleOf,
+}: {
+  projectId: string;
+  nodeId: string;
+  taskId: string;
+  orgRef?: string;
+  title: string;
+  assigneeRef: string;
+  status: PlanNodeStatus;
+  generationNode?: PlanGenerationRead['nodes'][number];
+  archived?: boolean;
+  testId: string;
+  taskIdTestId: string;
+  isSource?: boolean;
+  isTarget?: boolean;
+  canStartConnect?: boolean;
+  onStartConnect?: () => void;
+  onTargetActivate?: () => void;
+  titleOf?: (taskId: string) => string;
+}): React.ReactElement {
+  const { t } = useTranslation('work');
+  const s = NODE_STATE[status] ?? NODE_STATE.blocked;
+  const accentCls = s.border.replace(/^border-/, 'bg-');
+  const openTask = useCallback(() => {
+    window.open(`/projects/${projectId}/tasks/${taskId}`, '_blank', 'noopener,noreferrer');
+  }, [projectId, taskId]);
+  const onCardClick = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('a,button,input,textarea,select')) return;
+    openTask();
+  }, [openTask]);
+  const onCardKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    openTask();
+  }, [openTask]);
+  return (
+    <div
+      className={`relative h-full cursor-pointer overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+        isTarget ? 'border-accent ring-2 ring-accent' : isSource ? 'border-accent' : `${s.border} ${nodeVisualCls(status)}`
+      }`}
+      style={{ width: PLAN_DAG_NODE_W, height: PLAN_DAG_NODE_H }}
+      role="link"
+      tabIndex={0}
+      onClick={onCardClick}
+      onKeyDown={onCardKeyDown}
+      data-testid={testId}
+      data-node-id={nodeId}
+      data-task-id={taskId}
+      data-connect-source={isSource ? 'true' : undefined}
+      data-connect-target={isTarget ? 'true' : undefined}
+    >
+      <span className={`absolute inset-y-0 left-0 w-1.5 ${accentCls}`} aria-hidden="true" />
+      <div className="mb-1 flex items-center justify-between gap-1">
+        <TaskIdTag taskId={taskId} orgRef={orgRef} testId={taskIdTestId} />
+        <span className="inline-flex shrink-0 items-center gap-1">
+          <NodeGenerationBadge node={{ revision: generationNode?.revision }} />
+          {archived !== undefined && <TaskArchivedBadge archived={archived} taskId={taskId} />}
+          <NodeStateChip status={status} />
+          {canStartConnect && (
+            <button
+              type="button"
+              data-testid="plan-node-connect"
+              data-task-id={taskId}
+              onClick={onStartConnect}
+              aria-label={t('plan.detail.dag.addDependencyAria', { title: titleOf?.(taskId) ?? title })}
+              title={t('plan.detail.dag.addDependencyTitle', { title: titleOf?.(taskId) ?? title })}
+              className="shrink-0 rounded border border-border-strong bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              {t('plan.detail.dag.addDep')}
+            </button>
+          )}
+        </span>
+      </div>
+      <div className="mb-1.5 text-xs font-semibold text-text-primary" title={title}>
+        <TaskTitleLink projectId={projectId} taskId={taskId} title={title} wrap />
+      </div>
+      <div className="flex min-w-0 text-[0.6875rem]">
+        <AssigneeTag assigneeRef={assigneeRef} />
+      </div>
+      {isTarget && (
+        <button
+          type="button"
+          data-testid="plan-connect-target"
+          data-task-id={taskId}
+          onClick={onTargetActivate}
+          aria-label={t('plan.detail.dag.makeDependOn', { from: titleOf?.('') ?? '', to: title })}
+          title={t('plan.detail.dag.makeDependOn', { from: titleOf?.('') ?? '', to: title })}
+          className="absolute inset-0 rounded-lg border-2 border-accent bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+        />
+      )}
+    </div>
+  );
+}
+
+function PlanFlowEdge(props: EdgeProps<PlanDagFlowEdge>): React.ReactElement {
+  const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, data } = props;
+  const className = (props as { className?: string }).className;
+  const [edgePath, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
+  const ui = (data as NonNullable<PlanDagFlowEdge['data']> & { ui?: PlanFlowEdgeUi } | undefined)?.ui;
+  const fromTaskId = data?.fromTaskId;
+  const toTaskId = data?.toTaskId;
+  const edgeKey = (id.includes(':') ? id.split(':')[1] : id)
+    .replaceAll('__legacy_start__', 'start')
+    .replaceAll('__legacy_end__', 'end');
+  const edgeTestId = data?.kind === 'synthetic' ? 'plan-dag-synthetic-edge' : fromTaskId && toTaskId ? 'plan-dag-edge' : 'plan-graph-edge';
+  return (
+    <>
+      <path
+        id={id}
+        d={edgePath}
+        fill="none"
+        markerEnd={markerEnd}
+        style={style}
+        className={className}
+        data-testid={edgeTestId}
+        data-edge={edgeKey}
+        data-edge-kind={data?.kind}
+      />
+      {ui?.canEditDependencies && fromTaskId && toTaskId && (
+        <EdgeLabelRenderer>
+          <button
+            type="button"
+            data-testid="plan-edge-delete"
+            data-edge={`${fromTaskId}->${toTaskId}`}
+            disabled={ui.isPending}
+            onClick={() => ui.onRemove?.(fromTaskId, toTaskId)}
+            aria-label={ui.titleOf ? `Remove dependency ${ui.titleOf(fromTaskId)} -> ${ui.titleOf(toTaskId)}` : 'Remove dependency'}
+            className="nodrag nopan absolute flex h-5 w-5 items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-xs font-bold leading-none text-text-secondary shadow-1 hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
+            style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+          >
+            <span aria-hidden="true">&times;</span>
+          </button>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+}
+
 // v2.30.1 fix-before-ship (React #300): PlanDag is a THIN WRAPPER — it runs the
 // single graph query, then renders EITHER <PlanGraphDag/> OR <LegacyPlanDag/> as
 // a sibling. The previous shape early-returned <PlanGraphDag/> from BETWEEN the
@@ -4448,7 +4776,6 @@ function LegacyPlanDag({
   // / wide plan fits in view without endless horizontal scrolling. CSS transform
   // (content scales cleanly); the scroll area is sized to the scaled extent.
   const scale = compact ? 0.7 : 1;
-  const openTaskDetails = useTaskDetailOpener(projectId);
 
   // v2.9.1 point 3: IN-GRAPH dependency editing (pending-only). The dependency
   // STRUCTURE is edited directly on the graph — no separate dropdown box (§21
@@ -4514,72 +4841,54 @@ function LegacyPlanDag({
 
   const mutationError = addDep.isError ? addDep.error : removeDep.isError ? removeDep.error : null;
 
-  const { positioned, boxes, width, height, start, end } = useMemo(
-    () => layoutLegacyStagedDag(visibleNodes, visibleStages),
+  const topologyKey = useMemo(
+    () => [
+      visibleNodes.map((node) => `${node.task_id}:${node.depends_on.join('.')}`).sort().join(','),
+      visibleStages.map((stage) => `${stage.id}:${stage.members.map((member) => member.task_id).join('.')}:${stage.depends_on_stages.join('.')}`).join(','),
+    ].join('|'),
     [visibleNodes, visibleStages],
   );
-  const posById = useMemo(
-    () => new Map(positioned.map((p) => [p.node.task_id, p])),
-    [positioned],
+  const { layout: flowLayout, loading: flowLoading } = useElkFlowLayout(
+    () => layoutLegacyFlow(visibleNodes, visibleStages),
+    [topologyKey],
   );
-
-  // Edges: dep (upstream) → node (downstream). Top-to-bottom flow: path from dep
-  // BOTTOM-mid to node TOP-mid; a vertical-ease cubic for a clean orthogonal-ish curve.
-  const edges = useMemo(() => {
-    // Each real edge: dep (upstream `to`) → node (downstream `from`). The plan
-    // node `p` lists `depId` in depends_on, i.e. "p depends on depId" ⟺
-    // AddPlanDependency(from=p, to=depId). `from`/`to` are kept on the edge so a
-    // pending delete control can call RemoveDependency with the exact ids; `mx/my`
-    // is the curve midpoint where the delete control is anchored.
-    const out: { key: string; d: string; from: string; to: string; mx: number; my: number }[] = [];
-    for (const p of positioned) {
-      for (const depId of p.node.depends_on) {
-        const dep = posById.get(depId);
-        if (!dep) continue;
-        const x1 = dep.x + NODE_W / 2;
-        const y1 = dep.y + NODE_H;
-        const x2 = p.x + NODE_W / 2;
-        const y2 = p.y;
-        const midY = (y1 + y2) / 2;
-        out.push({
-          key: `${depId}->${p.node.task_id}`,
-          d: `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`,
-          from: p.node.task_id,
-          to: depId,
-          mx: (x1 + x2) / 2,
-          my: midY,
-        });
-      }
-    }
-    return out;
-  }, [positioned, posById]);
-
-  // v2.9 A5: synthetic flow edges — Start anchor (above) → each root's top-mid, and
-  // each leaf's bottom-mid → End anchor (below). Same cubic shape as real edges; kept
-  // on a SEPARATE testid (`plan-dag-synthetic-edge`) so real-edge assertions/counts
-  // are unaffected. A dashed/lighter stroke reads as a flow anchor, not a dep.
-  const synthEdges = useMemo(() => {
-    const out: { key: string; d: string }[] = [];
-    if (start) {
-      for (const l of start.links) {
-        const midY = (start.cy + l.y) / 2;
-        out.push({
-          key: `start->${l.taskId}`,
-          d: `M${start.cx},${start.cy} C${start.cx},${midY} ${l.x},${midY} ${l.x},${l.y}`,
-        });
-      }
-    }
-    if (end) {
-      for (const l of end.links) {
-        const midY = (l.y + end.cy) / 2;
-        out.push({
-          key: `${l.taskId}->end`,
-          d: `M${l.x},${l.y} C${l.x},${midY} ${end.cx},${midY} ${end.cx},${end.cy}`,
-        });
-      }
-    }
-    return out;
-  }, [start, end]);
+  const flowNodeUi = useMemo<PlanFlowNodeUi>(() => ({
+    projectId,
+    generationNodeOf,
+    canEditDependencies,
+    connectFrom,
+    dropTargets,
+    titleOf,
+    onStartConnect: setConnectFrom,
+    onTargetActivate,
+    stageDisplay,
+  }), [canEditDependencies, connectFrom, dropTargets, generationNodeOf, onTargetActivate, projectId, stageDisplay, titleOf]);
+  const flowEdgeUi = useMemo<PlanFlowEdgeUi>(() => ({
+    canEditDependencies,
+    isPending: removeDep.isPending,
+    titleOf,
+    onRemove: (fromTaskId, toTaskId) => removeDep.mutate({ from_task_id: fromTaskId, to_task_id: toTaskId }),
+  }), [canEditDependencies, removeDep, titleOf]);
+  const flowNodes = useMemo(
+    () => (flowLayout ? withNodeUi(flowLayout.nodes, flowNodeUi) : []),
+    [flowLayout, flowNodeUi],
+  );
+  const flowEdges = useMemo(
+    () => (flowLayout ? withEdgeUi(flowLayout.edges, flowEdgeUi) : []),
+    [flowEdgeUi, flowLayout],
+  );
+  const positioned = useMemo<Positioned[]>(() => {
+    if (!flowLayout) return [];
+    const yRanks = new Map(
+      [...new Set(flowLayout.nodes.filter((node) => node.data.kind === 'legacy').map((node) => Math.round(node.position.y)))]
+        .sort((a, b) => a - b)
+        .map((y, index) => [y, index]),
+    );
+    return flowLayout.nodes.flatMap((node) => {
+      if (node.data.kind !== 'legacy') return [];
+      return [{ node: node.data.node, level: yRanks.get(Math.round(node.position.y)) ?? 0, x: node.position.x, y: node.position.y }];
+    });
+  }, [flowLayout]);
 
   return (
     // SenderSidebarProvider owns the ONE agent-activity sidebar for the whole DAG
@@ -4589,7 +4898,7 @@ function LegacyPlanDag({
     <SenderSidebarProvider>
     {/* T579: desktop = flex column filling the panel so the canvas (flex-1 below)
         grows to occupy the full pane height; the legend/note stay pinned beneath it. */}
-    <div data-testid="plan-dag" className="md:flex md:min-h-0 md:flex-1 md:flex-col">
+    <div data-testid={nodes.length > 0 && flowLoading && !flowLayout ? 'plan-dag-layout-loading' : 'plan-dag'} className="md:flex md:min-h-0 md:flex-1 md:flex-col">
       {nodes.length === 0 ? (
         <p className="py-10 text-center text-xs text-text-muted" data-testid="plan-dag-empty">
           {t('plan.detail.dag.empty')}
@@ -4634,272 +4943,27 @@ function LegacyPlanDag({
             </div>
           </div>
         )}
-        {/* Desktop canvas — centered by default + grab-to-pan (DagCanvas). T347: the
-            dot-grid gives a "canvas" feel; T579: flex-1 + min-h-0 fills the pane and
-            scrolls internally when the graph overflows. */}
-        <DagCanvas
-          contentW={width * scale}
-          contentH={height * scale}
-          compact={compact}
-          testId="plan-dag-canvas"
-          legend={
-            <div className="contents" data-testid="plan-dag-legend">
-              {NODE_STATE_ORDER.map((st) => (
-                <NodeStateChip key={st} status={st} />
-              ))}
-            </div>
-          }
-        >
-          <div
-            className="relative"
-            data-testid="plan-dag-scaler"
-            style={{
-              width,
-              height,
-              transform: scale === 1 ? undefined : `scale(${scale})`,
-              transformOrigin: 'top left',
-            }}
-          >
-            {boxes.map((box) => {
-              const totalMembers = box.stage.members.length;
-              const doneMembers = box.stage.members.filter((member) => stageMemberDone(member.task_status)).length;
-              const pct = totalMembers > 0 ? Math.round((doneMembers / totalMembers) * 100) : 0;
-              const display = stageDisplay.byStageId.get(box.stage.id) ?? { ref: box.stage.id, name: box.stage.name };
-              return (
-                <StageBoxSurface
-                  key={box.stage.id}
-                  className="absolute rounded-xl border border-border-strong bg-bg-surface"
-                  style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
-                  stage={box.stage}
-                  data-testid={`plan-stage-box-${box.stage.id}`}
-                >
-                  <div className="border-b border-border-base px-3.5 py-2">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="font-mono text-[0.625rem] tracking-wide text-text-muted" data-testid={`plan-stage-ref-${box.stage.id}`}>
-                        {t('plan.detail.stages.idLabel', { defaultValue: 'STAGE' })} · {display.ref}
-                      </span>
-                      <span className="truncate text-xs font-semibold text-text-primary" data-testid={`plan-stage-name-${box.stage.id}`}>
-                        {display.name}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex items-center gap-2.5">
-                      <span data-testid={`plan-stage-status-${box.stage.id}`} className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.5625rem] font-bold uppercase tracking-wide ${STAGE_STATUS_CLASS[box.stage.status]}`}>
-                        <span className="h-1 w-1 rounded-full bg-current" aria-hidden="true" />
-                        {t(`plan.detail.stages.status.${box.stage.status}`)}
-                      </span>
-                      <span className="h-1 max-w-[7rem] flex-1 overflow-hidden rounded-full bg-bg-subtle" aria-hidden="true">
-                        <span className="block h-full rounded-full bg-success" style={{ width: `${pct}%` }} />
-                      </span>
-                      <span className="font-mono text-[0.5625rem] text-text-muted" data-testid={`plan-stage-progress-${box.stage.id}`}>{doneMembers}/{totalMembers}</span>
-                      {box.stage.rounds > 0 && (
-                        <span className="inline-flex items-center rounded bg-warning/10 px-1.5 py-0.5 text-[0.625rem] text-warning" data-testid={`plan-stage-rounds-${box.stage.id}`}>
-                          {t('plan.detail.stages.retryRound', { round: box.stage.rounds, max: box.stage.max_rounds })}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </StageBoxSurface>
-              );
-            })}
-            {/* Edges (z-0, behind nodes). */}
-            <svg
-              className="absolute left-0 top-0"
-              width={width}
-              height={height}
-              data-testid="plan-dag-svg"
-              aria-hidden="true"
-            >
-              <defs>
-                <marker
-                  id="plan-dag-arrow"
-                  viewBox="0 0 10 10"
-                  refX="8"
-                  refY="5"
-                  markerWidth="7"
-                  markerHeight="7"
-                  orient="auto-start-reverse"
-                >
-                  <path d="M0,0 L10,5 L0,10 z" className="fill-border-strong" />
-                </marker>
-              </defs>
-              <g fill="none" className="stroke-border-strong" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" markerEnd="url(#plan-dag-arrow)">
-                {edges.map((e) => (
-                  <path key={e.key} d={e.d} data-testid="plan-dag-edge" data-edge={e.key} />
-                ))}
-              </g>
-              {/* Synthetic flow edges (Start→roots, leaves→End): lighter +
-                  dashed so they read as flow anchors, not real dependencies. */}
-              <g
-                fill="none"
-                className="stroke-border-base"
-                strokeWidth="1.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeDasharray="4 3"
-                markerEnd="url(#plan-dag-arrow)"
-              >
-                {synthEdges.map((e) => (
-                  <path
-                    key={e.key}
-                    d={e.d}
-                    data-testid="plan-dag-synthetic-edge"
-                    data-edge={e.key}
-                  />
-                ))}
-              </g>
-            </svg>
-            {/* Pending-only IN-GRAPH edge delete controls (z-10, anchored at each
-                edge's curve midpoint). A real <button> (keyboard-focusable) →
-                useRemoveDependency.mutate({from, to}). Running/done = none. */}
-            {canEditDependencies &&
-              edges.map((e) => (
-                <button
-                  key={`del-${e.from}->${e.to}`}
-                  type="button"
-                  data-testid="plan-edge-delete"
-                  // from->to (dependent->dependency) matches the RemoveDependency
-                  // body: "from depends on to".
-                  data-edge={`${e.from}->${e.to}`}
-                  disabled={removeDep.isPending}
-                  onClick={() => removeDep.mutate({ from_task_id: e.from, to_task_id: e.to })}
-                  aria-label={t('plan.detail.dag.removeDependency', { from: titleOf(e.from), to: titleOf(e.to) })}
-                  title={t('plan.detail.dag.removeDependency', { from: titleOf(e.from), to: titleOf(e.to) })}
-                  className="absolute z-10 flex h-5 w-5 items-center justify-center rounded-full border border-border-strong bg-bg-elevated text-xs font-bold leading-none text-text-secondary shadow-1 hover:bg-bg-subtle hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-50"
-                  // centered on the edge midpoint (button is 20px = w-5/h-5).
-                  style={{ left: e.mx - 10, top: e.my - 10 }}
-                >
-                  {/* ASCII multiplication sign (not emoji). */}
-                  <span aria-hidden="true">&times;</span>
-                </button>
-              ))}
-            {boxes.map((box) => (
-              <StageHeaderDetailsTarget
-                key={`stage-header-${box.stage.id}`}
-                stage={box.stage}
-                style={{ left: box.x, top: box.y, width: box.w, height: STAGE_HEADER_H }}
-                testId={`plan-stage-header-button-${box.stage.id}`}
-              />
-            ))}
-            {/* Nodes (z-10). */}
-            {positioned.map((p) => {
-              const s = NODE_STATE[p.node.node_status] ?? NODE_STATE.blocked;
-              const taskId = p.node.task_id;
-              const inConnect = connectFrom != null;
-              const isSource = connectFrom === taskId;
-              const isTarget = inConnect && !isSource && dropTargets.has(taskId);
-              const taskTitle = p.node.title || refLabel(p.node.org_ref, taskId);
-              const generationNode = generationNodeOf.get(taskId);
-              const generationMeta = {
-                revision: generationNode?.revision,
-              };
-              // T347: a status-colored left accent bar (derived from the border
-              // token) + hover lift make the nodes read as status cards, not plain
-              // boxes. overflow-hidden clips the bar to the rounded corner.
-              const accentCls = s.border.replace(/^border-/, 'bg-');
-              return (
-                <div
-                  key={taskId}
-                  className={`absolute cursor-pointer overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                    isTarget
-                      ? 'border-accent ring-2 ring-accent'
-                      : isSource
-                        ? 'border-accent'
-                        : `${s.border} ${nodeVisualCls(p.node.node_status)}`
-                  }`}
-                  style={{ left: p.x, top: p.y, width: NODE_W }}
-                  role="link"
-                  tabIndex={0}
-                  aria-label={t('plan.detail.dag.openTaskDetails', {
-                    title: taskTitle,
-                    defaultValue: 'Open task details for {{title}}',
-                  })}
-                  onClick={(e) => {
-                    if (isNestedInteractiveTarget(e.target, e.currentTarget)) return;
-                    openTaskDetails(taskId);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter' && e.key !== ' ') return;
-                    if (isNestedInteractiveTarget(e.target, e.currentTarget)) return;
-                    e.preventDefault();
-                    openTaskDetails(taskId);
-                  }}
-                  data-testid="plan-dag-node"
-                  data-task-id={taskId}
-                  data-level={p.level}
-                  data-connect-source={isSource ? 'true' : undefined}
-                  data-connect-target={isTarget ? 'true' : undefined}
-                >
-                  <span
-                    className={`absolute inset-y-0 left-0 w-1.5 ${accentCls}`}
-                    aria-hidden="true"
-                  />
-                  {/* v2.9.1 UX point 1: human Task id (T-number) visible on the node.
-                      T329b: the status badge (+ archived) moves UP here to the id row
-                      (right-aligned) so the assignee row below gets the FULL node width
-                      — a long agent name is no longer cut/blocked by the badge. Mirrors
-                      the mobile stepper layout. */}
-                  <div className="mb-1 flex items-center justify-between gap-1">
-                    <TaskIdTag taskId={taskId} orgRef={p.node.org_ref} testId="plan-node-taskid" />
-                    <span className="inline-flex shrink-0 items-center gap-1">
-                      <NodeGenerationBadge node={generationMeta} />
-                      <TaskArchivedBadge archived={p.node.archived} taskId={taskId} />
-                      <NodeStateChip status={p.node.node_status} />
-                      <SupersededDrainingChip node={p.node} />
-                      {/* Pending connect control (point 3): a real keyboard-focusable
-                          button. Activating enters connect mode with this node as
-                          the source. Hidden once running/done (display-only). */}
-                      {canEditDependencies && !inConnect && (
-                        <button
-                          type="button"
-                          data-testid="plan-node-connect"
-                          data-task-id={taskId}
-                          onClick={() => setConnectFrom(taskId)}
-                          aria-label={t('plan.detail.dag.addDependencyAria', { title: titleOf(taskId) })}
-                          title={t('plan.detail.dag.addDependencyTitle', { title: titleOf(taskId) })}
-                          className="shrink-0 rounded border border-border-strong bg-bg-subtle px-1.5 py-0.5 text-[0.625rem] font-semibold text-text-secondary hover:bg-bg-base hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                        >
-                          {t('plan.detail.dag.addDep')}
-                        </button>
-                      )}
-                    </span>
-                  </div>
-                  <div className="mb-1.5 text-xs font-semibold text-text-primary" title={p.node.title}>
-                    <TaskTitleLink
-                      projectId={projectId}
-                      taskId={taskId}
-                      title={taskTitle}
-                    />
-                  </div>
-                  {/* Assignee gets its OWN full-width row (truncates only if extreme). */}
-                  <div className="flex min-w-0 text-[0.6875rem]">
-                    <AssigneeTag assigneeRef={p.node.assignee_ref} />
-                  </div>
-                  {/* Connect-mode target affordance (point 3): ONLY valid targets
-                      (self/exists/cycle excluded) become activatable. A real
-                      keyboard-focusable button overlaying the node; activating it
-                      adds "source depends on target". Invalid nodes get nothing. */}
-                  {isTarget && (
-                    <button
-                      type="button"
-                      data-testid="plan-connect-target"
-                      data-task-id={taskId}
-                      onClick={() => onTargetActivate(taskId)}
-                      aria-label={t('plan.detail.dag.makeDependOn', { from: titleOf(connectFrom!), to: titleOf(taskId) })}
-                      title={t('plan.detail.dag.makeDependOn', { from: titleOf(connectFrom!), to: titleOf(taskId) })}
-                      className="absolute inset-0 rounded-lg border-2 border-accent bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
-                    />
-                  )}
-                </div>
-              );
-            })}
-            {/* Synthetic Start/End anchors (z-10) — distinct flow markers, NOT
-                tasks: no node_status / 6-state chip, no assignee, not
-                clickable/dispatchable, not in any count. Rendered as a labeled
-                circular terminal. */}
-            {start && <SyntheticAnchorMarker kind="start" anchor={start} />}
-            {end && <SyntheticAnchorMarker kind="end" anchor={end} />}
+        {flowLoading && !flowLayout ? (
+          <div className="hidden rounded-lg border border-border-base bg-bg-subtle py-10 text-center text-xs text-text-muted md:block" data-testid="plan-dag-layout-loading">
+            {t('plan.detail.dag.layoutLoading', { defaultValue: 'Laying out graph…' })}
           </div>
-        </DagCanvas>
+        ) : (
+          <PlanFlowCanvas
+            nodes={flowNodes}
+            edges={flowEdges}
+            compact={compact}
+            topologyKey={topologyKey}
+            legend={
+              <div className="contents" data-testid="plan-dag-legend">
+                {NODE_STATE_ORDER.map((st) => (
+                  <NodeStateChip key={st} status={st} />
+                ))}
+              </div>
+            }
+          >
+            <div data-testid="plan-dag-scaler" className="hidden" data-scale={scale} style={{ transform: scale === 1 ? undefined : `scale(${scale})` }} />
+          </PlanFlowCanvas>
+        )}
         </>
       )}
 
