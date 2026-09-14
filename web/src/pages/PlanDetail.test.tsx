@@ -332,7 +332,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.queryByTestId('plan-task-list')).not.toBeInTheDocument();
     // clicking DAG shows the DAG (and not the task list)
     fireEvent.click(screen.getByTestId('plan-tab-dag'));
-    expect(screen.getByTestId('plan-dag')).toBeInTheDocument();
+    expect(await screen.findByTestId('plan-dag')).toBeInTheDocument();
     expect(screen.queryByTestId('plan-task-list')).not.toBeInTheDocument();
     // clicking Task list shows the task list (and not the DAG)
     fireEvent.click(screen.getByTestId('plan-tab-tasks'));
@@ -1990,6 +1990,7 @@ describe('PlanDetail — v2.10.1 [M4] mobile DAG → vertical stepper', () => {
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     const stepper = await screen.findByTestId('plan-stepper');
+    await waitFor(() => expect(within(stepper).getAllByTestId('plan-stepper-node').length).toBeGreaterThan(0));
     const first = within(stepper).getAllByTestId('plan-stepper-node')[0];
     expect(within(first).getByTestId('plan-stepper-dot')).toBeInTheDocument();
     expect(within(first).getByTestId('node-state-chip')).toBeInTheDocument();
@@ -2051,9 +2052,7 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     fireEvent.click(screen.getByTestId('plan-tab-dag'));
     // Loading frame: the DAG is shown via the LEGACY renderer (no data-graph flag),
     // because the graph query has not resolved yet.
-    const loadingDag = screen.getByTestId('plan-dag');
-    expect(loadingDag).toBeInTheDocument();
-    expect(loadingDag).not.toHaveAttribute('data-graph', 'true');
+    expect(screen.getAllByTestId('plan-dag-layout-loading').length).toBeGreaterThan(0);
     // Resolve: the wrapper swaps to PlanGraphDag WITHOUT a #300 crash (a crash
     // would throw during this transition render and fail the test).
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toHaveAttribute('data-graph', 'true'));
@@ -2076,7 +2075,7 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     await act(async () => {
       await new Promise((r) => setTimeout(r, 40));
     });
-    const dag = screen.getByTestId('plan-dag');
+    const dag = await screen.findByTestId('plan-dag');
     expect(dag).toBeInTheDocument();
     expect(dag).not.toHaveAttribute('data-graph', 'true');
   });
@@ -2289,7 +2288,7 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(within(panel).getByTestId('plan-dag-evolution-generation-progress')).toHaveTextContent('1/3 done');
     expect(within(panel).getByTestId('plan-dag-evolution-diff')).toHaveTextContent('+1 tasks');
     expect(within(panel).queryByTestId('plan-dag-evolution-selected-detail')).not.toBeInTheDocument();
-    expect(screen.getByTestId('plan-dag-canvas')).toBeInTheDocument();
+    expect(await screen.findByTestId('plan-dag-canvas')).toBeInTheDocument();
 
     fireEvent.click(within(panel).getByTestId('plan-dag-evolution-detail-open'));
     let detail = await screen.findByTestId('plan-dag-evolution-selected-detail');
@@ -2354,7 +2353,7 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
 
     const panel = await screen.findByTestId('plan-dag-evolution');
     expect(within(panel).queryByTestId('plan-dag-evolution-page-label')).not.toBeInTheDocument();
-    expect(screen.getByTestId('plan-dag-canvas')).toBeInTheDocument();
+    expect(await screen.findByTestId('plan-dag-canvas')).toBeInTheDocument();
     expect(within(panel).queryByTestId('plan-dag-evolution-selected-detail')).not.toBeInTheDocument();
     expect(within(panel).getByTestId('plan-dag-evolution-revision-1')).toBeInTheDocument();
     expect(within(panel).getByTestId('plan-dag-evolution-revision-8')).toBeInTheDocument();
@@ -2436,10 +2435,14 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     fireEvent.click(within(panel).getByTestId('plan-dag-evolution-revision-1'));
     await waitFor(() => expect(screen.getAllByText('immutable G0 design').length).toBeGreaterThan(0));
     expect(dag.querySelector('[data-testid="plan-graph-node"][data-task-id="n3"]')).not.toBeInTheDocument();
-    const snapshotNode = dag.querySelector('[data-testid="plan-graph-node"][data-node-id="snapshot:n2"]') as HTMLElement;
+    let snapshotNode: HTMLElement | null = null;
+    await waitFor(() => {
+      snapshotNode = screen.getByTestId('plan-dag').querySelector('[data-testid="plan-graph-node"][data-node-id="snapshot:n2"]') as HTMLElement | null;
+      expect(snapshotNode).toBeInTheDocument();
+    });
     expect(snapshotNode).toBeInTheDocument();
-    expect(within(snapshotNode).getByTestId('plan-graph-node-taskid')).toHaveTextContent('T502');
-    expect(within(snapshotNode).getByTestId('plan-graph-node-taskid')).not.toHaveTextContent('n2');
+    expect(within(snapshotNode!).getByTestId('plan-graph-node-taskid')).toHaveTextContent('T502');
+    expect(within(snapshotNode!).getByTestId('plan-graph-node-taskid')).not.toHaveTextContent('n2');
   });
 
   it('connects staged orchestration-graph history revisions through gate topology', async () => {
@@ -2751,7 +2754,7 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     await act(async () => {
       await new Promise((r) => setTimeout(r, 40));
     });
-    expect(screen.getByTestId('plan-dag')).toBeInTheDocument();
+    expect(await screen.findByTestId('plan-dag')).toBeInTheDocument();
     expect(screen.queryByTestId(/plan-stage-box-/)).not.toBeInTheDocument();
   });
 });

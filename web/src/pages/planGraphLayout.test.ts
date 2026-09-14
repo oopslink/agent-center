@@ -6,6 +6,13 @@ import {
   STAGE_HEADER_H,
   withStageTopologyEdges,
 } from './PlanDetail';
+import {
+  layoutGraphFlow,
+  layoutLegacyFlow,
+  PLAN_DAG_NODE_H,
+  PLAN_DAG_NODE_W,
+  PLAN_DAG_STAGE_HEADER_H,
+} from './planDagFlow';
 import type { PlanGraphNode, PlanGraphEdge, PlanStage } from '@/api/plans';
 
 // T800 layout algebra unit tests: buildPlanGraph now emits Start→root / sink→End
@@ -284,6 +291,71 @@ describe('withStageTopologyEdges — staged visual topology', () => {
     expect(r1.x + r1.w).toBeLessThanOrEqual(s1Box.x + s1Box.w + 1);
     expect(r2.x).toBeGreaterThanOrEqual(s1Box.x);
     expect(r2.x + r2.w).toBeLessThanOrEqual(s1Box.x + s1Box.w + 1);
+  });
+});
+
+describe('planDagFlow — React Flow + ELK adapter', () => {
+  it('lays out staged business nodes inside ELK compound stage bounds and keeps cross-stage edges', async () => {
+    const nodes: PlanGraphNode[] = [
+      { ...biz('A'), task_id: 'task-A' },
+      { ...biz('B'), task_id: 'task-B' },
+      { ...biz('C'), task_id: 'task-C' },
+    ];
+    const stages = [
+      stage({ id: 's1', members: [member('task-A'), member('task-B')] }),
+      stage({ id: 's2', members: [member('task-C')], depends_on_stages: ['s1'] }),
+    ];
+    const layout = await layoutGraphFlow(nodes, [seq('A', 'B'), seq('B', 'C')], stages);
+    const stage1 = layout.nodes.find((node) => node.id === 'stage:s1')!;
+    const stage2 = layout.nodes.find((node) => node.id === 'stage:s2')!;
+    const a = layout.nodes.find((node) => node.id === 'A')!;
+    const b = layout.nodes.find((node) => node.id === 'B')!;
+    const c = layout.nodes.find((node) => node.id === 'C')!;
+
+    for (const node of [a, b]) {
+      expect(node.parentId).toBe('stage:s1');
+      expect(node.position.x).toBeGreaterThanOrEqual(0);
+      expect(node.position.x + PLAN_DAG_NODE_W).toBeLessThanOrEqual((stage1.style?.width as number) + 1);
+      expect(node.position.y).toBeGreaterThanOrEqual(PLAN_DAG_STAGE_HEADER_H);
+      expect(node.position.y + PLAN_DAG_NODE_H).toBeLessThanOrEqual((stage1.style?.height as number) + 1);
+    }
+    expect(c.parentId).toBe('stage:s2');
+    const overlapX = stage1.position.x < stage2.position.x + (stage2.style?.width as number)
+      && stage2.position.x < stage1.position.x + (stage1.style?.width as number);
+    const overlapY = stage1.position.y < stage2.position.y + (stage2.style?.height as number)
+      && stage2.position.y < stage1.position.y + (stage1.style?.height as number);
+    expect(overlapX && overlapY).toBe(false);
+    expect(layout.edges.some((edge) => edge.source === 'B' && edge.target === 'C')).toBe(true);
+  });
+
+  it('keeps branch and join dependencies without overlapping task cards', async () => {
+    const nodes = [biz('A'), biz('B'), biz('C'), biz('D')];
+    const layout = await layoutGraphFlow(nodes, [seq('A', 'B'), seq('A', 'C'), seq('B', 'D'), seq('C', 'D')]);
+    const boxes = layout.nodes.filter((node) => node.data.kind === 'business');
+    for (let i = 0; i < boxes.length; i += 1) {
+      for (let j = i + 1; j < boxes.length; j += 1) {
+        const left = boxes[i];
+        const right = boxes[j];
+        const overlapX = left.position.x < right.position.x + PLAN_DAG_NODE_W && right.position.x < left.position.x + PLAN_DAG_NODE_W;
+        const overlapY = left.position.y < right.position.y + PLAN_DAG_NODE_H && right.position.y < left.position.y + PLAN_DAG_NODE_H;
+        expect(overlapX && overlapY).toBe(false);
+      }
+    }
+    expect(layout.edges.map((edge) => `${edge.source}->${edge.target}`).sort()).toEqual(['A->B', 'A->C', 'B->D', 'C->D']);
+  });
+
+  it('converts legacy depends_on into real dependency edges plus synthetic Start/End anchors', async () => {
+    const layout = await layoutLegacyFlow([
+      { task_id: 'A', title: 'A', assignee_ref: 'agent:a', task_status: 'open', node_status: 'ready', depends_on: [] },
+      { task_id: 'B', title: 'B', assignee_ref: 'agent:b', task_status: 'open', node_status: 'blocked', depends_on: ['A'] },
+    ]);
+    expect(layout.nodes.some((node) => node.id === '__legacy_start__' && node.data.kind === 'control')).toBe(true);
+    expect(layout.nodes.some((node) => node.id === '__legacy_end__' && node.data.kind === 'control')).toBe(true);
+    expect(layout.edges.some((edge) => edge.source === 'A' && edge.target === 'B' && edge.data?.fromTaskId === 'B' && edge.data?.toTaskId === 'A')).toBe(true);
+    expect(layout.edges.filter((edge) => edge.data?.kind === 'synthetic').map((edge) => `${edge.source}->${edge.target}`).sort()).toEqual([
+      'B->__legacy_end__',
+      '__legacy_start__->A',
+    ]);
   });
 });
 

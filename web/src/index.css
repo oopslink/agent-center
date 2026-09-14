@@ -13,6 +13,38 @@
   background-size: 24px 24px;
 }
 
+.plan-flow {
+  --xy-background-color: var(--color-bg-subtle);
+  --xy-edge-stroke: var(--color-border-strong);
+  --xy-edge-stroke-width: 1.6;
+  --xy-controls-button-background-color: var(--color-bg-elevated);
+  --xy-controls-button-color: var(--color-text-secondary);
+  --xy-controls-button-border-color: var(--color-border);
+  --xy-minimap-background-color: var(--color-bg-elevated);
+}
+
+.plan-flow .react-flow__viewport {
+  transition: transform 120ms ease;
+}
+
+.plan-flow-edge {
+  stroke: var(--color-border-strong);
+}
+
+.plan-flow-edge--conditional {
+  stroke: var(--color-accent);
+}
+
+.plan-flow-edge--loopback {
+  stroke: var(--color-status-amber-border);
+  stroke-dasharray: 5 3;
+}
+
+.plan-flow-edge--synthetic {
+  stroke: var(--color-border);
+  stroke-dasharray: 4 3;
+}
+
 @layer utilities {
   /*
    * Mobile viewport-aware full height for the app shell. NOT Tailwind's
