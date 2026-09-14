@@ -236,6 +236,11 @@ func codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome string, computerUse C
 		return nil
 	}
 	nodeRuntime := codexNodeRuntimePaths(sourceCodexHome)
+	appPath := filepath.Dir(filepath.Dir(filepath.Dir(servicePath)))
+	if sandboxRuntimeInsideVM() && codexDirExists(sandboxComputerUseAppPath) {
+		appPath = sandboxComputerUseAppPath
+	}
+	docsPath := filepath.Join(nodeRuntime.nodeModuleDirs, "@oai", "sky", "docs", "sky-window-api.md")
 	trustedPaths := []string{codexHome, nodeRuntime.nodeModuleDirs}
 	if src := strings.TrimSpace(sourceCodexHome); src != "" {
 		trustedPaths = append([]string{src}, trustedPaths...)
@@ -243,12 +248,13 @@ func codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome string, computerUse C
 	env := map[string]string{
 		"BROWSER_USE_AVAILABLE_BACKENDS":               "chrome,iab,computer-use",
 		"CODEX_HOME":                                   codexHome,
-		"NODE_REPL_INSTRUCTIONS_USE_CASE_COMPUTER_USE": "1",
+		"NODE_REPL_INSTRUCTIONS_USE_CASE_COMPUTER_USE": "Use @oai/sky for Computer Use. Before first use, read " + docsPath + " with node:fs inside js. Then import { sky } from @oai/sky. Start with sky.list_apps() or sky.get_app_state({app: anAppId}); use the returned state and documented API for subsequent actions.",
 		"NODE_REPL_NATIVE_PIPE_CONNECT_TIMEOUT_MS":     "120000",
 		"NODE_REPL_NODE_MODULE_DIRS":                   nodeRuntime.nodeModuleDirs,
 		"NODE_REPL_NODE_PATH":                          nodeRuntime.node,
 		"NODE_REPL_TRUSTED_CODE_PATHS":                 strings.Join(trustedPaths, ":"),
-		"SKY_CUA_SERVICE_PATH":                         servicePath,
+		"NODE_REPL_TRUSTED_SERVICES":                   `{"sky":"@oai/sky/service"}`,
+		"SKY_CUA_SERVICE_PATH":                         appPath,
 		"SKY_CUA_ENDPOINT":                             strings.TrimSpace(computerUse.Endpoint),
 	}
 	for k, v := range computerUse.Env {

@@ -234,7 +234,7 @@ command = "/stale/agent-center"
 		`NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS = "/tmp/agent-x-cua.sock"`,
 		`SKY_CUA_ENDPOINT = "vm://agent-x"`,
 		`SKY_CUA_SERVICE_NATIVE_PIPE_PATH = "/tmp/agent-x-cua.sock"`,
-		`SKY_CUA_SERVICE_PATH = "` + service + `"`,
+		`SKY_CUA_SERVICE_PATH = "` + filepath.Dir(filepath.Dir(filepath.Dir(service))) + `"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("codex config missing Computer Use node_repl entry %q; got:\n%s", want, s)

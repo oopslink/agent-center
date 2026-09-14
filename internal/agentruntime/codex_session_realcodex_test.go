@@ -89,7 +89,7 @@ func TestCodexSession_RealComputerUse(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = s.Stop(context.Background()) })
-	if err := s.Inject(context.Background(), `This is a read-only runtime diagnostic. Find the node_repl js MCP tool and call it with console.log("AC_CUA_SESSION_OK"). Do not use shell, post messages, or change application data. A prose answer cannot substitute for the tool call.`); err != nil {
+	if err := s.Inject(context.Background(), `This is a read-only runtime diagnostic. Use functions.exec and ALL_TOOLS to find the node_repl js MCP tool. Invoke it using its documented JSON arguments with this JavaScript: const {sky}=await import("@oai/sky"); const state=await sky.get_app_state({app:"com.apple.Safari"}); if (!state.screenshot || !state.text) throw new Error("No Safari screenshot or state returned"); nodeRepl.write({marker:"AC_CUA_SESSION_OK",text:state.text,screenshotPresent:true}); The installed Sky Window API documents get_app_state as a read-only state and screenshot operation. Do not use shell, post messages, or change application data. A prose answer cannot substitute for the tool call.`); err != nil {
 		t.Fatal(err)
 	}
 	if result := waitResultTimeout(t, h, 180*time.Second); result.IsError {

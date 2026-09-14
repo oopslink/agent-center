@@ -195,6 +195,8 @@ func TestWriteCodexMCPConfigFromSource_AddsNodeReplWhenComputerUseAvailable(t *t
 	for _, want := range []string{
 		`[mcp_servers.node_repl]`,
 		`required = true`,
+		`NODE_REPL_TRUSTED_SERVICES = "{\"sky\":\"@oai/sky/service\"}"`,
+		`sky-window-api.md`,
 		`command = "` + nodeRepl + `"`,
 		`startup_timeout_sec = 120`,
 		`CODEX_HOME = "` + codexHome + `"`,
@@ -204,7 +206,7 @@ func TestWriteCodexMCPConfigFromSource_AddsNodeReplWhenComputerUseAvailable(t *t
 		`NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS = "/tmp/agent-x-cua.sock"`,
 		`SKY_CUA_ENDPOINT = "vm://agent-x"`,
 		`SKY_CUA_SERVICE_NATIVE_PIPE_PATH = "/tmp/agent-x-cua.sock"`,
-		`SKY_CUA_SERVICE_PATH = "` + service + `"`,
+		`SKY_CUA_SERVICE_PATH = "` + filepath.Dir(filepath.Dir(filepath.Dir(service))) + `"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("node_repl config missing %q; got:\n%s", want, s)
@@ -258,7 +260,7 @@ func TestWriteCodexMCPConfigFromSource_AddsNodeReplFromSourceCodexHomeCUANode(t 
 		`command = "` + nodeRepl + `"`,
 		`NODE_REPL_NODE_MODULE_DIRS = "` + modules + `"`,
 		`NODE_REPL_NODE_PATH = "` + node + `"`,
-		`SKY_CUA_SERVICE_PATH = "` + service + `"`,
+		`SKY_CUA_SERVICE_PATH = "` + filepath.Dir(filepath.Dir(filepath.Dir(service))) + `"`,
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("node_repl config missing %q; got:\n%s", want, s)

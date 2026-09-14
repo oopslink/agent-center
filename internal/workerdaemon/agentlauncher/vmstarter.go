@@ -150,6 +150,16 @@ func (s *TartVMStarter) Start(ctx context.Context, spec AgentSpec) (Process, err
 			return nil, err
 		}
 	}
+	setupCtx, setupCancel := context.WithTimeout(ctx, 90*time.Second)
+	setup := tartGuestComputerUseSetup(mountPlan, filepath.Join(tartGuestSharePath("agent-center-state"), "agents", spec.AgentID), spec.AgentID, guestEnv)
+	setupOut, setupErr := exec.CommandContext(setupCtx, "ssh", sshBaseArgs(ip, sshIdentity, sshShellCommand(setup))...).CombinedOutput()
+	setupCancel()
+	if setupErr != nil {
+		if proxyTunnel != nil {
+			_ = signalProcessGroup(proxyTunnel, syscall.SIGTERM)
+		}
+		return nil, fmt.Errorf("agentlauncher: prepare guest Computer Use service: %w: %s", setupErr, strings.TrimSpace(string(setupOut)))
+	}
 	if err := s.startGuestRuntime(ctx, ip, sshIdentity, guestSockDir, guestBin, guestArgs, guestEnv); err != nil {
 		if proxyTunnel != nil {
 			_ = signalProcessGroup(proxyTunnel, syscall.SIGTERM)
@@ -914,6 +924,7 @@ func tartGuestEnv(base []string, plan tartGuestMountPlan, agentID string) []stri
 		)
 	}
 	env = append(env,
+		"CODEX_SQLITE_HOME="+tartGuestCodexSQLiteHome(agentID),
 		"AC_SANDBOX_RUNTIME_INSIDE_VM=1",
 		"AC_SANDBOX_RUNTIME_PLACEMENT=vm_runtime",
 	)
@@ -941,6 +952,7 @@ func withoutSandboxHostOnlyEnv(env []string) []string {
 		"XDG_RUNTIME_DIR",
 		"PATH",
 		"CODEX_HOME",
+		"CODEX_SQLITE_HOME",
 		"CLAUDE_CONFIG_DIR",
 		"CLAUDE_BUILTIN_SKILLS_DIR",
 		"AC_SANDBOX_COMPUTER_USE_ENDPOINT",

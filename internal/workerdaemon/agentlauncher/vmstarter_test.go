@@ -255,11 +255,14 @@ func TestTartGuestEnvPreservesGuestIdentityAndTempDirectory(t *testing.T) {
 		"SSH_AUTH_SOCK", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME",
 		"XDG_STATE_HOME", "XDG_RUNTIME_DIR",
 	}
-	base := []string{"APP_SETTING=preserved"}
+	base := []string{"APP_SETTING=preserved", "CODEX_SQLITE_HOME=/missing/host/sqlite"}
 	for _, key := range hostOnly {
 		base = append(base, key+"=/missing/host/path")
 	}
 	env := tartGuestEnv(base, tartGuestMountPlan{}, "agent-1")
+	if got := envValue(env, "CODEX_SQLITE_HOME"); got != tartGuestCodexSQLiteHome("agent-1") {
+		t.Fatalf("SQLite must be guest-local, got %q", got)
+	}
 	for _, key := range hostOnly {
 		if got := envValue(env, key); got != "" {
 			t.Fatalf("host %s leaked into guest: %q", key, got)
