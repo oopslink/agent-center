@@ -209,6 +209,11 @@ func TestWriteCodexMCPConfigFromSource_AddsNodeReplWhenComputerUseAvailable(t *t
 			t.Errorf("node_repl config missing %q; got:\n%s", want, s)
 		}
 	}
+	nodeReplIdx := strings.Index(s, `[mcp_servers.node_repl]`)
+	agentCenterIdx := strings.Index(s, `[mcp_servers.agent-center]`)
+	if nodeReplIdx < 0 || agentCenterIdx < 0 || nodeReplIdx > agentCenterIdx {
+		t.Fatalf("node_repl must be generated before agent-center so Computer Use tools survive large registries; got:\n%s", s)
+	}
 }
 
 func TestWriteCodexMCPConfigFromSource_AddsNodeReplFromSourceCodexHomeCUANode(t *testing.T) {

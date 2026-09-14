@@ -166,10 +166,14 @@ func writeCodexMCPConfig(home string, runtimeJSON, baseConfig []byte, sourceCode
 	if err := os.MkdirAll(codexHome, 0o700); err != nil {
 		return "", fmt.Errorf("codex_session: mkdir codex-home: %w", err)
 	}
-	content := mergeCodexBaseAndGeneratedConfig(baseConfig, toml)
+	// Keep Computer Use's MCP server ahead of the large agent-center registry.
+	// Codex may omit lower-priority tools from model-visible ALL_TOOLS in big
+	// task prompts, so node_repl must be introduced before the broad control MCP.
+	content := bytesTrimSpace(baseConfig)
 	if nodeRepl := codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome, computerUse); len(nodeRepl) > 0 {
 		content = mergeCodexBaseAndGeneratedConfig(content, nodeRepl)
 	}
+	content = mergeCodexBaseAndGeneratedConfig(content, toml)
 	if err := os.WriteFile(filepath.Join(codexHome, codexConfigFileName), content, 0o600); err != nil {
 		return "", fmt.Errorf("codex_session: write codex config.toml: %w", err)
 	}
