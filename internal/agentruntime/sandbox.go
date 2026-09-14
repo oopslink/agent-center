@@ -910,20 +910,32 @@ func ensureTartGuestCodexCLI(ctx context.Context, b SandboxBinding, ip string) e
 	if hostCodex == "" {
 		return errors.New("host codex CLI not found; set AC_SANDBOX_CODEX_BINARY or install codex on the worker host")
 	}
+	hostCodeMode := sandboxHostCodexCodeModeHostPath(hostCodex)
+	if hostCodeMode == "" {
+		return errors.New("host codex code-mode host not found; set AC_SANDBOX_CODE_MODE_HOST_BINARY or install codex-code-mode-host on the worker host")
+	}
 	remoteTmp := "/tmp/agent-center-codex"
+	remoteCodeModeTmp := "/tmp/agent-center-codex-code-mode-host"
 	copyCtx, copyCancel := context.WithTimeout(ctx, 45*time.Second)
 	defer copyCancel()
 	scpArgs := append(sandboxSCPBaseArgs(b), hostCodex, "admin@"+ip+":"+remoteTmp)
 	if out, err := exec.CommandContext(copyCtx, scpArgs[0], scpArgs[1:]...).CombinedOutput(); err != nil {
 		return errors.New(strings.TrimSpace(fmt.Sprintf("copy codex CLI failed: %v: %s", err, string(out))))
 	}
+	scpArgs = append(sandboxSCPBaseArgs(b), hostCodeMode, "admin@"+ip+":"+remoteCodeModeTmp)
+	if out, err := exec.CommandContext(copyCtx, scpArgs[0], scpArgs[1:]...).CombinedOutput(); err != nil {
+		return errors.New(strings.TrimSpace(fmt.Sprintf("copy codex code-mode host failed: %v: %s", err, string(out))))
+	}
 	installCtx, installCancel := context.WithTimeout(ctx, 12*time.Second)
 	defer installCancel()
 	script := strings.Join([]string{
 		"mkdir -p /opt/homebrew/bin",
 		"sudo install -m 0755 /tmp/agent-center-codex /opt/homebrew/bin/codex",
+		"sudo install -m 0755 /tmp/agent-center-codex-code-mode-host /opt/homebrew/bin/codex-code-mode-host",
 		"/opt/homebrew/bin/codex --version >/dev/null",
+		"/opt/homebrew/bin/codex-code-mode-host --help >/dev/null",
 		"rm -f /tmp/agent-center-codex",
+		"rm -f /tmp/agent-center-codex-code-mode-host",
 		"true",
 	}, "\n") + "\n"
 	args := sandboxSSHExecArgs(b, ip, "sh", "-s")
@@ -938,7 +950,7 @@ func ensureTartGuestCodexCLI(ctx context.Context, b SandboxBinding, ip string) e
 func guestCodexReady(ctx context.Context, b SandboxBinding, ip string) bool {
 	cmdCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
-	args := sandboxSSHExecArgs(b, ip, "sh", "-lc", "test -x /opt/homebrew/bin/codex && /opt/homebrew/bin/codex --version >/dev/null")
+	args := sandboxSSHExecArgs(b, ip, "sh", "-lc", "test -x /opt/homebrew/bin/codex && test -x /opt/homebrew/bin/codex-code-mode-host && /opt/homebrew/bin/codex --version >/dev/null && /opt/homebrew/bin/codex-code-mode-host --help >/dev/null")
 	return exec.CommandContext(cmdCtx, args[0], args[1:]...).Run() == nil
 }
 
@@ -955,6 +967,32 @@ func sandboxHostCodexCLIPath() string {
 	defaultPath := "/opt/homebrew/bin/codex"
 	if st, err := os.Stat(defaultPath); err == nil && !st.IsDir() {
 		return defaultPath
+	}
+	return ""
+}
+
+func sandboxHostCodexCodeModeHostPath(hostCodex string) string {
+	if path := strings.TrimSpace(os.Getenv("AC_SANDBOX_CODE_MODE_HOST_BINARY")); path != "" {
+		if st, err := os.Stat(path); err == nil && !st.IsDir() {
+			return path
+		}
+		return ""
+	}
+	if path, err := exec.LookPath("codex-code-mode-host"); err == nil {
+		return path
+	}
+	candidates := make([]string, 0, 3)
+	if hostCodex != "" {
+		candidates = append(candidates, filepath.Join(filepath.Dir(hostCodex), "codex-code-mode-host"))
+		if resolved, err := filepath.EvalSymlinks(hostCodex); err == nil {
+			candidates = append(candidates, filepath.Join(filepath.Dir(resolved), "codex-code-mode-host"))
+		}
+	}
+	candidates = append(candidates, "/opt/homebrew/bin/codex-code-mode-host")
+	for _, path := range candidates {
+		if st, err := os.Stat(path); err == nil && !st.IsDir() {
+			return path
+		}
 	}
 	return ""
 }

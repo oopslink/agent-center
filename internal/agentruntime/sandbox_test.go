@@ -125,6 +125,46 @@ func TestSandboxHostCodexCLIPathHonorsEnv(t *testing.T) {
 	}
 }
 
+func TestSandboxHostCodexCodeModeHostPathHonorsEnv(t *testing.T) {
+	codeMode := filepath.Join(t.TempDir(), "codex-code-mode-host")
+	if err := os.WriteFile(codeMode, []byte("code mode"), 0o755); err != nil {
+		t.Fatalf("write code mode host: %v", err)
+	}
+	t.Setenv("AC_SANDBOX_CODE_MODE_HOST_BINARY", codeMode)
+	if got := sandboxHostCodexCodeModeHostPath("/missing/codex"); got != codeMode {
+		t.Fatalf("code mode host path = %q, want %q", got, codeMode)
+	}
+}
+
+func TestSandboxHostCodexCodeModeHostPathFindsResolvedCodexSibling(t *testing.T) {
+	caskBin := filepath.Join(t.TempDir(), "Caskroom", "codex", "0.151.0", "bin")
+	if err := os.MkdirAll(caskBin, 0o755); err != nil {
+		t.Fatalf("mkdir cask bin: %v", err)
+	}
+	realCodex := filepath.Join(caskBin, "codex")
+	codeMode := filepath.Join(caskBin, "codex-code-mode-host")
+	if err := os.WriteFile(realCodex, []byte("codex"), 0o755); err != nil {
+		t.Fatalf("write codex: %v", err)
+	}
+	if err := os.WriteFile(codeMode, []byte("code mode"), 0o755); err != nil {
+		t.Fatalf("write code mode host: %v", err)
+	}
+	homebrewBin := filepath.Join(t.TempDir(), "bin")
+	if err := os.MkdirAll(homebrewBin, 0o755); err != nil {
+		t.Fatalf("mkdir homebrew bin: %v", err)
+	}
+	codexSymlink := filepath.Join(homebrewBin, "codex")
+	if err := os.Symlink(realCodex, codexSymlink); err != nil {
+		t.Fatalf("symlink codex: %v", err)
+	}
+	got := sandboxHostCodexCodeModeHostPath(codexSymlink)
+	gotInfo, gotErr := os.Stat(got)
+	wantInfo, wantErr := os.Stat(codeMode)
+	if gotErr != nil || wantErr != nil || !os.SameFile(gotInfo, wantInfo) {
+		t.Fatalf("code mode host path = %q, want same file as %q (gotErr=%v wantErr=%v)", got, codeMode, gotErr, wantErr)
+	}
+}
+
 func TestEnsureAgentSandboxInsideVMOverlaysWithoutHostResourceMaterialization(t *testing.T) {
 	home := t.TempDir()
 	hostHome := filepath.Join(t.TempDir(), "host-agent-home")
