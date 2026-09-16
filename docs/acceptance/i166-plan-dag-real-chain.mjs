@@ -49,6 +49,7 @@ async function waitForServer(baseURL) {
 
 async function main() {
   await mkdir(outDir, { recursive: true });
+  await rm(join(outDir, "real-chain-error.txt"), { force: true });
   const tempDir = await mkdtemp(join(tmpdir(), "i166-dag-"));
   const webPort = await freePort();
   const grpcPort = await freePort();
@@ -299,11 +300,13 @@ blob_store:
     });
     record("stage B preserves cross-stage ordering", (
       stageB?.depends_on_stages?.includes(stageFixture.stage_a) === true
-      && hasGraphEdge(stageA?.gate_task_id, stageFixture.tasks_b[0])
+      && (stagedGraphRead.edges ?? []).some((edge) => (
+        edge.from === stageA?.gate_node_id && edge.to === nodeIdByTask.get(stageFixture.tasks_b[0])
+      ))
     ), {
       stageB: stageB?.id,
       dependsOnStages: stageB?.depends_on_stages,
-      barrier: `${stageA?.gate_task_id} -> ${stageFixture.tasks_b[0]}`,
+      barrier: `${stageA?.gate_node_id} -> ${stageFixture.tasks_b[0]}`,
     });
     record("staged React Flow renders every real orchestration edge", stagedEdgeCount === (stagedGraphRead.edges?.length ?? 0), {
       apiEdgeCount: stagedGraphRead.edges?.length ?? 0,
@@ -347,6 +350,7 @@ blob_store:
     if (failedChecks.length > 0) {
       throw new Error(`I166 verification failed: ${failedChecks.map((check) => check.name).join(", ")}`);
     }
+    console.log(`I166 real-chain PASS: ${evidence.checks.length} checks, ${evidence.screenshots.length} screenshots`);
   } finally {
     if (browser) await browser.close();
     if (proc.exitCode == null) {
