@@ -26,6 +26,7 @@ Both are free/open-source core capabilities. Versions are pinned in `web/package
 - `PlanDetail.tsx` owns business UI only: task cards, control nodes, stage headers, dependency-edit affordances, generation history, mobile stepper, and status/permission rules.
 - `useElkFlowLayout` uses a monotonic request id so an older async ELK result cannot overwrite a newer topology.
 - `PlanFlowFitView` fits the view only when the topology key changes. Status-only refreshes keep the user's pan/zoom viewport stable.
+- Status, title, assignee, and Stage metadata are refreshed onto the existing ELK coordinates without triggering a new layout or viewport reset.
 
 ## Behavior Reconciliation
 
@@ -45,7 +46,8 @@ Both are free/open-source core capabilities. Versions are pinned in `web/package
 Automated coverage added or updated:
 
 - `src/pages/PlanDetail.test.tsx`: 112 tests pass, including legacy DAG, graph DAG, stages, generation history, dependency editing, mobile stepper, empty/no-stage, and has_graph loading transition.
-- `src/pages/planGraphLayout.test.ts`: 17 tests pass, including new React Flow + ELK adapter coverage for staged containment, cross-stage edges, branch/join non-overlap, and legacy synthetic anchors.
+- `src/pages/planGraphLayout.test.ts`: 18 tests pass, including new React Flow + ELK adapter coverage for staged containment, cross-stage edges, branch/join non-overlap, legacy synthetic anchors, arrow markers, and status-only data refresh without coordinate changes.
+- Full web suite: 200 files / 1934 tests pass.
 
 Performance measurement:
 

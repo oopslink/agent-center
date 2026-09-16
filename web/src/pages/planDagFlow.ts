@@ -1,4 +1,5 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
+import { MarkerType } from '@xyflow/react';
 import type { Edge as FlowEdge, Node as FlowNode } from '@xyflow/react';
 import type { PlanGraphEdge, PlanGraphEdgeKind, PlanGraphNode, PlanNode, PlanStage } from '@/api/plans';
 
@@ -131,7 +132,7 @@ function flowEdge(edge: PlanGraphEdge, index: number): PlanDagFlowEdge {
     animated: edge.kind === 'loopback',
     data: { kind: edge.kind },
     className: `plan-flow-edge plan-flow-edge--${edge.kind}`,
-    markerEnd: 'plan-flow-arrow',
+    markerEnd: { type: MarkerType.ArrowClosed },
   };
 }
 
@@ -267,4 +268,44 @@ export async function layoutLegacyFlow(nodes: PlanNode[], stages: PlanStage[] = 
       return { ...edge, data: { kind: 'seq', fromTaskId: target.task_id, toTaskId: source.task_id }, className: 'plan-flow-edge plan-flow-edge--seq' };
     }),
   };
+}
+
+export function refreshGraphFlowNodes(
+  flowNodes: PlanDagFlowNode[],
+  nodes: PlanGraphNode[],
+  stages: PlanStage[],
+): PlanDagFlowNode[] {
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const stageById = new Map(stages.map((stage) => [`stage:${stage.id}`, stage]));
+  return flowNodes.map((flowNode) => {
+    if (flowNode.data.kind === 'stage') {
+      const stage = stageById.get(flowNode.id);
+      return stage ? { ...flowNode, data: { kind: 'stage', stage } } : flowNode;
+    }
+    if (flowNode.data.kind !== 'business' && flowNode.data.kind !== 'control') return flowNode;
+    const node = nodeById.get(flowNode.id);
+    if (!node) return flowNode;
+    return {
+      ...flowNode,
+      data: node.category === 'control' ? { kind: 'control', node } : { kind: 'business', node },
+    };
+  });
+}
+
+export function refreshLegacyFlowNodes(
+  flowNodes: PlanDagFlowNode[],
+  nodes: PlanNode[],
+  stages: PlanStage[],
+): PlanDagFlowNode[] {
+  const nodeById = new Map(nodes.map((node) => [node.task_id, node]));
+  const stageById = new Map(stages.map((stage) => [`stage:${stage.id}`, stage]));
+  return flowNodes.map((flowNode) => {
+    if (flowNode.data.kind === 'stage') {
+      const stage = stageById.get(flowNode.id);
+      return stage ? { ...flowNode, data: { kind: 'stage', stage } } : flowNode;
+    }
+    if (flowNode.data.kind !== 'legacy') return flowNode;
+    const node = nodeById.get(flowNode.id);
+    return node ? { ...flowNode, data: { kind: 'legacy', node } } : flowNode;
+  });
 }

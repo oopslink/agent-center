@@ -1,3 +1,4 @@
+import { MarkerType } from '@xyflow/react';
 import { describe, expect, it } from 'vitest';
 import {
   layoutGraph,
@@ -9,6 +10,8 @@ import {
 import {
   layoutGraphFlow,
   layoutLegacyFlow,
+  refreshGraphFlowNodes,
+  refreshLegacyFlowNodes,
   PLAN_DAG_NODE_H,
   PLAN_DAG_NODE_W,
   PLAN_DAG_STAGE_HEADER_H,
@@ -326,6 +329,7 @@ describe('planDagFlow — React Flow + ELK adapter', () => {
       && stage2.position.y < stage1.position.y + (stage1.style?.height as number);
     expect(overlapX && overlapY).toBe(false);
     expect(layout.edges.some((edge) => edge.source === 'B' && edge.target === 'C')).toBe(true);
+    for (const edge of layout.edges) expect(edge.markerEnd).toEqual({ type: MarkerType.ArrowClosed });
   });
 
   it('keeps branch and join dependencies without overlapping task cards', async () => {
@@ -356,6 +360,38 @@ describe('planDagFlow — React Flow + ELK adapter', () => {
       'B->__legacy_end__',
       '__legacy_start__->A',
     ]);
+  });
+
+  it('refreshes node and stage data without changing ELK positions', async () => {
+    const graphNodes = [{ ...biz('A'), title: 'old graph title' }];
+    const stages = [stage({ id: 's1', status: 'open', members: [member('task-A')] })];
+    const graphLayout = await layoutGraphFlow(graphNodes, [], stages);
+    const graphPosition = graphLayout.nodes.find((node) => node.id === 'A')!.position;
+    const refreshedGraph = refreshGraphFlowNodes(
+      graphLayout.nodes,
+      [{ ...graphNodes[0], title: 'new graph title', assignee_ref: 'agent:new' }],
+      [{ ...stages[0], status: 'running' }],
+    );
+    const refreshedBusiness = refreshedGraph.find((node) => node.id === 'A')!;
+    expect(refreshedBusiness.position).toEqual(graphPosition);
+    expect(refreshedBusiness.data.kind).toBe('business');
+    if (refreshedBusiness.data.kind === 'business') {
+      expect(refreshedBusiness.data.node.title).toBe('new graph title');
+      expect(refreshedBusiness.data.node.assignee_ref).toBe('agent:new');
+    }
+    const refreshedStage = refreshedGraph.find((node) => node.id === 'stage:s1')!;
+    expect(refreshedStage.data.kind === 'stage' && refreshedStage.data.stage.status).toBe('running');
+
+    const legacyLayout = await layoutLegacyFlow([
+      { task_id: 'A', title: 'old legacy title', assignee_ref: 'agent:a', task_status: 'open', node_status: 'ready', depends_on: [] },
+    ]);
+    const legacyPosition = legacyLayout.nodes.find((node) => node.id === 'A')!.position;
+    const refreshedLegacy = refreshLegacyFlowNodes(legacyLayout.nodes, [
+      { task_id: 'A', title: 'new legacy title', assignee_ref: 'agent:b', task_status: 'running', node_status: 'running', depends_on: [] },
+    ], []);
+    const refreshedLegacyNode = refreshedLegacy.find((node) => node.id === 'A')!;
+    expect(refreshedLegacyNode.position).toEqual(legacyPosition);
+    expect(refreshedLegacyNode.data.kind === 'legacy' && refreshedLegacyNode.data.node.node_status).toBe('running');
   });
 });
 
