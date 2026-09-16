@@ -1,6 +1,6 @@
 import { execFileSync, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmod, mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -11,7 +11,8 @@ const repo = resolve(new URL("../..", import.meta.url).pathname);
 const bin = resolve(repo, "bin/agent-center");
 const outDir = resolve(repo, "docs/acceptance/i166-evidence");
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-const candidateSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).trim();
+const harnessSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repo, encoding: "utf8" }).trim();
+const productSha = process.env.I166_PRODUCT_SHA || harnessSha;
 
 async function freePort() {
   const net = await import("node:net");
@@ -83,7 +84,8 @@ blob_store:
 
   const evidence = {
     provenance: {
-      candidate_sha: candidateSha,
+      product_sha: productSha,
+      harness_sha: harnessSha,
       base_sha: "ee9eab20c82083ae526f89ecf3907846a03c5dd7",
       started_at: new Date().toISOString(),
       base_url: baseURL,
@@ -94,6 +96,7 @@ blob_store:
       web_port: webPort,
       grpc_port: grpcPort,
       session_cookie_namespace: "ac_session on 127.0.0.1 isolated browser context",
+      isolation: "fresh temp directory, fresh SQLite database, random loopback ports, fresh test identity",
     },
     plans: {},
     checks: [],
@@ -162,6 +165,35 @@ blob_store:
     await json(await req.post(`${org}/projects/${projectId}/plans/${planId}/dependencies`, { data: { from_task_id: d, to_task_id: c } }), "dep d<-c");
     await json(await req.post(`${org}/projects/${projectId}/plans/${planId}/dependencies`, { data: { from_task_id: e, to_task_id: d } }), "dep e<-d");
 
+    const stagedTasks = [];
+    for (const title of [
+      "stage A compile candidate",
+      "stage A run unit tests",
+      "stage B launch real service",
+      "stage B verify browser DAG",
+    ]) {
+      const taskId = await createTask(title);
+      stagedTasks.push(taskId);
+      await json(await req.post(`${org}/projects/${projectId}/tasks/${taskId}/assign`, { data: { assignee: ownerRef } }), `assign ${taskId}`);
+    }
+    const stagedPlan = await json(await req.post(`${org}/projects/${projectId}/plans`, {
+      data: { name: "I166 staged real-chain fixture", description: "two stages with within-stage and cross-stage ordering" },
+    }), "create staged plan");
+    const stagedPlanId = stagedPlan.id || stagedPlan.plan_id;
+    for (const taskId of stagedTasks) {
+      await json(await req.post(`${org}/projects/${projectId}/plans/${stagedPlanId}/tasks`, { data: { task_id: taskId } }), `add staged task ${taskId}`);
+    }
+    const stageFixture = JSON.parse(execFileSync("go", [
+      "run", "./tests/harness/i166stagefixture",
+      "--db", dbPath,
+      "--plan", stagedPlanId,
+      "--actor", ownerRef,
+      "--a1", stagedTasks[0],
+      "--a2", stagedTasks[1],
+      "--b1", stagedTasks[2],
+      "--b2", stagedTasks[3],
+    ], { cwd: repo, encoding: "utf8" }));
+
     const singleTask = await createTask("single node task");
     const singlePlan = await json(await req.post(`${org}/projects/${projectId}/plans`, {
       data: { name: "I166 single node", description: "single node coverage" },
@@ -175,12 +207,27 @@ blob_store:
     const emptyPlanId = emptyPlan.id || emptyPlan.plan_id;
 
     await json(await req.post(`${org}/projects/${projectId}/plans/${planId}/start`, { data: {} }), "start graph plan");
+    await json(await req.post(`${org}/projects/${projectId}/plans/${stagedPlanId}/start`, { data: {} }), "start staged plan");
     const graphRead = await json(await req.get(`${org}/projects/${projectId}/plans/${planId}/graph`), "graph read");
-    const stagesRead = await json(await req.get(`${org}/projects/${projectId}/plans/${planId}/stages`), "stages read");
+    const stagedGraphRead = await json(await req.get(`${org}/projects/${projectId}/plans/${stagedPlanId}/graph`), "staged graph read");
+    const stagesRead = await json(await req.get(`${org}/projects/${projectId}/plans/${stagedPlanId}/stages`), "stages read");
     evidence.plans.graph_backed = { id: planId, node_count: graphRead.nodes?.length ?? 0, edge_count: graphRead.edges?.length ?? 0, has_graph: graphRead.has_graph };
+    evidence.plans.staged = {
+      id: stagedPlanId,
+      node_count: stagedGraphRead.nodes?.length ?? 0,
+      edge_count: stagedGraphRead.edges?.length ?? 0,
+      has_graph: stagedGraphRead.has_graph,
+      fixture: stageFixture,
+      stages: stagesRead.stages?.map((stage) => ({
+        id: stage.id,
+        name: stage.name,
+        depends_on_stages: stage.depends_on_stages,
+        member_task_ids: stage.members?.map((member) => member.task_id),
+      })) ?? [],
+    };
     evidence.plans.single = { id: singlePlanId };
     evidence.plans.empty = { id: emptyPlanId };
-    evidence.plans.stages_read = { count: stagesRead.stages?.length ?? 0, note: "No Web API creates stages; create_stage is MCP/admin-tool only in this executor." };
+    evidence.plans.stages_read = { count: stagesRead.stages?.length ?? 0, source: "Project Manager application-service fixture" };
 
     const page = await context.newPage();
     page.on("console", (msg) => {
@@ -224,17 +271,59 @@ blob_store:
       throw new Error(`React Flow edge path mismatch: API=${graphRead.edges?.length ?? 0} DOM=${edgeCount}`);
     }
 
+    await page.goto(`${baseURL}/organizations/${slug}/projects/${projectId}/plans/${stagedPlanId}`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("plan-tab-dag").click();
+    await page.getByTestId("plan-dag-reactflow").waitFor({ timeout: 15000 });
+    await page.waitForTimeout(1200);
+    await screenshot("staged-plan-desktop-light");
+    const stageBoxCount = await page.locator('[data-testid^="plan-stage-box-"]').count();
+    const stagedEdgeCount = await page.locator(".react-flow__edges path[data-testid='plan-graph-edge']").count();
+    const stageRows = stagesRead.stages ?? [];
+    const stageA = stageRows.find((stage) => stage.id === stageFixture.stage_a);
+    const stageB = stageRows.find((stage) => stage.id === stageFixture.stage_b);
+    const nodeIdByTask = new Map((stagedGraphRead.nodes ?? []).filter((node) => node.task_id).map((node) => [node.task_id, node.id]));
+    const hasGraphEdge = (fromTask, toTask) => (stagedGraphRead.edges ?? []).some((edge) => (
+      edge.from === nodeIdByTask.get(fromTask) && edge.to === nodeIdByTask.get(toTask)
+    ));
+    record("real staged plan exposes both stage fixtures", stageRows.length === 2 && stageBoxCount === 2, {
+      apiStageCount: stageRows.length,
+      stageBoxCount,
+    });
+    record("stage A preserves its within-stage dependency fixture", (
+      stageFixture.tasks_a.every((taskId) => stageA?.members?.some((member) => member.task_id === taskId))
+      && hasGraphEdge(stageFixture.tasks_a[0], stageFixture.tasks_a[1])
+    ), {
+      stageA: stageA?.id,
+      memberTaskIds: stageA?.members?.map((member) => member.task_id),
+      dependency: `${stageFixture.tasks_a[0]} -> ${stageFixture.tasks_a[1]}`,
+    });
+    record("stage B preserves cross-stage ordering", (
+      stageB?.depends_on_stages?.includes(stageFixture.stage_a) === true
+      && hasGraphEdge(stageA?.gate_task_id, stageFixture.tasks_b[0])
+    ), {
+      stageB: stageB?.id,
+      dependsOnStages: stageB?.depends_on_stages,
+      barrier: `${stageA?.gate_task_id} -> ${stageFixture.tasks_b[0]}`,
+    });
+    record("staged React Flow renders every real orchestration edge", stagedEdgeCount === (stagedGraphRead.edges?.length ?? 0), {
+      apiEdgeCount: stagedGraphRead.edges?.length ?? 0,
+      stagedEdgeCount,
+    });
+    if (stageRows.length !== 2 || stageBoxCount !== 2 || stagedEdgeCount !== (stagedGraphRead.edges?.length ?? 0)) {
+      throw new Error(`staged DAG mismatch: stages API=${stageRows.length} DOM=${stageBoxCount}, edges API=${stagedGraphRead.edges?.length ?? 0} DOM=${stagedEdgeCount}`);
+    }
+
     await page.mouse.wheel(0, 500);
     await page.locator(".react-flow__controls-fitview").click();
     record("fit view control available", await page.locator(".react-flow__controls-fitview").count() === 1);
     await page.emulateMedia({ colorScheme: "dark" });
-    await screenshot("graph-backed-desktop-dark");
+    await screenshot("staged-plan-desktop-dark");
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.getByTestId("plan-tab-dag").click();
     await page.getByTestId("plan-graph-stepper").waitFor({ timeout: 15000 });
-    await screenshot("graph-backed-mobile");
+    await screenshot("staged-plan-mobile");
     record("mobile graph stepper rendered", await page.getByTestId("plan-graph-stepper").count() === 1);
 
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -254,6 +343,10 @@ blob_store:
 
     evidence.provenance.finished_at = new Date().toISOString();
     await writeFile(join(outDir, "real-chain-results.json"), JSON.stringify(evidence, null, 2), "utf8");
+    const failedChecks = evidence.checks.filter((check) => !check.ok);
+    if (failedChecks.length > 0) {
+      throw new Error(`I166 verification failed: ${failedChecks.map((check) => check.name).join(", ")}`);
+    }
   } finally {
     if (browser) await browser.close();
     if (proc.exitCode == null) {
@@ -262,6 +355,9 @@ blob_store:
       if (proc.exitCode == null) proc.kill("SIGKILL");
     }
     await writeFile(join(outDir, "server.log"), Buffer.concat(logs).toString("utf8"), "utf8");
+    if (process.env.I166_KEEP_TEMP !== "1") {
+      await rm(tempDir, { recursive: true, force: true });
+    }
   }
 }
 
