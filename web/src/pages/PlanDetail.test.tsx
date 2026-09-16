@@ -982,6 +982,8 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    await waitFor(() => expect(dagNode('n7')).toBeInTheDocument());
+    await waitFor(() => expect(dagNode('n1')).toBeInTheDocument());
     fireEvent.click(within(dagNode('n7')).getByTestId('plan-node-connect'));
     await act(async () => fireEvent.click(within(dagNode('n1')).getByTestId('plan-connect-target')));
     const err = await screen.findByTestId('plan-edge-error');
@@ -1096,6 +1098,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
       wrap();
       fireEvent.click(await screen.findByTestId('plan-tab-dag'));
       await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+      await waitFor(() => expect(screen.getAllByTestId('plan-dag-node').length).toBeGreaterThan(0));
       const node = screen.getAllByTestId('plan-dag-node').find((el) => el.getAttribute('data-task-id') === 'n3')!;
       expect(node).toHaveAttribute('role', 'link');
       expect(node).toHaveAccessibleName(/frontend list/);
@@ -1391,12 +1394,19 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
     depends_on: deps,
     ...extra,
   });
+  const waitForSyntheticAnchors = async () => {
+    await waitFor(() => {
+      expect(screen.getByTestId('plan-dag-synthetic-start')).toBeInTheDocument();
+      expect(screen.getByTestId('plan-dag-synthetic-end')).toBeInTheDocument();
+    });
+  };
 
   it('renders distinct Start + End anchors (default fixture)', async () => {
     mockPlan();
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    await waitForSyntheticAnchors();
     const start = screen.getByTestId('plan-dag-synthetic-start');
     const end = screen.getByTestId('plan-dag-synthetic-end');
     expect(start).toHaveTextContent('Start');
@@ -1416,6 +1426,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    await waitFor(() => expect(screen.getAllByTestId('plan-dag-node')).toHaveLength(7));
     // still exactly 7 real task nodes — the 2 anchors are excluded
     expect(screen.getAllByTestId('plan-dag-node')).toHaveLength(7);
     // anchors are not in the task-list tab either (T132: the tab label no longer
@@ -1431,6 +1442,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    await waitForSyntheticAnchors();
     // the 6 real depends_on edges are still exactly 6 (no synthetic leakage)
     expect(screen.getAllByTestId('plan-dag-edge')).toHaveLength(6);
     // synthetic edges exist on their own testid: Start→{n1,n7} roots (2) and
@@ -1448,6 +1460,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    await waitForSyntheticAnchors();
     const keys = screen
       .getAllByTestId('plan-dag-synthetic-edge')
       .map((e) => e.getAttribute('data-edge'));
@@ -1467,6 +1480,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    await waitForSyntheticAnchors();
     const keys = screen
       .getAllByTestId('plan-dag-synthetic-edge')
       .map((e) => e.getAttribute('data-edge'));
@@ -1483,6 +1497,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    await waitForSyntheticAnchors();
     expect(screen.getByTestId('plan-dag-synthetic-start')).toBeInTheDocument();
     expect(screen.getByTestId('plan-dag-synthetic-end')).toBeInTheDocument();
     const keys = screen
@@ -1507,6 +1522,7 @@ describe('PlanDetail — v2.9 A5 synthetic Start/End DAG anchors', () => {
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    await waitForSyntheticAnchors();
     // Start is a SOLID filled accent disc (mockup `.terminal.start`) with readable
     // white text; End is a light disc with a solid `done`-toned ring + text. Both
     // are deliberate, readable, non-alpha-tinted tokens — just different from each

@@ -128,6 +128,8 @@ function flowEdge(edge: PlanGraphEdge, index: number): PlanDagFlowEdge {
     id: edgeId('graph', edge.from, edge.to, index),
     source: edge.from,
     target: edge.to,
+    sourceHandle: 'bottom',
+    targetHandle: 'top',
     type: edge.kind === 'loopback' ? 'smoothstep' : 'step',
     animated: edge.kind === 'loopback',
     data: { kind: edge.kind },

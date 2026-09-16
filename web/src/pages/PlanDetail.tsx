@@ -6,7 +6,9 @@ import {
   Background,
   Controls,
   EdgeLabelRenderer,
+  Handle,
   MiniMap,
+  Position,
   ReactFlow,
   ReactFlowProvider,
   getSmoothStepPath,
@@ -80,7 +82,7 @@ import { SenderSidebarProvider, useSenderSidebar } from '@/components/SenderSide
 import { SenderDetailSidebar } from '@/components/SenderDetailSidebar';
 import type { Participant, ProjectMember } from '@/api/types';
 import { useIsMobile } from '@/components/WorkItemMobileMeta';
-import { TaskTitleLink, taskDetailPath } from '@/components/TaskTitleLink';
+import { TaskTitleLink } from '@/components/TaskTitleLink';
 import { RelatedIssuesBlock } from '@/components/RelatedIssuesBlock';
 import { ActivityRefText } from '@/components/ActivityRefText';
 import { IconClose } from '@/components/icons';
@@ -2068,390 +2070,14 @@ function AssigneeTag({ assigneeRef }: { assigneeRef: string }): React.ReactEleme
 }
 
 // ── DAG (the core) ──────────────────────────────────────────────────────────
-// Layered TOP→BOTTOM layout from node.depends_on:
-//   level(n) = 0 if no (in-plan) deps else max(level(dep))+1   (longest-path)
-//   y = level * (NODE_H + LEVEL_GAP);  x = even horizontal spread within the level.
-// Edges: SVG path from each dep node's BOTTOM-mid → this node's TOP-mid, with an
-// arrow marker (upstream → downstream). node_status is DERIVED → display only.
-const COL_W = 200;
-const NODE_W = 168;
-const NODE_H = 84;
-const PAD_X = 14;
-const PAD_Y = 16;
-// T800: control-node marker cell width (circle 56 / diamond 64 + breathing room) and
-// the uniform horizontal gap between columns. A level holding only control markers
-// uses CTRL_W instead of the full card width, so Start/End and a condition diamond
-// don't float in an over-wide column (the "过大空列" around a condition).
-const CTRL_W = 76;
-const COL_GAP = COL_W - NODE_W; // 32 — preserves the prior business-column spacing
-// Top-to-bottom layout: LEVEL_GAP is the vertical gap between successive dependency
-// LEVELS (each level is a horizontal row, flow runs downward), sized to leave room
-// for the connecting arrows. COL_GAP is reused as the horizontal gap between sibling
-// nodes within a level.
-const LEVEL_GAP = 48;
-
-// DagCanvas is the shared DESKTOP scroll viewport for both DAG renderers (graph +
-// legacy). It (1) CENTERS the graph in view by default — small graphs are flex-
-// centered, larger ones scroll-centered on mount / when the content size changes —
-// and (2) supports GRAB-TO-PAN: drag the background to pan the whole canvas. Panning
-// starts only on the background (SVG / dot-grid / card body) — a pointerdown that
-// lands on an interactive element (node link, assignee, button) is left alone so
-// clicks still work. Re-centers when contentW/contentH change (e.g. the compact toggle).
-// Zoom range/step mirror the design mockup (docs/design/assets/plan-dag-canvas-mockup.html):
-// 50%–150% in 10-point steps via the buttons, 8-point steps via ctrl/cmd+wheel.
-const ZOOM_MIN = 0.5;
-const ZOOM_MAX = 1.5;
-const ZOOM_STEP = 0.1;
-const ZOOM_WHEEL_STEP = 0.08;
-
-function isInteractiveTarget(target: EventTarget | null): boolean {
-  return target instanceof HTMLElement && target.closest('a, button, input, select, textarea, [role="button"], [role="link"]') != null;
-}
-
-export function isNestedInteractiveTarget(target: EventTarget | null, currentTarget: HTMLElement): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  const interactive = target.closest('a, button, input, select, textarea, [role="button"], [role="link"]');
-  return interactive != null && interactive !== currentTarget;
-}
-
-export function useTaskDetailOpener(projectId: string): (taskId: string) => void {
-  const orgCtx = useOptionalOrgContext();
-  return useCallback(
-    (taskId: string) => {
-      const opened = window.open(orgPath(taskDetailPath(projectId, taskId), orgCtx?.slug), '_blank', 'noopener,noreferrer');
-      if (opened) opened.opener = null;
-    },
-    [orgCtx?.slug, projectId],
-  );
-}
-
-export function DagCanvas({
-  contentW,
-  contentH,
-  compact,
-  testId,
-  legend,
-  children,
-}: {
-  contentW: number;
-  contentH: number;
-  compact: boolean;
-  testId: string;
-  // Bottom bar rendered INSIDE the shared canvas-shell (mockup's `.legend-fixed`) —
-  // owned by the caller (state-chip legend for the legacy DAG, edge-kind legend for
-  // the graph DAG) so DagCanvas stays agnostic of which legend applies.
-  legend?: React.ReactNode;
-  children: React.ReactNode;
-}): React.ReactElement {
-  const { t } = useTranslation('work');
-  const ref = useRef<HTMLDivElement>(null);
-  // T348 kept the compact toggle as a coarse "zoom to fit a long plan" preset; this
-  // adds the mockup's continuous zoom control (buttons + wheel + Fit view) as an
-  // ADDITIONAL transform layered on top of it, so the two compose instead of
-  // colliding — compact still drives the `plan-dag-scaler` scale asserted by tests.
-  const [zoom, setZoom] = useState(1);
-
-  // Center the view on the content's middle whenever the content size changes (mount,
-  // compact toggle, graph edit, zoom). max(0, …) keeps small content pinned so flex
-  // centering (below) can take over.
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.scrollLeft = Math.max(0, (el.scrollWidth - el.clientWidth) / 2);
-    el.scrollTop = Math.max(0, (el.scrollHeight - el.clientHeight) / 2);
-  }, [contentW, contentH, compact, zoom]);
-
-  // Reset to 100% whenever the underlying content changes shape (compact toggle,
-  // graph edit) so zoom never gets "stuck" showing a stale scale for new content.
-  useEffect(() => {
-    setZoom(1);
-  }, [contentW, contentH, compact]);
-
-  const clampZoom = (z: number) => Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, z));
-  const zoomIn = () => setZoom((z) => clampZoom(z + ZOOM_STEP));
-  const zoomOut = () => setZoom((z) => clampZoom(z - ZOOM_STEP));
-  const zoomFit = () => {
-    const el = ref.current;
-    if (!el || contentW <= 0) return;
-    const available = el.clientWidth - 24;
-    setZoom(Math.max(ZOOM_MIN, Math.min(1, available / contentW)));
-  };
-
-  // ctrl/cmd+wheel zoom (mirrors the mockup script) — a plain wheel still scrolls.
-  const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
-    if (!e.ctrlKey && !e.metaKey) return;
-    e.preventDefault();
-    setZoom((z) => clampZoom(z + (e.deltaY < 0 ? ZOOM_WHEEL_STEP : -ZOOM_WHEEL_STEP)));
-  };
-
-  // Grab-to-pan: a background mousedown starts a drag that scrolls the canvas; the
-  // move/up listeners live on window so the drag continues even if the cursor leaves
-  // the canvas, and are torn down on release. A mousedown on an interactive child
-  // (node link / button) is left alone so clicks still work.
-  const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return; // primary button only
-    if (isInteractiveTarget(e.target)) return;
-    const el = ref.current;
-    if (!el) return;
-    const start = { x: e.clientX, y: e.clientY, sl: el.scrollLeft, st: el.scrollTop };
-    const onMove = (ev: MouseEvent) => {
-      el.scrollLeft = start.sl - (ev.clientX - start.x);
-      el.scrollTop = start.st - (ev.clientY - start.y);
-    };
-    const onUp = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onUp);
-    };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-  };
-
-  return (
-    // canvas-shell (mockup): one bordered/rounded/overflow-hidden frame housing the
-    // floating zoom-controls overlay, the scrollable dot-grid canvas, and the
-    // legend as a bottom bar — instead of the canvas + legend being loose siblings.
-    <div className="relative hidden overflow-hidden rounded-lg border border-border-base md:flex md:min-h-0 md:flex-1 md:flex-col" data-testid="plan-dag-canvas-shell">
-      <div
-        className="absolute right-3 top-3 z-10 flex items-center gap-0.5 overflow-hidden rounded-lg border border-border-strong bg-bg-elevated shadow-2"
-        data-testid="plan-dag-zoom-controls"
-      >
-        <button
-          type="button"
-          onClick={zoomOut}
-          disabled={zoom <= ZOOM_MIN}
-          aria-label={t('plan.detail.dag.zoomOut', { defaultValue: 'Zoom out' })}
-          title={t('plan.detail.dag.zoomOut', { defaultValue: 'Zoom out' })}
-          data-testid="plan-dag-zoom-out"
-          className="flex h-7 w-7 items-center justify-center text-sm font-semibold text-text-secondary hover:bg-bg-subtle hover:text-text-primary disabled:opacity-40"
-        >
-          −
-        </button>
-        <span
-          className="min-w-[2.75rem] select-none border-x border-border-base px-1.5 text-center font-mono text-[0.6875rem] text-text-muted"
-          data-testid="plan-dag-zoom-pct"
-        >
-          {Math.round(zoom * 100)}%
-        </span>
-        <button
-          type="button"
-          onClick={zoomIn}
-          disabled={zoom >= ZOOM_MAX}
-          aria-label={t('plan.detail.dag.zoomIn', { defaultValue: 'Zoom in' })}
-          title={t('plan.detail.dag.zoomIn', { defaultValue: 'Zoom in' })}
-          data-testid="plan-dag-zoom-in"
-          className="flex h-7 w-7 items-center justify-center text-sm font-semibold text-text-secondary hover:bg-bg-subtle hover:text-text-primary disabled:opacity-40"
-        >
-          +
-        </button>
-        <button
-          type="button"
-          onClick={zoomFit}
-          data-testid="plan-dag-zoom-fit"
-          className="flex h-7 items-center border-l border-border-base px-2.5 text-[0.6875rem] font-semibold text-text-secondary hover:bg-bg-subtle hover:text-text-primary"
-        >
-          {t('plan.detail.dag.zoomFit', { defaultValue: 'Fit view' })}
-        </button>
-      </div>
-      <div
-        ref={ref}
-        className="relative min-h-0 flex-1 cursor-grab overflow-auto bg-bg-subtle hex-dot-grid active:cursor-grabbing"
-        data-testid={testId}
-        data-compact={compact ? 'true' : 'false'}
-        data-zoom={zoom}
-        onMouseDown={onMouseDown}
-        onWheel={onWheel}
-      >
-        {/* min-w/h-full + flex centering handles the small-graph case (centered in the
-            viewport); the scroll-center effect handles the larger-than-viewport case. */}
-        <div className="flex min-h-full min-w-full items-center justify-center">
-          <div style={{ width: contentW * zoom, height: contentH * zoom }}>
-            <div
-              style={{
-                width: contentW,
-                height: contentH,
-                transform: zoom === 1 ? undefined : `scale(${zoom})`,
-                transformOrigin: 'top left',
-              }}
-            >
-              {children}
-            </div>
-          </div>
-        </div>
-      </div>
-      {legend && (
-        <div
-          className="flex shrink-0 flex-wrap items-center gap-4 border-t border-border-base bg-bg-elevated px-3.5 py-2"
-          data-testid="plan-dag-canvas-legend-bar"
-        >
-          {legend}
-        </div>
-      )}
-    </div>
-  );
-}
+// The desktop DAG is rendered by React Flow + ELK. The remaining Position type is
+// for the mobile stepper, which derives its order from the same React Flow layout.
 
 interface Positioned {
   node: PlanNode;
   level: number;
   x: number;
   y: number;
-}
-
-// v2.9 Stage A5 — synthetic Start/End flow anchors (NOT real tasks): a Start
-// node a column LEFT of all roots (edges → every level-0 root) and an End node
-// a column RIGHT of the deepest level (edges ← every leaf, i.e. a node nothing
-// else depends on). They give parallel/independent chains a clear left→right
-// progression. They are layout/flow markers only: no node_status / 6-state
-// chip, not dispatchable, not counted, not in the task list.
-interface SyntheticAnchor {
-  // center point of the anchor marker (used for both placement + edge endpoint)
-  cx: number;
-  cy: number;
-  // the real-node anchor points this connects to (root left-mids for Start,
-  // leaf right-mids for End)
-  links: { taskId: string; x: number; y: number }[];
-}
-
-const SYNTH_R = 26; // synthetic marker radius (circle terminal)
-
-function layoutDag(nodes: PlanNode[]): {
-  positioned: Positioned[];
-  width: number;
-  height: number;
-  start: SyntheticAnchor | null;
-  end: SyntheticAnchor | null;
-} {
-  const byId = new Map(nodes.map((n) => [n.task_id, n]));
-  // Only consider deps that are actually in this plan (defensive — a dangling
-  // dep ref must not break level computation).
-  const depsOf = (n: PlanNode) => n.depends_on.filter((d) => byId.has(d));
-
-  // Longest-path level via memoized DFS (cycle-guarded; the DAG is acyclic by
-  // contract, the guard just prevents a hang on bad data).
-  const levelCache = new Map<string, number>();
-  const inStack = new Set<string>();
-  function level(id: string): number {
-    if (levelCache.has(id)) return levelCache.get(id)!;
-    if (inStack.has(id)) return 0; // cycle guard
-    const n = byId.get(id);
-    if (!n) return 0;
-    inStack.add(id);
-    const deps = depsOf(n);
-    const lvl = deps.length === 0 ? 0 : Math.max(...deps.map((d) => level(d) + 1));
-    inStack.delete(id);
-    levelCache.set(id, lvl);
-    return lvl;
-  }
-
-  // Group by level, preserving input order within a level.
-  const byLevel = new Map<number, PlanNode[]>();
-  let maxLevel = 0;
-  for (const n of nodes) {
-    const lvl = level(n.task_id);
-    maxLevel = Math.max(maxLevel, lvl);
-    const arr = byLevel.get(lvl) ?? [];
-    arr.push(n);
-    byLevel.set(lvl, arr);
-  }
-
-  // Reserve a TOP gutter band for the Start anchor when there are any nodes, so
-  // real nodes are shifted DOWN one band (Start sits at y≈PAD_Y, real level-0 nodes
-  // below). Empty plan ⇒ no gutter, no anchors.
-  const hasNodes = nodes.length > 0;
-  const SYNTH_ROW = NODE_H + LEVEL_GAP; // height of each synthetic gutter band
-  const baseY = PAD_Y + (hasNodes ? SYNTH_ROW : 0);
-
-  // Top-to-bottom flow: each level is a horizontal ROW stacked downward; sibling
-  // nodes within a level spread left→right.
-  const positioned: Positioned[] = [];
-  let maxRows = 0;
-  for (const [lvl, group] of byLevel) {
-    maxRows = Math.max(maxRows, group.length);
-    group.forEach((node, row) => {
-      positioned.push({
-        node,
-        level: lvl,
-        x: PAD_X + row * (NODE_W + COL_GAP),
-        y: baseY + lvl * (NODE_H + LEVEL_GAP),
-      });
-    });
-  }
-
-  // Roots = real level-0 nodes (no in-plan deps). Leaves = nodes that no other
-  // in-plan node depends on. Start → every root; every leaf → End.
-  const dependedOn = new Set<string>();
-  for (const n of nodes) for (const d of depsOf(n)) dependedOn.add(d);
-
-  const contentWidth = Math.max(PAD_X * 2 + maxRows * (NODE_W + COL_GAP) - COL_GAP, 200);
-  const midX = contentWidth / 2;
-
-  let start: SyntheticAnchor | null = null;
-  let end: SyntheticAnchor | null = null;
-  if (hasNodes) {
-    const roots = positioned.filter((p) => p.level === 0);
-    const leaves = positioned.filter((p) => !dependedOn.has(p.node.task_id));
-    start = {
-      cx: midX,
-      cy: PAD_Y + SYNTH_R,
-      // edge endpoint = root node's TOP-mid
-      links: roots.map((p) => ({ taskId: p.node.task_id, x: p.x + NODE_W / 2, y: p.y })),
-    };
-    const endCy = baseY + (maxLevel + 1) * (NODE_H + LEVEL_GAP) + SYNTH_R;
-    end = {
-      cx: midX,
-      cy: endCy,
-      // edge endpoint = leaf node's BOTTOM-mid
-      links: leaves.map((p) => ({ taskId: p.node.task_id, x: p.x + NODE_W / 2, y: p.y + NODE_H })),
-    };
-  }
-
-  // Height spans from PAD_Y (Start) to the End marker (when present), else the real
-  // layout extent.
-  const realBottom = baseY + maxLevel * (NODE_H + LEVEL_GAP) + NODE_H;
-  const height = hasNodes
-    ? (end ? end.cy + SYNTH_R + PAD_Y : realBottom + PAD_Y)
-    : PAD_Y * 2 + (maxLevel + 1) * (NODE_H + LEVEL_GAP) - LEVEL_GAP;
-  const width = contentWidth;
-  return { positioned, width, height, start, end };
-}
-
-// Synthetic Start/End flow anchor — a distinct, non-task marker. No node_status
-// / 6-state chip, no assignee, not clickable, not counted. Solid theme tokens
-// (both-mode AA), plain text "Start"/"End" (no emoji). Positioned by its center
-// (cx,cy) so it lines up with its flow edges.
-export function SyntheticAnchorMarker({
-  kind,
-  anchor,
-}: {
-  kind: 'start' | 'end';
-  anchor: SyntheticAnchor;
-}): React.ReactElement {
-  const { t } = useTranslation('work');
-  const label = kind === 'start' ? t('plan.detail.dag.anchorStart') : t('plan.detail.dag.anchorEnd');
-  // Mockup `.terminal.start` / `.terminal.end`: Start is a SOLID filled accent
-  // disc (the entry point, glowing) — the one node that isn't a status card, so
-  // it needs to read as unmistakably different. End stays a light disc but with
-  // a heavier `done`-toned ring (the flow's resting state), matching the node
-  // palette's success token rather than a plain neutral border.
-  return (
-    <div
-      className={`absolute flex items-center justify-center rounded-full text-[0.625rem] font-extrabold uppercase tracking-wide ${
-        kind === 'start'
-          ? 'border-[1.5px] border-accent bg-accent text-white shadow-[0_4px_16px_-4px_var(--color-accent)]'
-          : 'border-2 border-status-emerald-border bg-bg-elevated text-status-emerald-fg shadow-2'
-      }`}
-      style={{
-        left: anchor.cx - SYNTH_R,
-        top: anchor.cy - SYNTH_R,
-        width: SYNTH_R * 2,
-        height: SYNTH_R * 2,
-      }}
-      data-testid={`plan-dag-synthetic-${kind}`}
-      aria-hidden="true"
-    >
-      {label}
-    </div>
-  );
 }
 
 // ── PlanStepper (mobile <md) ─────────────────────────────────────────────────
@@ -2538,163 +2164,6 @@ function PlanStepper({
   );
 }
 
-// ── T769: graph-backed DAG (orchestration engine) ───────────────────────────
-// Renders the plan's REAL engine graph: control nodes (Start/End/Condition) +
-// business nodes (bound tasks) + edges tagged by kind (seq/conditional/loopback),
-// rather than the client-side depends_on reconstruction. Used when the plan
-// carries a graph; PlanDag falls back to the legacy renderer for ungraphed plans.
-
-interface GraphPositioned {
-  node: PlanGraphNode;
-  level: number;
-  x: number;
-  y: number;
-  w: number; // T800: per-node cell width (control markers are slimmer than cards)
-}
-
-// Longest-path left→right layout over the FORWARD edges (loopback back-edges are
-// excluded from leveling — they are drawn as return arcs). Control + business
-// nodes share the layout so the graph reads as one flow.
-// Exported for unit tests (T800 layout algebra: Start/End terminal ranks + slim
-// control columns). Not part of the page's public surface otherwise.
-export function layoutGraph(
-  nodes: PlanGraphNode[],
-  edges: PlanGraphEdge[],
-): { positioned: GraphPositioned[]; width: number; height: number } {
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  const forward = edges.filter((e) => e.kind !== 'loopback' && byId.has(e.from) && byId.has(e.to));
-  const incoming = new Map<string, string[]>();
-  for (const e of forward) incoming.set(e.to, [...(incoming.get(e.to) ?? []), e.from]);
-
-  const cache = new Map<string, number>();
-  const inStack = new Set<string>();
-  function level(id: string): number {
-    if (cache.has(id)) return cache.get(id)!;
-    if (inStack.has(id)) return 0; // cycle guard (defensive)
-    inStack.add(id);
-    const preds = incoming.get(id) ?? [];
-    const lvl = preds.length === 0 ? 0 : Math.max(...preds.map((p) => level(p) + 1));
-    inStack.delete(id);
-    cache.set(id, lvl);
-    return lvl;
-  }
-
-  // Raw longest-path level, then FORCE terminal ranks for the structural anchors:
-  // Start is the inline SOURCE (leftmost), End the inline SINK (rightmost). Holds
-  // even for graphs built before the Start→root / sink→End edges existed (T800) —
-  // an edge-less End would otherwise land at level 0, stacked in Start's left column.
-  const raw = new Map<string, number>();
-  let maxNonEnd = 0;
-  for (const n of nodes) {
-    const lvl = level(n.id);
-    raw.set(n.id, lvl);
-    if (n.control_kind !== 'end') maxNonEnd = Math.max(maxNonEnd, lvl);
-  }
-  const effLevel = (n: PlanGraphNode): number =>
-    n.control_kind === 'start' ? 0 : n.control_kind === 'end' ? maxNonEnd + 1 : (raw.get(n.id) ?? 0);
-
-  const byLevel = new Map<number, PlanGraphNode[]>();
-  let maxLevel = 0;
-  for (const n of nodes) {
-    const lvl = effLevel(n);
-    maxLevel = Math.max(maxLevel, lvl);
-    byLevel.set(lvl, [...(byLevel.get(lvl) ?? []), n]);
-  }
-
-  // Top-to-bottom flow: each dependency LEVEL is a horizontal ROW stacked downward
-  // (levelY[l]); sibling nodes within a level spread left→right by their own width.
-  // A control marker (start / end / condition) keeps its slim width, so a lone
-  // condition diamond doesn't reserve a full card's worth of horizontal space.
-  const nodeW = (n: PlanGraphNode): number => (n.category === 'control' ? CTRL_W : NODE_W);
-  const levelY: number[] = [];
-  let accY = PAD_Y;
-  for (let l = 0; l <= maxLevel; l++) {
-    levelY[l] = accY;
-    accY += NODE_H + LEVEL_GAP;
-  }
-
-  const positioned: GraphPositioned[] = [];
-  let maxRowRight = 0;
-  for (const [lvl, group] of byLevel) {
-    let x = PAD_X;
-    group.forEach((node) => {
-      const w = nodeW(node);
-      positioned.push({ node, level: lvl, x, y: levelY[lvl], w });
-      x += w + COL_GAP;
-    });
-    maxRowRight = Math.max(maxRowRight, x - COL_GAP); // right edge of the last node in the row
-  }
-  const width = Math.max(maxRowRight + PAD_X, 200);
-  const height = accY - LEVEL_GAP + PAD_Y;
-  return { positioned, width, height };
-}
-
-// ── T981 follow-up: stage-grouped canvas layout ─────────────────────────────
-// Two-level layout: an OUTER stage DAG (stage boxes positioned by
-// depends_on_stages, longest-path leveled exactly like layoutGraph levels
-// business/control nodes) wrapping an INNER sub-DAG per stage (the stage's own
-// member nodes, laid out with the existing layoutGraph so within-stage flow is
-// unchanged). A node belongs to a stage when its bound task_id appears in that
-// stage's members (§7 read model — PlanStage.members).
-//
-// The stage's gate (a real graph CONDITION node, §4.2) and the Start/End
-// anchors are folded into the SAME `positioned` list the flat layout produces
-// — at their computed canvas coordinates — rather than re-deriving stage-to-
-// -stage connectivity separately. This matters: buildStages already wires the
-// barrier edges directly onto the graph (business → gate, gate → downstream
-// entries, T800 Start→root / sink→End), so `graph.edges` is ALREADY the
-// complete, authoritative connectivity. Reusing the existing edge-drawing
-// pass (posById lookup by node id) means the canvas can never show a
-// stage-boundary connection that doesn't correspond to a real graph edge, and
-// there is only one edge-kind system (seq/conditional/loopback) at every
-// zoom level instead of a second invented "stage edge" style.
-//
-// Any node that ends up neither a stage member nor Start/End/gate (§8: a plan
-// whose graph predates staging for some nodes) is defensively laid out with
-// the plain algorithm in a trailing row so nothing is silently dropped.
-// Stage header carries compact metadata only; the whole stage box opens
-// gate/audit details so member cards can start closer to the stage title.
-export const STAGE_HEADER_H = 96;
-const STAGE_ROW_GAP_X = 40; // gap between sibling stage boxes in the same row
-const STAGE_LEVEL_GAP_Y = NODE_H + 60; // gap between rows — fits a gate/anchor cell + edges
-
-export interface StageBox {
-  stage: PlanStage;
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-}
-export interface StagedGraphLayout {
-  positioned: GraphPositioned[];
-  boxes: StageBox[];
-  width: number;
-  height: number;
-}
-
-// Longest-path leveling over a stage DAG's depends_on_stages — the exact same
-// algebra as layoutGraph's node leveling, just over stage ids instead of node
-// ids (§4.2: "the outer stage DAG").
-function levelOfStages(stages: PlanStage[]): Map<string, number> {
-  const byId = new Map(stages.map((s) => [s.id, s]));
-  const cache = new Map<string, number>();
-  const inStack = new Set<string>();
-  function level(id: string): number {
-    if (cache.has(id)) return cache.get(id)!;
-    if (inStack.has(id)) return 0; // cycle guard (defensive; the backend already validates acyclicity)
-    inStack.add(id);
-    const st = byId.get(id);
-    const deps = (st?.depends_on_stages ?? []).filter((d) => byId.has(d));
-    const lvl = deps.length === 0 ? 0 : Math.max(...deps.map((d) => level(d) + 1));
-    inStack.delete(id);
-    cache.set(id, lvl);
-    return lvl;
-  }
-  const out = new Map<string, number>();
-  for (const s of stages) out.set(s.id, level(s.id));
-  return out;
-}
-
 export function stageDisplayMeta(stages: PlanStage[]): {
   byStageId: Map<string, { ref: string; name: string }>;
   byGateNodeId: Map<string, string>;
@@ -2709,211 +2178,6 @@ export function stageDisplayMeta(stages: PlanStage[]): {
   });
   return { byStageId, byGateNodeId };
 }
-
-export function layoutStagedGraph(
-  nodes: PlanGraphNode[],
-  edges: PlanGraphEdge[],
-  stages: PlanStage[],
-): StagedGraphLayout {
-  if (stages.length === 0) {
-    // No stages on this plan (§8 zero-regression) — degrade to the flat layout,
-    // wrapped in the staged shape so callers don't need to branch.
-    const flat = layoutGraph(nodes, edges);
-    return { positioned: flat.positioned, boxes: [], width: flat.width, height: flat.height };
-  }
-
-  const nodeById = new Map(nodes.map((n) => [n.id, n]));
-  const stageIdOfTask = taskStageMembership(nodes, stages);
-  const gateNodeIdOfStage = new Map<string, string>();
-  for (const st of stages) if (st.gate_node_id) gateNodeIdOfStage.set(st.id, st.gate_node_id);
-
-  const groupOf = new Map<string, string>(); // node.id -> stage.id (business members only)
-  for (const n of nodes) {
-    if (n.category === 'business' && n.task_id && stageIdOfTask.has(n.task_id)) {
-      groupOf.set(n.id, stageIdOfTask.get(n.task_id)!);
-    }
-  }
-
-  const stageLevel = levelOfStages(stages);
-  const rows = new Map<number, PlanStage[]>();
-  let maxRow = 0;
-  for (const st of stages) {
-    const lvl = stageLevel.get(st.id) ?? 0;
-    maxRow = Math.max(maxRow, lvl);
-    rows.set(lvl, [...(rows.get(lvl) ?? []), st]);
-  }
-
-  // Inner sub-DAG per stage: the stage's own members + the edges strictly
-  // between them. Cross-stage edges (barrier edges through the gate) are
-  // rendered by the component's existing edge pass once every node — members,
-  // gate, Start/End — carries a canvas position (below).
-  const innerOf = new Map<string, ReturnType<typeof layoutGraph>>();
-  for (const st of stages) {
-    const memberNodes = nodes.filter((n) => groupOf.get(n.id) === st.id);
-    const memberEdges = edges.filter((e) => groupOf.get(e.from) === st.id && groupOf.get(e.to) === st.id);
-    innerOf.set(st.id, layoutGraph(memberNodes, memberEdges));
-  }
-
-  // Pass 1: row content widths (boxes only, gap-separated) to find the widest
-  // row — every row is then centered against that width so the outer DAG reads
-  // as one balanced flow instead of a ragged left-aligned stack.
-  const rowWidth = (row: PlanStage[]): number => {
-    const boxW = row.map((st) => Math.max(innerOf.get(st.id)!.width, NODE_W + 2 * PAD_X));
-    return boxW.reduce((a, b) => a + b, 0) + STAGE_ROW_GAP_X * Math.max(0, row.length - 1);
-  };
-  let canvasWidth = 0;
-  for (let l = 0; l <= maxRow; l++) canvasWidth = Math.max(canvasWidth, rowWidth(rows.get(l) ?? []));
-  canvasWidth = Math.max(canvasWidth, CTRL_W) + 2 * PAD_X;
-
-  // Pass 2: place boxes row by row, each row centered within canvasWidth;
-  // stack rows downward leaving STAGE_LEVEL_GAP_Y for a gate cell + edges.
-  const boxes: StageBox[] = [];
-  const boxOf = new Map<string, StageBox>();
-  const positioned: GraphPositioned[] = [];
-  const covered = new Set<string>();
-  let y = PAD_Y + NODE_H + STAGE_LEVEL_GAP_Y / 2; // room for the Start anchor above row 0
-  for (let l = 0; l <= maxRow; l++) {
-    const row = rows.get(l) ?? [];
-    const w = rowWidth(row);
-    let x = PAD_X + (canvasWidth - 2 * PAD_X - w) / 2;
-    let rowH = 0;
-    for (const st of row) {
-      const inner = innerOf.get(st.id)!;
-      const boxW = Math.max(inner.width, NODE_W + 2 * PAD_X);
-      const boxH = inner.height + STAGE_HEADER_H;
-      const box: StageBox = { stage: st, x, y, w: boxW, h: boxH };
-      boxes.push(box);
-      boxOf.set(st.id, box);
-      rowH = Math.max(rowH, boxH);
-      for (const p of inner.positioned) {
-        positioned.push({ ...p, x: box.x + p.x, y: box.y + STAGE_HEADER_H + p.y });
-        covered.add(p.node.id);
-      }
-      const gateNodeId = gateNodeIdOfStage.get(st.id);
-      const gateNode = gateNodeId ? nodeById.get(gateNodeId) : undefined;
-      if (gateNode) {
-        positioned.push({
-          node: gateNode,
-          level: l,
-          x: box.x + boxW / 2 - CTRL_W / 2,
-          y: box.y + boxH + (STAGE_LEVEL_GAP_Y - NODE_H) / 2,
-          w: CTRL_W,
-        });
-        covered.add(gateNode.id);
-      }
-      x += boxW + STAGE_ROW_GAP_X;
-    }
-    y += rowH + STAGE_LEVEL_GAP_Y;
-  }
-  const bottomY = y - STAGE_LEVEL_GAP_Y / 2;
-
-  // Start/End anchors + any leftover node not covered by a stage (defensive).
-  let start: PlanGraphNode | undefined;
-  let end: PlanGraphNode | undefined;
-  const orphans: PlanGraphNode[] = [];
-  for (const n of nodes) {
-    if (covered.has(n.id)) continue;
-    if (n.control_kind === 'start') { start = n; continue; }
-    if (n.control_kind === 'end') { end = n; continue; }
-    orphans.push(n);
-  }
-  if (start) positioned.push({ node: start, level: -1, x: canvasWidth / 2 - CTRL_W / 2, y: PAD_Y, w: CTRL_W });
-
-  let height = bottomY;
-  if (orphans.length > 0) {
-    const orphanEdges = edges.filter((e) => orphans.some((o) => o.id === e.from) || orphans.some((o) => o.id === e.to));
-    const flat = layoutGraph(orphans, orphanEdges);
-    for (const p of flat.positioned) positioned.push({ ...p, level: maxRow + 1, x: p.x + PAD_X, y: p.y + height });
-    height += flat.height;
-  }
-  if (end) {
-    positioned.push({ node: end, level: maxRow + 2, x: canvasWidth / 2 - CTRL_W / 2, y: height, w: CTRL_W });
-    height += NODE_H + PAD_Y;
-  } else {
-    height += PAD_Y;
-  }
-
-  return { positioned, boxes, width: canvasWidth, height };
-}
-
-export function layoutLegacyStagedDag(nodes: PlanNode[], stages: PlanStage[]): ReturnType<typeof layoutDag> & { boxes: StageBox[] } {
-  if (stages.length === 0) {
-    return { ...layoutDag(nodes), boxes: [] };
-  }
-
-  const graphNodes: PlanGraphNode[] = nodes.map((node) => ({
-    id: node.task_id,
-    category: 'business',
-    title: node.title,
-    status: 'open',
-    task_id: node.task_id,
-    task_status: node.task_status,
-    org_ref: node.org_ref,
-    assignee_ref: node.assignee_ref,
-  }));
-  const graphEdges: PlanGraphEdge[] = [];
-  const nodeIds = new Set(nodes.map((node) => node.task_id));
-  const dependedOn = new Set<string>();
-  for (const node of nodes) {
-    for (const dep of node.depends_on) {
-      if (!nodeIds.has(dep)) continue;
-      graphEdges.push({ from: dep, to: node.task_id, kind: 'seq' });
-      dependedOn.add(dep);
-    }
-  }
-
-  const startId = '__legacy_stage_start__';
-  const endId = '__legacy_stage_end__';
-  graphNodes.push(
-    { id: startId, category: 'control', control_kind: 'start', title: 'Start', status: 'open' },
-    { id: endId, category: 'control', control_kind: 'end', title: 'End', status: 'open' },
-  );
-  const roots = nodes.filter((node) => !node.depends_on.some((dep) => nodeIds.has(dep)));
-  const leaves = nodes.filter((node) => !dependedOn.has(node.task_id));
-  for (const root of roots) graphEdges.push({ from: startId, to: root.task_id, kind: 'seq' });
-  for (const leaf of leaves) graphEdges.push({ from: leaf.task_id, to: endId, kind: 'seq' });
-
-  const staged = layoutStagedGraph(graphNodes, graphEdges, stages);
-  const planNodeById = new Map(nodes.map((node) => [node.task_id, node]));
-  const positioned: Positioned[] = staged.positioned.flatMap((entry) => {
-    const node = planNodeById.get(entry.node.id);
-    return node ? [{ node, level: entry.level, x: entry.x, y: entry.y }] : [];
-  });
-  const positionById = new Map(staged.positioned.map((entry) => [entry.node.id, entry]));
-  const startPosition = positionById.get(startId);
-  const endPosition = positionById.get(endId);
-  const planPositionById = new Map(positioned.map((entry) => [entry.node.task_id, entry]));
-  const start = startPosition
-    ? {
-        cx: startPosition.x + startPosition.w / 2,
-        cy: startPosition.y + NODE_H / 2,
-        links: roots.flatMap((node) => {
-          const entry = planPositionById.get(node.task_id);
-          return entry ? [{ taskId: node.task_id, x: entry.x + NODE_W / 2, y: entry.y }] : [];
-        }),
-      }
-    : null;
-  const end = endPosition
-    ? {
-        cx: endPosition.x + endPosition.w / 2,
-        cy: endPosition.y + NODE_H / 2,
-        links: leaves.flatMap((node) => {
-          const entry = planPositionById.get(node.task_id);
-          return entry ? [{ taskId: node.task_id, x: entry.x + NODE_W / 2, y: entry.y + NODE_H }] : [];
-        }),
-      }
-    : null;
-
-  return { positioned, boxes: staged.boxes, width: staged.width, height: staged.height, start, end };
-}
-
-// Per-kind edge stroke class + dash. seq = neutral, conditional = accent (routed
-// by a decision), loopback = amber dashed return arc.
-export const EDGE_KIND_STROKE: Record<PlanGraphEdgeKind, { cls: string; dash?: string; marker: string }> = {
-  seq: { cls: 'stroke-border-strong', marker: 'url(#plan-graph-arrow)' },
-  conditional: { cls: 'stroke-accent', marker: 'url(#plan-graph-arrow-accent)' },
-  loopback: { cls: 'stroke-status-amber-border', dash: '5 3', marker: 'url(#plan-graph-arrow-loop)' },
-};
 
 // A control node marker: Start/End circular terminals; Condition a rotated
 // (diamond) square. Distinct from task cards so the control flow is legible.
@@ -3696,9 +2960,8 @@ function PlanGraphDag({
   const graphNodes = graph.nodes;
   const graphEdges = graph.edges;
 
-  // §7: group the canvas by Plan Stage when the plan has any (T981 follow-up —
-  // the outer Stage DAG wraps each stage's own inner sub-DAG). Empty for a
-  // no-stage plan, so layoutStagedGraph degrades to the identical flat layout.
+  // §7: group the canvas by Plan Stage when the plan has any (T981 follow-up).
+  // ELK handles flat and staged layouts through the shared React Flow adapter.
   const stagesQuery = usePlanStages(projectId, plan.id);
   const stages = stagesQuery.data ?? [];
   const evolutionRevisions = useMemo(() => buildDagEvolutionRevisions(generationRead, t), [generationRead, t]);
@@ -4483,7 +3746,12 @@ function PlanFlowControlNode({ data }: NodeProps<PlanDagFlowNode>): React.ReactE
   const legacyAnchor = data.node.id.startsWith('__legacy_') && (data.node.control_kind === 'start' || data.node.control_kind === 'end')
     ? `plan-dag-synthetic-${data.node.control_kind}`
     : undefined;
-  return <ControlNodeMarker node={data.node} gateStageRef={ui?.stageDisplay?.byGateNodeId.get(data.node.id)} testId={legacyAnchor} />;
+  return (
+    <>
+      <PlanFlowNodeHandles />
+      <ControlNodeMarker node={data.node} gateStageRef={ui?.stageDisplay?.byGateNodeId.get(data.node.id)} testId={legacyAnchor} />
+    </>
+  );
 }
 
 function PlanFlowBusinessNode({ data }: NodeProps<PlanDagFlowNode>): React.ReactElement | null {
@@ -4606,6 +3874,7 @@ function PlanFlowTaskCard({
       data-connect-source={isSource ? 'true' : undefined}
       data-connect-target={isTarget ? 'true' : undefined}
     >
+      <PlanFlowNodeHandles />
       <span className={`absolute inset-y-0 left-0 w-1.5 ${accentCls}`} aria-hidden="true" />
       <div className="mb-1 flex items-center justify-between gap-1">
         <TaskIdTag taskId={taskId} orgRef={orgRef} testId={taskIdTestId} />
@@ -4646,6 +3915,29 @@ function PlanFlowTaskCard({
         />
       )}
     </div>
+  );
+}
+
+function PlanFlowNodeHandles(): React.ReactElement {
+  return (
+    <>
+      <Handle
+        id="top"
+        type="target"
+        position={Position.Top}
+        className="pointer-events-none opacity-0"
+        data-testid="plan-flow-handle-top"
+        aria-hidden="true"
+      />
+      <Handle
+        id="bottom"
+        type="source"
+        position={Position.Bottom}
+        className="pointer-events-none opacity-0"
+        data-testid="plan-flow-handle-bottom"
+        aria-hidden="true"
+      />
+    </>
   );
 }
 
