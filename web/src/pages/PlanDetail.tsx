@@ -93,6 +93,8 @@ import {
   PLAN_DAG_STAGE_HEADER_H,
   layoutGraphFlow,
   layoutLegacyFlow,
+  refreshGraphFlowNodes,
+  refreshLegacyFlowNodes,
   type PlanDagFlowData,
   type PlanDagFlowEdge,
   type PlanDagFlowLayout,
@@ -3779,18 +3781,22 @@ function PlanGraphDag({
     generationNodeOf,
     stageDisplay,
   }), [generationNodeOf, nodeStatusOf, projectId, stageDisplay]);
+  const currentFlowNodes = useMemo(
+    () => (flowLayout ? refreshGraphFlowNodes(flowLayout.nodes, nodes, visibleStages) : []),
+    [flowLayout, nodes, visibleStages],
+  );
   const flowNodes = useMemo(
-    () => (flowLayout ? withNodeUi(flowLayout.nodes, flowNodeUi) : []),
-    [flowLayout, flowNodeUi],
+    () => withNodeUi(currentFlowNodes, flowNodeUi),
+    [currentFlowNodes, flowNodeUi],
   );
   const flowEdges = useMemo(
     () => (flowLayout ? withEdgeUi(flowLayout.edges, {}) : []),
     [flowLayout],
   );
-  const flowBusinessNodes = flowLayout?.nodes.filter((
+  const flowBusinessNodes = currentFlowNodes.filter((
     node,
   ): node is PlanDagFlowNode & { data: Extract<PlanDagFlowData, { kind: 'business' }> | Extract<PlanDagFlowData, { kind: 'control' }> } =>
-    node.data.kind === 'business' || node.data.kind === 'control') ?? [];
+    node.data.kind === 'business' || node.data.kind === 'control');
 
   return (
     <SenderSidebarProvider>
@@ -4869,9 +4875,13 @@ function LegacyPlanDag({
     titleOf,
     onRemove: (fromTaskId, toTaskId) => removeDep.mutate({ from_task_id: fromTaskId, to_task_id: toTaskId }),
   }), [canEditDependencies, removeDep, titleOf]);
+  const currentFlowNodes = useMemo(
+    () => (flowLayout ? refreshLegacyFlowNodes(flowLayout.nodes, visibleNodes, visibleStages) : []),
+    [flowLayout, visibleNodes, visibleStages],
+  );
   const flowNodes = useMemo(
-    () => (flowLayout ? withNodeUi(flowLayout.nodes, flowNodeUi) : []),
-    [flowLayout, flowNodeUi],
+    () => withNodeUi(currentFlowNodes, flowNodeUi),
+    [currentFlowNodes, flowNodeUi],
   );
   const flowEdges = useMemo(
     () => (flowLayout ? withEdgeUi(flowLayout.edges, flowEdgeUi) : []),
@@ -4880,15 +4890,15 @@ function LegacyPlanDag({
   const positioned = useMemo<Positioned[]>(() => {
     if (!flowLayout) return [];
     const yRanks = new Map(
-      [...new Set(flowLayout.nodes.filter((node) => node.data.kind === 'legacy').map((node) => Math.round(node.position.y)))]
+      [...new Set(currentFlowNodes.filter((node) => node.data.kind === 'legacy').map((node) => Math.round(node.position.y)))]
         .sort((a, b) => a - b)
         .map((y, index) => [y, index]),
     );
-    return flowLayout.nodes.flatMap((node) => {
+    return currentFlowNodes.flatMap((node) => {
       if (node.data.kind !== 'legacy') return [];
       return [{ node: node.data.node, level: yRanks.get(Math.round(node.position.y)) ?? 0, x: node.position.x, y: node.position.y }];
     });
-  }, [flowLayout]);
+  }, [currentFlowNodes, flowLayout]);
 
   return (
     // SenderSidebarProvider owns the ONE agent-activity sidebar for the whole DAG
