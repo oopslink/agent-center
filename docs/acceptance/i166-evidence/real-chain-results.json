@@ -1,0 +1,83 @@
+{
+  "provenance": {
+    "candidate_sha": "88f7eacef92245db407d63d691116678b4ddf8ed",
+    "base_sha": "ee9eab20c82083ae526f89ecf3907846a03c5dd7",
+    "started_at": "2026-09-16T03:58:43.637Z",
+    "base_url": "http://127.0.0.1:61208",
+    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-16MS8y/config.yaml",
+    "db_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-16MS8y/agent-center-i166.db",
+    "temp_dir": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-16MS8y",
+    "binary": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-76dce642/bin/agent-center",
+    "web_port": 61208,
+    "grpc_port": 61209,
+    "session_cookie_namespace": "ac_session on 127.0.0.1 isolated browser context",
+    "finished_at": "2026-09-16T03:58:50.922Z"
+  },
+  "plans": {
+    "graph_backed": {
+      "id": "plan-a0035f2c",
+      "node_count": 7,
+      "edge_count": 7,
+      "has_graph": true
+    },
+    "single": {
+      "id": "plan-121b2006"
+    },
+    "empty": {
+      "id": "plan-eaf6e176"
+    },
+    "stages_read": {
+      "count": 0,
+      "note": "No Web API creates stages; create_stage is MCP/admin-tool only in this executor."
+    }
+  },
+  "checks": [
+    {
+      "name": "graph-backed React Flow rendered with no node overlap",
+      "ok": true,
+      "nodeCount": 7,
+      "edgeCount": 7,
+      "overlaps": []
+    },
+    {
+      "name": "graph read uses orchestration graph",
+      "ok": true,
+      "apiNodeCount": 7,
+      "apiEdgeCount": 7
+    },
+    {
+      "name": "graph-backed React Flow rendered one visible path per API edge",
+      "ok": true,
+      "apiEdgeCount": 7,
+      "edgeCount": 7
+    },
+    {
+      "name": "fit view control available",
+      "ok": true
+    },
+    {
+      "name": "mobile graph stepper rendered",
+      "ok": true
+    },
+    {
+      "name": "legacy single node rendered",
+      "ok": true
+    },
+    {
+      "name": "pending legacy plan shows dependency edit controls",
+      "ok": true
+    },
+    {
+      "name": "empty plan state rendered",
+      "ok": true
+    }
+  ],
+  "screenshots": [
+    "graph-backed-desktop-light.png",
+    "graph-backed-desktop-dark.png",
+    "graph-backed-mobile.png",
+    "legacy-single-node.png",
+    "empty-plan.png"
+  ],
+  "console_errors": []
+}
