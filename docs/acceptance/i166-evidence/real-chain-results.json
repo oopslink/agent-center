@@ -1,74 +1,74 @@
 {
   "provenance": {
     "product_sha": "724c9b8660c1c269bf6e05913f2815d97828d40b",
-    "harness_sha": "ff43722ef544c9bfe7d90254d0cf54586e60bf5b",
+    "harness_sha": "6060270a30906beec0802712935747fffd967727",
     "base_sha": "ee9eab20c82083ae526f89ecf3907846a03c5dd7",
-    "started_at": "2026-09-16T09:03:44.007Z",
-    "base_url": "http://127.0.0.1:54282",
-    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-MbagoD/config.yaml",
-    "db_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-MbagoD/agent-center-i166.db",
-    "temp_dir": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-MbagoD",
-    "binary": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KTVBCSTHCBN1ZFGZQB6XTNW7/tasks/task-e11a6118/bin/agent-center",
-    "web_port": 54282,
-    "grpc_port": 54283,
+    "started_at": "2026-09-16T09:06:31.703Z",
+    "base_url": "http://127.0.0.1:54859",
+    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-Eb1uI9/config.yaml",
+    "db_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-Eb1uI9/agent-center-i166.db",
+    "temp_dir": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-Eb1uI9",
+    "binary": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KTVBEVSYN2AP660X9W09YQ3D/tasks/i166-repro-accept/bin/agent-center",
+    "web_port": 54859,
+    "grpc_port": 54860,
     "session_cookie_namespace": "ac_session on 127.0.0.1 isolated browser context",
     "isolation": "fresh temp directory, fresh SQLite database, random loopback ports, fresh test identity",
-    "finished_at": "2026-09-16T09:03:54.661Z"
+    "finished_at": "2026-09-16T09:06:42.910Z"
   },
   "plans": {
     "graph_backed": {
-      "id": "plan-91dea929",
+      "id": "plan-b706830e",
       "node_count": 7,
       "edge_count": 7,
       "has_graph": true
     },
     "staged": {
-      "id": "plan-3c5d7971",
+      "id": "plan-1e37f265",
       "node_count": 10,
       "edge_count": 11,
       "has_graph": true,
       "fixture": {
-        "stage_a": "stage-4f80cc91",
-        "stage_b": "stage-efd93ebc",
+        "stage_a": "stage-cfc72d16",
+        "stage_b": "stage-0a1e1654",
         "tasks_a": [
-          "task-8dc8e66e",
-          "task-bd3fa788"
+          "task-aebdaa3c",
+          "task-9182f10c"
         ],
         "tasks_b": [
-          "task-c8cb6c48",
-          "task-bcdd3c6d"
+          "task-8a6a81d6",
+          "task-eba7150d"
         ]
       },
       "stages": [
         {
-          "id": "stage-4f80cc91",
+          "id": "stage-cfc72d16",
           "name": "Build and unit verification",
           "depends_on_stages": [],
           "member_task_ids": [
-            "task-8dc8e66e",
-            "task-bd3fa788",
-            "task-659b6199"
+            "task-aebdaa3c",
+            "task-9182f10c",
+            "task-f908581e"
           ]
         },
         {
-          "id": "stage-efd93ebc",
+          "id": "stage-0a1e1654",
           "name": "Integrated acceptance",
           "depends_on_stages": [
-            "stage-4f80cc91"
+            "stage-cfc72d16"
           ],
           "member_task_ids": [
-            "task-c8cb6c48",
-            "task-bcdd3c6d",
-            "task-a34926c3"
+            "task-8a6a81d6",
+            "task-eba7150d",
+            "task-85018ac7"
           ]
         }
       ]
     },
     "single": {
-      "id": "plan-fd9e61a9"
+      "id": "plan-2c3ecbec"
     },
     "empty": {
-      "id": "plan-27a17dbf"
+      "id": "plan-c1e12770"
     },
     "stages_read": {
       "count": 2,
@@ -104,22 +104,22 @@
     {
       "name": "stage A preserves its within-stage dependency fixture",
       "ok": true,
-      "stageA": "stage-4f80cc91",
+      "stageA": "stage-cfc72d16",
       "memberTaskIds": [
-        "task-8dc8e66e",
-        "task-bd3fa788",
-        "task-659b6199"
+        "task-aebdaa3c",
+        "task-9182f10c",
+        "task-f908581e"
       ],
-      "dependency": "task-8dc8e66e -> task-bd3fa788"
+      "dependency": "task-aebdaa3c -> task-9182f10c"
     },
     {
       "name": "stage B preserves cross-stage ordering",
       "ok": true,
-      "stageB": "stage-efd93ebc",
+      "stageB": "stage-0a1e1654",
       "dependsOnStages": [
-        "stage-4f80cc91"
+        "stage-cfc72d16"
       ],
-      "barrier": "01M2MQADJRCSN72MCGZGNY0BX7 -> task-c8cb6c48"
+      "barrier": "01M2MQFHTZGY5JK4PQC5FNX3VS -> task-8a6a81d6"
     },
     {
       "name": "staged React Flow renders every real orchestration edge",
