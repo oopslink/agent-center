@@ -1,0 +1,77 @@
+{
+  "provenance": {
+    "candidate_sha": "c24623332d4c4ab0edafce5d12021db532672bda",
+    "base_sha": "ee9eab20c82083ae526f89ecf3907846a03c5dd7",
+    "started_at": "2026-09-16T03:36:50.454Z",
+    "base_url": "http://127.0.0.1:56326",
+    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-qELpo8/config.yaml",
+    "db_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-qELpo8/agent-center-i166.db",
+    "temp_dir": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-qELpo8",
+    "binary": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-f3606ba2/bin/agent-center",
+    "web_port": 56326,
+    "grpc_port": 56327,
+    "session_cookie_namespace": "ac_session on 127.0.0.1 isolated browser context",
+    "finished_at": "2026-09-16T03:36:56.742Z"
+  },
+  "plans": {
+    "graph_backed": {
+      "id": "plan-41cbd407",
+      "node_count": 7,
+      "edge_count": 7,
+      "has_graph": true
+    },
+    "single": {
+      "id": "plan-99e8a3ca"
+    },
+    "empty": {
+      "id": "plan-f8aa3864"
+    },
+    "stages_read": {
+      "count": 0,
+      "note": "No Web API creates stages; create_stage is MCP/admin-tool only in this executor."
+    }
+  },
+  "checks": [
+    {
+      "name": "graph-backed React Flow rendered with no node overlap",
+      "ok": true,
+      "nodeCount": 7,
+      "edgeCount": 0,
+      "overlaps": []
+    },
+    {
+      "name": "graph read uses orchestration graph",
+      "ok": true,
+      "apiNodeCount": 7,
+      "apiEdgeCount": 7
+    },
+    {
+      "name": "fit view control available",
+      "ok": true
+    },
+    {
+      "name": "mobile graph stepper rendered",
+      "ok": true
+    },
+    {
+      "name": "legacy single node rendered",
+      "ok": true
+    },
+    {
+      "name": "pending legacy plan shows dependency edit controls",
+      "ok": true
+    },
+    {
+      "name": "empty plan state rendered",
+      "ok": true
+    }
+  ],
+  "screenshots": [
+    "graph-backed-desktop-light.png",
+    "graph-backed-desktop-dark.png",
+    "graph-backed-mobile.png",
+    "legacy-single-node.png",
+    "empty-plan.png"
+  ],
+  "console_errors": []
+}
