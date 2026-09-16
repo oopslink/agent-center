@@ -271,6 +271,15 @@ blob_store:
     if (edgeCount !== (graphRead.edges?.length ?? 0)) {
       throw new Error(`React Flow edge path mismatch: API=${graphRead.edges?.length ?? 0} DOM=${edgeCount}`);
     }
+    await page.emulateMedia({ colorScheme: "dark" });
+    await screenshot("graph-backed-desktop-dark");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByTestId("plan-tab-dag").click();
+    await page.getByTestId("plan-graph-stepper").waitFor({ timeout: 15000 });
+    await screenshot("graph-backed-mobile");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.emulateMedia({ colorScheme: "light" });
 
     await page.goto(`${baseURL}/organizations/${slug}/projects/${projectId}/plans/${stagedPlanId}`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("plan-tab-dag").click();
