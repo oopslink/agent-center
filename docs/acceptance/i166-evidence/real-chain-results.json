@@ -1,34 +1,78 @@
 {
   "provenance": {
-    "candidate_sha": "88f7eacef92245db407d63d691116678b4ddf8ed",
+    "product_sha": "724c9b8660c1c269bf6e05913f2815d97828d40b",
+    "harness_sha": "ff43722ef544c9bfe7d90254d0cf54586e60bf5b",
     "base_sha": "ee9eab20c82083ae526f89ecf3907846a03c5dd7",
-    "started_at": "2026-09-16T03:58:43.637Z",
-    "base_url": "http://127.0.0.1:61208",
-    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-16MS8y/config.yaml",
-    "db_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-16MS8y/agent-center-i166.db",
-    "temp_dir": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-16MS8y",
-    "binary": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-76dce642/bin/agent-center",
-    "web_port": 61208,
-    "grpc_port": 61209,
+    "started_at": "2026-09-16T09:03:44.007Z",
+    "base_url": "http://127.0.0.1:54282",
+    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-MbagoD/config.yaml",
+    "db_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-MbagoD/agent-center-i166.db",
+    "temp_dir": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-MbagoD",
+    "binary": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KTVBCSTHCBN1ZFGZQB6XTNW7/tasks/task-e11a6118/bin/agent-center",
+    "web_port": 54282,
+    "grpc_port": 54283,
     "session_cookie_namespace": "ac_session on 127.0.0.1 isolated browser context",
-    "finished_at": "2026-09-16T03:58:50.922Z"
+    "isolation": "fresh temp directory, fresh SQLite database, random loopback ports, fresh test identity",
+    "finished_at": "2026-09-16T09:03:54.661Z"
   },
   "plans": {
     "graph_backed": {
-      "id": "plan-a0035f2c",
+      "id": "plan-91dea929",
       "node_count": 7,
       "edge_count": 7,
       "has_graph": true
     },
+    "staged": {
+      "id": "plan-3c5d7971",
+      "node_count": 10,
+      "edge_count": 11,
+      "has_graph": true,
+      "fixture": {
+        "stage_a": "stage-4f80cc91",
+        "stage_b": "stage-efd93ebc",
+        "tasks_a": [
+          "task-8dc8e66e",
+          "task-bd3fa788"
+        ],
+        "tasks_b": [
+          "task-c8cb6c48",
+          "task-bcdd3c6d"
+        ]
+      },
+      "stages": [
+        {
+          "id": "stage-4f80cc91",
+          "name": "Build and unit verification",
+          "depends_on_stages": [],
+          "member_task_ids": [
+            "task-8dc8e66e",
+            "task-bd3fa788",
+            "task-659b6199"
+          ]
+        },
+        {
+          "id": "stage-efd93ebc",
+          "name": "Integrated acceptance",
+          "depends_on_stages": [
+            "stage-4f80cc91"
+          ],
+          "member_task_ids": [
+            "task-c8cb6c48",
+            "task-bcdd3c6d",
+            "task-a34926c3"
+          ]
+        }
+      ]
+    },
     "single": {
-      "id": "plan-121b2006"
+      "id": "plan-fd9e61a9"
     },
     "empty": {
-      "id": "plan-eaf6e176"
+      "id": "plan-27a17dbf"
     },
     "stages_read": {
-      "count": 0,
-      "note": "No Web API creates stages; create_stage is MCP/admin-tool only in this executor."
+      "count": 2,
+      "source": "Project Manager application-service fixture"
     }
   },
   "checks": [
@@ -50,6 +94,38 @@
       "ok": true,
       "apiEdgeCount": 7,
       "edgeCount": 7
+    },
+    {
+      "name": "real staged plan exposes both stage fixtures",
+      "ok": true,
+      "apiStageCount": 2,
+      "stageBoxCount": 2
+    },
+    {
+      "name": "stage A preserves its within-stage dependency fixture",
+      "ok": true,
+      "stageA": "stage-4f80cc91",
+      "memberTaskIds": [
+        "task-8dc8e66e",
+        "task-bd3fa788",
+        "task-659b6199"
+      ],
+      "dependency": "task-8dc8e66e -> task-bd3fa788"
+    },
+    {
+      "name": "stage B preserves cross-stage ordering",
+      "ok": true,
+      "stageB": "stage-efd93ebc",
+      "dependsOnStages": [
+        "stage-4f80cc91"
+      ],
+      "barrier": "01M2MQADJRCSN72MCGZGNY0BX7 -> task-c8cb6c48"
+    },
+    {
+      "name": "staged React Flow renders every real orchestration edge",
+      "ok": true,
+      "apiEdgeCount": 11,
+      "stagedEdgeCount": 11
     },
     {
       "name": "fit view control available",
@@ -76,6 +152,9 @@
     "graph-backed-desktop-light.png",
     "graph-backed-desktop-dark.png",
     "graph-backed-mobile.png",
+    "staged-plan-desktop-light.png",
+    "staged-plan-desktop-dark.png",
+    "staged-plan-mobile.png",
     "legacy-single-node.png",
     "empty-plan.png"
   ],
