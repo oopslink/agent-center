@@ -1,5 +1,5 @@
-[server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-16MS8y/bootstrap_token (scope=* owner=system:bootstrap)
-agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-16MS8y/agent-center-i166.db web=127.0.0.1:61208 admin=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-16MS8y/admin.sock (escalator running)
+[server] admin token bootstrap: wrote /var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-Tvys87/bootstrap_token (scope=* owner=system:bootstrap)
+agent-center server: db=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-Tvys87/agent-center-i166.db web=127.0.0.1:64618 admin=/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-Tvys87/admin.sock (escalator running)
 [server] webconsole progress wake drain: authorization: permission denied
 [server] webconsole progress watchdog: authorization: permission denied
 signal terminated received; shutting down

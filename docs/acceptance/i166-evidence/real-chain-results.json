@@ -1,30 +1,30 @@
 {
   "provenance": {
-    "candidate_sha": "88f7eacef92245db407d63d691116678b4ddf8ed",
+    "candidate_sha": "724c9b8660c1c269bf6e05913f2815d97828d40b",
     "base_sha": "ee9eab20c82083ae526f89ecf3907846a03c5dd7",
-    "started_at": "2026-09-16T03:58:43.637Z",
-    "base_url": "http://127.0.0.1:61208",
-    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-16MS8y/config.yaml",
-    "db_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-16MS8y/agent-center-i166.db",
-    "temp_dir": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-16MS8y",
-    "binary": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-76dce642/bin/agent-center",
-    "web_port": 61208,
-    "grpc_port": 61209,
+    "started_at": "2026-09-16T04:09:16.178Z",
+    "base_url": "http://127.0.0.1:64618",
+    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-Tvys87/config.yaml",
+    "db_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-Tvys87/agent-center-i166.db",
+    "temp_dir": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-Tvys87",
+    "binary": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/runtime/worktrees/exec-fe304925/bin/agent-center",
+    "web_port": 64618,
+    "grpc_port": 64619,
     "session_cookie_namespace": "ac_session on 127.0.0.1 isolated browser context",
-    "finished_at": "2026-09-16T03:58:50.922Z"
+    "finished_at": "2026-09-16T04:09:24.301Z"
   },
   "plans": {
     "graph_backed": {
-      "id": "plan-a0035f2c",
+      "id": "plan-b82e13df",
       "node_count": 7,
       "edge_count": 7,
       "has_graph": true
     },
     "single": {
-      "id": "plan-121b2006"
+      "id": "plan-d624cd19"
     },
     "empty": {
-      "id": "plan-eaf6e176"
+      "id": "plan-fc31fd22"
     },
     "stages_read": {
       "count": 0,
