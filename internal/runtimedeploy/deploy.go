@@ -13,7 +13,17 @@ import (
 	"time"
 )
 
-const CommandType = "runtime.deploy_restart"
+const (
+	CommandType = "runtime.deploy_restart"
+
+	// RemoteVerificationTimeout bounds the synchronous remote-ref safety check
+	// performed before a deploy command may be durably enqueued.
+	RemoteVerificationTimeout = 60 * time.Second
+	// AdminRequestTimeout leaves enough transport budget for verification to
+	// return a structured result instead of being cut off by the worker's
+	// ordinary 30-second admin request timeout.
+	AdminRequestTimeout = RemoteVerificationTimeout + 10*time.Second
+)
 
 type Request struct {
 	AgentID   string `json:"agent_id"`

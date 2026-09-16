@@ -254,7 +254,7 @@ func registerAllTools(srv *mcp.Server, cfg Config) {
 
 	mcp.AddTool(srv, &mcp.Tool{
 		Name:        "runtime_deploy_restart",
-		Description: "Start an idempotency-keyed deploy/restart attempt through this worker's authenticated control stream. The server requires a canonical HTTPS repo_url, resolves target_ref, verifies it equals the full 40-character target_sha, verifies base_ref ancestry, and then returns an attempt_id immediately; use runtime_deploy_status for terminal readback.",
+		Description: "Verify remote refs synchronously, then start an idempotency-keyed deploy/restart attempt through this worker's authenticated control stream. Successful verification and durable enqueue return an attempt_id; verification failure or timeout creates no attempt. Use runtime_deploy_status for terminal readback.",
 	}, makeRuntimeDeployRestart(cfg))
 
 	mcp.AddTool(srv, &mcp.Tool{

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	admintokensvc "github.com/oopslink/agent-center/internal/admintoken/service"
 	"github.com/oopslink/agent-center/internal/agent"
@@ -92,6 +93,9 @@ type HandlerDeps struct {
 	// (above) supplies org provenance on connect.
 	EnvControlSvc         *envservice.EnvControl
 	RuntimeDeployVerifier RuntimeDeployVerifier
+	// RuntimeDeployVerifyTimeout overrides the production remote verification
+	// deadline in tests. Zero uses runtimedeploy.RemoteVerificationTimeout.
+	RuntimeDeployVerifyTimeout time.Duration
 
 	// ControlStreamBus is the OPTIONAL center-side SSE down-push bus (v2.7 D5
 	// slice-1). When wired, GET /admin/environment/worker/commands/stream

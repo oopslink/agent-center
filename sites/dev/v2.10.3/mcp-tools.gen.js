@@ -1143,8 +1143,8 @@ window.__MCP_TOOLS__ = {
         },
         {
           "name": "runtime_deploy_restart",
-          "summary": "Start an idempotency-keyed deploy/restart attempt through this worker's authenticated control stream.",
-          "description": "Start an idempotency-keyed deploy/restart attempt through this worker's authenticated control stream. The server requires a canonical HTTPS repo_url, resolves target_ref, verifies it equals the full 40-character target_sha, verifies base_ref ancestry, and then returns an attempt_id immediately; use runtime_deploy_status for terminal readback.",
+          "summary": "Verify remote refs synchronously, then start an idempotency-keyed deploy/restart attempt through this worker's authenticated control stream.",
+          "description": "Verify remote refs synchronously, then start an idempotency-keyed deploy/restart attempt through this worker's authenticated control stream. Successful verification and durable enqueue return an attempt_id; verification failure or timeout creates no attempt. Use runtime_deploy_status for terminal readback.",
           "params": [
             {
               "name": "repo_url",

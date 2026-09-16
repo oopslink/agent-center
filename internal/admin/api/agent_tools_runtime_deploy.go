@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -66,7 +67,11 @@ func (s *Server) runtimeDeployRestartHandler(w http.ResponseWriter, r *http.Requ
 	if idempotencyKey == "" {
 		idempotencyKey = legacyRuntimeDeployIdempotencyKey(a.WorkerID(), mode, req.TargetRef, req.TargetSHA)
 	}
-	verifyCtx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	verifyTimeout := d.RuntimeDeployVerifyTimeout
+	if verifyTimeout <= 0 {
+		verifyTimeout = runtimedeploy.RemoteVerificationTimeout
+	}
+	verifyCtx, cancel := context.WithTimeout(r.Context(), verifyTimeout)
 	verifier := d.RuntimeDeployVerifier
 	if verifier == nil {
 		verifier = defaultRuntimeDeployVerifier{}
@@ -76,6 +81,10 @@ func (s *Server) runtimeDeployRestartHandler(w http.ResponseWriter, r *http.Requ
 	})
 	cancel()
 	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) || errors.Is(verifyCtx.Err(), context.DeadlineExceeded) {
+			writeError(w, http.StatusGatewayTimeout, "remote_ref_verification_timeout", "remote reference verification exceeded its deadline before any deploy command was created")
+			return
+		}
 		writeError(w, http.StatusUnprocessableEntity, "remote_ref_verification_failed", err.Error())
 		return
 	}

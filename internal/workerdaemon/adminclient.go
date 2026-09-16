@@ -34,6 +34,7 @@ import (
 	"github.com/oopslink/agent-center/internal/agentruntime"
 	"github.com/oopslink/agent-center/internal/concurrency"
 	"github.com/oopslink/agent-center/internal/mcphost"
+	"github.com/oopslink/agent-center/internal/runtimedeploy"
 	"github.com/oopslink/agent-center/internal/runtimefs"
 	"github.com/oopslink/agent-center/internal/workforce"
 )
@@ -49,6 +50,10 @@ type AdminClient struct {
 	socketPath string // legacy: unix socket path (empty when TCP)
 	baseURL    string // "http://unix" or "https://host:port"
 	httpc      *http.Client
+	// runtimeDeployHTTPClient shares the transport but has enough whole-request
+	// budget for the center's synchronous remote-ref verification plus response
+	// margin. Other admin calls retain the ordinary, shorter timeout.
+	runtimeDeployHTTPClient *http.Client
 	// token is the bearer attached to every request via
 	// `Authorization: Bearer <token>`. Wired by cmd/worker-daemon via
 	// WithToken; v2.3-3a (task #28) requires it on every non-public
@@ -119,6 +124,10 @@ func NewAdminClient(socketPath string, timeout time.Duration) *AdminClient {
 			Transport: tr,
 			Timeout:   timeout,
 		},
+		runtimeDeployHTTPClient: &http.Client{
+			Transport: tr,
+			Timeout:   max(timeout, runtimedeploy.AdminRequestTimeout),
+		},
 	}
 }
 
@@ -137,6 +146,10 @@ func NewAdminClientFromTarget(target clienttransport.Target, fingerprint string,
 		httpc: &http.Client{
 			Transport: tr,
 			Timeout:   timeout,
+		},
+		runtimeDeployHTTPClient: &http.Client{
+			Transport: tr,
+			Timeout:   max(timeout, runtimedeploy.AdminRequestTimeout),
 		},
 	}
 	if target.Kind == clienttransport.KindUnix {
@@ -361,7 +374,11 @@ func (c *AdminClient) BlobPut(ctx context.Context, relPath string, content []byt
 // result instead of a silent protocol error. This makes *AdminClient
 // satisfy mcphost.AdminCaller.
 func (c *AdminClient) CallAgentTool(ctx context.Context, tool string, body any, out *json.RawMessage) error {
-	raw, status, err := c.doRaw(ctx, http.MethodPost, "/admin/agent-tools/"+tool, body)
+	httpc := c.httpc
+	if tool == "runtime_deploy_restart" && c.runtimeDeployHTTPClient != nil {
+		httpc = c.runtimeDeployHTTPClient
+	}
+	raw, status, err := c.doRawWithClient(ctx, httpc, http.MethodPost, "/admin/agent-tools/"+tool, body)
 	if err != nil {
 		return err
 	}
@@ -380,6 +397,10 @@ func (c *AdminClient) CallAgentTool(ctx context.Context, tool string, body any, 
 // and the status (to build the typed mcphost error). Same transport +
 // bearer wiring as doJSON.
 func (c *AdminClient) doRaw(ctx context.Context, method, path string, body any) ([]byte, int, error) {
+	return c.doRawWithClient(ctx, c.httpc, method, path, body)
+}
+
+func (c *AdminClient) doRawWithClient(ctx context.Context, httpc *http.Client, method, path string, body any) ([]byte, int, error) {
 	var reader io.Reader
 	if body != nil {
 		buf, err := json.Marshal(body)
@@ -403,7 +424,7 @@ func (c *AdminClient) doRaw(ctx context.Context, method, path string, body any) 
 	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
 	}
-	resp, err := c.httpc.Do(req)
+	resp, err := httpc.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("adminclient: do %s %s: %w", method, path, err)
 	}

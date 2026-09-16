@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,13 +20,202 @@ import (
 	envservice "github.com/oopslink/agent-center/internal/environment/service"
 	envsqlite "github.com/oopslink/agent-center/internal/environment/sqlite"
 	"github.com/oopslink/agent-center/internal/idgen"
+	"github.com/oopslink/agent-center/internal/mcphost"
 	"github.com/oopslink/agent-center/internal/runtimedeploy"
+	"github.com/oopslink/agent-center/internal/workerdaemon"
 )
 
 type fakeRuntimeDeployVerifier struct {
 	got runtimedeploy.Request
 	out runtimedeploy.VerifiedRef
 	err error
+}
+
+type deadlineRuntimeDeployVerifier struct{}
+
+func (deadlineRuntimeDeployVerifier) VerifyRemote(ctx context.Context, _ runtimedeploy.Request) (runtimedeploy.VerifiedRef, error) {
+	<-ctx.Done()
+	return runtimedeploy.VerifiedRef{}, ctx.Err()
+}
+
+func runtimeDeployControlService(t *testing.T, fx *writeToolsFixture) *envservice.EnvControl {
+	t.Helper()
+	svc := envservice.New(envservice.Deps{
+		DB: fx.db, Workers: envsqlite.NewWorkerRepo(fx.db), Events: envsqlite.NewControlEventRepo(fx.db),
+		IDGen: idgen.NewGenerator(fx.clk), Clock: fx.clk,
+	})
+	if _, err := svc.ConnectWorker(context.Background(), environment.WorkerID(atWorker1)); err != nil {
+		t.Fatalf("connect env worker: %v", err)
+	}
+	return svc
+}
+
+func runtimeDeployAdminClient(t *testing.T, fx *writeToolsFixture, timeout time.Duration, wrap func(http.Handler) http.Handler) *workerdaemon.AdminClient {
+	t.Helper()
+	sockFile, err := os.CreateTemp("/tmp", "ac-rtd-*.sock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sock := sockFile.Name()
+	_ = sockFile.Close()
+	_ = os.Remove(sock)
+	ln, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := NewServerWithDeps("", ServerDeps{})
+	handler := http.Handler(AuthMiddleware(fx.verifier)(WithDeps(fx.deps)(server.Handler())))
+	if wrap != nil {
+		handler = wrap(handler)
+	}
+	httpServer := &http.Server{Handler: handler}
+	go func() { _ = httpServer.Serve(ln) }()
+	t.Cleanup(func() {
+		_ = httpServer.Shutdown(context.Background())
+		_ = ln.Close()
+		_ = os.Remove(sock)
+	})
+	return workerdaemon.NewAdminClient(sock, timeout).WithToken("acat_w1")
+}
+
+func callRuntimeDeployTool(t *testing.T, ctx context.Context, client *workerdaemon.AdminClient, tool string, body map[string]any) (map[string]any, error) {
+	t.Helper()
+	var raw json.RawMessage
+	err := client.CallAgentTool(ctx, tool, body, &raw)
+	if err != nil {
+		return nil, err
+	}
+	var out map[string]any
+	if err := json.Unmarshal(raw, &out); err != nil {
+		t.Fatalf("decode %s response: %v: %s", tool, err, raw)
+	}
+	return out, nil
+}
+
+func runtimeDeployRequestBody(key, sha string) map[string]any {
+	return map[string]any{
+		"agent_id": atAgent1, "repo_url": "https://example.invalid/repo.git", "target_ref": "refs/heads/main",
+		"target_sha": sha, "base_ref": "refs/heads/main", "idempotency_key": key,
+	}
+}
+
+func TestRuntimeDeployAdminClient_VerificationTimeoutIsStructuredBeforeTransportCutoff(t *testing.T) {
+	fx := newWriteToolsFixture(t)
+	fx.addWorkerToken(t, "acat_w1", atWorker1)
+	fx.seedMemberProject(t)
+	fx.deps.EnvControlSvc = runtimeDeployControlService(t, fx)
+	fx.deps.RuntimeDeployVerifier = deadlineRuntimeDeployVerifier{}
+	fx.deps.RuntimeDeployVerifyTimeout = 60 * time.Millisecond
+	client := runtimeDeployAdminClient(t, fx, 25*time.Millisecond, nil)
+
+	started := time.Now()
+	_, err := callRuntimeDeployTool(t, context.Background(), client, "runtime_deploy_restart", runtimeDeployRequestBody("verify-timeout", strings.Repeat("a", 40)))
+	if err == nil {
+		t.Fatal("expected structured verification timeout")
+	}
+	var adminErr *mcphost.AdminToolError
+	if !errors.As(err, &adminErr) || adminErr.Status != http.StatusGatewayTimeout || !strings.Contains(adminErr.Body, `"error":"remote_ref_verification_timeout"`) {
+		t.Fatalf("error=%T %v, want 504 remote_ref_verification_timeout", err, err)
+	}
+	if elapsed := time.Since(started); elapsed < 50*time.Millisecond || elapsed > time.Second {
+		t.Fatalf("structured timeout elapsed=%s, want handler deadline before deploy transport cutoff", elapsed)
+	}
+	cmds, err := fx.deps.EnvControlSvc.CommandsAfter(context.Background(), environment.WorkerID(atWorker1), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cmds) != 0 {
+		t.Fatalf("verification timeout dispatched %d commands, want 0", len(cmds))
+	}
+}
+
+func TestRuntimeDeployAdminClient_IdempotencyAndConflictUseOneCommand(t *testing.T) {
+	fx := newWriteToolsFixture(t)
+	fx.addWorkerToken(t, "acat_w1", atWorker1)
+	fx.seedMemberProject(t)
+	fx.deps.EnvControlSvc = runtimeDeployControlService(t, fx)
+	sha := strings.Repeat("a", 40)
+	fx.deps.RuntimeDeployVerifier = &fakeRuntimeDeployVerifier{out: runtimedeploy.VerifiedRef{TargetSHA: sha, BaseSHA: strings.Repeat("b", 40)}}
+	client := runtimeDeployAdminClient(t, fx, 25*time.Millisecond, nil)
+	body := runtimeDeployRequestBody("real-client-idempotency", sha)
+
+	first, err := callRuntimeDeployTool(t, context.Background(), client, "runtime_deploy_restart", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := callRuntimeDeployTool(t, context.Background(), client, "runtime_deploy_restart", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first["command_id"] == "" || first["command_id"] != second["command_id"] {
+		t.Fatalf("idempotent command ids: first=%v second=%v", first, second)
+	}
+	changed := runtimeDeployRequestBody("real-client-idempotency", sha)
+	changed["prefix"] = "/different"
+	_, err = callRuntimeDeployTool(t, context.Background(), client, "runtime_deploy_restart", changed)
+	var adminErr *mcphost.AdminToolError
+	if !errors.As(err, &adminErr) || adminErr.Status != http.StatusConflict || !strings.Contains(adminErr.Body, `"error":"idempotency_conflict"`) {
+		t.Fatalf("changed payload error=%T %v, want 409 idempotency_conflict", err, err)
+	}
+	cmds, err := fx.deps.EnvControlSvc.CommandsAfter(context.Background(), environment.WorkerID(atWorker1), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cmds) != 1 {
+		t.Fatalf("commands=%d, want exactly 1", len(cmds))
+	}
+}
+
+func TestRuntimeDeployAdminClient_ResponseLossCanReadAndReplayAttempt(t *testing.T) {
+	fx := newWriteToolsFixture(t)
+	fx.addWorkerToken(t, "acat_w1", atWorker1)
+	fx.seedMemberProject(t)
+	fx.deps.EnvControlSvc = runtimeDeployControlService(t, fx)
+	sha := strings.Repeat("a", 40)
+	fx.deps.RuntimeDeployVerifier = &fakeRuntimeDeployVerifier{out: runtimedeploy.VerifiedRef{TargetSHA: sha, BaseSHA: strings.Repeat("b", 40)}}
+	committed := make(chan struct{})
+	var dropOnce sync.Once
+	client := runtimeDeployAdminClient(t, fx, 25*time.Millisecond, func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			drop := false
+			if r.URL.Path == "/admin/agent-tools/runtime_deploy_restart" {
+				dropOnce.Do(func() { drop = true })
+			}
+			if !drop {
+				next.ServeHTTP(w, r)
+				return
+			}
+			recorder := httptest.NewRecorder()
+			next.ServeHTTP(recorder, r)
+			close(committed)
+			<-r.Context().Done()
+		})
+	})
+	body := runtimeDeployRequestBody("response-loss", sha)
+	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
+	defer cancel()
+	if _, err := callRuntimeDeployTool(t, ctx, client, "runtime_deploy_restart", body); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("lost response error=%T %v, want caller deadline", err, err)
+	}
+	<-committed
+
+	status, err := callRuntimeDeployTool(t, context.Background(), client, "runtime_deploy_status", map[string]any{
+		"agent_id": atAgent1, "idempotency_key": "response-loss",
+	})
+	if err != nil || status["attempt_id"] == "" || status["command_status"] != environment.CommandStatusPending {
+		t.Fatalf("status after response loss: status=%v err=%v", status, err)
+	}
+	replayed, err := callRuntimeDeployTool(t, context.Background(), client, "runtime_deploy_restart", body)
+	if err != nil || replayed["attempt_id"] != status["attempt_id"] {
+		t.Fatalf("replay after response loss: replay=%v status=%v err=%v", replayed, status, err)
+	}
+	cmds, err := fx.deps.EnvControlSvc.CommandsAfter(context.Background(), environment.WorkerID(atWorker1), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cmds) != 1 {
+		t.Fatalf("commands after response loss replay=%d, want 1", len(cmds))
+	}
 }
 
 func (v *fakeRuntimeDeployVerifier) VerifyRemote(_ context.Context, req runtimedeploy.Request) (runtimedeploy.VerifiedRef, error) {
