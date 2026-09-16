@@ -345,19 +345,29 @@ export function WorkItemFilterBar({
           </select>
         </label>
         {kind === 'task' && onIncludeCompletedPlanFailuresChange && (
-          <label
+          <button
+            type="button"
+            role="switch"
+            aria-checked={includeCompletedPlanFailures}
+            data-testid="org-filter-completed-plan-failures"
+            onClick={() => onIncludeCompletedPlanFailuresChange(!includeCompletedPlanFailures)}
             className="inline-flex min-h-[1.75rem] items-center gap-1.5 rounded border border-border-base bg-bg-base px-2 text-xs text-text-secondary"
             title={t('filter.completedPlanFailures.title')}
           >
-            <input
-              type="checkbox"
-              data-testid="org-filter-completed-plan-failures"
-              checked={includeCompletedPlanFailures}
-              onChange={(e) => onIncludeCompletedPlanFailuresChange(e.target.checked)}
-              className="h-3.5 w-3.5 accent-brand"
-            />
+            <span
+              className={`inline-flex h-3.5 w-6 items-center rounded-full border transition-colors ${
+                includeCompletedPlanFailures ? 'border-accent bg-accent' : 'border-border-strong bg-bg-subtle'
+              }`}
+              aria-hidden="true"
+            >
+              <span
+                className={`h-2.5 w-2.5 rounded-full bg-white shadow-sm transition-transform ${
+                  includeCompletedPlanFailures ? 'translate-x-2.5' : 'translate-x-0.5'
+                }`}
+              />
+            </span>
             <span>{t('filter.completedPlanFailures.label')}</span>
-          </label>
+          </button>
         )}
       </div>
       {/* Row 2 — DATE RANGE: two inline start→end pairs (Created / Updated), then

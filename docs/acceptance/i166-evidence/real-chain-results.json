@@ -1,0 +1,162 @@
+{
+  "provenance": {
+    "product_sha": "724c9b8660c1c269bf6e05913f2815d97828d40b",
+    "harness_sha": "6060270a30906beec0802712935747fffd967727",
+    "base_sha": "ee9eab20c82083ae526f89ecf3907846a03c5dd7",
+    "started_at": "2026-09-16T09:06:31.703Z",
+    "base_url": "http://127.0.0.1:54859",
+    "config_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-Eb1uI9/config.yaml",
+    "db_path": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-Eb1uI9/agent-center-i166.db",
+    "temp_dir": "/var/folders/td/p6yqhr2j6qlc_tsq9z7fxpn40000gn/T/i166-dag-Eb1uI9",
+    "binary": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/var/agents/01KTVBEVSYN2AP660X9W09YQ3D/tasks/i166-repro-accept/bin/agent-center",
+    "web_port": 54859,
+    "grpc_port": 54860,
+    "session_cookie_namespace": "ac_session on 127.0.0.1 isolated browser context",
+    "isolation": "fresh temp directory, fresh SQLite database, random loopback ports, fresh test identity",
+    "finished_at": "2026-09-16T09:06:42.910Z"
+  },
+  "plans": {
+    "graph_backed": {
+      "id": "plan-b706830e",
+      "node_count": 7,
+      "edge_count": 7,
+      "has_graph": true
+    },
+    "staged": {
+      "id": "plan-1e37f265",
+      "node_count": 10,
+      "edge_count": 11,
+      "has_graph": true,
+      "fixture": {
+        "stage_a": "stage-cfc72d16",
+        "stage_b": "stage-0a1e1654",
+        "tasks_a": [
+          "task-aebdaa3c",
+          "task-9182f10c"
+        ],
+        "tasks_b": [
+          "task-8a6a81d6",
+          "task-eba7150d"
+        ]
+      },
+      "stages": [
+        {
+          "id": "stage-cfc72d16",
+          "name": "Build and unit verification",
+          "depends_on_stages": [],
+          "member_task_ids": [
+            "task-aebdaa3c",
+            "task-9182f10c",
+            "task-f908581e"
+          ]
+        },
+        {
+          "id": "stage-0a1e1654",
+          "name": "Integrated acceptance",
+          "depends_on_stages": [
+            "stage-cfc72d16"
+          ],
+          "member_task_ids": [
+            "task-8a6a81d6",
+            "task-eba7150d",
+            "task-85018ac7"
+          ]
+        }
+      ]
+    },
+    "single": {
+      "id": "plan-2c3ecbec"
+    },
+    "empty": {
+      "id": "plan-c1e12770"
+    },
+    "stages_read": {
+      "count": 2,
+      "source": "Project Manager application-service fixture"
+    }
+  },
+  "checks": [
+    {
+      "name": "graph-backed React Flow rendered with no node overlap",
+      "ok": true,
+      "nodeCount": 7,
+      "edgeCount": 7,
+      "overlaps": []
+    },
+    {
+      "name": "graph read uses orchestration graph",
+      "ok": true,
+      "apiNodeCount": 7,
+      "apiEdgeCount": 7
+    },
+    {
+      "name": "graph-backed React Flow rendered one visible path per API edge",
+      "ok": true,
+      "apiEdgeCount": 7,
+      "edgeCount": 7
+    },
+    {
+      "name": "real staged plan exposes both stage fixtures",
+      "ok": true,
+      "apiStageCount": 2,
+      "stageBoxCount": 2
+    },
+    {
+      "name": "stage A preserves its within-stage dependency fixture",
+      "ok": true,
+      "stageA": "stage-cfc72d16",
+      "memberTaskIds": [
+        "task-aebdaa3c",
+        "task-9182f10c",
+        "task-f908581e"
+      ],
+      "dependency": "task-aebdaa3c -> task-9182f10c"
+    },
+    {
+      "name": "stage B preserves cross-stage ordering",
+      "ok": true,
+      "stageB": "stage-0a1e1654",
+      "dependsOnStages": [
+        "stage-cfc72d16"
+      ],
+      "barrier": "01M2MQFHTZGY5JK4PQC5FNX3VS -> task-8a6a81d6"
+    },
+    {
+      "name": "staged React Flow renders every real orchestration edge",
+      "ok": true,
+      "apiEdgeCount": 11,
+      "stagedEdgeCount": 11
+    },
+    {
+      "name": "fit view control available",
+      "ok": true
+    },
+    {
+      "name": "mobile graph stepper rendered",
+      "ok": true
+    },
+    {
+      "name": "legacy single node rendered",
+      "ok": true
+    },
+    {
+      "name": "pending legacy plan shows dependency edit controls",
+      "ok": true
+    },
+    {
+      "name": "empty plan state rendered",
+      "ok": true
+    }
+  ],
+  "screenshots": [
+    "graph-backed-desktop-light.png",
+    "graph-backed-desktop-dark.png",
+    "graph-backed-mobile.png",
+    "staged-plan-desktop-light.png",
+    "staged-plan-desktop-dark.png",
+    "staged-plan-mobile.png",
+    "legacy-single-node.png",
+    "empty-plan.png"
+  ],
+  "console_errors": []
+}
