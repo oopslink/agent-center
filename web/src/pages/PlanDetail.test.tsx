@@ -864,6 +864,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     // connect FROM n7 (docs, no deps). Valid targets exclude self + already-linked
     // + cycle-forming. n7 has no deps and nothing depends on it → every OTHER node
     // is a valid target (6 of them).
+    await waitFor(() => expect(dagNode('n7')).toBeInTheDocument());
     fireEvent.click(within(dagNode('n7')).getByTestId('plan-node-connect'));
     expect(screen.getByTestId('plan-connect-banner')).toBeInTheDocument();
     const targets = screen.getAllByTestId('plan-connect-target');
@@ -888,6 +889,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     // "docs" (n7) depends on "design schema" (n1): connect from n7, activate n1.
+    await waitFor(() => expect(dagNode('n7')).toBeInTheDocument());
     fireEvent.click(within(dagNode('n7')).getByTestId('plan-node-connect'));
     const n1Target = within(dagNode('n1')).getByTestId('plan-connect-target');
     await act(async () => fireEvent.click(n1Target));
@@ -943,6 +945,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
     // enter connect mode, then Escape
+    await waitFor(() => expect(dagNode('n7')).toBeInTheDocument());
     fireEvent.click(within(dagNode('n7')).getByTestId('plan-node-connect'));
     expect(screen.getByTestId('plan-connect-banner')).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'Escape' });
@@ -950,6 +953,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     // the per-node connect controls return
     expect(screen.getAllByTestId('plan-node-connect').length).toBeGreaterThan(0);
     // re-enter, then click Cancel
+    await waitFor(() => expect(dagNode('n7')).toBeInTheDocument());
     fireEvent.click(within(dagNode('n7')).getByTestId('plan-node-connect'));
     fireEvent.click(screen.getByTestId('plan-connect-cancel'));
     await waitFor(() => expect(screen.queryByTestId('plan-connect-banner')).not.toBeInTheDocument());
@@ -1039,6 +1043,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     wrap();
     fireEvent.click(await screen.findByTestId('plan-tab-dag'));
     await waitFor(() => expect(screen.getByTestId('plan-dag')).toBeInTheDocument());
+    await waitFor(() => expect(dagNode('n7')).toBeInTheDocument());
     fireEvent.click(within(dagNode('n7')).getByTestId('plan-node-connect'));
     await act(async () => fireEvent.click(within(dagNode('n1')).getByTestId('plan-connect-target')));
     const err = await screen.findByTestId('plan-edge-error');

@@ -272,7 +272,9 @@
         "terminalDiagnostics": "历史控制诊断 · 不代表当前执行状态",
         "overview": "全图概览",
         "readable": "100% · 定位所选代",
-        "generationSemantics": "色底：本代新增 · 浅底：前代保留 · 虚框：历史/撤销"
+        "generationSemantics": "色底：本代新增 · 浅底：前代保留 · 虚框：历史/撤销",
+        "historicalEdge": "历史依赖 · 已失效，不参与执行",
+        "inactiveEdge": "已失效"
       },
       "actions": {
         "menu": "操作",

@@ -1,3 +1,4 @@
+import { withHistoricalEdges } from './planHistoricalEdges';
 import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation, Trans } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -1933,7 +1934,7 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
     label: 'discarded',
     cls: 'bg-status-stone-bg text-status-stone-fg',
     border: 'border-status-stone-border',
-    icon: <span aria-hidden="true">−</span>,
+    icon: <span aria-hidden="true">×</span>,
   },
   failed: {
     label: 'failed',
@@ -3034,9 +3035,13 @@ function PlanGraphDag({
       edges: graphEdges.filter((edge) => nodeIds.has(edge.from) && nodeIds.has(edge.to)),
     };
   }, [currentGeneration, effectiveGeneration, graphEdges, graphNodes, historicalGeneration, stages.length, visibleStages]);
+  const displayHistoricalTaskIds = useMemo(() => historicalGeneration
+    ? new Set(historicalGeneration.snapshot.tasks.filter((task) => task.status === 'discarded').map((task) => task.task_id))
+    : historicalTaskIds, [historicalGeneration, historicalTaskIds]);
   const topologyEdges = useMemo(
-    () => withStageTopologyEdges(nodes, edges, visibleStages),
-    [nodes, edges, visibleStages],
+    () => withHistoricalEdges(nodes, withStageTopologyEdges(nodes, edges, visibleStages), generationRead,
+      historicalGeneration?.id ?? generationRead?.active_generation_id, displayHistoricalTaskIds),
+    [nodes, edges, visibleStages, generationRead, historicalGeneration, displayHistoricalTaskIds],
   );
   // Stage ids are opaque persistence keys. The mockup uses compact, plan-local
   // S1/S2 refs, which can be derived from the API's stable stage order without
@@ -3057,7 +3062,7 @@ function PlanGraphDag({
   const topologyKey = useMemo(
     () => [
       nodes.map((node) => `${node.id}:${node.follows_task_id ?? ''}`).sort().join(','),
-      topologyEdges.map((edge) => `${edge.from}->${edge.to}:${edge.kind}`).sort().join(','),
+      topologyEdges.map((edge) => `${edge.from}->${edge.to}:${edge.kind}:${edge.historical ?? false}`).sort().join(','),
       visibleStages.map((stage) => `${stage.id}:${stage.members.map((member) => member.task_id).join('.')}:${stage.depends_on_stages.join('.')}`).join(','),
     ].join('|'),
     [nodes, topologyEdges, visibleStages],
@@ -3742,7 +3747,7 @@ function PlanFlowCanvas({
               const ui = (edge.data as NonNullable<PlanDagFlowEdge['data']> & { ui?: PlanFlowEdgeUi } | undefined)?.ui;
               return (
                 <span key={edge.id} data-testid={testId} data-edge={edgeKey} data-edge-kind={kind}>
-                  {ui?.canEditDependencies && edge.data?.fromTaskId && edge.data?.toTaskId && (
+                  {!edge.data?.historical && ui?.canEditDependencies && edge.data?.fromTaskId && edge.data?.toTaskId && (
                     <button
                       type="button"
                       data-testid="plan-edge-delete"
@@ -4037,10 +4042,15 @@ function PlanFlowNodeHandles(): React.ReactElement {
 }
 
 function PlanFlowEdge(props: EdgeProps<PlanDagFlowEdge>): React.ReactElement {
+  const { t } = useTranslation('work');
   const { id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, data } = props;
   const className = (props as { className?: string }).className;
   const [edgePath, labelX, labelY] = getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
   const ui = (data as NonNullable<PlanDagFlowEdge['data']> & { ui?: PlanFlowEdgeUi } | undefined)?.ui;
+  const route = data?.route;
+  const middle = route?.length ? Math.floor(route.length / 2) : 0;
+  const historyLabelX = route && middle > 0 ? (route[middle - 1].x + route[middle].x) / 2 : labelX;
+  const historyLabelY = route && middle > 0 ? (route[middle - 1].y + route[middle].y) / 2 : labelY;
   const fromTaskId = data?.fromTaskId;
   const toTaskId = data?.toTaskId;
   const edgeKey = (id.includes(':') ? id.split(':')[1] : id)
@@ -4055,12 +4065,24 @@ function PlanFlowEdge(props: EdgeProps<PlanDagFlowEdge>): React.ReactElement {
         fill="none"
         markerEnd={markerEnd}
         style={style}
-        className={`${className ?? `plan-flow-edge plan-flow-edge--${data?.kind ?? 'seq'}`} ${data?.kind === 'lineage' ? 'plan-generation' : ''}`}
+        className={`${className ?? `plan-flow-edge plan-flow-edge--${data?.kind ?? 'seq'}`} ${data?.kind === 'lineage' ? 'plan-generation' : ''} ${data?.historical ? 'plan-flow-edge--historical' : ''}`}
         data-testid={edgeTestId}
         data-edge={edgeKey}
         data-edge-kind={data?.kind}
-      />
-      {ui?.canEditDependencies && fromTaskId && toTaskId && (
+        data-edge-historical={data?.historical || undefined}
+      >
+        {data?.historical && <title>{t('plan.detail.dag.historicalEdge')}</title>}
+      </path>
+      {data?.historical && (
+        <EdgeLabelRenderer>
+          <span className="pointer-events-none absolute rounded bg-bg-elevated px-1 text-[10px] text-text-secondary"
+            data-testid="plan-historical-edge-label"
+            style={{ transform: `translate(-50%, -50%) translate(${historyLabelX}px, ${historyLabelY}px)` }}>
+            {t('plan.detail.dag.inactiveEdge')}
+          </span>
+        </EdgeLabelRenderer>
+      )}
+      {!data?.historical && ui?.canEditDependencies && fromTaskId && toTaskId && (
         <EdgeLabelRenderer>
           <button
             type="button"
@@ -4242,8 +4264,8 @@ function LegacyPlanDag({
     [visibleNodes, visibleStages],
   );
   const { layout: flowLayout, loading: flowLoading } = useElkFlowLayout(
-    () => layoutLegacyFlow(visibleNodes, visibleStages),
-    [topologyKey],
+    () => layoutLegacyFlow(visibleNodes, visibleStages, generationRead, historicalGeneration?.id ?? generationRead?.active_generation_id),
+    [topologyKey, generationRead, historicalGeneration],
   );
   const flowNodeUi = useMemo<PlanFlowNodeUi>(() => ({
     projectId,

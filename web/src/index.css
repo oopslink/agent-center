@@ -671,3 +671,8 @@ body {
   width: 3px;
   background: repeating-linear-gradient(to bottom, var(--plan-generation-color) 0 4px, transparent 4px 8px);
 }
+
+.plan-flow-edge--historical {
+  stroke: var(--color-text-muted);
+  stroke-dasharray: 3 4;
+}

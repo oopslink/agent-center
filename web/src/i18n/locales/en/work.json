@@ -272,7 +272,9 @@
         "terminalDiagnostics": "Archived control diagnostics · does not describe current execution",
         "overview": "Overview",
         "readable": "100% · Focus selected generation",
-        "generationSemantics": "Tinted: added in selected generation · Plain: retained · Dashed border: historical/discarded"
+        "generationSemantics": "Tinted: added in selected generation · Plain: retained · Dashed border: historical/discarded",
+        "historicalEdge": "Historical dependency · inactive; not used for execution",
+        "inactiveEdge": "Inactive"
       },
       "actions": {
         "menu": "Actions",

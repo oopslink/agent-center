@@ -1,7 +1,8 @@
+import { withHistoricalEdges, type HistoricalGraphEdge } from './planHistoricalEdges';
 import ELK from 'elkjs/lib/elk.bundled.js';
 import { MarkerType } from '@xyflow/react';
 import type { Edge as FlowEdge, Node as FlowNode } from '@xyflow/react';
-import type { PlanGraphEdge, PlanGraphEdgeKind, PlanGraphNode, PlanNode, PlanStage } from '@/api/plans';
+import type { PlanGraphEdge, PlanGraphEdgeKind, PlanGraphNode, PlanNode, PlanStage, PlanGenerationRead } from '@/api/plans';
 
 export const PLAN_DAG_NODE_W = 220;
 export const PLAN_DAG_NODE_H = 116;
@@ -42,7 +43,7 @@ export interface FlowSyntheticData extends Record<string, unknown> {
 export type PlanDagFlowData = FlowStageData | FlowBusinessData | FlowControlData | FlowLegacyData | FlowSyntheticData;
 
 export type PlanDagFlowNode = FlowNode<PlanDagFlowData>;
-export type PlanDagFlowEdge = FlowEdge<{ kind: PlanGraphEdgeKind | 'synthetic' | 'lineage'; fromTaskId?: string; toTaskId?: string; route?: { x: number; y: number }[] }>;
+export type PlanDagFlowEdge = FlowEdge<{ historical?: boolean; kind: PlanGraphEdgeKind | 'synthetic' | 'lineage'; fromTaskId?: string; toTaskId?: string; route?: { x: number; y: number }[] }>;
 
 export interface PlanDagFlowLayout {
   nodes: PlanDagFlowNode[];
@@ -124,7 +125,7 @@ function edgeId(prefix: string, from: string, to: string, index: number): string
   return `${prefix}:${from}->${to}:${index}`;
 }
 
-type DisplayEdge = Omit<PlanGraphEdge, 'kind'> & { kind: PlanGraphEdgeKind | 'synthetic' | 'lineage' };
+type DisplayEdge = Omit<HistoricalGraphEdge, 'kind'> & { kind: PlanGraphEdgeKind | 'synthetic' | 'lineage' };
 
 // Presentation only: never feed these connectors to dependency mutations.
 export function displayGraphEdges(nodes: PlanGraphNode[], edges: PlanGraphEdge[]): DisplayEdge[] {
@@ -141,7 +142,7 @@ export function displayGraphEdges(nodes: PlanGraphNode[], edges: PlanGraphEdge[]
   const incoming = new Set(forward.map((edge) => edge.to));
   const outgoing = new Set(forward.map((edge) => edge.from));
   const anchors = nodes.filter((node) => node.category === 'control' && (node.control_kind === 'start' || node.control_kind === 'end'));
-  const body = nodes.filter((node) => !anchors.includes(node));
+  const body = nodes.filter((node) => !anchors.includes(node) && node.task_status !== 'discarded' && node.status !== 'discarded');
   // Only repair disconnected anchors; authoritative connected anchors stay intact.
   for (const anchor of anchors) {
     if (anchor.control_kind === 'start' && !outgoing.has(anchor.id)) {
@@ -162,9 +163,9 @@ function flowEdge(edge: DisplayEdge, index: number): PlanDagFlowEdge {
     sourceHandle: 'bottom',
     targetHandle: 'top',
     type: edge.kind === 'loopback' ? 'smoothstep' : 'step',
-    animated: edge.kind === 'loopback',
-    data: { kind: edge.kind },
-    className: `plan-flow-edge plan-flow-edge--${edge.kind}`,
+    animated: edge.kind === 'loopback' && !edge.historical,
+    data: { kind: edge.kind, historical: edge.historical },
+    className: `plan-flow-edge plan-flow-edge--${edge.kind}${edge.historical ? ' plan-flow-edge--historical' : ''}`,
     markerEnd: { type: MarkerType.ArrowClosed },
   };
 }
@@ -293,9 +294,11 @@ export function legacyNodesToGraph(nodes: PlanNode[]): { graphNodes: PlanGraphNo
   return { graphNodes, graphEdges };
 }
 
-export async function layoutLegacyFlow(nodes: PlanNode[], stages: PlanStage[] = []): Promise<PlanDagFlowLayout> {
+export async function layoutLegacyFlow(nodes: PlanNode[], stages: PlanStage[] = [], generationRead?: PlanGenerationRead, generationId?: string): Promise<PlanDagFlowLayout> {
   const { graphNodes, graphEdges } = legacyNodesToGraph(nodes);
-  const layout = await layoutGraphFlow(graphNodes, graphEdges, stages);
+  const displayEdges = withHistoricalEdges(graphNodes, graphEdges, generationRead, generationId,
+    new Set(nodes.filter((node) => node.effective === false || node.task_status === 'discarded').map((node) => node.task_id)));
+  const layout = await layoutGraphFlow(graphNodes, displayEdges, stages);
   return {
     ...layout,
     nodes: layout.nodes.map((node) => {
@@ -308,7 +311,7 @@ export async function layoutLegacyFlow(nodes: PlanNode[], stages: PlanStage[] = 
       const target = nodes.find((node) => node.task_id === edge.target);
       const source = nodes.find((node) => node.task_id === edge.source);
       if (!target || !source) return { ...edge, data: { kind: 'synthetic' } };
-      return { ...edge, data: { kind: 'seq', fromTaskId: target.task_id, toTaskId: source.task_id }, className: 'plan-flow-edge plan-flow-edge--seq' };
+      return { ...edge, data: { ...edge.data, kind: edge.data?.kind ?? 'seq', fromTaskId: target.task_id, toTaskId: source.task_id } };
     }),
   };
 }
