@@ -1,0 +1,31 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import './src/index.css';
+import '@xyflow/react/dist/style.css';
+import './src/i18n';
+import PlanDetail from './src/pages/PlanDetail';
+const tasks = [
+ {task_id:'t2213',org_ref:'T2213',title:'I166 实现 React Flow + ELK Plan DAG 迁移并交付候选',assignee_ref:'agent:agent-center-dev1',task_status:'completed',node_status:'done',depends_on:[],effective:true},
+ {task_id:'t2214',org_ref:'T2214',title:'I166 独立验收唯一 DAG 迁移候选',assignee_ref:'agent:agent-center-tester1',task_status:'failed',node_status:'failed',depends_on:['t2213'],effective:false},
+ {task_id:'t2217',org_ref:'T2217',title:'I166 整改 graph-backed 依赖线缺失及旧画布残留',assignee_ref:'agent:agent-center-dev1',task_status:'completed',node_status:'done',depends_on:['t2213'],effective:true},
+ {task_id:'t2223',org_ref:'T2223',title:'I166 集成已验收候选及证据到 main',assignee_ref:'agent:integration-dev',task_status:'completed',node_status:'done',depends_on:['t2217'],effective:true},
+];
+const plan = {id:'review',project_id:'review',name:'I166 Plan DAG — 前端回归样例',description:'',status:'done',version:1,creator_ref:'user:owner',created_at:'2026-09-17T00:00:00Z',nodes:tasks,progress:{done:3,total:3}};
+const graph={has_graph:true,nodes:[{id:'start',category:'control',control_kind:'start',title:'Start',status:'completed'},...tasks.map(t=>({...t,id:t.task_id,category:'business',status:'completed',follows_task_id:t.task_id==='t2217'?'t2214':undefined})),{id:'end',category:'control',control_kind:'end',title:'End',status:'completed'}],edges:[{from:'start',to:'t2213',kind:'seq'},...tasks.flatMap(t=>t.depends_on.map(from=>({from,to:t.task_id,kind:'seq'})))]};
+const nativeFetch=window.fetch;
+window.fetch=async (input,init)=>{
+ const url=String(input); if(!url.startsWith('/api'))return nativeFetch(input,init);
+ let data:any=[];
+ if(url==='/api/projects/review') data={id:'review',name:'UI regression fixture'};
+ if(url==='/api/projects/review/plans/review') data=plan;
+ if(url.endsWith('/graph'))data=graph;
+ if(url.endsWith('/generations'))data={plan_id:'review',active_generation_id:'',generations:[],nodes:tasks.map((t,i)=>({task_id:t.task_id,revision:i>1?1:0}))};
+ if(url.includes('/members'))data=[];
+ return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
+};
+// No center connection: this entry is an isolated frontend fixture.
+window.EventSource=class {addEventListener(){}removeEventListener(){}close(){}} as any;
+const client=new QueryClient({defaultOptions:{queries:{retry:false}}});
+createRoot(document.getElementById('root')!).render(<QueryClientProvider client={client}><MemoryRouter initialEntries={['/projects/review/plans/review']}><Routes><Route path="/projects/:id/plans/:planId" element={<PlanDetail/>}/></Routes></MemoryRouter></QueryClientProvider>);

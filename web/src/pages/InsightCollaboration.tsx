@@ -1853,28 +1853,28 @@ function labelFor(t: Translator, value: string): string { return t(`insight.coll
 function polarityAccentClass(polarity: CollaborationPolarity): string {
   switch (polarity) {
   case 'positive':
-    return 'border-emerald-200';
+    return 'border-status-emerald-border';
   case 'negative':
-    return 'border-rose-200';
+    return 'border-status-rose-border';
   case 'mixed':
-    return 'border-amber-200';
+    return 'border-status-amber-border';
   case 'neutral':
   default:
-    return 'border-slate-200';
+    return 'border-status-stone-border';
   }
 }
 
 function polarityPillClass(polarity: CollaborationPolarity): string {
   switch (polarity) {
   case 'positive':
-    return 'bg-emerald-100 text-emerald-800';
+    return 'bg-status-emerald-bg text-status-emerald-fg';
   case 'negative':
-    return 'bg-rose-100 text-rose-800';
+    return 'bg-status-rose-bg text-status-rose-fg';
   case 'mixed':
-    return 'bg-amber-100 text-amber-900';
+    return 'bg-status-amber-bg text-status-amber-fg';
   case 'neutral':
   default:
-    return 'bg-slate-100 text-slate-700';
+    return 'bg-status-stone-bg text-status-stone-fg';
   }
 }
 

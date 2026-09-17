@@ -2774,3 +2774,30 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
     expect(screen.queryByTestId(/plan-stage-box-/)).not.toBeInTheDocument();
   });
 });
+
+describe('I166 readable current graph and optional history', () => {
+  afterEach(cleanup);
+  it('hides superseded tasks by default, restores labeled history, and lets users toggle the minimap', async () => {
+    mockPlan({ status: 'done', nodes: [
+      { task_id: 'current', title: '当前交付', assignee_ref: 'agent:dev', task_status: 'completed', node_status: 'done', depends_on: [], effective: true },
+      { task_id: 'old', title: '历史失败', assignee_ref: 'agent:dev', task_status: 'failed', node_status: 'failed', depends_on: [], effective: false },
+    ] });
+    server.use(http.get('/api/projects/proj-a/plans/PL-1/graph', () => HttpResponse.json({ has_graph: true, nodes: [
+      { id: 'current-node', category: 'business', title: '当前交付', task_id: 'current', status: 'completed' },
+      { id: 'old-node', category: 'business', title: '历史失败', task_id: 'old', status: 'completed' },
+    ], edges: [] })));
+    wrap();
+    fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+    await waitFor(() => expect(screen.getAllByTestId('plan-graph-node')).toHaveLength(1));
+    expect(screen.getByTestId('plan-graph-node').className).not.toContain('opacity-60');
+    fireEvent.click(screen.getByTestId('plan-dag-show-history'));
+    await waitFor(() => expect(screen.getAllByTestId('plan-graph-node')).toHaveLength(2));
+    expect(screen.getByTestId('plan-node-history')).toBeInTheDocument();
+    const toggle = screen.getByTestId('plan-dag-minimap-toggle');
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  });
+});

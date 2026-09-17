@@ -263,3 +263,38 @@ describe('stageDisplayMeta — mockup stage refs', () => {
     expect(display.byGateNodeId.size).toBe(0);
   });
 });
+
+describe('I166 readability topology', () => {
+  it('places an orphan End below all leaves using presentation-only connectors', async () => {
+    const nodes = [ctrl('start', 'start'), biz('A'), biz('B'), ctrl('end', 'end')];
+    const edges = [seq('start', 'A'), seq('A', 'B')];
+    const layout = await layoutGraphFlow(nodes, edges);
+    const end = layout.nodes.find((node) => node.id === 'end')!;
+    const leaf = layout.nodes.find((node) => node.id === 'B')!;
+    expect(end.position.y).toBeGreaterThan(leaf.position.y + PLAN_DAG_NODE_H);
+    expect(layout.edges.find((edge) => edge.source === 'B' && edge.target === 'end')?.data?.kind).toBe('synthetic');
+    expect(edges).toHaveLength(2);
+  });
+
+  it('shows explicit continuation after its predecessor without turning it into a dependency', async () => {
+    const layout = await layoutGraphFlow([biz('A'), { ...biz('B'), follows_task_id: 'task-A' }], []);
+    expect(layout.edges).toHaveLength(1);
+    expect(layout.edges[0].data?.kind).toBe('lineage');
+    expect(layout.nodes[1].position.y).toBeGreaterThan(layout.nodes[0].position.y);
+  });
+
+  it('preserves existing anchors and loopback edges without duplicating dependencies', async () => {
+    const nodes = [ctrl('start', 'start'), biz('A'), { ...biz('B'), follows_task_id: 'task-A' }, ctrl('end', 'end')];
+    const edges: PlanGraphEdge[] = [seq('start', 'A'), seq('A', 'B'), seq('B', 'end'), { from: 'B', to: 'A', kind: 'loopback' }];
+    const layout = await layoutGraphFlow(nodes, edges);
+    expect(layout.edges).toHaveLength(4);
+    expect(layout.edges.map((edge) => edge.data?.kind)).toEqual(['seq', 'seq', 'seq', 'loopback']);
+  });
+
+  it('connects an orphan Start and End while ignoring dangling lineage and loopbacks for roots/leaves', async () => {
+    const nodes = [ctrl('start', 'start'), { ...biz('A'), follows_task_id: 'missing' }, biz('B'), ctrl('end', 'end')];
+    const layout = await layoutGraphFlow(nodes, [seq('A', 'B'), { from: 'B', to: 'A', kind: 'loopback' }, seq('gone', 'A')]);
+    expect(layout.edges.filter((edge) => edge.data?.kind === 'synthetic').map((edge) => `${edge.source}->${edge.target}`)).toEqual(['start->A', 'B->end']);
+    expect(layout.edges).toHaveLength(4);
+  });
+});

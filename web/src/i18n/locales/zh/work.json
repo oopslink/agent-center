@@ -261,7 +261,11 @@
           "verdictWithOutcome": "{{outcome}} {{id}}",
           "continuation": "continuation {{id}}",
           "stageRevisionTitle": "{{revision}} 由后续 DAG evolution revision 新增"
-        }
+        },
+        "showHistory": "显示已替代的历史节点（{{count}}）",
+        "historical": "历史",
+        "displayEdges": "虚线：展示连接 · 紫色虚线：后续承接（非依赖）",
+        "minimap": "小地图"
       },
       "actions": {
         "menu": "操作",

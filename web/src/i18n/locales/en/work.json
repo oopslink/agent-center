@@ -261,7 +261,11 @@
           "verdictWithOutcome": "{{outcome}} {{id}}",
           "continuation": "continuation {{id}}",
           "stageRevisionTitle": "{{revision}} added by a later DAG evolution revision"
-        }
+        },
+        "showHistory": "Show superseded history ({{count}})",
+        "historical": "Historical",
+        "displayEdges": "Dashed: display connector · Purple dashed: continuation (not a dependency)",
+        "minimap": "Minimap"
       },
       "actions": {
         "menu": "Actions",

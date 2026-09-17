@@ -15,6 +15,9 @@ import {
   type EdgeProps,
   type NodeProps,
   useReactFlow,
+  getNodesBounds,
+  getViewportForBounds,
+  useStore,
 } from '@xyflow/react';
 import { OrgLink, orgPath, useOptionalOrgContext } from '@/OrgContext';
 import { useProject, useProjectMembers } from '@/api/projects';
@@ -1938,13 +1941,9 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
 
 const NODE_STATE_ORDER: PlanNodeStatus[] = ['blocked', 'ready', 'dispatched', 'running', 'paused', 'done', 'failed'];
 
-// nodeVisualCls (mockup `.node.n-running` / `.node.n-done`): a running node gets a
-// soft status-colored glow ring (draws the eye to active work); a terminal `done`
-// node dims to 60% opacity (reads as "settled", not competing with active nodes).
-// Additive to the card's own status border — never replaces it.
+// Highlight active work without reducing readability of completed tasks.
 function nodeVisualCls(status: PlanNodeStatus): string {
   if (status === 'running') return 'ring-2 ring-status-amber-border/35';
-  if (status === 'done') return 'opacity-60';
   return '';
 }
 
@@ -2957,7 +2956,9 @@ function PlanGraphDag({
 }): React.ReactElement {
   const { t } = useTranslation('work');
   const scale = compact ? 0.7 : 1;
-  const graphNodes = graph.nodes;
+  const [showHistory, setShowHistory] = useState(false);
+  const historicalTaskIds = useMemo(() => new Set((plan.nodes ?? []).filter((node) => node.effective === false).map((node) => node.task_id)), [plan.nodes]);
+  const graphNodes = useMemo(() => showHistory ? graph.nodes : graph.nodes.filter((node) => !node.task_id || !historicalTaskIds.has(node.task_id)), [graph.nodes, historicalTaskIds, showHistory]);
   const graphEdges = graph.edges;
 
   // §7: group the canvas by Plan Stage when the plan has any (T981 follow-up).
@@ -3028,7 +3029,7 @@ function PlanGraphDag({
 
   const topologyKey = useMemo(
     () => [
-      nodes.map((node) => node.id).sort().join(','),
+      nodes.map((node) => `${node.id}:${node.follows_task_id ?? ''}`).sort().join(','),
       topologyEdges.map((edge) => `${edge.from}->${edge.to}:${edge.kind}`).sort().join(','),
       visibleStages.map((stage) => `${stage.id}:${stage.members.map((member) => member.task_id).join('.')}:${stage.depends_on_stages.join('.')}`).join(','),
     ].join('|'),
@@ -3043,7 +3044,8 @@ function PlanGraphDag({
     nodeStatusOf,
     generationNodeOf,
     stageDisplay,
-  }), [generationNodeOf, nodeStatusOf, projectId, stageDisplay]);
+    historicalTaskIds: historicalGeneration ? undefined : historicalTaskIds,
+  }), [generationNodeOf, nodeStatusOf, projectId, stageDisplay, historicalGeneration, historicalTaskIds]);
   const currentFlowNodes = useMemo(
     () => (flowLayout ? refreshGraphFlowNodes(flowLayout.nodes, nodes, visibleStages) : []),
     [flowLayout, nodes, visibleStages],
@@ -3069,6 +3071,11 @@ function PlanGraphDag({
           selectedGeneration={effectiveGeneration}
           onSelectGeneration={selectEvolutionGeneration}
         />
+        {!historicalGeneration && historicalTaskIds.size > 0 && (
+          <button type="button" role="switch" aria-checked={showHistory} onClick={() => setShowHistory((show) => !show)} data-testid="plan-dag-show-history" className={`mb-2 flex items-center gap-2 self-start rounded border px-2 py-1 text-xs ${showHistory ? 'border-accent bg-accent text-white' : 'border-border-strong text-text-secondary'}`}>
+            {t('plan.detail.dag.showHistory', { count: historicalTaskIds.size })}
+          </button>
+        )}
         <MobileStageGateAudits stages={visibleStages} error={stagesQuery.isError} />
         {/* Mobile: a simple ordered list of nodes by flow level. */}
         <ol className="mt-1 space-y-1.5 md:hidden" data-testid="plan-graph-stepper">
@@ -3516,6 +3523,7 @@ type PlanFlowNodeUi = {
   onStartConnect?: (taskId: string) => void;
   onTargetActivate?: (taskId: string) => void;
   stageDisplay?: ReturnType<typeof stageDisplayMeta>;
+  historicalTaskIds?: Set<string>;
 };
 
 type PlanFlowEdgeUi = {
@@ -3567,14 +3575,21 @@ function withEdgeUi(edges: PlanDagFlowEdge[], ui: PlanFlowEdgeUi): PlanDagFlowEd
   }));
 }
 
-function PlanFlowFitView({ topologyKey }: { topologyKey: string }) {
-  const { fitView } = useReactFlow();
+function PlanFlowFitView({ topologyKey, nodes }: { topologyKey: string; nodes: PlanDagFlowNode[] }) {
+  const { setViewport } = useReactFlow();
+  const width = useStore((state) => state.width);
+  const height = useStore((state) => state.height);
   const fitted = useRef<string | null>(null);
   useEffect(() => {
-    if (fitted.current === topologyKey) return;
-    fitted.current = topologyKey;
-    window.requestAnimationFrame(() => fitView({ padding: 0.18, duration: 180 }));
-  }, [fitView, topologyKey]);
+    if (!width || !height || !nodes.length) return;
+    const key = `${topologyKey}:${width}:${height}`;
+    if (fitted.current === key) return;
+    // ELK has already sized every card and stage. Use the new layout directly;
+    // React Flow's measured internals can still describe the previous layout.
+    const bounds = getNodesBounds(nodes.filter((node) => !node.parentId));
+    fitted.current = key;
+    void setViewport(getViewportForBounds(bounds, width, height, 0.05, 1.5, 0.12), { duration: 180 });
+  }, [setViewport, topologyKey, nodes, width, height]);
   return null;
 }
 
@@ -3601,6 +3616,7 @@ function PlanFlowCanvas({
     control: PlanFlowControlNode,
   }), []);
   const edgeTypes = useMemo(() => ({ plan: PlanFlowEdge }), []);
+  const [showMiniMap, setShowMiniMap] = useState(false);
   const onCanvasMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement | null;
@@ -3642,15 +3658,15 @@ function PlanFlowCanvas({
             panOnDrag
             zoomOnScroll
             zoomOnPinch
-            minZoom={0.2}
+            minZoom={0.05}
             maxZoom={1.5}
             fitView
             data-testid="plan-dag-reactflow"
           >
             <Background color="var(--color-border)" gap={24} size={1} />
             <Controls position="top-right" showInteractive={false} fitViewOptions={{ padding: 0.18 }} />
-            <MiniMap pannable zoomable position="bottom-right" nodeStrokeWidth={2} />
-            <PlanFlowFitView topologyKey={topologyKey} />
+            {showMiniMap && <MiniMap pannable zoomable position="bottom-right" nodeStrokeWidth={2} style={{ width: 140, height: 90 }} />}
+            <PlanFlowFitView nodes={nodes} topologyKey={`${topologyKey}:${compact}:${nodes.map((node) => `${node.id}:${node.position.x}:${node.position.y}:${node.width}:${node.height}`).join('|')}`} />
             {children}
           </ReactFlow>
           <svg className="hidden" aria-hidden="true" data-testid="plan-dag-svg">
@@ -3695,6 +3711,8 @@ function PlanFlowCanvas({
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-4 border-t border-border-base bg-bg-elevated px-3.5 py-2" data-testid="plan-dag-canvas-legend-bar">
         {legend}
+        <span className="text-[0.6875rem] text-text-secondary">{t('plan.detail.dag.displayEdges')}</span>
+        <button type="button" aria-pressed={showMiniMap} onClick={() => setShowMiniMap((show) => !show)} className="ml-auto rounded border border-border-strong px-2 py-1 text-xs text-text-primary" data-testid="plan-dag-minimap-toggle">{t('plan.detail.dag.minimap')}</button>
         <span className="sr-only">{t('plan.detail.dag.reactFlowCanvas', { defaultValue: 'Interactive plan graph canvas' })}</span>
       </div>
     </div>
@@ -3769,6 +3787,7 @@ function PlanFlowBusinessNode({ data }: NodeProps<PlanDagFlowNode>): React.React
       assigneeRef={data.node.assignee_ref ?? ''}
       status={status}
       generationNode={ui?.generationNodeOf?.get(taskId)}
+      historical={ui?.historicalTaskIds?.has(taskId)}
       testId="plan-graph-node"
       taskIdTestId="plan-graph-node-taskid"
     />
@@ -3815,6 +3834,7 @@ function PlanFlowTaskCard({
   status,
   generationNode,
   archived,
+  historical,
   testId,
   taskIdTestId,
   isSource,
@@ -3833,6 +3853,7 @@ function PlanFlowTaskCard({
   status: PlanNodeStatus;
   generationNode?: PlanGenerationRead['nodes'][number];
   archived?: boolean;
+  historical?: boolean;
   testId: string;
   taskIdTestId: string;
   isSource?: boolean;
@@ -3860,8 +3881,8 @@ function PlanFlowTaskCard({
   }, [openTask]);
   return (
     <div
-      className={`relative h-full cursor-pointer overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-        isTarget ? 'border-accent ring-2 ring-accent' : isSource ? 'border-accent' : `${s.border} ${nodeVisualCls(status)}`
+      className={`relative flex h-full flex-col cursor-pointer overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+        isTarget ? 'border-accent ring-2 ring-accent' : isSource ? 'border-accent' : `${historical ? 'border-dashed border-border-strong' : s.border} ${nodeVisualCls(status)}`
       }`}
       style={{ width: PLAN_DAG_NODE_W, height: PLAN_DAG_NODE_H }}
       role="link"
@@ -3875,7 +3896,7 @@ function PlanFlowTaskCard({
       data-connect-target={isTarget ? 'true' : undefined}
     >
       <PlanFlowNodeHandles />
-      <span className={`absolute inset-y-0 left-0 w-1.5 ${accentCls}`} aria-hidden="true" />
+      <span className={`absolute inset-y-0 left-0 w-1.5 ${historical ? 'bg-border-strong' : accentCls}`} aria-hidden="true" />
       <div className="mb-1 flex items-center justify-between gap-1">
         <TaskIdTag taskId={taskId} orgRef={orgRef} testId={taskIdTestId} />
         <span className="inline-flex shrink-0 items-center gap-1">
@@ -3897,10 +3918,11 @@ function PlanFlowTaskCard({
           )}
         </span>
       </div>
-      <div className="mb-1.5 text-xs font-semibold text-text-primary" title={title}>
+      <div className="mb-1.5 min-h-0 flex-1 text-xs font-semibold leading-4 text-text-primary" title={title}>
         <TaskTitleLink projectId={projectId} taskId={taskId} title={title} wrap />
       </div>
-      <div className="flex min-w-0 text-[0.6875rem]">
+      <div className="flex min-w-0 shrink-0 items-center justify-between gap-1 text-[0.6875rem]">
+        {historical && <span className="shrink-0 text-text-secondary" data-testid="plan-node-history">{t('plan.detail.dag.historical')}</span>}
         <AssigneeTag assigneeRef={assigneeRef} />
       </div>
       {isTarget && (
@@ -3956,11 +3978,11 @@ function PlanFlowEdge(props: EdgeProps<PlanDagFlowEdge>): React.ReactElement {
     <>
       <path
         id={id}
-        d={edgePath}
+        d={data?.route?.length ? data.route.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ') : edgePath}
         fill="none"
         markerEnd={markerEnd}
         style={style}
-        className={className}
+        className={className ?? `plan-flow-edge plan-flow-edge--${data?.kind ?? 'seq'}`}
         data-testid={edgeTestId}
         data-edge={edgeKey}
         data-edge-kind={data?.kind}

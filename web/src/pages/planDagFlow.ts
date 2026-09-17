@@ -4,13 +4,13 @@ import type { Edge as FlowEdge, Node as FlowNode } from '@xyflow/react';
 import type { PlanGraphEdge, PlanGraphEdgeKind, PlanGraphNode, PlanNode, PlanStage } from '@/api/plans';
 
 export const PLAN_DAG_NODE_W = 220;
-export const PLAN_DAG_NODE_H = 84;
+export const PLAN_DAG_NODE_H = 116;
 export const PLAN_DAG_CTRL_W = 76;
 export const PLAN_DAG_STAGE_HEADER_H = 96;
 
 const PAD_X = 36;
 const PAD_Y = 28;
-const LEVEL_GAP = 78;
+const LEVEL_GAP = 40;
 const NODE_GAP = 40;
 const elk = new ELK();
 
@@ -42,7 +42,7 @@ export interface FlowSyntheticData extends Record<string, unknown> {
 export type PlanDagFlowData = FlowStageData | FlowBusinessData | FlowControlData | FlowLegacyData | FlowSyntheticData;
 
 export type PlanDagFlowNode = FlowNode<PlanDagFlowData>;
-export type PlanDagFlowEdge = FlowEdge<{ kind: PlanGraphEdgeKind | 'synthetic'; fromTaskId?: string; toTaskId?: string }>;
+export type PlanDagFlowEdge = FlowEdge<{ kind: PlanGraphEdgeKind | 'synthetic' | 'lineage'; fromTaskId?: string; toTaskId?: string; route?: { x: number; y: number }[] }>;
 
 export interface PlanDagFlowLayout {
   nodes: PlanDagFlowNode[];
@@ -66,6 +66,7 @@ type ElkEdge = {
   id: string;
   sources: string[];
   targets: string[];
+  sections?: { id: string; startPoint: { x: number; y: number }; endPoint: { x: number; y: number }; bendPoints?: { x: number; y: number }[] }[];
 };
 
 function layoutOptions(): Record<string, string> {
@@ -93,7 +94,7 @@ function stageLayoutOptions(): Record<string, string> {
 function nodeSize(node: PlanGraphNode): { width: number; height: number } {
   return {
     width: node.category === 'control' ? PLAN_DAG_CTRL_W : PLAN_DAG_NODE_W,
-    height: PLAN_DAG_NODE_H,
+    height: node.category === 'control' ? PLAN_DAG_CTRL_W : PLAN_DAG_NODE_H,
   };
 }
 
@@ -123,7 +124,37 @@ function edgeId(prefix: string, from: string, to: string, index: number): string
   return `${prefix}:${from}->${to}:${index}`;
 }
 
-function flowEdge(edge: PlanGraphEdge, index: number): PlanDagFlowEdge {
+type DisplayEdge = Omit<PlanGraphEdge, 'kind'> & { kind: PlanGraphEdgeKind | 'synthetic' | 'lineage' };
+
+// Presentation only: never feed these connectors to dependency mutations.
+export function displayGraphEdges(nodes: PlanGraphNode[], edges: PlanGraphEdge[]): DisplayEdge[] {
+  const ids = new Set(nodes.map((node) => node.id));
+  const result: DisplayEdge[] = edges.filter((edge) => ids.has(edge.from) && ids.has(edge.to));
+  const byTask = new Map(nodes.filter((node) => node.task_id).map((node) => [node.task_id, node.id]));
+  for (const node of nodes) {
+    const predecessor = node.follows_task_id ? byTask.get(node.follows_task_id) : undefined;
+    if (predecessor && predecessor !== node.id && !result.some((edge) => edge.from === predecessor && edge.to === node.id)) {
+      result.push({ from: predecessor, to: node.id, kind: 'lineage' });
+    }
+  }
+  const forward = result.filter((edge) => edge.kind !== 'loopback');
+  const incoming = new Set(forward.map((edge) => edge.to));
+  const outgoing = new Set(forward.map((edge) => edge.from));
+  const anchors = nodes.filter((node) => node.category === 'control' && (node.control_kind === 'start' || node.control_kind === 'end'));
+  const body = nodes.filter((node) => !anchors.includes(node));
+  // Only repair disconnected anchors; authoritative connected anchors stay intact.
+  for (const anchor of anchors) {
+    if (anchor.control_kind === 'start' && !outgoing.has(anchor.id)) {
+      for (const root of body.filter((node) => !incoming.has(node.id))) result.push({ from: anchor.id, to: root.id, kind: 'synthetic' });
+    }
+    if (anchor.control_kind === 'end' && !incoming.has(anchor.id)) {
+      for (const leaf of body.filter((node) => !outgoing.has(node.id))) result.push({ from: leaf.id, to: anchor.id, kind: 'synthetic' });
+    }
+  }
+  return result;
+}
+
+function flowEdge(edge: DisplayEdge, index: number): PlanDagFlowEdge {
   return {
     id: edgeId('graph', edge.from, edge.to, index),
     source: edge.from,
@@ -139,8 +170,7 @@ function flowEdge(edge: PlanGraphEdge, index: number): PlanDagFlowEdge {
 }
 
 export async function layoutGraphFlow(nodes: PlanGraphNode[], edges: PlanGraphEdge[], stages: PlanStage[] = []): Promise<PlanDagFlowLayout> {
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const validEdges = edges.filter((edge) => nodeById.has(edge.from) && nodeById.has(edge.to));
+  const validEdges = displayGraphEdges(nodes, edges);
   const nodeStage = toStageMemberMap(nodes, stages);
   const staged = stages.length > 0;
 
@@ -160,14 +190,16 @@ export async function layoutGraphFlow(nodes: PlanGraphNode[], edges: PlanGraphEd
     children.push(...nodes.map((node) => ({ id: node.id, ...nodeSize(node) })));
   }
 
+  const forwardEdges = validEdges.filter((edge) => edge.kind !== 'loopback');
   const graph: ElkNode = {
     id: 'root',
     layoutOptions: layoutOptions(),
     children,
-    edges: validEdges.map((edge, index) => ({ id: edgeId('elk', edge.from, edge.to, index), sources: [edge.from], targets: [edge.to] })),
+    edges: forwardEdges.map((edge, index) => ({ id: edgeId('elk', edge.from, edge.to, index), sources: [edge.from], targets: [edge.to] })),
   };
   const laidOut = await elk.layout(graph);
   const absolute = toAbsolute(laidOut as ElkNode);
+  const routes = new Map((laidOut.edges as ElkEdge[] | undefined)?.map((edge) => [edge.id, edge.sections?.[0]]));
 
   const flowNodes: PlanDagFlowNode[] = [];
   if (staged) {
@@ -208,7 +240,16 @@ export async function layoutGraphFlow(nodes: PlanGraphNode[], edges: PlanGraphEd
 
   return {
     nodes: flowNodes,
-    edges: validEdges.map(flowEdge),
+    edges: validEdges.map((edge, index) => {
+      const flow = flowEdge(edge, index);
+      // Flat ELK routes avoid intervening cards on long dependencies. Compound
+      // stage routes use container-local coordinates and keep the existing path.
+      if (!staged && edge.kind !== 'loopback') {
+        const section = routes.get(edgeId('elk', edge.from, edge.to, forwardEdges.indexOf(edge)));
+        if (section) flow.data = { ...flow.data!, route: [section.startPoint, ...(section.bendPoints ?? []), section.endPoint] };
+      }
+      return flow;
+    }),
     width: Math.max(laidOut.width ?? 0, 200),
     height: Math.max(laidOut.height ?? 0, 180),
   };

@@ -15,7 +15,7 @@
 
 .plan-flow {
   --xy-background-color: var(--color-bg-subtle);
-  --xy-edge-stroke: var(--color-border-strong);
+  --xy-edge-stroke: var(--color-text-secondary);
   --xy-edge-stroke-width: 1.6;
   --xy-controls-button-background-color: var(--color-bg-elevated);
   --xy-controls-button-color: var(--color-text-secondary);
@@ -28,7 +28,8 @@
 }
 
 .plan-flow-edge {
-  stroke: var(--color-border-strong);
+  stroke: var(--color-text-secondary);
+  stroke-width: 1.6;
 }
 
 .plan-flow-edge--conditional {
@@ -40,8 +41,13 @@
   stroke-dasharray: 5 3;
 }
 
+.plan-flow-edge--lineage {
+  stroke: var(--color-accent);
+  stroke-dasharray: 6 4;
+}
+
 .plan-flow-edge--synthetic {
-  stroke: var(--color-border);
+  stroke: var(--color-text-secondary);
   stroke-dasharray: 4 3;
 }
 
