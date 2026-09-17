@@ -2832,3 +2832,44 @@ describe('I166 readable current graph and optional history', () => {
     expect(toggle).toHaveAttribute('aria-pressed', 'false');
   });
 });
+
+it('shows cancellation-only R3 decisions on original R1 cards and keeps historical flow anchors', async () => {
+  const tasks = [
+    { task_id: 'review', node_id: 'review-node', org_ref: 'T2214', title: 'Review', status: 'failed', assignee_ref: 'agent:dev' },
+    { task_id: 'ship', node_id: 'ship-node', org_ref: 'T2215', title: 'Ship', status: 'open', assignee_ref: 'agent:dev' },
+    { task_id: 'publish', node_id: 'publish-node', org_ref: 'T2216', title: 'Publish', status: 'open', assignee_ref: 'agent:dev' },
+  ];
+  const generations = [0, 1, 2, 3].map((revision) => ({
+    id: `g${revision}`, parent_generation_id: revision ? `g${revision-1}` : '', revision,
+    active: revision === 3, reason: 'Generation change', evidence: 'Review result', created_at: '2026-09-17T00:00:00Z',
+    diff: { tasks: [], edges: [], node_decisions: revision === 2 ? [
+      { task_id: 'ship', action: 'supersede', reason: 'Old candidate rejected' },
+      { task_id: 'publish', action: 'supersede', reason: 'Old candidate rejected' },
+    ] : [] },
+    snapshot: {
+      tasks: tasks.map((task) => ({ ...task, status: revision >= 2 && task.task_id !== 'review' ? 'discarded' : task.status })),
+      edges: revision < 2 ? [{ from_task_id: 'ship', to_task_id: 'review', kind: 'seq' }, { from_task_id: 'publish', to_task_id: 'ship', kind: 'seq' }] : [],
+      dispatch_records: [],
+    }, snapshot_progress: { done: 0, total: revision >= 2 ? 1 : 3 },
+  }));
+  mockPlan({ generation_read: { active_generation_id: 'g3', generations, nodes: tasks.map((task) => ({task_id: task.task_id, revision: 0})) } });
+  server.use(
+    http.get('/api/projects/proj-a/plans/PL-1/graph', () => HttpResponse.json({ has_graph: true, nodes: tasks.map((task) => ({ ...task, id: task.node_id, category: 'business' })), edges: [] })),
+    http.get('/api/projects/proj-a/plans/PL-1/stages', () => HttpResponse.json({ stages: [] })),
+  );
+  wrap();
+  fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+  fireEvent.click(await screen.findByTestId('plan-dag-evolution-revision-3'));
+  expect(await screen.findByTestId('plan-generation-changes')).toHaveTextContent('R3 adds no tasks');
+  expect(screen.getByTestId('plan-generation-changes')).toHaveTextContent('T2215 · Cancelled in R3');
+  await waitFor(() => expect(screen.getAllByTestId('plan-node-generation-decision')).toHaveLength(2));
+  const ship = screen.getAllByTestId('plan-graph-node').find((node) => node.getAttribute('data-task-id') === 'ship')!;
+  expect(ship).toHaveAttribute('data-generation', '0');
+  expect(ship).toHaveTextContent('Cancelled in R3');
+  await waitFor(() => expect(screen.getAllByTestId('plan-graph-control-node')).toHaveLength(2));
+  expect(screen.getAllByTestId('plan-graph-control-node').map((node) => node.getAttribute('data-control-kind')).sort()).toEqual(['end','start']);
+  expect(screen.getAllByTestId('plan-graph-edge').some((edge) => edge.getAttribute('data-edge') === 'review-node->ship-node')).toBe(true);
+  fireEvent.click(screen.getByTestId('plan-dag-evolution-revision-1'));
+  await waitFor(() => expect(screen.queryByTestId('plan-node-generation-decision')).not.toBeInTheDocument());
+  expect(screen.queryByTestId('plan-generation-changes')).not.toBeInTheDocument();
+});

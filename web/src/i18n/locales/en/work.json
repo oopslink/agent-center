@@ -274,7 +274,13 @@
         "readable": "100% · Focus selected generation",
         "generationSemantics": "Tinted: added in selected generation · Plain: retained · Dashed border: historical/discarded",
         "historicalEdge": "Historical dependency · inactive; not used for execution",
-        "inactiveEdge": "Inactive"
+        "inactiveEdge": "Inactive",
+        "noNewTasks": "{{revision}} adds no tasks; changes to existing tasks:",
+        "decision": {
+          "supersede": "Cancelled in {{revision}}",
+          "preserve": "Retained in {{revision}}",
+          "hold_at_gate": "Held at gate in {{revision}}"
+        }
       },
       "actions": {
         "menu": "Actions",

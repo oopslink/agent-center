@@ -2259,6 +2259,7 @@ interface DagEvolutionRevision {
   active?: boolean;
   progress?: { done: number; total: number };
   diff?: PlanGenerationDiff;
+  changes?: Array<{ taskId: string; label: string; action: string; reason?: string }>;
   idempotencyKey?: string;
   generationId?: string;
   parentGenerationId?: string;
@@ -2307,6 +2308,10 @@ function buildGenerationEvolutionRevisions(
       active: gen.id === generationRead.active_generation_id,
       progress: gen.snapshot_progress,
       diff: gen.diff,
+      changes: (gen.diff?.node_decisions ?? []).map((decision) => {
+        const task = gen.snapshot.tasks.find((task) => task.task_id === decision.task_id);
+        return { taskId: decision.task_id, label: task?.org_ref || task?.title || decision.task_id, action: decision.action, reason: decision.reason };
+      }),
       idempotencyKey: gen.idempotency_key,
       generationId: gen.id,
       parentGenerationId: gen.parent_generation_id,
@@ -2380,10 +2385,10 @@ export function snapshotPlanNodes(generation: PlanGeneration | undefined): PlanN
   });
 }
 
-function snapshotPlanGraph(generation: PlanGeneration | undefined): { nodes: PlanGraphNode[]; edges: PlanGraphEdge[] } | undefined {
+export function snapshotPlanGraph(generation: PlanGeneration | undefined): { nodes: PlanGraphNode[]; edges: PlanGraphEdge[] } | undefined {
   if (!generation) return undefined;
   const nodeIdByTask = new Map<string, string>();
-  const nodes = generation.snapshot.tasks.map((task) => {
+  const nodes: PlanGraphNode[] = generation.snapshot.tasks.map((task) => {
     const id = task.node_id || `snapshot:${task.task_id}`;
     nodeIdByTask.set(task.task_id, id);
     return {
@@ -2406,6 +2411,12 @@ function snapshotPlanGraph(generation: PlanGeneration | undefined): { nodes: Pla
     const kind: PlanGraphEdgeKind = edge.kind === 'conditional' || edge.kind === 'loopback' ? edge.kind : 'seq';
     return [{ from, to, kind }];
   });
+  if (nodes.length) {
+    nodes.push(
+      { id: '__snapshot_start__', category: 'control', control_kind: 'start', title: 'Start', status: 'open' },
+      { id: '__snapshot_end__', category: 'control', control_kind: 'end', title: 'End', status: 'open' },
+    );
+  }
   return { nodes, edges };
 }
 
@@ -2750,6 +2761,19 @@ function DagEvolutionPanel({
             ? t('plan.detail.dag.currentPerspective', { revision: selected.label })
             : t('plan.detail.dag.snapshotPerspective', { revision: selected.label, time: selected.createdAt ? fullDateTime(selected.createdAt) : t('plan.detail.dag.unknownTime') })}
         </p>
+        {!!selected.changes?.length && (
+          <div className="space-y-1 px-3 pb-2 text-xs text-text-secondary" data-testid="plan-generation-changes">
+            {!selected.diff?.tasks?.length && <p className="font-semibold text-text-primary">{t('plan.detail.dag.noNewTasks', { revision: selected.label })}</p>}
+            <div className="flex flex-wrap gap-1.5">
+              {selected.changes.map((change) => (
+                <span key={change.taskId} title={change.reason} style={generationStyle(selected.generation)}
+                  className="plan-generation plan-generation-badge rounded px-2 py-1" data-task-id={change.taskId}>
+                  {change.label} · {t(`plan.detail.dag.decision.${change.action}`, { revision: selected.label })}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="h-1 bg-bg-subtle" aria-hidden="true">
           <span className="block h-full bg-accent transition-[width]" style={{ width: `${progressPct}%` }} />
         </div>
@@ -3058,6 +3082,9 @@ function PlanGraphDag({
     return m;
   }, [historicalGeneration, historicalPlanNodes, plan.nodes]);
   const generationNodeOf = useMemo(() => generationNodeMap(generationRead), [generationRead]);
+  const generationDecisions = useMemo(() => new Map(
+    (generationAtRevision(generationRead, effectiveGeneration)?.diff?.node_decisions ?? []).map((decision) => [decision.task_id, decision]),
+  ), [generationRead, effectiveGeneration]);
 
   const topologyKey = useMemo(
     () => [
@@ -3078,7 +3105,8 @@ function PlanGraphDag({
     stageDisplay,
     historicalTaskIds: historicalGeneration ? new Set(historicalPlanNodes.filter((node) => !node.effective).map((node) => node.task_id)) : historicalTaskIds,
     selectedRevision: effectiveGeneration,
-  }), [generationNodeOf, nodeStatusOf, projectId, stageDisplay, historicalGeneration, historicalTaskIds, historicalPlanNodes, effectiveGeneration]);
+    generationDecisions,
+  }), [generationNodeOf, nodeStatusOf, projectId, stageDisplay, historicalGeneration, historicalTaskIds, historicalPlanNodes, effectiveGeneration, generationDecisions]);
   const currentFlowNodes = useMemo(
     () => (flowLayout ? refreshGraphFlowNodes(flowLayout.nodes, nodes, visibleStages) : []),
     [flowLayout, nodes, visibleStages],
@@ -3549,6 +3577,7 @@ type PlanFlowNodeUi = {
   projectId: string;
   nodeStatusOf?: Map<string, PlanNodeStatus>;
   generationNodeOf?: Map<string, PlanGenerationRead['nodes'][number]>;
+  generationDecisions?: Map<string, PlanGenerationDiff['node_decisions'][number]>;
   canEditDependencies?: boolean;
   connectFrom?: string | null;
   dropTargets?: Set<string>;
@@ -3631,7 +3660,7 @@ function PlanFlowFitView({ topologyKey, nodes }: { topologyKey: string; nodes: P
     const selected = tasks.filter((node) => {
       const ui = (node.data as PlanDagFlowData & { ui?: PlanFlowNodeUi }).ui;
       const taskId = node.data.kind === 'business' || node.data.kind === 'legacy' ? node.data.node.task_id : undefined;
-      return !!taskId && ui?.selectedRevision != null && ui.generationNodeOf?.get(taskId)?.revision === ui.selectedRevision;
+      return !!taskId && ui?.selectedRevision != null && (ui.generationDecisions?.has(taskId) || ui.generationNodeOf?.get(taskId)?.revision === ui.selectedRevision);
     });
     const target = (selected.length ? selected : tasks).slice().sort((a, b) => a.position.y - b.position.y)[0];
     if (!target) return;
@@ -3853,6 +3882,7 @@ function PlanFlowBusinessNode({ data }: NodeProps<PlanDagFlowNode>): React.React
       assigneeRef={data.node.assignee_ref ?? ''}
       status={status}
       selectedRevision={ui?.selectedRevision}
+      generationDecision={ui?.generationDecisions?.get(taskId)}
       generationNode={ui?.generationNodeOf?.get(taskId)}
       historical={ui?.historicalTaskIds?.has(taskId)}
       testId="plan-graph-node"
@@ -3878,6 +3908,7 @@ function PlanFlowLegacyNode({ data }: NodeProps<PlanDagFlowNode>): React.ReactEl
       assigneeRef={data.node.assignee_ref}
       status={data.node.task_status === 'discarded' ? 'discarded' : data.node.node_status}
       selectedRevision={ui?.selectedRevision}
+      generationDecision={ui?.generationDecisions?.get(taskId)}
       generationNode={ui?.generationNodeOf?.get(taskId)}
       archived={data.node.archived}
       testId="plan-dag-node"
@@ -3904,6 +3935,7 @@ function PlanFlowTaskCard({
   archived,
   historical,
   selectedRevision,
+  generationDecision,
   testId,
   taskIdTestId,
   isSource,
@@ -3924,6 +3956,7 @@ function PlanFlowTaskCard({
   archived?: boolean;
   historical?: boolean;
   selectedRevision?: number;
+  generationDecision?: PlanGenerationDiff['node_decisions'][number];
   testId: string;
   taskIdTestId: string;
   isSource?: boolean;
@@ -3999,8 +4032,13 @@ function PlanFlowTaskCard({
       <div className="mb-1.5 min-h-0 flex-1 text-xs font-semibold leading-4 text-text-primary" title={title}>
         <TaskTitleLink projectId={projectId} taskId={taskId} title={title} wrap />
       </div>
+      {generationDecision && selectedRevision != null && <span
+        className="plan-generation plan-generation-badge mb-0.5 shrink-0 self-start rounded px-1 text-[0.625rem]"
+        style={generationStyle(selectedRevision)} title={generationDecision.reason} data-testid="plan-node-generation-decision">
+        {t(`plan.detail.dag.decision.${generationDecision.action}`, { revision: `R${selectedRevision + 1}` })}
+      </span>}
       <div className="flex min-w-0 shrink-0 items-center justify-between gap-1 text-[0.6875rem]">
-        {(historical || status === 'discarded') && <span className="shrink-0 text-text-secondary" data-testid="plan-node-history">{t('plan.detail.dag.historical')}</span>}
+        {!generationDecision && (historical || status === 'discarded') && <span className="shrink-0 text-text-secondary" data-testid="plan-node-history">{t('plan.detail.dag.historical')}</span>}
         <AssigneeTag assigneeRef={assigneeRef} />
       </div>
       {isTarget && (
@@ -4185,6 +4223,9 @@ function LegacyPlanDag({
   }, [currentGeneration, effectiveGeneration, historicalGeneration, nodes, stages.length, visibleStages]);
   const stageDisplay = useMemo(() => stageDisplayMeta(visibleStages), [visibleStages]);
   const generationNodeOf = useMemo(() => generationNodeMap(generationRead), [generationRead]);
+  const generationDecisions = useMemo(() => new Map(
+    (generationAtRevision(generationRead, effectiveGeneration)?.diff?.node_decisions ?? []).map((decision) => [decision.task_id, decision]),
+  ), [generationRead, effectiveGeneration]);
   const isPending = plan.status === 'pending';
   const canEditDependencies = isPending && effectiveGeneration >= currentGeneration;
   // v2.9.1 UX point 2: "Compact" uniformly zooms the DAG down so a long (many-level)
@@ -4271,6 +4312,7 @@ function LegacyPlanDag({
     projectId,
     generationNodeOf,
     selectedRevision: effectiveGeneration,
+    generationDecisions,
     canEditDependencies,
     connectFrom,
     dropTargets,
@@ -4278,7 +4320,7 @@ function LegacyPlanDag({
     onStartConnect: setConnectFrom,
     onTargetActivate,
     stageDisplay,
-  }), [canEditDependencies, connectFrom, dropTargets, generationNodeOf, onTargetActivate, projectId, stageDisplay, titleOf, effectiveGeneration]);
+  }), [canEditDependencies, connectFrom, dropTargets, generationNodeOf, onTargetActivate, projectId, stageDisplay, titleOf, effectiveGeneration, generationDecisions]);
   const flowEdgeUi = useMemo<PlanFlowEdgeUi>(() => ({
     canEditDependencies,
     isPending: removeDep.isPending,

@@ -274,7 +274,13 @@
         "readable": "100% · 定位所选代",
         "generationSemantics": "色底：本代新增 · 浅底：前代保留 · 虚框：历史/撤销",
         "historicalEdge": "历史依赖 · 已失效，不参与执行",
-        "inactiveEdge": "已失效"
+        "inactiveEdge": "已失效",
+        "noNewTasks": "{{revision}} 未新增任务；本代对已有节点的调整：",
+        "decision": {
+          "supersede": "在 {{revision}} 取消",
+          "preserve": "在 {{revision}} 保留",
+          "hold_at_gate": "在 {{revision}} 留待审批"
+        }
       },
       "actions": {
         "menu": "操作",

@@ -138,11 +138,18 @@ export function displayGraphEdges(nodes: PlanGraphNode[], edges: PlanGraphEdge[]
       result.push({ from: predecessor, to: node.id, kind: 'lineage' });
     }
   }
-  const forward = result.filter((edge) => edge.kind !== 'loopback');
+  const forward = result.filter((edge) => edge.kind !== 'loopback' && edge.kind !== 'lineage' && !edge.historical);
   const incoming = new Set(forward.map((edge) => edge.to));
   const outgoing = new Set(forward.map((edge) => edge.from));
   const anchors = nodes.filter((node) => node.category === 'control' && (node.control_kind === 'start' || node.control_kind === 'end'));
   const body = nodes.filter((node) => !anchors.includes(node) && node.task_status !== 'discarded' && node.status !== 'discarded');
+  if (body.length === 0) {
+    const start = anchors.find((node) => node.control_kind === 'start');
+    const end = anchors.find((node) => node.control_kind === 'end');
+    if (start && end && !result.some((edge) => edge.from === start.id && edge.to === end.id)) {
+      result.push({ from: start.id, to: end.id, kind: 'synthetic' });
+    }
+  }
   // Only repair disconnected anchors; authoritative connected anchors stay intact.
   for (const anchor of anchors) {
     if (anchor.control_kind === 'start' && !outgoing.has(anchor.id)) {
