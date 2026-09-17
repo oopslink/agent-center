@@ -27,3 +27,9 @@ pnpm exec vite --config i166-vite.config.ts --host 127.0.0.1 --port 5198
 - 展开/收起历史及改变窗口尺寸后，结束节点仍在画布内部；该项曾在首次验证失败，已改为按最新 ELK 尺寸适配视图。
 
 完成后删除复制到 web 根目录的三个临时文件。
+
+## Agent 名字点击回归
+
+`agent-click.png`：DAG 卡片点击 agent 名字打开详情侧栏。fixture 已提供成员名称、agent 详情、空任务与活动响应；`window.__i166Requests` 可检查请求身份。
+
+真实鼠标点击与 Enter/Space 均需验证，不能只用 dispatchEvent/fireEvent：后者绕过 pointer-events 和浏览器 hit testing。修复前按钮继承 pointer-events:none，中心点命中画布；修复后卡片 pointer-events:auto，中心点命中按钮。卡片保持不可拖动/选择，背景平移仍可用。

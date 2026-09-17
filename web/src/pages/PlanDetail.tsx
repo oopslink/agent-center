@@ -3875,13 +3875,17 @@ function PlanFlowTaskCard({
     openTask();
   }, [openTask]);
   const onCardKeyDown = useCallback((event: React.KeyboardEvent<HTMLDivElement>) => {
+    // Descendant links/buttons own Enter and Space; only the card itself opens a task.
+    if (event.target !== event.currentTarget) return;
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
     openTask();
   }, [openTask]);
   return (
     <div
-      className={`relative flex h-full flex-col cursor-pointer overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+      // React Flow disables pointer events on non-selectable/non-draggable wrappers.
+      // Restore hit testing for the card controls without enabling node manipulation.
+      className={`pointer-events-auto nopan relative flex h-full flex-col cursor-pointer overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
         isTarget ? 'border-accent ring-2 ring-accent' : isSource ? 'border-accent' : `${historical ? 'border-dashed border-border-strong' : s.border} ${nodeVisualCls(status)}`
       }`}
       style={{ width: PLAN_DAG_NODE_W, height: PLAN_DAG_NODE_H }}

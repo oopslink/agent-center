@@ -500,6 +500,30 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(await screen.findByTestId('sender-sidebar')).toBeInTheDocument();
   });
 
+  it('keeps agent keyboard activation separate from the task card action', async () => {
+    mockPlan();
+    const open = vi.spyOn(window, 'open').mockImplementation(() => null);
+    try {
+      wrap();
+      fireEvent.click(await screen.findByTestId('plan-tab-dag'));
+      const cards = await screen.findAllByTestId('plan-dag-node');
+      const assignee = within(cards[0]).getByTestId('plan-node-assignee');
+      for (const key of ['Enter', ' ']) {
+        const notCancelled = fireEvent.keyDown(assignee, { key });
+        expect(notCancelled).toBe(true);
+        expect(open).not.toHaveBeenCalled();
+      }
+      fireEvent.click(assignee);
+      expect(await screen.findByTestId('sender-sidebar')).toBeInTheDocument();
+      expect(open).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByTestId('sender-sidebar-close'));
+      fireEvent.keyDown(cards[0], { key: 'Enter' });
+      expect(open).toHaveBeenCalledTimes(1);
+    } finally {
+      open.mockRestore();
+    }
+  });
+
   it('point 2: compact toggle zooms the DAG down so a long plan fits', async () => {
     mockPlan();
     wrap();

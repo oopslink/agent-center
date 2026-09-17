@@ -15,14 +15,20 @@ const tasks = [
 const plan = {id:'review',project_id:'review',name:'I166 Plan DAG — 前端回归样例',description:'',status:'done',version:1,creator_ref:'user:owner',created_at:'2026-09-17T00:00:00Z',nodes:tasks,progress:{done:3,total:3}};
 const graph={has_graph:true,nodes:[{id:'start',category:'control',control_kind:'start',title:'Start',status:'completed'},...tasks.map(t=>({...t,id:t.task_id,category:'business',status:'completed',follows_task_id:t.task_id==='t2217'?'t2214':undefined})),{id:'end',category:'control',control_kind:'end',title:'End',status:'completed'}],edges:[{from:'start',to:'t2213',kind:'seq'},...tasks.flatMap(t=>t.depends_on.map(from=>({from,to:t.task_id,kind:'seq'})))]};
 const nativeFetch=window.fetch;
+(window as any).__i166Requests=[];
 window.fetch=async (input,init)=>{
+ (window as any).__i166Requests.push(String(input));
  const url=String(input); if(!url.startsWith('/api'))return nativeFetch(input,init);
  let data:any=[];
  if(url==='/api/projects/review') data={id:'review',name:'UI regression fixture'};
  if(url==='/api/projects/review/plans/review') data=plan;
  if(url.endsWith('/graph'))data=graph;
  if(url.endsWith('/generations'))data={plan_id:'review',active_generation_id:'',generations:[],nodes:tasks.map((t,i)=>({task_id:t.task_id,revision:i>1?1:0}))};
- if(url.includes('/members'))data=[];
+ if(url.includes('/members'))data=tasks.map(t=>({id:t.assignee_ref,identity_id:t.assignee_ref,display_name:t.assignee_ref.slice(6),kind:'agent',status:'joined',role:'member'}));
+ if(/^\/api\/agents\/[^/]+\/tasks$/.test(url))data={tasks:[]};
+ if(/^\/api\/agents\/[^/]+$/.test(url))data={id:url.split('/').pop(),name:'agent-center-dev1',description:'DAG click regression fixture',lifecycle:'running',availability:'available',model:'fixture',cli:'fixture',version:1};
+ if(url.includes('/activity'))data={activity:[],has_more:false};
+ if(url.endsWith('/concurrency'))data={agent_id:'agent-center-dev1',cap:1,active:0,queued:0,slots:[],executors:[],reachable:true,has_snapshot:true};
  return new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
 };
 // No center connection: this entry is an isolated frontend fixture.
