@@ -644,3 +644,30 @@ body {
   background-image: radial-gradient(circle, var(--color-border) 1px, transparent 1px);
   background-size: 24px 24px;
 }
+
+/* Generation identity is separate from task status; text never fades. */
+.plan-generation {
+  --plan-generation-color: hsl(var(--plan-generation-hue, 215) 58% 40%);
+  --plan-generation-tint: hsl(var(--plan-generation-hue, 215) 65% 95%);
+}
+.dark .plan-generation {
+  --plan-generation-color: hsl(var(--plan-generation-hue, 215) 68% 73%);
+  --plan-generation-tint: hsl(var(--plan-generation-hue, 215) 24% 19%);
+}
+.plan-generation-badge {
+  background: var(--plan-generation-tint);
+  color: var(--plan-generation-color);
+}
+.plan-generation-timeline { border-top: 3px solid var(--plan-generation-color); }
+.plan-generation-card { border-color: var(--plan-generation-color); }
+.plan-generation-card[data-generation-emphasis="new"] { background: var(--plan-generation-tint); }
+.plan-generation-card[data-generation-emphasis="historical"] {
+  border-style: dashed;
+  background: var(--color-bg-subtle);
+}
+.plan-generation-stripe { background: var(--plan-generation-color); }
+.plan-generation-card[data-generation-emphasis="retained"] .plan-generation-stripe { width: 3px; }
+.plan-generation-card[data-generation-emphasis="historical"] .plan-generation-stripe {
+  width: 3px;
+  background: repeating-linear-gradient(to bottom, var(--plan-generation-color) 0 4px, transparent 4px 8px);
+}

@@ -2340,6 +2340,8 @@ describe('PlanDetail — v2.30.1 PlanDag has_graph loading→true transition (Re
 
     const node = screen.getByTestId('plan-dag').querySelector('[data-testid="plan-dag-node"][data-task-id="n3"]') as HTMLElement;
     expect(within(node).getByTestId('plan-node-generation')).toHaveTextContent('R2');
+    expect(node).toHaveAttribute('data-generation-emphasis', 'new');
+    expect(screen.getByTestId('plan-generation-perspective')).toHaveTextContent('Current version');
 
     fireEvent.click(within(panel).getByTestId('plan-dag-evolution-revision-1'));
     fireEvent.click(within(panel).getByTestId('plan-dag-evolution-detail-open'));

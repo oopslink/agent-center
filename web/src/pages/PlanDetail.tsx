@@ -8,6 +8,7 @@ import {
   EdgeLabelRenderer,
   Handle,
   MiniMap,
+  Panel,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -230,7 +231,9 @@ export default function PlanDetail(): React.ReactElement {
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           {!isMobile && <PlanTitleBar plan={p} />}
           <PlanContinuationBanner continuations={p.continuations ?? []} />
-          {p.progress_control && <PlanProgressCockpit control={p.progress_control} />}
+          {p.progress_control && (p.status === 'done' || p.status === 'discarded'
+            ? <details className="px-3 text-xs text-text-secondary" data-testid="plan-terminal-diagnostics"><summary>{t('plan.detail.dag.terminalDiagnostics')} · {fullDateTime(p.progress_control.as_of)}</summary><PlanProgressCockpit control={p.progress_control} /></details>
+            : <PlanProgressCockpit control={p.progress_control} />)}
 
         {/* Tabs — Chat (default) / DAG / Task List. English-only labels (T132:
             the prior「(中文)」括注 removed). NO backlog tab (planning is on the
@@ -1926,6 +1929,12 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
       </svg>
     ),
   },
+  discarded: {
+    label: 'discarded',
+    cls: 'bg-status-stone-bg text-status-stone-fg',
+    border: 'border-status-stone-border',
+    icon: <span aria-hidden="true">−</span>,
+  },
   failed: {
     label: 'failed',
     cls: 'bg-status-rose-bg text-status-rose-fg',
@@ -1939,7 +1948,7 @@ const NODE_STATE: Record<PlanNodeStatus, NodeStateStyle> = {
   },
 };
 
-const NODE_STATE_ORDER: PlanNodeStatus[] = ['blocked', 'ready', 'dispatched', 'running', 'paused', 'done', 'failed'];
+const NODE_STATE_ORDER: PlanNodeStatus[] = ['blocked', 'ready', 'dispatched', 'running', 'paused', 'done', 'discarded', 'failed'];
 
 // Highlight active work without reducing readability of completed tasks.
 function nodeVisualCls(status: PlanNodeStatus): string {
@@ -2008,12 +2017,18 @@ function nodeRevisionLabel(node: { revision?: number }): string | null {
   return null;
 }
 
+export function generationStyle(revision?: number): React.CSSProperties | undefined {
+  if (revision == null || !Number.isFinite(revision)) return undefined;
+  return { '--plan-generation-hue': String((215 + Math.max(0, Math.trunc(revision)) * 137.508) % 360) } as React.CSSProperties;
+}
+
 function NodeGenerationBadge({ node, testId = 'plan-node-generation' }: { node: { revision?: number }; testId?: string }): React.ReactElement | null {
   const label = nodeRevisionLabel(node);
   if (!label) return null;
   return (
     <span
-      className="inline-flex shrink-0 items-center rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.5625rem] font-semibold uppercase text-status-blue-fg"
+      className="plan-generation plan-generation-badge inline-flex shrink-0 items-center rounded px-1.5 py-0.5 font-mono text-[0.5625rem] font-semibold uppercase"
+      style={generationStyle(node.revision)}
       data-testid={testId}
       title={`Generation ${label}`}
     >
@@ -2329,7 +2344,7 @@ function generationAtRevision(generationRead: PlanGenerationRead | undefined, re
   return generationRead?.generations.find((generation) => generation.revision === revision);
 }
 
-function snapshotPlanNodes(generation: PlanGeneration | undefined): PlanNode[] {
+export function snapshotPlanNodes(generation: PlanGeneration | undefined): PlanNode[] {
   if (!generation) return [];
   const taskById = new Map(generation.snapshot.tasks.map((task) => [task.task_id, task]));
   const dispatched = new Set(generation.snapshot.dispatch_records.map((record) => record.task_id));
@@ -2340,8 +2355,12 @@ function snapshotPlanNodes(generation: PlanGeneration | undefined): PlanNode[] {
   return generation.snapshot.tasks.map((task) => {
     const dependencies = dependsOn.get(task.task_id) ?? [];
     let nodeStatus: PlanNodeStatus = 'blocked';
-    if (task.status === 'completed' || task.status === 'discarded') nodeStatus = 'done';
+    if (task.status === 'completed') nodeStatus = 'done';
+    else if (task.status === 'discarded') nodeStatus = 'discarded';
+    else if (task.status === 'failed') nodeStatus = 'failed';
     else if (task.status === 'running') nodeStatus = 'running';
+    else if (task.status === 'paused') nodeStatus = 'paused';
+    else if (task.status === 'blocked') nodeStatus = 'blocked';
     else if (dispatched.has(task.task_id)) nodeStatus = 'dispatched';
     else if (dependencies.every((id) => {
       const upstream = taskById.get(id);
@@ -2355,7 +2374,7 @@ function snapshotPlanNodes(generation: PlanGeneration | undefined): PlanNode[] {
       task_status: task.status,
       node_status: nodeStatus,
       depends_on: dependencies,
-      effective: true,
+      effective: task.status !== 'discarded',
     };
   });
 }
@@ -2652,7 +2671,8 @@ function DagEvolutionPanel({
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
               <h3 className="text-sm font-semibold text-text-primary">{t('plan.detail.dag.evolution.title')}</h3>
               <span
-                className="rounded bg-status-blue-bg px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold text-status-blue-fg"
+                className="plan-generation plan-generation-badge rounded px-1.5 py-0.5 font-mono text-[0.625rem] font-semibold"
+                style={generationStyle(selected.generation)}
                 data-testid="plan-dag-evolution-active-revision"
               >
                 {selected.label}
@@ -2661,7 +2681,7 @@ function DagEvolutionPanel({
                 {t('plan.detail.dag.evolution.progress', { current: selected.label, latest: latest.label })}
               </span>
             </div>
-            <p className="mt-0.5 line-clamp-1 min-w-0 break-words text-xs text-text-secondary" data-testid="plan-dag-evolution-summary">
+            <p title={selected.title} className="mt-0.5 line-clamp-1 min-w-0 break-words text-xs text-text-secondary" data-testid="plan-dag-evolution-summary">
               <span className="font-semibold text-text-primary">{selected.title}</span>
               <span className="text-text-muted">
                 {' '}
@@ -2724,6 +2744,11 @@ function DagEvolutionPanel({
           </div>
         </div>
 
+        <p className="px-3 py-1 text-xs text-text-secondary" data-testid="plan-generation-perspective">
+          {selected.active
+            ? t('plan.detail.dag.currentPerspective', { revision: selected.label })
+            : t('plan.detail.dag.snapshotPerspective', { revision: selected.label, time: selected.createdAt ? fullDateTime(selected.createdAt) : t('plan.detail.dag.unknownTime') })}
+        </p>
         <div className="h-1 bg-bg-subtle" aria-hidden="true">
           <span className="block h-full bg-accent transition-[width]" style={{ width: `${progressPct}%` }} />
         </div>
@@ -2740,7 +2765,8 @@ function DagEvolutionPanel({
                   <button
                     key={revision.generation}
                     type="button"
-                    className={`flex h-20 w-44 shrink-0 flex-col overflow-hidden rounded-md border px-2.5 py-2 text-left transition hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                    style={{ ...generationStyle(revision.generation), borderTopColor: 'var(--plan-generation-color)' }}
+                    className={`plan-generation plan-generation-timeline flex h-20 w-44 shrink-0 flex-col overflow-hidden rounded-md border px-2.5 py-2 text-left transition hover:border-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
                       active ? 'border-accent bg-accent/10 shadow-1' : 'border-border-base bg-bg-surface'
                     }`}
                     aria-pressed={active}
@@ -2761,6 +2787,7 @@ function DagEvolutionPanel({
                     </div>
                     <div
                       className="mt-1 line-clamp-1 min-w-0 break-words text-xs font-semibold leading-4 text-text-primary"
+                      title={revision.title}
                       data-testid={`plan-dag-evolution-reason-${revision.revision}`}
                     >
                       {revision.title}
@@ -3022,7 +3049,7 @@ function PlanGraphDag({
   const historicalPlanNodes = useMemo(() => snapshotPlanNodes(historicalGeneration), [historicalGeneration]);
   const nodeStatusOf = useMemo(() => {
     const m = new Map<string, PlanNodeStatus>();
-    for (const pn of historicalGeneration ? historicalPlanNodes : (plan.nodes ?? [])) m.set(pn.task_id, pn.node_status);
+    for (const pn of historicalGeneration ? historicalPlanNodes : (plan.nodes ?? [])) m.set(pn.task_id, pn.task_status === 'discarded' ? 'discarded' : pn.task_status === 'failed' ? 'failed' : pn.node_status);
     return m;
   }, [historicalGeneration, historicalPlanNodes, plan.nodes]);
   const generationNodeOf = useMemo(() => generationNodeMap(generationRead), [generationRead]);
@@ -3044,8 +3071,9 @@ function PlanGraphDag({
     nodeStatusOf,
     generationNodeOf,
     stageDisplay,
-    historicalTaskIds: historicalGeneration ? undefined : historicalTaskIds,
-  }), [generationNodeOf, nodeStatusOf, projectId, stageDisplay, historicalGeneration, historicalTaskIds]);
+    historicalTaskIds: historicalGeneration ? new Set(historicalPlanNodes.filter((node) => !node.effective).map((node) => node.task_id)) : historicalTaskIds,
+    selectedRevision: effectiveGeneration,
+  }), [generationNodeOf, nodeStatusOf, projectId, stageDisplay, historicalGeneration, historicalTaskIds, historicalPlanNodes, effectiveGeneration]);
   const currentFlowNodes = useMemo(
     () => (flowLayout ? refreshGraphFlowNodes(flowLayout.nodes, nodes, visibleStages) : []),
     [flowLayout, nodes, visibleStages],
@@ -3524,6 +3552,7 @@ type PlanFlowNodeUi = {
   onTargetActivate?: (taskId: string) => void;
   stageDisplay?: ReturnType<typeof stageDisplayMeta>;
   historicalTaskIds?: Set<string>;
+  selectedRevision?: number;
 };
 
 type PlanFlowEdgeUi = {
@@ -3576,7 +3605,8 @@ function withEdgeUi(edges: PlanDagFlowEdge[], ui: PlanFlowEdgeUi): PlanDagFlowEd
 }
 
 function PlanFlowFitView({ topologyKey, nodes }: { topologyKey: string; nodes: PlanDagFlowNode[] }) {
-  const { setViewport } = useReactFlow();
+  const { setViewport, setCenter } = useReactFlow();
+  const { t } = useTranslation('work');
   const width = useStore((state) => state.width);
   const height = useStore((state) => state.height);
   const fitted = useRef<string | null>(null);
@@ -3590,7 +3620,23 @@ function PlanFlowFitView({ topologyKey, nodes }: { topologyKey: string; nodes: P
     fitted.current = key;
     void setViewport(getViewportForBounds(bounds, width, height, 0.05, 1.5, 0.12), { duration: 180 });
   }, [setViewport, topologyKey, nodes, width, height]);
-  return null;
+  const overview = () => setViewport(getViewportForBounds(getNodesBounds(nodes.filter((node) => !node.parentId)), width, height, 0.05, 1.5, 0.12), { duration: 180 });
+  const readable = () => {
+    const tasks = nodes.filter((node) => node.data.kind === 'business' || node.data.kind === 'legacy');
+    const selected = tasks.filter((node) => {
+      const ui = (node.data as PlanDagFlowData & { ui?: PlanFlowNodeUi }).ui;
+      const taskId = node.data.kind === 'business' || node.data.kind === 'legacy' ? node.data.node.task_id : undefined;
+      return !!taskId && ui?.selectedRevision != null && ui.generationNodeOf?.get(taskId)?.revision === ui.selectedRevision;
+    });
+    const target = (selected.length ? selected : tasks).slice().sort((a, b) => a.position.y - b.position.y)[0];
+    if (!target) return;
+    const parent = nodes.find((node) => node.id === target.parentId);
+    void setCenter(target.position.x + (parent?.position.x ?? 0) + (target.width ?? PLAN_DAG_NODE_W) / 2, target.position.y + (parent?.position.y ?? 0) + (target.height ?? PLAN_DAG_NODE_H) / 2, { zoom: 1, duration: 180 });
+  };
+  return <Panel position="top-left" className="flex gap-1 rounded bg-bg-elevated p-1 shadow-1">
+    <button type="button" onClick={() => void overview()} className="rounded border border-border-strong px-2 py-1 text-xs text-text-primary" data-testid="plan-dag-overview">{t('plan.detail.dag.overview')}</button>
+    <button type="button" onClick={readable} className="rounded border border-border-strong px-2 py-1 text-xs text-text-primary" data-testid="plan-dag-readable">{t('plan.detail.dag.readable')}</button>
+  </Panel>;
 }
 
 function PlanFlowCanvas({
@@ -3617,6 +3663,14 @@ function PlanFlowCanvas({
   }), []);
   const edgeTypes = useMemo(() => ({ plan: PlanFlowEdge }), []);
   const [showMiniMap, setShowMiniMap] = useState(false);
+  const displayEdges = useMemo(() => edges.map((edge) => {
+    if (edge.data?.kind !== 'lineage') return edge;
+    const target = nodes.find((node) => node.id === edge.target);
+    const ui = (target?.data as (PlanDagFlowData & { ui?: PlanFlowNodeUi }) | undefined)?.ui;
+    const taskId = target?.data.kind === 'business' || target?.data.kind === 'legacy' ? target.data.node.task_id : undefined;
+    const revision = taskId ? ui?.generationNodeOf?.get(taskId)?.revision : undefined;
+    return revision == null ? edge : { ...edge, className: `${edge.className ?? ''} plan-generation`, style: { ...edge.style, ...generationStyle(revision), stroke: 'var(--plan-generation-color)' } };
+  }), [edges, nodes]);
   const onCanvasMouseDown = useCallback((event: React.MouseEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
     const target = event.target as HTMLElement | null;
@@ -3649,7 +3703,7 @@ function PlanFlowCanvas({
           <ReactFlow
             className="plan-flow"
             nodes={nodes}
-            edges={edges}
+            edges={displayEdges}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             nodesDraggable={false}
@@ -3711,6 +3765,13 @@ function PlanFlowCanvas({
       </div>
       <div className="flex shrink-0 flex-wrap items-center gap-4 border-t border-border-base bg-bg-elevated px-3.5 py-2" data-testid="plan-dag-canvas-legend-bar">
         {legend}
+        {[...new Set(nodes.flatMap((node) => {
+          const ui = (node.data as PlanDagFlowData & { ui?: PlanFlowNodeUi }).ui;
+          const taskId = node.data.kind === 'business' || node.data.kind === 'legacy' ? node.data.node.task_id : undefined;
+          const revision = taskId ? ui?.generationNodeOf?.get(taskId)?.revision : undefined;
+          return revision == null ? [] : [revision];
+        }))].sort((a, b) => a - b).map((revision) => <NodeGenerationBadge key={revision} node={{ revision }} testId="plan-generation-legend" />)}
+        <span className="text-[0.6875rem] text-text-secondary">{t('plan.detail.dag.generationSemantics')}</span>
         <span className="text-[0.6875rem] text-text-secondary">{t('plan.detail.dag.displayEdges')}</span>
         <button type="button" aria-pressed={showMiniMap} onClick={() => setShowMiniMap((show) => !show)} className="ml-auto rounded border border-border-strong px-2 py-1 text-xs text-text-primary" data-testid="plan-dag-minimap-toggle">{t('plan.detail.dag.minimap')}</button>
         <span className="sr-only">{t('plan.detail.dag.reactFlowCanvas', { defaultValue: 'Interactive plan graph canvas' })}</span>
@@ -3786,6 +3847,7 @@ function PlanFlowBusinessNode({ data }: NodeProps<PlanDagFlowNode>): React.React
       title={data.node.title || refLabel(data.node.org_ref, taskId)}
       assigneeRef={data.node.assignee_ref ?? ''}
       status={status}
+      selectedRevision={ui?.selectedRevision}
       generationNode={ui?.generationNodeOf?.get(taskId)}
       historical={ui?.historicalTaskIds?.has(taskId)}
       testId="plan-graph-node"
@@ -3809,7 +3871,8 @@ function PlanFlowLegacyNode({ data }: NodeProps<PlanDagFlowNode>): React.ReactEl
       orgRef={data.node.org_ref}
       title={data.node.title || refLabel(data.node.org_ref, taskId)}
       assigneeRef={data.node.assignee_ref}
-      status={data.node.node_status}
+      status={data.node.task_status === 'discarded' ? 'discarded' : data.node.node_status}
+      selectedRevision={ui?.selectedRevision}
       generationNode={ui?.generationNodeOf?.get(taskId)}
       archived={data.node.archived}
       testId="plan-dag-node"
@@ -3835,6 +3898,7 @@ function PlanFlowTaskCard({
   generationNode,
   archived,
   historical,
+  selectedRevision,
   testId,
   taskIdTestId,
   isSource,
@@ -3854,6 +3918,7 @@ function PlanFlowTaskCard({
   generationNode?: PlanGenerationRead['nodes'][number];
   archived?: boolean;
   historical?: boolean;
+  selectedRevision?: number;
   testId: string;
   taskIdTestId: string;
   isSource?: boolean;
@@ -3866,6 +3931,8 @@ function PlanFlowTaskCard({
   const { t } = useTranslation('work');
   const s = NODE_STATE[status] ?? NODE_STATE.blocked;
   const accentCls = s.border.replace(/^border-/, 'bg-');
+  const hasGeneration = generationNode?.revision != null;
+  const emphasis = historical || status === 'discarded' ? 'historical' : generationNode?.revision === selectedRevision ? 'new' : 'retained';
   const openTask = useCallback(() => {
     window.open(`/projects/${projectId}/tasks/${taskId}`, '_blank', 'noopener,noreferrer');
   }, [projectId, taskId]);
@@ -3885,10 +3952,12 @@ function PlanFlowTaskCard({
     <div
       // React Flow disables pointer events on non-selectable/non-draggable wrappers.
       // Restore hit testing for the card controls without enabling node manipulation.
-      className={`pointer-events-auto nopan relative flex h-full flex-col cursor-pointer overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+      data-generation-emphasis={emphasis}
+      data-generation={generationNode?.revision}
+      className={`${hasGeneration ? 'plan-generation plan-generation-card' : ''} pointer-events-auto nopan relative flex h-full flex-col cursor-pointer overflow-hidden rounded-lg border-[1.5px] bg-bg-elevated p-2 pl-3 shadow-1 transition duration-150 motion-safe:hover:-translate-y-0.5 hover:shadow-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
         isTarget ? 'border-accent ring-2 ring-accent' : isSource ? 'border-accent' : `${historical ? 'border-dashed border-border-strong' : s.border} ${nodeVisualCls(status)}`
       }`}
-      style={{ width: PLAN_DAG_NODE_W, height: PLAN_DAG_NODE_H }}
+      style={{ ...generationStyle(generationNode?.revision), width: PLAN_DAG_NODE_W, height: PLAN_DAG_NODE_H }}
       role="link"
       tabIndex={0}
       onClick={onCardClick}
@@ -3900,7 +3969,7 @@ function PlanFlowTaskCard({
       data-connect-target={isTarget ? 'true' : undefined}
     >
       <PlanFlowNodeHandles />
-      <span className={`absolute inset-y-0 left-0 w-1.5 ${historical ? 'bg-border-strong' : accentCls}`} aria-hidden="true" />
+      <span className={`absolute inset-y-0 left-0 w-1.5 ${hasGeneration ? 'plan-generation-stripe' : historical ? 'bg-border-strong' : accentCls}`} aria-hidden="true" />
       <div className="mb-1 flex items-center justify-between gap-1">
         <TaskIdTag taskId={taskId} orgRef={orgRef} testId={taskIdTestId} />
         <span className="inline-flex shrink-0 items-center gap-1">
@@ -3926,7 +3995,7 @@ function PlanFlowTaskCard({
         <TaskTitleLink projectId={projectId} taskId={taskId} title={title} wrap />
       </div>
       <div className="flex min-w-0 shrink-0 items-center justify-between gap-1 text-[0.6875rem]">
-        {historical && <span className="shrink-0 text-text-secondary" data-testid="plan-node-history">{t('plan.detail.dag.historical')}</span>}
+        {(historical || status === 'discarded') && <span className="shrink-0 text-text-secondary" data-testid="plan-node-history">{t('plan.detail.dag.historical')}</span>}
         <AssigneeTag assigneeRef={assigneeRef} />
       </div>
       {isTarget && (
@@ -3986,7 +4055,7 @@ function PlanFlowEdge(props: EdgeProps<PlanDagFlowEdge>): React.ReactElement {
         fill="none"
         markerEnd={markerEnd}
         style={style}
-        className={className ?? `plan-flow-edge plan-flow-edge--${data?.kind ?? 'seq'}`}
+        className={`${className ?? `plan-flow-edge plan-flow-edge--${data?.kind ?? 'seq'}`} ${data?.kind === 'lineage' ? 'plan-generation' : ''}`}
         data-testid={edgeTestId}
         data-edge={edgeKey}
         data-edge-kind={data?.kind}
@@ -4179,6 +4248,7 @@ function LegacyPlanDag({
   const flowNodeUi = useMemo<PlanFlowNodeUi>(() => ({
     projectId,
     generationNodeOf,
+    selectedRevision: effectiveGeneration,
     canEditDependencies,
     connectFrom,
     dropTargets,
@@ -4186,7 +4256,7 @@ function LegacyPlanDag({
     onStartConnect: setConnectFrom,
     onTargetActivate,
     stageDisplay,
-  }), [canEditDependencies, connectFrom, dropTargets, generationNodeOf, onTargetActivate, projectId, stageDisplay, titleOf]);
+  }), [canEditDependencies, connectFrom, dropTargets, generationNodeOf, onTargetActivate, projectId, stageDisplay, titleOf, effectiveGeneration]);
   const flowEdgeUi = useMemo<PlanFlowEdgeUi>(() => ({
     canEditDependencies,
     isPending: removeDep.isPending,

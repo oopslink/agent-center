@@ -35,6 +35,7 @@ export type PlanNodeStatus =
   | 'running'
   | 'paused' // T53: running task whose agent paused its work item (set aside)
   | 'done'
+  | 'discarded'
   | 'failed';
 
 // PlanNode (§9.2) — a task's projection inside a Plan's DAG. `depends_on` is the

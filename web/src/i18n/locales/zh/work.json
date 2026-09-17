@@ -253,7 +253,7 @@
           "diffLabel": "Diff",
           "diffSummary": "+{{nodes}} 个任务 · {{decisions}} 个节点决策 · +{{edges}} 条边",
           "diffEmpty": "无拓扑变更",
-          "active": "活跃",
+          "active": "当前版本",
           "idempotency": "幂等键 {{key}}",
           "generationId": "generation {{id}}",
           "parentId": "parent {{id}}",
@@ -264,8 +264,15 @@
         },
         "showHistory": "显示已替代的历史节点（{{count}}）",
         "historical": "历史",
-        "displayEdges": "虚线：展示连接 · 紫色虚线：后续承接（非依赖）",
-        "minimap": "小地图"
+        "displayEdges": "虚线：展示连接 · 彩色虚线：后续承接（非依赖）",
+        "minimap": "小地图",
+        "currentPerspective": "{{revision}} · 当前版本，显示实时任务状态",
+        "snapshotPerspective": "{{revision}} · 创建时快照：{{time}}（历史状态）",
+        "unknownTime": "时间未记录",
+        "terminalDiagnostics": "历史控制诊断 · 不代表当前执行状态",
+        "overview": "全图概览",
+        "readable": "100% · 定位所选代",
+        "generationSemantics": "色底：本代新增 · 浅底：前代保留 · 虚框：历史/撤销"
       },
       "actions": {
         "menu": "操作",
@@ -379,7 +386,8 @@
         "paused": "已暂停",
         "done": "已完成",
         "failed": "失败",
-        "supersededDraining": "已替代 / 收尾中"
+        "supersededDraining": "已替代 / 收尾中",
+        "discarded": "已撤销"
       },
       "taskList": {
         "empty": "此计划尚无任务。",

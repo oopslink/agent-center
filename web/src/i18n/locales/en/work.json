@@ -253,7 +253,7 @@
           "diffLabel": "Diff",
           "diffSummary": "+{{nodes}} tasks · {{decisions}} node decisions · +{{edges}} edges",
           "diffEmpty": "No topology changes",
-          "active": "active",
+          "active": "Current version",
           "idempotency": "idempotency {{key}}",
           "generationId": "generation {{id}}",
           "parentId": "parent {{id}}",
@@ -264,8 +264,15 @@
         },
         "showHistory": "Show superseded history ({{count}})",
         "historical": "Historical",
-        "displayEdges": "Dashed: display connector · Purple dashed: continuation (not a dependency)",
-        "minimap": "Minimap"
+        "displayEdges": "Dashed: display connector · Colored dashed: continuation (not a dependency)",
+        "minimap": "Minimap",
+        "currentPerspective": "{{revision}} · Current version, live task states",
+        "snapshotPerspective": "{{revision}} · Creation snapshot at {{time}} (historical states)",
+        "unknownTime": "time unavailable",
+        "terminalDiagnostics": "Archived control diagnostics · does not describe current execution",
+        "overview": "Overview",
+        "readable": "100% · Focus selected generation",
+        "generationSemantics": "Tinted: added in selected generation · Plain: retained · Dashed border: historical/discarded"
       },
       "actions": {
         "menu": "Actions",
@@ -379,7 +386,8 @@
         "paused": "paused",
         "done": "done",
         "failed": "failed",
-        "supersededDraining": "superseded / draining"
+        "supersededDraining": "superseded / draining",
+        "discarded": "Discarded"
       },
       "taskList": {
         "empty": "No tasks in this plan yet.",
