@@ -107,14 +107,7 @@ command = "/stale/other"
 		`"args":["worker","mcp-host"],` +
 		`"env":{"AC_MCP_AGENT_ID":"agent-1"}}}}`)
 
-	codexHome, err := WriteCodexMCPConfigFromSource(home, runtime, src, CodexComputerUseConfig{
-		Enabled:  true,
-		Endpoint: "vm://agent-x",
-		Env: map[string]string{
-			"NODE_REPL_SANDBOX_ALLOWED_UNIX_SOCKETS": "/tmp/agent-x-cua.sock",
-			"SKY_CUA_SERVICE_NATIVE_PIPE_PATH":       "/tmp/agent-x-cua.sock",
-		},
-	})
+	codexHome, err := WriteCodexMCPConfigFromSource(home, runtime, src, CodexComputerUseConfig{})
 	if err != nil {
 		t.Fatalf("WriteCodexMCPConfigFromSource: %v", err)
 	}
@@ -388,5 +381,72 @@ func TestCodexMCPConfigTOML_Escaping(t *testing.T) {
 	}
 	if !strings.Contains(s, `K = "line1\nline2"`) {
 		t.Errorf("env value newline not escaped; got:\n%s", s)
+	}
+}
+
+func TestComputerUseConfigSurvivesMissingSharedBundleInsideVM(t *testing.T) {
+	t.Setenv("AC_SANDBOX_RUNTIME_INSIDE_VM", "1")
+	src, home := t.TempDir(), t.TempDir()
+	app := filepath.Join(t.TempDir(), "Codex Computer Use.app")
+	oldApp, oldService := sandboxComputerUseAppPath, codexComputerUseService
+	sandboxComputerUseAppPath, codexComputerUseService = app, filepath.Join(t.TempDir(), "missing-host-service")
+	t.Cleanup(func() { sandboxComputerUseAppPath, codexComputerUseService = oldApp, oldService })
+	for _, path := range []string{
+		filepath.Join(src, "cua_node", "bin", "node_repl"),
+		filepath.Join(src, "cua_node", "bin", "node"),
+		filepath.Join(app, "Contents", "MacOS", "SkyComputerUseService"),
+	} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("fixture"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.MkdirAll(filepath.Join(src, "cua_node", "lib", "node_modules"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// The host bundle can disappear from the VM share while its installed local copy is healthy.
+	if err := os.MkdirAll(filepath.Join(src, "computer-use", "Codex Computer Use.app"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	codexHome, err := WriteCodexMCPConfigFromSource(home, nil, src, CodexComputerUseConfig{Enabled: true, Endpoint: "/tmp/real-service.sock"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile(filepath.Join(codexHome, codexConfigFileName))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"[mcp_servers.node_repl]", "required = true", "SKY_CUA_SERVICE_PATH = " + tomlString(app)} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("missing %s", want)
+		}
+	}
+}
+
+func TestEnabledComputerUseMissingDependenciesFailsWithoutOverwritingConfig(t *testing.T) {
+	t.Setenv("AC_SANDBOX_RUNTIME_INSIDE_VM", "1")
+	src, home := t.TempDir(), t.TempDir()
+	oldApp, oldService := sandboxComputerUseAppPath, codexComputerUseService
+	sandboxComputerUseAppPath, codexComputerUseService = filepath.Join(t.TempDir(), "missing-app"), filepath.Join(t.TempDir(), "missing-service")
+	t.Cleanup(func() { sandboxComputerUseAppPath, codexComputerUseService = oldApp, oldService })
+	config := filepath.Join(home, codexHomeDirName, codexConfigFileName)
+	if err := os.MkdirAll(filepath.Dir(config), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(config, []byte("# prior config"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := WriteCodexMCPConfigFromSource(home, nil, src, CodexComputerUseConfig{Enabled: true, Endpoint: "/tmp/service.sock"})
+	if err == nil || !strings.Contains(err.Error(), "Computer Use") {
+		t.Fatalf("wanted explicit Computer Use failure, got %v", err)
+	}
+	b, err := os.ReadFile(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(b) != "# prior config" {
+		t.Fatal("failed generation replaced the prior config")
 	}
 }

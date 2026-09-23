@@ -169,7 +169,11 @@ func writeCodexMCPConfig(home string, runtimeJSON, baseConfig []byte, sourceCode
 	// Keep the generated sections in a stable order. Server startup health, not
 	// TOML table order, determines whether Computer Use tools are available.
 	content := bytesTrimSpace(baseConfig)
-	if nodeRepl := codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome, computerUse); len(nodeRepl) > 0 {
+	nodeRepl := codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome, computerUse)
+	if computerUse.Enabled && len(nodeRepl) == 0 {
+		return "", fmt.Errorf("codex_session: Computer Use is enabled but its endpoint or runtime dependencies are unavailable (source=%q, service=%q)", sourceCodexHome, codexComputerUseServicePath(sourceCodexHome))
+	}
+	if len(nodeRepl) > 0 {
 		content = mergeCodexBaseAndGeneratedConfig(content, nodeRepl)
 	}
 	content = mergeCodexBaseAndGeneratedConfig(content, toml)
@@ -217,6 +221,15 @@ func codexNodeRuntimePaths(sourceCodexHome string) codexNodeRuntime {
 }
 
 func codexComputerUseServicePath(sourceCodexHome string) string {
+	// The guest-local signed app is the service we actually run. A host app
+	// replacement or stale VirtioFS view must not remove an otherwise healthy
+	// guest's tools when its next Codex session regenerates config.toml.
+	if sandboxRuntimeInsideVM() {
+		p := filepath.Join(sandboxComputerUseAppPath, "Contents", "MacOS", "SkyComputerUseService")
+		if regularFileExists(p) {
+			return p
+		}
+	}
 	src := strings.TrimSpace(sourceCodexHome)
 	if src != "" {
 		p := filepath.Join(src, "computer-use", "Codex Computer Use.app", "Contents", "MacOS", "SkyComputerUseService")
@@ -237,9 +250,6 @@ func codexNodeReplMCPConfigTOML(codexHome, sourceCodexHome string, computerUse C
 	}
 	nodeRuntime := codexNodeRuntimePaths(sourceCodexHome)
 	appPath := filepath.Dir(filepath.Dir(filepath.Dir(servicePath)))
-	if sandboxRuntimeInsideVM() && codexDirExists(sandboxComputerUseAppPath) {
-		appPath = sandboxComputerUseAppPath
-	}
 	docsPath := filepath.Join(nodeRuntime.nodeModuleDirs, "@oai", "sky", "docs", "sky-window-api.md")
 	trustedPaths := []string{codexHome, nodeRuntime.nodeModuleDirs}
 	if src := strings.TrimSpace(sourceCodexHome); src != "" {
