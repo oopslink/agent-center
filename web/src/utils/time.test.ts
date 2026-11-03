@@ -250,7 +250,19 @@ describe('formatDayLabel / localDayKey', () => {
   });
 
   it('two instants on the same local day share a key (group together)', () => {
-    expect(localDayKey('2026-06-30T01:00:00Z')).toBe(localDayKey('2026-06-30T09:00:00Z'));
+    // UTC hours can straddle a local date boundary; construct the intended
+    // local calendar day so this fixture also holds in negative UTC offsets.
+    const early = new Date(2026, 5, 30, 1).toISOString();
+    const late = new Date(2026, 5, 30, 23).toISOString();
+    expect(localDayKey(early)).toBe('2026-06-30');
+    expect(localDayKey(late)).toBe(localDayKey(early));
+  });
+
+  it('instants across local midnight have different day keys', () => {
+    const beforeMidnight = new Date(2026, 5, 30, 23, 59).toISOString();
+    const afterMidnight = new Date(2026, 6, 1, 0, 1).toISOString();
+    expect(localDayKey(beforeMidnight)).toBe('2026-06-30');
+    expect(localDayKey(afterMidnight)).toBe('2026-07-01');
   });
 
   it('fail-safe on bad input', () => {
