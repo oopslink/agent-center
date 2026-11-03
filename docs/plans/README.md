@@ -1,5 +1,19 @@
 # 实现计划
 
+当前研究主线：[Agent Center 失败复盘与设计取舍](reports/agent-harness-failure-review.md)（2026-11-02更新：解释方案实际价值；**排除明显系统bug作为设计失效证据**，不以创新为目标）。
+
+论文工作稿：[四篇论文010](reports/agent-harness-papers-010.md)（逻辑Agent身份混淆、流程责任与停摆、名字与角色共享context、DAG evolution；四篇完整稿与AI审阅已完成，引用及撤稿严格核验，尚未人工复核）。
+
+最新研究：[四重点综合取舍009](reports/agent-harness-synthesis-009.md) · [Supervisor与流程增量逐案记录](reports/agent-harness-review-increment-cases-009.md)（固定代码核对、检查覆盖与转述用途分开；单AI探索，尚未人工复核）。
+
+DAG专项：[DAG evolution的实际价值008](reports/agent-harness-evolution-008.md) · [逐案正反证据与排除](reports/agent-harness-evolution-cases-008.md)（拆分改图、代码、人工信息、验收范围；Git核验成果继承）。
+
+名字专项：[名字、角色与context必要性007](reports/agent-harness-identity-007.md) · [案例证据与bug排除台账](reports/agent-harness-identity-cases-007.md)（含开发者团队leader/掌控感自述；四个研究重点现均已有探索报告）。
+
+历史研究：[Supervisor/executor 与复杂工作流006](reports/agent-harness-division-workflow-006.md) · [9例正反证据](reports/agent-harness-division-workflow-cases-006.md)（保留当时bug混合范围；设计效应结论须应用007追溯筛选，不能直接沿用旧归因）。
+
+研究专项：[Agent Harness 生产实证研究计划](01-agent-harness-research.md) · [首轮数据审计](reports/agent-harness-research-run-001.md) · [30例探索研究报告](reports/agent-harness-research-002.md) · [逐案记录](reports/agent-harness-research-cases-002.md) · [文献比较与贡献定位](reports/agent-harness-literature-003.md) · [文献对照表](reports/agent-harness-literature-matrix-003.md) · [交付谱系与验收重建](reports/agent-harness-lineage-004.md) · [重建逐案证据](reports/agent-harness-lineage-cases-004.md)。
+
 > 工作计划集 · 按 DDD 依赖方向组织 phase · **严格按顺序执行，不允许跳级或并行多 phase**
 
 ## § 0. 顺序原则（DDD 视角）

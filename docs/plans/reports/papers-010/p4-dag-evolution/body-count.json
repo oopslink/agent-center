@@ -1,0 +1,11 @@
+{
+  "paper": "P4",
+  "revision": "006-dense-evidence",
+  "count_rule": "Han characters plus English lexical tokens; URLs and HTML comments excluded. Separate main prose from tables/captions/headings; abstracts/references/appendices excluded.",
+  "prose_count": 6491,
+  "text_including_tables_captions_headings": 7820,
+  "previous_target": 6000,
+  "previous_budget_status": "Author requested quantitative expansion; prior length target is historical, not re-certified.",
+  "figures": 5,
+  "tables": 7
+}

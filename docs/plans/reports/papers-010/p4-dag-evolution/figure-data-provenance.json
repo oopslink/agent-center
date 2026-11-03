@@ -1,0 +1,96 @@
+{
+  "sources": [
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/raw/pm_plans.json",
+      "sha256": "2bc5bc5e5525f22c94d27e5fff3fff6fd5edc12e1573cda1f5a1b1ba0d379f9b",
+      "bytes": 116172,
+      "read_scope": "All 108 records: id, name; names identify explicit fixtures."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/raw/pm_plan_generations.json",
+      "sha256": "3e54daf49cfd31498ee0221061be875b00c9332704865dbea7a715aa712b0ad1",
+      "bytes": 5875723,
+      "read_scope": "All 205 records: IDs, parent, timestamps, snapshot_json and diff_json for topology recomputation."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/derived/delta-summary.json",
+      "sha256": "bc20df31b3658076f613523ad659b333d374add30b60f1ef6cd2db0ea0c221cd",
+      "bytes": 5097,
+      "read_scope": "Entire aggregate, used only to verify recomputed totals."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E01-01.json",
+      "sha256": "cfba44f457a9b587d22afef114117c4c5115ab344c3c4cdc979f9b919fa4bb56",
+      "bytes": 1290,
+      "read_scope": "Full native record wrapper and record text; trace copied record to existing raw plan pack."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/raw/plan-67822059.json",
+      "sha256": "20bb51769dd67fc850403caeeac30829af4fb12b30ffd8be4c0a65c1ebdec4ed",
+      "bytes": 128811,
+      "read_scope": "Selected native record equality checks only, not full message interpretation."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E01-02.json",
+      "sha256": "3bc9c4ef983adf7170411d1810b9174a571cf831393e9d8cde0e86d66f02b679",
+      "bytes": 2007,
+      "read_scope": "Full native record wrapper and record text; trace copied record to existing raw plan pack."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E01-04.json",
+      "sha256": "b0f7a3e5136926e575a1ef531c8c67f1976f0ad783cfd4d504fb528127ad6ea9",
+      "bytes": 7079,
+      "read_scope": "Full native record wrapper and record text; trace copied record to existing raw plan pack."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E01-03.json",
+      "sha256": "0b5a49032c948a24958dfcbbbb7dff81754f8f79df5e76f27a5655027daf67de",
+      "bytes": 2676,
+      "read_scope": "Full native record wrapper and record text; trace copied record to existing raw plan pack."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/logs/source-checks.json",
+      "sha256": "da7e25e5dc3367f14a4739c288f2f982567c3cef946c5e0d33b945bc41e9c994",
+      "bytes": 6223,
+      "read_scope": "All recorded commands, exit codes, stdout/stderr; no commands rerun."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E02-01.json",
+      "sha256": "5d234fc11a49aed29e442f7c070929e99bccc3db200c64e15f69b4de96beabd7",
+      "bytes": 2932,
+      "read_scope": "Full message record to bind generation label, candidate SHA and reported review scope; reports do not replace Git checks."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E02-02.json",
+      "sha256": "363d7b12762dceebae43e3d47219d0145589db9666f7bdb8500074567944cb24",
+      "bytes": 1689,
+      "read_scope": "Full message record to bind generation label, candidate SHA and reported review scope; reports do not replace Git checks."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E02-03.json",
+      "sha256": "cd9ad0505a6ab70d35b7b9aaa0dced87803567c9318a2f1ba84d182000fa2c25",
+      "bytes": 1261,
+      "read_scope": "Full message record to bind generation label, candidate SHA and reported review scope; reports do not replace Git checks."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E02-04.json",
+      "sha256": "dea2c5b55c8db1bd62f952c8e230af9e156050dc6b4d2724baddddb8a3edf783",
+      "bytes": 2712,
+      "read_scope": "Full message record to bind generation label, candidate SHA and reported review scope; reports do not replace Git checks."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E02-05.json",
+      "sha256": "96157c96c94ba386ad5674217fb27c0bb9664646cfe2c8127a3a42a9a4103818",
+      "bytes": 2963,
+      "read_scope": "Full message record to bind generation label, candidate SHA and reported review scope; reports do not replace Git checks."
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E02-06.json",
+      "sha256": "604e742f70f409644b5fc4d78bd4aab7e354136bdae302548e50a49478d67c55",
+      "bytes": 1784,
+      "read_scope": "Full message record to bind generation label, candidate SHA and reported review scope; reports do not replace Git checks."
+    }
+  ],
+  "script_sha256": "d546cddc585a1a20f28c9b66561c44f075ce671e8dd3b953fe61d946549cbd70",
+  "raw_sources_mutated": false
+}
