@@ -28,6 +28,16 @@ BIB = """@article{alpha2020one,
   doi = {10.48550/arXiv.2601.00001}
 }
 
+@article{delta2024quoted,
+  title = "Quoted Field Title",
+  author = "E. Five and F. Six",
+  journal = "Journal of Quotes",
+  volume = "12",
+  pages = "157--173",
+  year = "2024",
+  doi = "10.1000/delta"
+}
+
 @inproceedings{gamma2019three,
   author = {D. Four},
   title = {Third Title},
@@ -110,6 +120,18 @@ class TestBuildRefs(unittest.TestCase):
         code, out, err = self.build()
         self.assertEqual(code, 0, err)
         self.assertLess(out.index("Second Title"), out.index("Third Title"))
+
+    def test_quote_delimited_fields_are_parsed(self):
+        """有些 bib 条目用 field = "..." 而非 field = {...}；漏掉会整条渲染成空。"""
+        self.paper.write_text("# P\n\n[1]<!--ref:delta2024quoted-->\n", encoding="utf-8")
+        code, out, err = self.build()
+        self.assertEqual(code, 0, err)
+        self.assertIn("Quoted Field Title", out)
+        self.assertIn("E. Five", out)
+        self.assertIn("Journal of Quotes", out)
+        self.assertIn("157–173", out)
+        self.assertIn("10.1000/delta", out)
+        self.assertNotRegex(out, r"^\[1\] , ")
 
     def test_citation_missing_from_bib_is_an_error(self):
         self.paper.write_text("# P\n\n[1]<!--ref:nosuchkey-->\n", encoding="utf-8")

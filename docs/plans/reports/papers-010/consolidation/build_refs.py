@@ -36,18 +36,25 @@ def parse_bib(text):
             j += 1
         body = text[i + 1:j]
         fields = {}
-        for fm in re.finditer(r"(\w+)\s*=\s*\{", body):
+        # 字段值可以用花括号或双引号分隔；只认一种会把另一种条目整条渲染成空。
+        for fm in re.finditer(r"(\w+)\s*=\s*([{\"])", body):
             name = fm.group(1).lower()
+            opener = fm.group(2)
             k = fm.end() - 1
-            d, p = 0, k
-            while p < len(body):
-                if body[p] == "{":
-                    d += 1
-                elif body[p] == "}":
-                    d -= 1
-                    if d == 0:
-                        break
-                p += 1
+            if opener == '"':
+                p = body.find('"', k + 1)
+                if p == -1:
+                    continue
+            else:
+                d, p = 0, k
+                while p < len(body):
+                    if body[p] == "{":
+                        d += 1
+                    elif body[p] == "}":
+                        d -= 1
+                        if d == 0:
+                            break
+                    p += 1
             # BibTeX 用花括号保护大小写（如 {CSCW}），输出到正文前须去掉
             value = re.sub(r"\s+", " ", body[k + 1:p]).strip()
             fields[name] = value.replace("{", "").replace("}", "")

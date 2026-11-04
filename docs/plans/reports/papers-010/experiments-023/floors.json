@@ -1,0 +1,155 @@
+{
+ "note": "事后分析：在看到分格汇总之后写成。",
+ "arms": {
+  "short": {
+   "worker_starts": {
+    "floor": 2,
+    "median": 2.0,
+    "max": 9,
+    "n": 30
+   },
+   "controller_decisions": {
+    "floor": 7,
+    "median": 8.5,
+    "max": 26,
+    "n": 30
+   },
+   "worker_decisions": {
+    "floor": 8,
+    "median": 11.0,
+    "max": 36,
+    "n": 30
+   },
+   "total_decisions": {
+    "floor": 15,
+    "median": 19.0,
+    "max": 62,
+    "n": 30
+   }
+  },
+  "long": {
+   "worker_starts": {
+    "floor": 4,
+    "median": 4.0,
+    "max": 12,
+    "n": 30
+   },
+   "controller_decisions": {
+    "floor": 11,
+    "median": 12.0,
+    "max": 32,
+    "n": 30
+   },
+   "worker_decisions": {
+    "floor": 13,
+    "median": 16.0,
+    "max": 36,
+    "n": 30
+   },
+   "total_decisions": {
+    "floor": 25,
+    "median": 28.0,
+    "max": 68,
+    "n": 30
+   }
+  }
+ },
+ "structural_floor_difference": {
+  "worker_starts": 2,
+  "controller_decisions": 4,
+  "worker_decisions": 5,
+  "total_decisions": 10
+ },
+ "paired_raw_difference": {
+  "worker_starts": {
+   "pairs": 30,
+   "median": 2.0,
+   "range": [
+    -5,
+    9
+   ],
+   "positive": 29,
+   "zero": 0,
+   "negative": 1
+  },
+  "controller_decisions": {
+   "pairs": 30,
+   "median": 4.0,
+   "range": [
+    -13,
+    22
+   ],
+   "positive": 28,
+   "zero": 1,
+   "negative": 1
+  },
+  "worker_decisions": {
+   "pairs": 30,
+   "median": 5.0,
+   "range": [
+    -13,
+    23
+   ],
+   "positive": 28,
+   "zero": 0,
+   "negative": 2
+  },
+  "total_decisions": {
+   "pairs": 30,
+   "median": 9.0,
+   "range": [
+    -26,
+    45
+   ],
+   "positive": 28,
+   "zero": 1,
+   "negative": 1
+  }
+ },
+ "paired_excess_over_floor": {
+  "worker_starts": {
+   "pairs": 30,
+   "median": 0.0,
+   "range": [
+    -7,
+    7
+   ],
+   "positive": 3,
+   "zero": 24,
+   "negative": 3
+  },
+  "controller_decisions": {
+   "pairs": 30,
+   "median": 0.0,
+   "range": [
+    -17,
+    18
+   ],
+   "positive": 11,
+   "zero": 7,
+   "negative": 12
+  },
+  "worker_decisions": {
+   "pairs": 30,
+   "median": 0.0,
+   "range": [
+    -18,
+    18
+   ],
+   "positive": 14,
+   "zero": 4,
+   "negative": 12
+  },
+  "total_decisions": {
+   "pairs": 30,
+   "median": -1.0,
+   "range": [
+    -36,
+    35
+   ],
+   "positive": 11,
+   "zero": 3,
+   "negative": 16
+  }
+ }
+}

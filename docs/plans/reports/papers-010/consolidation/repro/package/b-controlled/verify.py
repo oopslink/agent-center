@@ -23,6 +23,15 @@ PAPER={
  'e2_report_only_stale_median':30.5,'e2_shared_stale_median':18.0,'e2_issuer_stale_median':15.5,
  'wrongly_closed':0,'stale_independent_pass':12,'stale_n':12,
  'haiku_long_report_only_delivery':0,'haiku_long_report_only_median':40,
+ # §4.1 结构下界（事后分析）
+ 'floor_short_total':15,'floor_long_total':25,'floor_diff_total':10,
+ 'excess_median_total':-1,'excess_median_starts':0,'excess_zero_pairs_starts':24,
+ # §4.3 按模型拆分
+ 'e2_ro_valid_haiku':40.0,'e2_ro_valid_sonnet':23.5,
+ 'e2_sh_valid_haiku':11.0,'e2_sh_valid_sonnet':12.0,
+ 'e2_ro_stale_sonnet':21.0,'e2_sh_stale_sonnet':20.0,
+ # §4.4 反例分母
+ 'stale_wrongly_closed':0,
 }
 
 def load():
@@ -37,7 +46,7 @@ def load():
                      'seed':row.get('seed_cross_session') or 'failed_execution',
                      'total_decisions':r['controller_turns']+wd,
                      'evidence_cycles':sum(1 for a in actions if a in ('spawn','run_tests')),
-                     'autonomous_delivery':bool(r['autonomous_delivery']),
+                     'autonomous_delivery':bool(r['autonomous_delivery']),'worker_starts':r['worker_starts'],
                      'independent_pass':bool(r['independent_pass_at_stop']),
                      'wrongly_closed':bool(r['premature_completion']),
                      'invalid':r['status'] in ('transport_invalid','runtime_invalid')})
@@ -74,7 +83,19 @@ def computed():
         if base['autonomous_delivery'] and not r['autonomous_delivery']: lost+=1
     hl=sub(e1,model='claude-haiku-5-5',organization='long',transport='report_only')
     def e2m(tr,sd): return statistics.median(td(sub(e2,transport=tr,seed=sd)))
+    def e2mm(tr,sd,md): return statistics.median(td(sub(e2,transport=tr,seed=sd,model=md)))
     stale=sub(e2,seed='stale')
+    fs,fl=min(td(short)),min(td(long_))
+    ss,sl=min(r['worker_starts'] for r in short),min(r['worker_starts'] for r in long_)
+    J={}
+    for r in e1: J[((r['task'],r['model'],r['transport']),r['organization'])]=r
+    ex_total=[];ex_starts=[]
+    for (cell,lv),r in J.items():
+        if lv!='long': continue
+        b=J.get((cell,'short'))
+        if not b: continue
+        ex_total.append((r['total_decisions']-fl)-(b['total_decisions']-fs))
+        ex_starts.append((r['worker_starts']-sl)-(b['worker_starts']-ss))
     return {
      'episodes':len(rows),'invalid':sum(r['invalid'] for r in rows),
      'reported_cost_usd':status['spent_usd'],'e1_n':len(e1),'e2_n':len(e2),
@@ -106,6 +127,18 @@ def computed():
      'stale_independent_pass':sum(r['independent_pass'] for r in stale),'stale_n':len(stale),
      'haiku_long_report_only_delivery':sum(r['autonomous_delivery'] for r in hl),
      'haiku_long_report_only_median':statistics.median(td(hl)),
+     'floor_short_total':min(td(short)),'floor_long_total':min(td(long_)),
+     'floor_diff_total':min(td(long_))-min(td(short)),
+     'excess_median_total':statistics.median(ex_total),
+     'excess_median_starts':statistics.median(ex_starts),
+     'excess_zero_pairs_starts':sum(1 for x in ex_starts if x==0),
+     'e2_ro_valid_haiku':e2mm('report_only','valid','claude-haiku-5-5'),
+     'e2_ro_valid_sonnet':e2mm('report_only','valid','claude-sonnet-5-5'),
+     'e2_sh_valid_haiku':e2mm('shared_receipts','valid','claude-haiku-5-5'),
+     'e2_sh_valid_sonnet':e2mm('shared_receipts','valid','claude-sonnet-5-5'),
+     'e2_ro_stale_sonnet':e2mm('report_only','stale','claude-sonnet-5-5'),
+     'e2_sh_stale_sonnet':e2mm('shared_receipts','stale','claude-sonnet-5-5'),
+     'stale_wrongly_closed':sum(r['wrongly_closed'] for r in stale),
     }
 
 def main():

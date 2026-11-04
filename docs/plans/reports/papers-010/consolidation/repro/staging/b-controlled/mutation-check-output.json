@@ -1,0 +1,42 @@
+[
+ {
+  "id": "selfcheck-boundary",
+  "file": "tasks023.py",
+  "why": "破坏会话切分的严格大于语义",
+  "caught": true,
+  "exit_code": 1,
+  "matched_expectation": true
+ },
+ {
+  "id": "selfcheck-list-merge",
+  "file": "tasks023.py",
+  "why": "把配置合并的列表整体替换改成拼接",
+  "caught": true,
+  "exit_code": 1,
+  "matched_expectation": true
+ },
+ {
+  "id": "selfcheck-seed-correct",
+  "file": "tasks023.py",
+  "why": "让错误起点变正确，失败空间消失",
+  "caught": true,
+  "exit_code": 1,
+  "matched_expectation": true
+ },
+ {
+  "id": "receipts-visibility",
+  "file": "receipts.py",
+  "why": "让回执列表忽略可见性水平",
+  "caught": true,
+  "exit_code": 1,
+  "matched_expectation": true
+ },
+ {
+  "id": "receipts-issuer",
+  "file": "receipts.py",
+  "why": "让可接受性忽略签发者约束",
+  "caught": true,
+  "exit_code": 1,
+  "matched_expectation": true
+ }
+]
