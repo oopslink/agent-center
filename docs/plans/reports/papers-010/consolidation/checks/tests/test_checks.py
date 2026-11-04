@@ -134,6 +134,29 @@ class TestCrossrefs(TempTree):
         self.assertEqual(code, 0, out)
         self.assertEqual(json.loads(out)["shared_record_ids"], [])
 
+    def test_ledger_coverage_reads_tables_after_an_unrelated_first_table(self):
+        paper = self.write(
+            "paper.md",
+            "# A\n\n## 4 研究发现\n\n### 4.1 责任\n\n无。\n\n### 4.2 凭据\n\n无。\n",
+        )
+        ledger = self.write(
+            "ledger.md",
+            "| 级别 | 含义 | 正文允许的表述 |\n|---|---|---|\n| 原生记录 | 冻结库 | 记录显示 |\n\n"
+            "## §4.1\n\n"
+            "| 断裂类别 | 原片段编号 | 原生 ID | 证据级别 | 进 A 篇的小节 | 排除理由 |\n"
+            "|---|---|---|---|---|---|\n"
+            "| 责任 | I01 | x | 原生记录 | 4.1 | |\n\n"
+            "## §4.2\n\n"
+            "| 断裂类别 | 原片段编号 | 原生 ID | 证据级别 | 进 A 篇的小节 | 排除理由 |\n"
+            "|---|---|---|---|---|---|\n"
+            "| 凭据 | W02 | y | 原生记录 | 4.2 | |\n",
+        )
+        code, out, _ = run("crossrefs.py", "--paper", str(paper), "--ledger", str(ledger))
+        report = json.loads(out)
+        self.assertEqual(report["sections_without_ledger_source"], [], report)
+        self.assertEqual(report["ledger_sections_missing_in_paper"], [], report)
+        self.assertEqual(code, 0, out)
+
     def test_ledger_coverage_reports_section_without_source(self):
         paper = self.write(
             "paper.md",

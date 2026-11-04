@@ -57,21 +57,21 @@ def check_ledger(paper_text, ledger_path, report):
     leaf = {num for num, (depth, _t) in sections(paper_text).items() if depth >= 3}
     ledger_text = Path(ledger_path).read_text(encoding="utf-8")
 
+    # 台账含多张表，各表列数可能不同：遇到带"小节"的表头就重置目标列下标，
+    # 只认表头之后、列数够长的数据行。
     rows = [l for l in ledger_text.splitlines() if l.strip().startswith("|")]
-    header = None
+    target_idx = None
     covered = set()
     for row in rows:
         cells = [c.strip() for c in row.strip().strip("|").split("|")]
-        if header is None:
-            header = cells
+        if any("小节" in c for c in cells):
+            target_idx = next(i for i, c in enumerate(cells) if "小节" in c)
             continue
         if all(set(c) <= {"-", ":"} for c in cells if c):
             continue
-        if len(cells) != len(header):
+        if target_idx is None or len(cells) <= target_idx:
             continue
-        cell = dict(zip(header, cells))
-        target = next((v for k, v in cell.items() if "小节" in k), "")
-        for num in re.findall(r"\d+(?:\.\d+)*", target):
+        for num in re.findall(r"\d+(?:\.\d+)*", cells[target_idx]):
             covered.add(num)
 
     report["sections_without_ledger_source"] = sorted(leaf - covered)
