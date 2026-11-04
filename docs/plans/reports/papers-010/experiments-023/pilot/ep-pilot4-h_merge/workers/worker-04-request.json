@@ -1,0 +1,18 @@
+{
+  "worker_id": "worker-04",
+  "role": "reviewer",
+  "task": "Write review.json only. It must be a JSON object with candidate_hash set to the sha256 of the current module.py (e9aa23423b47d1d883cffb441620a04f512ed1513450f2fd9cb3a2d6be38bb68), tests_hash set to the sha256 of the current test_cases.json (e4410783b722ffcec0d17a45b6a6499affe61e1c529bd33539d2fc1b357a9739), verdict set to pass or fail, and notes as a string. Base the verdict on a review of module.py against the user contract: object-only validation with ValueError, deep merge, null removal including absent keys, list replacement, insertion of absent keys, ValueError on JSON type mismatch with booleans and numbers distinct, base-then-patch key order, and no input mutation. The receipt for the successful run is rcpt-1c8cbfb5ffcbcb5c032921b3 (candidate e9aa..., tests e4410783..., result pass). Only pass if the review supports it. Do not touch module.py or test_cases.json.",
+  "row": {
+    "id": "pilot4-h_merge",
+    "paper": "P2",
+    "task": "h_merge",
+    "family": "h_merge",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "run_version": "023-pilot4"
+  }
+}

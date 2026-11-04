@@ -1,0 +1,174 @@
+{
+  "passed": true,
+  "passed_count": 6,
+  "total": 6,
+  "checks": [
+    {
+      "index": 0,
+      "input": {
+        "base": {
+          "a": {
+            "x": 1
+          }
+        },
+        "patch": {
+          "a": {
+            "y": 2
+          }
+        }
+      },
+      "expected": {
+        "name": "nested_object_merge",
+        "output": {
+          "a": {
+            "x": 1,
+            "y": 2
+          }
+        }
+      },
+      "observed": {
+        "output": {
+          "a": {
+            "x": 1,
+            "y": 2
+          }
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 1,
+      "input": {
+        "base": {
+          "a": 1,
+          "b": 2
+        },
+        "patch": {
+          "a": null,
+          "c": null
+        }
+      },
+      "expected": {
+        "name": "null_removes_key_and_absent_noop",
+        "output": {
+          "b": 2
+        }
+      },
+      "observed": {
+        "output": {
+          "b": 2
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 2,
+      "input": {
+        "base": {
+          "l": [
+            1,
+            2
+          ]
+        },
+        "patch": {
+          "l": [
+            3
+          ]
+        }
+      },
+      "expected": {
+        "name": "list_replaced_not_concatenated",
+        "output": {
+          "l": [
+            3
+          ]
+        }
+      },
+      "observed": {
+        "output": {
+          "l": [
+            3
+          ]
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 3,
+      "input": {
+        "base": {
+          "f": true
+        },
+        "patch": {
+          "f": 1
+        }
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "boolean_number_type_mismatch"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 4,
+      "input": {
+        "base": [
+          1
+        ],
+        "patch": {}
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "non_object_base_rejected"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 5,
+      "input": {
+        "base": {
+          "a": 2,
+          "z": 1
+        },
+        "patch": {
+          "a": 5,
+          "b": 4,
+          "m": 3
+        }
+      },
+      "expected": {
+        "name": "key_order_base_then_patch_only",
+        "output": {
+          "a": 5,
+          "b": 4,
+          "m": 3,
+          "z": 1
+        }
+      },
+      "observed": {
+        "output": {
+          "a": 5,
+          "z": 1,
+          "b": 4,
+          "m": 3
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    }
+  ],
+  "candidate_hash": "08f0cce7d6b7b26b04f54ac4548bf4c36563b032217bccf480c18e694f096152",
+  "label": "user-tests",
+  "duration_s": 0.020313667017035186
+}

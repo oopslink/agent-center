@@ -1,0 +1,20 @@
+{
+  "worker_id": "worker-01",
+  "role": "implementer",
+  "task": "Write module.py (stdlib only, no I/O, no dynamic code execution) exposing solve(data). Implement this contract exactly. Input: data is a dict with key \"ops\", a list of operation objects. Each operation has \"kind\" and, depending on kind, \"amount\" and/or \"id\". Apply operations in order and return {\"balance\": int, \"held\": int, \"available\": int}, where available = balance - held. Per operation, check rules in this exact order and raise ValueError on the first failure (no result is returned): (1) kind must be one of credit, debit, hold, release; otherwise ValueError. (2) For credit, debit, hold: amount must be an integer >= 1; booleans are not integers here and raise ValueError. (3) For hold: id must not already name an active hold. For release: id must name an active hold. Violation raises ValueError. (4) For debit and hold: amount must not exceed currently available funds (balance - held), else ValueError. Effects: credit increases balance by amount. debit decreases balance by amount. hold adds an active hold of amount under id (held increases by amount; balance unchanged). release removes the hold named by id, decreasing held by that hold's amount, and ignores any amount field. An empty ops list returns {\"balance\":0,\"held\":0,\"available\":0}. Do not mutate the input. Replace the current module.py, which is wrong (it sums amounts and ignores kinds, holds, and validation). Write only module.py.",
+  "row": {
+    "id": "pilot5-h_ledger",
+    "paper": "P2",
+    "task": "h_ledger",
+    "family": "h_ledger",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-pilot5"
+  }
+}

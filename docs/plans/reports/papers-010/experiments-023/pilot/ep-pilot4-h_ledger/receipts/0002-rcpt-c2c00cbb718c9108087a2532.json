@@ -1,0 +1,10 @@
+{
+  "receipt_id": "rcpt-c2c00cbb718c9108087a2532",
+  "candidate_hash": "9c47953f4de54ae0ad250f8888b343a6c01fa3239ce6dc86c46ae9f3446dc982",
+  "tests_hash": "ad18ca88b76536c56cc6726e1b83207137ce8182f24eb03c8f3996b25f5a5f1e",
+  "contract_id": "P2-long-report_only",
+  "result": "pass",
+  "issuer": "controller",
+  "utc": "2026-11-04T17:10:16.794241+00:00",
+  "seq": 2
+}

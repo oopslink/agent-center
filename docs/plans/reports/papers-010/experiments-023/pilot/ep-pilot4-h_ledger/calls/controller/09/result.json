@@ -1,0 +1,70 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 4.266486749984324,
+  "finished_utc": "2026-11-04T17:10:26.085264+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0023764,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 11256,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 250,
+    "output_tokens_details": {
+      "thinking_tokens": 148
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 11256,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 250,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 11256,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 11256
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 250,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 11256,
+      "webSearchRequests": 0,
+      "costUSD": 0.0023764,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 148,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 11256,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"wait\",\"args\":{},\"note\":\"Awaiting worker-03's review.json result. The review must bind to module.py 9c47953f... and test_cases.json ad18ca88..., which match the supervisor's own run_tests receipt rcpt-c2c00cbb718c9108087a2532.\"}",
+  "parsed": {
+    "op": "wait",
+    "args": {},
+    "note": "Awaiting worker-03's review.json result. The review must bind to module.py 9c47953f... and test_cases.json ad18ca88..., which match the supervisor's own run_tests receipt rcpt-c2c00cbb718c9108087a2532."
+  }
+}

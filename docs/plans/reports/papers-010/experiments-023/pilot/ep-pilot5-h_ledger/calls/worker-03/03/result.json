@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 7.706677124951966,
+  "finished_utc": "2026-11-04T17:14:56.357535+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0018003000000000001,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 5933,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1227,
+    "output_tokens_details": {
+      "thinking_tokens": 924
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 5933,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1227,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 5933,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 5933
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 1227,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 5933,
+      "webSearchRequests": 0,
+      "costUSD": 0.0018003000000000001,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 924,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 5933,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"finish\",\"args\":{\"status\":\"complete\",\"message\":\"review.json was written with verdict pass. The implementation and test expectations match the contract: validation order, bool rejection, hold id-before-funds ordering, release ignoring amount, empty-ops zeros, and no input mutation. The unhashable-id TypeError is noted as outside the contract. The one deviation is the receipt citation. The assignment asked for rcpt-75c7cca89913fe6feea654d0, but that receipt was not observed in this session. The receipt the session actually received is rcpt-4600d5701aef4f96f709ccb4 (result pass, issuer worker-03, seq 3), bound to the same candidate and tests hashes. The notes disclose this substitution. If the requested receipt must be cited, it needs to be produced by a run_tests call in this session or supplied by the Supervisor, and review.json would then need to be rewritten.\"}}",
+  "parsed": {
+    "op": "finish",
+    "args": {
+      "status": "complete",
+      "message": "review.json was written with verdict pass. The implementation and test expectations match the contract: validation order, bool rejection, hold id-before-funds ordering, release ignoring amount, empty-ops zeros, and no input mutation. The unhashable-id TypeError is noted as outside the contract. The one deviation is the receipt citation. The assignment asked for rcpt-75c7cca89913fe6feea654d0, but that receipt was not observed in this session. The receipt the session actually received is rcpt-4600d5701aef4f96f709ccb4 (result pass, issuer worker-03, seq 3), bound to the same candidate and tests hashes. The notes disclose this substitution. If the requested receipt must be cited, it needs to be produced by a run_tests call in this session or supplied by the Supervisor, and review.json would then need to be rewritten."
+    }
+  }
+}

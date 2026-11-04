@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 8.065493542002514,
+  "finished_utc": "2026-11-04T17:15:04.486858+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0029131,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 11292,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1309,
+    "output_tokens_details": {
+      "thinking_tokens": 842
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 11292,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1309,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 11292,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 11292
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 1309,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 11292,
+      "webSearchRequests": 0,
+      "costUSD": 0.0029131,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 842,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 11292,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"spawn\",\"args\":{\"role\":\"reviewer\",\"task\":\"Overwrite review.json only. It must be a JSON object with keys candidate_hash, tests_hash, verdict, notes. Use candidate_hash \\\"2cbef4bced2a8a53f223ec2a2b0ed691507ad0ec1e23358942c07c1b820c412a\\\" (module.py) and tests_hash \\\"ecab976eba808b468c15ad15b55e359559aa095fcd059566b211b7046b6e2535\\\" (test_cases.json). Review module.py against the user contract: validation order (kind, amount int >= 1 with bools rejected, id uniqueness or existence, available-funds check for debit and hold), effects of credit, debit, hold and release, zero result for empty ops, and no input mutation. Check that test_cases.json expectations match the contract. Set verdict to \\\"pass\\\" only if the implementation and tests are correct. The only run receipt you may cite is rcpt-75c7cca89913fe6feea654d0, which the Supervisor supplies: result pass, candidate and tests hashes above. Do not cite rcpt-4600d5701aef4f96f709ccb4 or any other receipt; the earlier review.json citation of it is unverified and must be replaced. Note in notes that unhashable id values (such as lists) raise TypeError, which the contract does not address. Do not write any other file.\"}}",
+  "parsed": {
+    "op": "spawn",
+    "args": {
+      "role": "reviewer",
+      "task": "Overwrite review.json only. It must be a JSON object with keys candidate_hash, tests_hash, verdict, notes. Use candidate_hash \"2cbef4bced2a8a53f223ec2a2b0ed691507ad0ec1e23358942c07c1b820c412a\" (module.py) and tests_hash \"ecab976eba808b468c15ad15b55e359559aa095fcd059566b211b7046b6e2535\" (test_cases.json). Review module.py against the user contract: validation order (kind, amount int >= 1 with bools rejected, id uniqueness or existence, available-funds check for debit and hold), effects of credit, debit, hold and release, zero result for empty ops, and no input mutation. Check that test_cases.json expectations match the contract. Set verdict to \"pass\" only if the implementation and tests are correct. The only run receipt you may cite is rcpt-75c7cca89913fe6feea654d0, which the Supervisor supplies: result pass, candidate and tests hashes above. Do not cite rcpt-4600d5701aef4f96f709ccb4 or any other receipt; the earlier review.json citation of it is unverified and must be replaced. Note in notes that unhashable id values (such as lists) raise TypeError, which the contract does not address. Do not write any other file."
+    }
+  }
+}

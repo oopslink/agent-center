@@ -1,0 +1,327 @@
+{
+  "id": "pilot-h_merge-sonnet",
+  "row": {
+    "id": "pilot-h_merge-sonnet",
+    "paper": "P1",
+    "task": "h_merge",
+    "family": "h_merge",
+    "model": "claude-sonnet-5-5",
+    "identity": "single",
+    "ledger": "off",
+    "transport": "report_only",
+    "run_version": "023-pilot"
+  },
+  "status": "reported_complete",
+  "controller_turns": 6,
+  "worker_starts": 0,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "module.py implements solve(data) as a deep merge of patch into base. It validates that both inputs are objects and raises ValueError otherwise. A null patch value removes the key, and removing an absent key is a no-op. Objects merge recursively, and a list in patch replaces the base list. Keys absent from base are inserted as is. Mismatched JSON types raise ValueError, with booleans and numbers treated as different types. Key order is base keys first, then patch-only keys. Neither input is mutated, because values are copied recursively without the copy module. All 3 public tests pass against the delivered module.py, hash 30868dbe. I submitted no custom tests."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 3,
+  "initial_recovery_budget": {
+    "decisions": 12,
+    "worker_starts": 3
+  },
+  "first_controller_check_failure_budget": {
+    "decisions_remaining": 9,
+    "worker_starts_remaining": 3
+  },
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "base": {},
+            "patch": {}
+          },
+          "expected": {
+            "output": {}
+          },
+          "observed": {
+            "output": {}
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "b": 2
+            }
+          },
+          "expected": {
+            "output": {
+              "a": 1,
+              "b": 2
+            }
+          },
+          "observed": {
+            "output": {
+              "a": 1,
+              "b": 2
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "base": {
+              "a": {
+                "x": 1
+              }
+            },
+            "patch": {
+              "a": {
+                "y": 2
+              }
+            }
+          },
+          "expected": {
+            "output": {
+              "a": {
+                "x": 1,
+                "y": 2
+              }
+            }
+          },
+          "observed": {
+            "output": {
+              "a": {
+                "x": 1,
+                "y": 2
+              }
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "base": {
+              "a": [
+                1,
+                2
+              ]
+            },
+            "patch": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "expected": {
+            "output": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "observed": {
+            "output": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "base": {
+              "a": 1,
+              "b": 2
+            },
+            "patch": {
+              "a": null
+            }
+          },
+          "expected": {
+            "output": {
+              "b": 2
+            }
+          },
+          "observed": {
+            "output": {
+              "b": 2
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "zz": null
+            }
+          },
+          "expected": {
+            "output": {
+              "a": 1
+            }
+          },
+          "observed": {
+            "output": {
+              "a": 1
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "base": {
+              "b": 1,
+              "a": 1
+            },
+            "patch": {
+              "z": 1,
+              "c": 1
+            }
+          },
+          "expected": {
+            "output": {
+              "b": 1,
+              "a": 1,
+              "z": 1,
+              "c": 1
+            }
+          },
+          "observed": {
+            "output": {
+              "b": 1,
+              "a": 1,
+              "z": 1,
+              "c": 1
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "a": "one"
+            }
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "base": {
+              "a": true
+            },
+            "patch": {
+              "a": 1
+            }
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "base": [],
+            "patch": {}
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "30868dbed23b5ffea7f10024931716b959f22994ac18c0f602031a1588018ee2",
+      "label": "private-final",
+      "duration_s": 0.027833875035867095
+    },
+    "files": {
+      "module.py": {
+        "sha256": "30868dbed23b5ffea7f10024931716b959f22994ac18c0f602031a1588018ee2"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:04:10.764523+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "30868dbed23b5ffea7f10024931716b959f22994ac18c0f602031a1588018ee2"
+      }
+    }
+  },
+  "worker_summaries": [],
+  "controller_actions": [
+    null,
+    {
+      "op": "write_file",
+      "file": "module.py",
+      "content": "import copy\n\n\ndef _t(v):\n    if v is None:\n        return 'null'\n    if isinstance(v, bool):\n        return 'bool'\n    if isinstance(v, (int, float)):\n        return 'number'\n    if isinstance(v, str):\n        return 'string'\n    if isinstance(v, list):\n        return 'list'\n    if isinstance(v, dict):\n        return 'object'\n    return 'other'\n\n\ndef _merge(base, patch):\n    out = {}\n    for k, v in base.items():\n        out[k] = copy.deepcopy(v)\n    for k, pv in patch.items():\n        if pv is None:\n            out.pop(k, None)\n            continue\n        if k not in base:\n            out[k] = copy.deepcopy(pv)\n            continue\n        bv = base[k]\n        tb, tp = _t(bv), _t(pv)\n        if tb != tp:\n            raise ValueError('type mismatch for key %r' % (k,))\n        if tp == 'object':\n            out[k] = _merge(bv, pv)\n        else:\n            out[k] = copy.deepcopy(pv)\n    return out\n\n\ndef solve(data):\n    if not isinstance(data, dict):\n        raise ValueError('data must be an object')\n    if 'base' not in data or 'patch' not in data:\n        raise ValueError('missing base or patch')\n    base, patch = data['base'], data['patch']\n    if not isinstance(base, dict) or not isinstance(patch, dict):\n        raise ValueError('base and patch must be objects')\n    return _merge(base, patch)\n"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "write_file",
+      "file": "module.py",
+      "content": "def _t(v):\n    if v is None:\n        return 'null'\n    if isinstance(v, bool):\n        return 'bool'\n    if isinstance(v, (int, float)):\n        return 'number'\n    if isinstance(v, str):\n        return 'string'\n    if isinstance(v, list):\n        return 'list'\n    if isinstance(v, dict):\n        return 'object'\n    return 'other'\n\n\ndef _copy(v):\n    if isinstance(v, dict):\n        return {k: _copy(x) for k, x in v.items()}\n    if isinstance(v, list):\n        return [_copy(x) for x in v]\n    return v\n\n\ndef _merge(base, patch):\n    out = {}\n    for k, v in base.items():\n        out[k] = _copy(v)\n    for k, pv in patch.items():\n        if pv is None:\n            out.pop(k, None)\n            continue\n        if k not in base:\n            out[k] = _copy(pv)\n            continue\n        bv = base[k]\n        tb, tp = _t(bv), _t(pv)\n        if tb != tp:\n            raise ValueError('type mismatch for key %r' % (k,))\n        if tp == 'object':\n            out[k] = _merge(bv, pv)\n        else:\n            out[k] = _copy(pv)\n    return out\n\n\ndef solve(data):\n    if not isinstance(data, dict):\n        raise ValueError('data must be an object')\n    if 'base' not in data or 'patch' not in data:\n        raise ValueError('missing base or patch')\n    base, patch = data['base'], data['patch']\n    if not isinstance(base, dict) or not isinstance(patch, dict):\n        raise ValueError('base and patch must be objects')\n    return _merge(base, patch)\n"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "module.py implements solve(data) as a deep merge of patch into base. It validates that both inputs are objects and raises ValueError otherwise. A null patch value removes the key, and removing an absent key is a no-op. Objects merge recursively, and a list in patch replaces the base list. Keys absent from base are inserted as is. Mismatched JSON types raise ValueError, with booleans and numbers treated as different types. Key order is base keys first, then patch-only keys. Neither input is mutated, because values are copied recursively without the copy module. All 3 public tests pass against the delivered module.py, hash 30868dbe. I submitted no custom tests."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:04:10.797623+00:00",
+  "evaluation_race_possible": false
+}

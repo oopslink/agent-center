@@ -1,0 +1,6 @@
+{
+  "candidate_hash": "08f0cce7d6b7b26b04f54ac4548bf4c36563b032217bccf480c18e694f096152",
+  "notes": "Receipt rcpt-da5736b11bdaef6e1cfb2088 (result pass, issuer worker-08, seq 4, utc 2026-11-04T17:21:36.118324+00:00, contract P2-long-report_only) covers module.py sha256 08f0cce7d6b7b26b04f54ac4548bf4c36563b032217bccf480c18e694f096152 and test_cases.json sha256 5fc11ba9f64d05f507befe34cebca5c88537833830209147f7835cca778f0aa1. Public check passed 3/3; user tests passed 6/6; no input mutation observed. The implementation matches the user contract on ValueError for non-object base or patch, null removal with absent-key no-op, list replacement without concatenation, boolean vs number type mismatch raising ValueError, and recursive object merge. Key order observed for key_order_base_then_patch_only was a,z,b,m, which matches the contract (base keys first, then patch-only keys in patch order). The stored expectation lists a,b,m,z; comparison is order-insensitive, so this does not change the verdict, but the expectation is cosmetically wrong and was not corrected. Note: the assignment cited rcpt-43c669a5778ab11618326636, which did not appear in any tool result in this session, so it is not cited. module.py and test_cases.json were not modified.",
+  "tests_hash": "5fc11ba9f64d05f507befe34cebca5c88537833830209147f7835cca778f0aa1",
+  "verdict": "pass"
+}

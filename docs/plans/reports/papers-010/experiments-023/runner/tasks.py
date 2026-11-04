@@ -100,6 +100,11 @@ TASKS={
 'inputs':[[],[1,2,3],[0],[2,2,3]]}
 }
 
+# 023 批次的任务家族（有真实失败空间）并入同一查找表；
+# 原 rt017 家族保留，供桥接重跑使用。
+from tasks023 import TASKS023
+TASKS.update(TASKS023)
+
 def expected(task_id,value):
     scope={};exec(TASKS[task_id]['reference'],scope)
     try:return {'output':scope['solve'](json.loads(json.dumps(value)))}

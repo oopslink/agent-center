@@ -1,0 +1,69 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 3.769602792104706,
+  "finished_utc": "2026-11-04T17:15:08.258959+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0024630999999999998,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 11852,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 185,
+    "output_tokens_details": {
+      "thinking_tokens": 170
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 11852,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 185,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 11852,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 11852
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 185,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 11852,
+      "webSearchRequests": 0,
+      "costUSD": 0.0024630999999999998,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 170,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 11852,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"wait\",\"args\":{}}",
+  "parsed": {
+    "op": "wait",
+    "args": {}
+  }
+}

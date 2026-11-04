@@ -1,0 +1,137 @@
+[
+  {
+    "input": {
+      "base": {},
+      "patch": {}
+    },
+    "output": {}
+  },
+  {
+    "input": {
+      "base": {
+        "a": 1
+      },
+      "patch": {
+        "b": 2
+      }
+    },
+    "output": {
+      "a": 1,
+      "b": 2
+    }
+  },
+  {
+    "input": {
+      "base": {
+        "a": {
+          "x": 1
+        }
+      },
+      "patch": {
+        "a": {
+          "y": 2
+        }
+      }
+    },
+    "output": {
+      "a": {
+        "x": 1,
+        "y": 2
+      }
+    }
+  },
+  {
+    "input": {
+      "base": {
+        "a": [
+          1,
+          2
+        ]
+      },
+      "patch": {
+        "a": [
+          3
+        ]
+      }
+    },
+    "output": {
+      "a": [
+        3
+      ]
+    }
+  },
+  {
+    "input": {
+      "base": {
+        "a": 1,
+        "b": 2
+      },
+      "patch": {
+        "a": null
+      }
+    },
+    "output": {
+      "b": 2
+    }
+  },
+  {
+    "input": {
+      "base": {
+        "a": 1
+      },
+      "patch": {
+        "zz": null
+      }
+    },
+    "output": {
+      "a": 1
+    }
+  },
+  {
+    "input": {
+      "base": {
+        "b": 1,
+        "a": 1
+      },
+      "patch": {
+        "z": 1,
+        "c": 1
+      }
+    },
+    "output": {
+      "b": 1,
+      "a": 1,
+      "z": 1,
+      "c": 1
+    }
+  },
+  {
+    "input": {
+      "base": {
+        "a": 1
+      },
+      "patch": {
+        "a": "one"
+      }
+    },
+    "error": "ValueError"
+  },
+  {
+    "input": {
+      "base": {
+        "a": true
+      },
+      "patch": {
+        "a": 1
+      }
+    },
+    "error": "ValueError"
+  },
+  {
+    "input": {
+      "base": [],
+      "patch": {}
+    },
+    "error": "ValueError"
+  }
+]

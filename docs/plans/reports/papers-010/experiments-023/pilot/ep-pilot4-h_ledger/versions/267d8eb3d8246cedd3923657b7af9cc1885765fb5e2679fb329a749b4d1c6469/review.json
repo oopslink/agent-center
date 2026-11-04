@@ -1,0 +1,6 @@
+{
+  "candidate_hash": "9c47953f4de54ae0ad250f8888b343a6c01fa3239ce6dc86c46ae9f3446dc982",
+  "notes": "This reviewer session ran run_tests on the exact delivered versions (module.py sha256 9c47953f4de54ae0ad250f8888b343a6c01fa3239ce6dc86c46ae9f3446dc982, test_cases.json sha256 ad18ca88b76536c56cc6726e1b83207137ce8182f24eb03c8f3996b25f5a5f1e). Results: public 3/3 passed; user-tests 12/12 passed. Receipt from this session: rcpt-a47dbc91d1b3618e9be1365a (result pass, issuer worker-04, seq 4), bound to both hashes above. Receipts rcpt-c2c00cbb718c9108087a2532 and rcpt-b995c5d925ed60e9184ec670 are not cited because they cannot be verified from this session. Code review against the user contract: per operation, checks run in the required order (kind, then amount for credit/debit/hold, then hold-id uniqueness or release-id existence, then funds for debit/hold). Bool amounts are rejected. Release ignores the amount field. Holds are kept in a local dict and the input is not mutated (no mutation observed in tests). Out-of-contract edge cases, not covered by the contract or tests: a missing 'ops' key raises KeyError, and an unhashable hold id raises TypeError rather than ValueError.",
+  "tests_hash": "ad18ca88b76536c56cc6726e1b83207137ce8182f24eb03c8f3996b25f5a5f1e",
+  "verdict": "pass"
+}

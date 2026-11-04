@@ -250,6 +250,22 @@ def seed_execution(ep,task_id):
     save(ep/'seed-execution.json',report);record(ep,actor,'process_finished',{'status':'failed','origin':report['origin']})
     return report
 
+def budgets(row):
+    """决策与启动预算。默认沿用 rt017 的 12/3（P1）与 18/6（P2），可由 row 覆盖。
+
+    试跑显示更难的任务会在闭合前耗尽默认预算，使终态变成预算边界而非协调结果；
+    因此预算是一个要显式记录的实验参数，不是常量。
+    """
+    paper=row.get('paper')
+    out={'decisions':12 if paper=='P1' else 18,'worker_starts':3 if paper=='P1' else 6}
+    for key,field in (('decisions','decision_budget'),('worker_starts','worker_start_budget')):
+        if row.get(field) is not None:
+            value=row[field]
+            if not isinstance(value,int) or isinstance(value,bool) or value<1:
+                raise ValueError(f'{field} must be a positive integer, got {value!r}')
+            out[key]=value
+    return out
+
 def episode(row,ep):
     ep=Path(ep).resolve();ep.mkdir(parents=True,exist_ok=False)
     for d in ['work','versions','events','workers','calls','checks','receipts']: (ep/d).mkdir()
@@ -258,7 +274,8 @@ def episode(row,ep):
     (ep/'seed-stdout.txt').write_text(proc.stdout);(ep/'seed-stderr.txt').write_text(proc.stderr)
     assert proc.returncode==0,proc.stderr
     seed=json.loads((ep/'seed-execution.json').read_text());initial=seed['candidate_check']
-    mono=row.get('identity')=='single';paper=row['paper'];task_id=row['task'];limit=12 if paper=='P1' else 18;spawn_limit=3 if paper=='P1' else 6
+    mono=row.get('identity')=='single';paper=row['paper'];task_id=row['task']
+    _b=budgets(row);limit=_b['decisions'];spawn_limit=_b['worker_starts']
     system=system_prompt('controller',True,row.get('identity','separate'),mono,row.get('transport','report_only'))
     goal={'goal':'Deliver the complete requested implementation.' if paper=='P1' else 'Deliver the implementation, executable test cases, verified review, and version-bound release manifest.', 'user_contract':TASKS[task_id]['spec'],'organization':relation_view(row),'current_files':files_state(ep,True),'prior_execution':seed,'decision_budget':limit,'worker_start_budget':spawn_limit,'receipt_terms':RC.contract_text(row.get('transport','report_only'),row.get('required_issuer','controller'))}
     history=[{'role':'user','content':goal}];active=None;starts=0;lastcheck=initial;status='budget_exhausted';final_action=None;no_progress=0;first_failure_budget=None;controller_actions=[];worker_summaries=[]

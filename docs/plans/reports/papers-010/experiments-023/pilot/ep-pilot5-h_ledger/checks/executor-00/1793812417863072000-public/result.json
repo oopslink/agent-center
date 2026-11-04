@@ -1,0 +1,95 @@
+{
+  "passed": false,
+  "passed_count": 1,
+  "total": 3,
+  "checks": [
+    {
+      "index": 0,
+      "input": {
+        "ops": []
+      },
+      "expected": {
+        "output": {
+          "balance": 0,
+          "held": 0,
+          "available": 0
+        }
+      },
+      "observed": {
+        "output": {
+          "balance": 0,
+          "held": 0,
+          "available": 0
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 1,
+      "input": {
+        "ops": [
+          {
+            "kind": "credit",
+            "amount": 100
+          },
+          {
+            "kind": "debit",
+            "amount": 40
+          }
+        ]
+      },
+      "expected": {
+        "output": {
+          "balance": 60,
+          "held": 0,
+          "available": 60
+        }
+      },
+      "observed": {
+        "output": {
+          "balance": 140,
+          "held": 0,
+          "available": 140
+        }
+      },
+      "passed": false,
+      "input_mutated": false
+    },
+    {
+      "index": 2,
+      "input": {
+        "ops": [
+          {
+            "kind": "credit",
+            "amount": 50
+          },
+          {
+            "kind": "hold",
+            "amount": 20,
+            "id": "h1"
+          }
+        ]
+      },
+      "expected": {
+        "output": {
+          "balance": 50,
+          "held": 20,
+          "available": 30
+        }
+      },
+      "observed": {
+        "output": {
+          "balance": 70,
+          "held": 0,
+          "available": 70
+        }
+      },
+      "passed": false,
+      "input_mutated": false
+    }
+  ],
+  "candidate_hash": "f2cab6b8052e28ce526638d03a0458ce0f47c5d318a184e671195c8d83c8bae3",
+  "label": "public",
+  "duration_s": 0.017233083955943584
+}

@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 7.122044292045757,
+  "finished_utc": "2026-11-04T17:02:15.143009+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0011880999999999999,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 2302,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1455,
+    "output_tokens_details": {
+      "thinking_tokens": 919
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 2302,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1455,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2302,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 2302
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 1455,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 2302,
+      "webSearchRequests": 0,
+      "costUSD": 0.0011880999999999999,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 919,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 2302,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"write_file\",\"args\":{\"file\":\"module.py\",\"content\":\"def solve(data):\\n    ops = data['ops']\\n    balance = 0\\n    held = 0\\n    holds = {}\\n    for op in ops:\\n        if not isinstance(op, dict):\\n            raise ValueError('operation must be an object')\\n        kind = op.get('kind')\\n        if kind not in ('credit', 'debit', 'hold', 'release'):\\n            raise ValueError('unknown kind: %r' % (kind,))\\n        amount = None\\n        if kind in ('credit', 'debit', 'hold'):\\n            amount = op.get('amount')\\n            if isinstance(amount, bool) or not isinstance(amount, int) or amount < 1:\\n                raise ValueError('amount must be an integer of at least 1')\\n        if kind == 'hold':\\n            oid = op.get('id')\\n            if oid in holds:\\n                raise ValueError('hold id already active')\\n            if amount > balance - held:\\n                raise ValueError('insufficient available funds')\\n            holds[oid] = amount\\n            held += amount\\n        elif kind == 'release':\\n            oid = op.get('id')\\n            if oid not in holds:\\n                raise ValueError('no active hold with that id')\\n            held -= holds.pop(oid)\\n        elif kind == 'debit':\\n            if amount > balance - held:\\n                raise ValueError('insufficient available funds')\\n            balance -= amount\\n        else:\\n            balance += amount\\n    return {'balance': balance, 'held': held, 'available': balance - held}\\n\"}}",
+  "parsed": {
+    "op": "write_file",
+    "args": {
+      "file": "module.py",
+      "content": "def solve(data):\n    ops = data['ops']\n    balance = 0\n    held = 0\n    holds = {}\n    for op in ops:\n        if not isinstance(op, dict):\n            raise ValueError('operation must be an object')\n        kind = op.get('kind')\n        if kind not in ('credit', 'debit', 'hold', 'release'):\n            raise ValueError('unknown kind: %r' % (kind,))\n        amount = None\n        if kind in ('credit', 'debit', 'hold'):\n            amount = op.get('amount')\n            if isinstance(amount, bool) or not isinstance(amount, int) or amount < 1:\n                raise ValueError('amount must be an integer of at least 1')\n        if kind == 'hold':\n            oid = op.get('id')\n            if oid in holds:\n                raise ValueError('hold id already active')\n            if amount > balance - held:\n                raise ValueError('insufficient available funds')\n            holds[oid] = amount\n            held += amount\n        elif kind == 'release':\n            oid = op.get('id')\n            if oid not in holds:\n                raise ValueError('no active hold with that id')\n            held -= holds.pop(oid)\n        elif kind == 'debit':\n            if amount > balance - held:\n                raise ValueError('insufficient available funds')\n            balance -= amount\n        else:\n            balance += amount\n    return {'balance': balance, 'held': held, 'available': balance - held}\n"
+    }
+  }
+}

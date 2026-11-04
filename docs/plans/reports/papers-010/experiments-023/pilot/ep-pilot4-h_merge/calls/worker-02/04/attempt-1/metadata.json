@@ -1,0 +1,202 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 9.844509916962124,
+  "finished_utc": "2026-11-04T17:06:02.166896+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0017358,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 5048,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1452,
+    "output_tokens_details": {
+      "thinking_tokens": 941
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 5048,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1452,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 5048,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 5048
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 1452,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 5048,
+      "webSearchRequests": 0,
+      "costUSD": 0.0017358,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 941,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 5048,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"write_file\",\"args\":{\"file\":\"test_cases.json\",\"content\":[{\"name\":\"nested object merge\",\"input\":{\"base\":{\"a\":{\"x\":1,\"y\":2},\"b\":3},\"patch\":{\"a\":{\"y\":5,\"z\":6}}},\"output\":{\"a\":{\"x\":1,\"y\":5,\"z\":6},\"b\":3}},{\"name\":\"list replacement without concatenation\",\"input\":{\"base\":{\"l\":[1,2,3]},\"patch\":{\"l\":[4]}},\"output\":{\"l\":[4]}},{\"name\":\"null removes existing key and absent key is no-op\",\"input\":{\"base\":{\"a\":1,\"b\":2},\"patch\":{\"a\":null,\"c\":null}},\"output\":{\"b\":2}},{\"name\":\"string vs number type mismatch\",\"input\":{\"base\":{\"a\":\"s\"},\"patch\":{\"a\":1}},\"error\":\"ValueError\"},{\"name\":\"boolean vs number mismatch\",\"input\":{\"base\":{\"a\":true},\"patch\":{\"a\":1}},\"error\":\"ValueError\"},{\"name\":\"key ordering: base order then patch-only keys in patch order\",\"input\":{\"base\":{\"b\":1,\"a\":2},\"patch\":{\"c\":3,\"a\":9,\"d\":4}},\"output\":{\"b\":1,\"a\":9,\"c\":3,\"d\":4}},{\"name\":\"list vs object type mismatch\",\"input\":{\"base\":{\"a\":[1]},\"patch\":{\"a\":{\"x\":1}}},\"error\":\"ValueError\"},{\"name\":\"non-object data is rejected\",\"input\":\"not an object\",\"error\":\"ValueError\"}]}}",
+  "parsed": {
+    "op": "write_file",
+    "args": {
+      "file": "test_cases.json",
+      "content": [
+        {
+          "name": "nested object merge",
+          "input": {
+            "base": {
+              "a": {
+                "x": 1,
+                "y": 2
+              },
+              "b": 3
+            },
+            "patch": {
+              "a": {
+                "y": 5,
+                "z": 6
+              }
+            }
+          },
+          "output": {
+            "a": {
+              "x": 1,
+              "y": 5,
+              "z": 6
+            },
+            "b": 3
+          }
+        },
+        {
+          "name": "list replacement without concatenation",
+          "input": {
+            "base": {
+              "l": [
+                1,
+                2,
+                3
+              ]
+            },
+            "patch": {
+              "l": [
+                4
+              ]
+            }
+          },
+          "output": {
+            "l": [
+              4
+            ]
+          }
+        },
+        {
+          "name": "null removes existing key and absent key is no-op",
+          "input": {
+            "base": {
+              "a": 1,
+              "b": 2
+            },
+            "patch": {
+              "a": null,
+              "c": null
+            }
+          },
+          "output": {
+            "b": 2
+          }
+        },
+        {
+          "name": "string vs number type mismatch",
+          "input": {
+            "base": {
+              "a": "s"
+            },
+            "patch": {
+              "a": 1
+            }
+          },
+          "error": "ValueError"
+        },
+        {
+          "name": "boolean vs number mismatch",
+          "input": {
+            "base": {
+              "a": true
+            },
+            "patch": {
+              "a": 1
+            }
+          },
+          "error": "ValueError"
+        },
+        {
+          "name": "key ordering: base order then patch-only keys in patch order",
+          "input": {
+            "base": {
+              "b": 1,
+              "a": 2
+            },
+            "patch": {
+              "c": 3,
+              "a": 9,
+              "d": 4
+            }
+          },
+          "output": {
+            "b": 1,
+            "a": 9,
+            "c": 3,
+            "d": 4
+          }
+        },
+        {
+          "name": "list vs object type mismatch",
+          "input": {
+            "base": {
+              "a": [
+                1
+              ]
+            },
+            "patch": {
+              "a": {
+                "x": 1
+              }
+            }
+          },
+          "error": "ValueError"
+        },
+        {
+          "name": "non-object data is rejected",
+          "input": "not an object",
+          "error": "ValueError"
+        }
+      ]
+    }
+  }
+}

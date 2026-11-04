@@ -1,0 +1,103 @@
+[
+  {
+    "input": {
+      "base": {
+        "l": [
+          1,
+          2
+        ]
+      },
+      "patch": {
+        "l": [
+          3
+        ]
+      }
+    },
+    "name": "nested_object_merge",
+    "output": {
+      "a": {
+        "x": 1,
+        "y": 2
+      }
+    }
+  },
+  {
+    "input": {
+      "base": {
+        "a": 1,
+        "b": 2
+      },
+      "patch": {
+        "a": null,
+        "c": null
+      }
+    },
+    "name": "null_removes_key_and_absent_noop",
+    "output": {
+      "b": 2
+    }
+  },
+  {
+    "input": {
+      "base": {
+        "l": [
+          1,
+          2
+        ]
+      },
+      "patch": {
+        "l": [
+          3
+        ]
+      }
+    },
+    "name": "list_replaced_not_concatenated",
+    "output": {
+      "l": [
+        3
+      ]
+    }
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "base": {
+        "f": true
+      },
+      "patch": {
+        "f": 1
+      }
+    },
+    "name": "boolean_number_type_mismatch"
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "base": [
+        1
+      ],
+      "patch": {}
+    },
+    "name": "non_object_base_rejected"
+  },
+  {
+    "input": {
+      "base": {
+        "a": 2,
+        "z": 1
+      },
+      "patch": {
+        "a": 5,
+        "b": 4,
+        "m": 3
+      }
+    },
+    "name": "key_order_base_then_patch_only",
+    "output": {
+      "a": 5,
+      "b": 4,
+      "m": 3,
+      "z": 1
+    }
+  }
+]

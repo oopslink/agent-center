@@ -1,0 +1,15 @@
+{
+  "id": "pilot5-h_merge",
+  "paper": "P2",
+  "task": "h_merge",
+  "family": "h_merge",
+  "model": "claude-haiku-5-5",
+  "organization": "long",
+  "binding": "distributed",
+  "ledger": "off",
+  "identity": "separate",
+  "transport": "report_only",
+  "decision_budget": 32,
+  "worker_start_budget": 12,
+  "run_version": "023-pilot5"
+}

@@ -1,0 +1,113 @@
+{
+  "passed": true,
+  "passed_count": 3,
+  "total": 3,
+  "checks": [
+    {
+      "index": 0,
+      "input": {
+        "gap": 5,
+        "events": []
+      },
+      "expected": {
+        "output": []
+      },
+      "observed": {
+        "output": []
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 1,
+      "input": {
+        "gap": 5,
+        "events": [
+          {
+            "user": "a",
+            "t": 1
+          },
+          {
+            "user": "a",
+            "t": 3
+          }
+        ]
+      },
+      "expected": {
+        "output": [
+          {
+            "user": "a",
+            "start": 1,
+            "end": 3,
+            "count": 2
+          }
+        ]
+      },
+      "observed": {
+        "output": [
+          {
+            "user": "a",
+            "start": 1,
+            "end": 3,
+            "count": 2
+          }
+        ]
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 2,
+      "input": {
+        "gap": 2,
+        "events": [
+          {
+            "user": "a",
+            "t": 1
+          },
+          {
+            "user": "a",
+            "t": 10
+          }
+        ]
+      },
+      "expected": {
+        "output": [
+          {
+            "user": "a",
+            "start": 1,
+            "end": 1,
+            "count": 1
+          },
+          {
+            "user": "a",
+            "start": 10,
+            "end": 10,
+            "count": 1
+          }
+        ]
+      },
+      "observed": {
+        "output": [
+          {
+            "user": "a",
+            "start": 1,
+            "end": 1,
+            "count": 1
+          },
+          {
+            "user": "a",
+            "start": 10,
+            "end": 10,
+            "count": 1
+          }
+        ]
+      },
+      "passed": true,
+      "input_mutated": false
+    }
+  ],
+  "candidate_hash": "e34ed8129c2dd420a8ee2d18126bab40518684c15a6569357825167c359c2f61",
+  "label": "public",
+  "duration_s": 0.031678208033554256
+}

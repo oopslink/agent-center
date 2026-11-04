@@ -1,0 +1,10 @@
+{
+  "receipt_id": "rcpt-7f20980b99335941aa1b9968",
+  "candidate_hash": "08f0cce7d6b7b26b04f54ac4548bf4c36563b032217bccf480c18e694f096152",
+  "tests_hash": "5fc11ba9f64d05f507befe34cebca5c88537833830209147f7835cca778f0aa1",
+  "contract_id": "P2-long-report_only",
+  "result": "pass",
+  "issuer": "worker-04",
+  "utc": "2026-11-04T17:19:27.035285+00:00",
+  "seq": 2
+}

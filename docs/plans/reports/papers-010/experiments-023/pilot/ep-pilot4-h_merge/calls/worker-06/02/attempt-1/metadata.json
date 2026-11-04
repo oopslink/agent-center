@@ -1,0 +1,77 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 6.045754084014334,
+  "finished_utc": "2026-11-04T17:08:16.777333+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0016107,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 6855,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 479,
+    "output_tokens_details": {
+      "thinking_tokens": 230
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 6855,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 479,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 6855,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 6855
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 479,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 6855,
+      "webSearchRequests": 0,
+      "costUSD": 0.0016107,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 230,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 6855,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"write_file\",\"args\":{\"file\":\"manifest.json\",\"content\":{\"candidate_hash\":\"e9aa23423b47d1d883cffb441620a04f512ed1513450f2fd9cb3a2d6be38bb68\",\"tests_hash\":\"e4410783b722ffcec0d17a45b6a6499affe61e1c529bd33539d2fc1b357a9739\",\"review_hash\":\"646601f8d78fa2f32c6d4563edd21f2f376afee0130622bb2c730cc582456556\"}},\"note\":\"The inspect result shows module.py, test_cases.json, and review.json hashes matching the assignment's values, so I'm writing the manifest. This records the hashes only; it does not validate review.json's receipt claims.\"}",
+  "parsed": {
+    "op": "write_file",
+    "args": {
+      "file": "manifest.json",
+      "content": {
+        "candidate_hash": "e9aa23423b47d1d883cffb441620a04f512ed1513450f2fd9cb3a2d6be38bb68",
+        "tests_hash": "e4410783b722ffcec0d17a45b6a6499affe61e1c529bd33539d2fc1b357a9739",
+        "review_hash": "646601f8d78fa2f32c6d4563edd21f2f376afee0130622bb2c730cc582456556"
+      }
+    },
+    "note": "The inspect result shows module.py, test_cases.json, and review.json hashes matching the assignment's values, so I'm writing the manifest. This records the hashes only; it does not validate review.json's receipt claims."
+  }
+}

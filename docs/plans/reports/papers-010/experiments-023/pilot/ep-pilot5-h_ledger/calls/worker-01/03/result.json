@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 7.414052208070643,
+  "finished_utc": "2026-11-04T17:14:02.330410+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0011619,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 3376,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 973,
+    "output_tokens_details": {
+      "thinking_tokens": 704
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 3376,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 973,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 3376,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 3376
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 973,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 3376,
+      "webSearchRequests": 0,
+      "costUSD": 0.0011619,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 704,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 3376,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"finish\",\"args\":{\"status\":\"complete\",\"message\":\"module.py replaces the summing stub with a validated ledger implementing solve(data) per the contract. Checks run in order: kind, amount (int >= 1, bools rejected), hold id uniqueness or release id existence, then available-funds check for debit and hold. Credit, debit, hold, and release update balance and held as specified, and the input is not mutated. run_tests passed the 3 public cases (empty ops, credit/debit, credit/hold), with input_mutated false. Only the public tests were run, so hidden edge cases are unverified. Unhashable id values (e.g. lists) would raise TypeError rather than ValueError; the contract doesn't cover this. test_cases.json was not part of the allowed files, so no receipt bound to it was produced.\"}}",
+  "parsed": {
+    "op": "finish",
+    "args": {
+      "status": "complete",
+      "message": "module.py replaces the summing stub with a validated ledger implementing solve(data) per the contract. Checks run in order: kind, amount (int >= 1, bools rejected), hold id uniqueness or release id existence, then available-funds check for debit and hold. Credit, debit, hold, and release update balance and held as specified, and the input is not mutated. run_tests passed the 3 public cases (empty ops, credit/debit, credit/hold), with input_mutated false. Only the public tests were run, so hidden edge cases are unverified. Unhashable id values (e.g. lists) would raise TypeError rather than ValueError; the contract doesn't cover this. test_cases.json was not part of the allowed files, so no receipt bound to it was produced."
+    }
+  }
+}

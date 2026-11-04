@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 6.626392708043568,
+  "finished_utc": "2026-11-04T17:03:00.685710+00:00",
+  "model_reported": [
+    "claude-sonnet-5-5"
+  ],
+  "cost_usd_reported": 0.011818,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 2206,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 299,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 2206,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 299,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2206,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 2206
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-sonnet-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 299,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 2206,
+      "webSearchRequests": 0,
+      "costUSD": 0.011818,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 0,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 2206,
+      "canonicalModel": "claude-sonnet-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"write_file\",\"args\":{\"file\":\"module.py\",\"content\":\"def solve(data):\\n    gap = data['gap']\\n    if gap < 0:\\n        raise ValueError('gap must be non-negative')\\n    by_user = {}\\n    for e in data['events']:\\n        by_user.setdefault(e['user'], []).append(e['t'])\\n    out = []\\n    for user in sorted(by_user):\\n        ts = sorted(by_user[user])\\n        start = end = ts[0]\\n        count = 1\\n        for t in ts[1:]:\\n            if t - end > gap:\\n                out.append({'user': user, 'start': start, 'end': end, 'count': count})\\n                start = end = t\\n                count = 1\\n            else:\\n                end = t\\n                count += 1\\n        out.append({'user': user, 'start': start, 'end': end, 'count': count})\\n    return out\\n\"}}",
+  "parsed": {
+    "op": "write_file",
+    "args": {
+      "file": "module.py",
+      "content": "def solve(data):\n    gap = data['gap']\n    if gap < 0:\n        raise ValueError('gap must be non-negative')\n    by_user = {}\n    for e in data['events']:\n        by_user.setdefault(e['user'], []).append(e['t'])\n    out = []\n    for user in sorted(by_user):\n        ts = sorted(by_user[user])\n        start = end = ts[0]\n        count = 1\n        for t in ts[1:]:\n            if t - end > gap:\n                out.append({'user': user, 'start': start, 'end': end, 'count': count})\n                start = end = t\n                count = 1\n            else:\n                end = t\n                count += 1\n        out.append({'user': user, 'start': start, 'end': end, 'count': count})\n    return out\n"
+    }
+  }
+}

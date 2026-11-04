@@ -1,0 +1,51 @@
+[
+  {
+    "input": {
+      "ops": []
+    },
+    "output": {
+      "balance": 0,
+      "held": 0,
+      "available": 0
+    }
+  },
+  {
+    "input": {
+      "ops": [
+        {
+          "kind": "credit",
+          "amount": 100
+        },
+        {
+          "kind": "debit",
+          "amount": 40
+        }
+      ]
+    },
+    "output": {
+      "balance": 60,
+      "held": 0,
+      "available": 60
+    }
+  },
+  {
+    "input": {
+      "ops": [
+        {
+          "kind": "credit",
+          "amount": 50
+        },
+        {
+          "kind": "hold",
+          "amount": 20,
+          "id": "h1"
+        }
+      ]
+    },
+    "output": {
+      "balance": 50,
+      "held": 20,
+      "available": 30
+    }
+  }
+]

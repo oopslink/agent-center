@@ -1,0 +1,61 @@
+[
+  {
+    "input": {
+      "gap": 5,
+      "events": []
+    },
+    "output": []
+  },
+  {
+    "input": {
+      "gap": 5,
+      "events": [
+        {
+          "user": "a",
+          "t": 1
+        },
+        {
+          "user": "a",
+          "t": 3
+        }
+      ]
+    },
+    "output": [
+      {
+        "user": "a",
+        "start": 1,
+        "end": 3,
+        "count": 2
+      }
+    ]
+  },
+  {
+    "input": {
+      "gap": 2,
+      "events": [
+        {
+          "user": "a",
+          "t": 1
+        },
+        {
+          "user": "a",
+          "t": 10
+        }
+      ]
+    },
+    "output": [
+      {
+        "user": "a",
+        "start": 1,
+        "end": 1,
+        "count": 1
+      },
+      {
+        "user": "a",
+        "start": 10,
+        "end": 10,
+        "count": 1
+      }
+    ]
+  }
+]

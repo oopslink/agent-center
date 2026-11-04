@@ -1,0 +1,20 @@
+{
+  "worker_id": "worker-03",
+  "role": "tester",
+  "task": "Edit test_cases.json only. The key_order_base_then_patch_only case has the wrong expected output. Per the contract, base keys come first in their original order, then patch-only keys in patch order. For base {\"a\":2,\"z\":1} and patch {\"a\":5,\"b\":4,\"m\":3}, the expected output must list keys in the order a, z, b, m with values a=5, z=1, b=4, m=3. The current file lists a, b, m, z, which is wrong. Correct that expected output so its key order matches the contract. Do not change any other case unless it is also wrong per the contract. Do not write module.py.",
+  "row": {
+    "id": "pilot5-h_merge",
+    "paper": "P2",
+    "task": "h_merge",
+    "family": "h_merge",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-pilot5"
+  }
+}

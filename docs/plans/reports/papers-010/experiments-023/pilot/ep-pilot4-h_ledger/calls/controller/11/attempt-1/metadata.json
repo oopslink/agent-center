@@ -1,0 +1,73 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 9.83133012498729,
+  "finished_utc": "2026-11-04T17:10:56.779782+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.004411700000000001,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 18270,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1515,
+    "output_tokens_details": {
+      "thinking_tokens": 931
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 18270,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1515,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 18270,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 18270
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 1515,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 18270,
+      "webSearchRequests": 0,
+      "costUSD": 0.004411700000000001,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 931,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 18270,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"spawn\",\"args\":{\"role\":\"reviewer\",\"task\":\"Rewrite review.json (overwrite the existing file) as a JSON object with exactly these keys: candidate_hash \\\"9c47953f4de54ae0ad250f8888b343a6c01fa3239ce6dc86c46ae9f3446dc982\\\" (module.py sha256), tests_hash \\\"ad18ca88b76536c56cc6726e1b83207137ce8182f24eb03c8f3996b25f5a5f1e\\\" (test_cases.json sha256), verdict \\\"pass\\\", and notes (string). In notes, state that the supervisor session ran run_tests on these exact versions: public 3/3 passed and user-tests 12/12 passed, receipt rcpt-c2c00cbb718c9108087a2532 (result pass, issuer controller). Do not cite rcpt-b995c5d925ed60e9184ec670 or any other receipt, because it cannot be verified from this session. Do not claim you ran run_tests. Record the code review against the user contract: check order per operation (kind, amount for credit/debit/hold, hold-id uniqueness or release-id existence, then funds for debit/hold); bool amounts rejected; release ignores amount; no input mutation. Note the out-of-contract edge cases (missing 'ops' raises KeyError; unhashable hold id raises TypeError) as not covered by the contract. Write only review.json.\",\"note\":\"Re-issuing the review. The previous review.json cites receipt rcpt-b995c5d925ed60e9184ec670, which this session did not issue and cannot verify. The pass verdict must be bound to rcpt-c2c00cbb718c9108087a2532, the receipt this session received from its own run_tests.\"}}",
+  "parsed": {
+    "op": "spawn",
+    "args": {
+      "role": "reviewer",
+      "task": "Rewrite review.json (overwrite the existing file) as a JSON object with exactly these keys: candidate_hash \"9c47953f4de54ae0ad250f8888b343a6c01fa3239ce6dc86c46ae9f3446dc982\" (module.py sha256), tests_hash \"ad18ca88b76536c56cc6726e1b83207137ce8182f24eb03c8f3996b25f5a5f1e\" (test_cases.json sha256), verdict \"pass\", and notes (string). In notes, state that the supervisor session ran run_tests on these exact versions: public 3/3 passed and user-tests 12/12 passed, receipt rcpt-c2c00cbb718c9108087a2532 (result pass, issuer controller). Do not cite rcpt-b995c5d925ed60e9184ec670 or any other receipt, because it cannot be verified from this session. Do not claim you ran run_tests. Record the code review against the user contract: check order per operation (kind, amount for credit/debit/hold, hold-id uniqueness or release-id existence, then funds for debit/hold); bool amounts rejected; release ignores amount; no input mutation. Note the out-of-contract edge cases (missing 'ops' raises KeyError; unhashable hold id raises TypeError) as not covered by the contract. Write only review.json.",
+      "note": "Re-issuing the review. The previous review.json cites receipt rcpt-b995c5d925ed60e9184ec670, which this session did not issue and cannot verify. The pass verdict must be bound to rcpt-c2c00cbb718c9108087a2532, the receipt this session received from its own run_tests."
+    }
+  }
+}

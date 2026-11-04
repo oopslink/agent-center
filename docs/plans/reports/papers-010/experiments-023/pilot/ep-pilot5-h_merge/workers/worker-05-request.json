@@ -1,0 +1,20 @@
+{
+  "worker_id": "worker-05",
+  "role": "tester",
+  "task": "Edit test_cases.json only. In the case named key_order_base_then_patch_only, the expected output must list keys in this order: a, z, b, m, with values a=5, z=1, b=4, m=3. Currently it lists a, b, m, z, which does not follow the contract (base keys first in original order, then patch-only keys in patch order). Keep every other case unchanged. Preserve the JSON list structure and the name/input/output fields. Do not write module.py.",
+  "row": {
+    "id": "pilot5-h_merge",
+    "paper": "P2",
+    "task": "h_merge",
+    "family": "h_merge",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-pilot5"
+  }
+}

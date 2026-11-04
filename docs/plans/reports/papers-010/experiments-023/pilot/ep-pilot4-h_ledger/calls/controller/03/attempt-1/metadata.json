@@ -1,0 +1,70 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 3.4910783329978585,
+  "finished_utc": "2026-11-04T17:09:16.210865+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0009319,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 4066,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 237,
+    "output_tokens_details": {
+      "thinking_tokens": 161
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 4066,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 237,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 4066,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 4066
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 237,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 4066,
+      "webSearchRequests": 0,
+      "costUSD": 0.0009319,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 161,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 4066,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"inspect\",\"args\":{},\"note\":\"Confirming the current module.py hash and worker state before spawning the tester. The implementer's 'public tests pass' claim has not been verified by a run_tests receipt from this session.\"}",
+  "parsed": {
+    "op": "inspect",
+    "args": {},
+    "note": "Confirming the current module.py hash and worker state before spawning the tester. The implementer's 'public tests pass' claim has not been verified by a run_tests receipt from this session."
+  }
+}

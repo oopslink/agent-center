@@ -1,0 +1,20 @@
+{
+  "worker_id": "worker-04",
+  "role": "reviewer",
+  "task": "Overwrite review.json only. It must be a JSON object with keys candidate_hash, tests_hash, verdict, notes. Use candidate_hash \"2cbef4bced2a8a53f223ec2a2b0ed691507ad0ec1e23358942c07c1b820c412a\" (module.py) and tests_hash \"ecab976eba808b468c15ad15b55e359559aa095fcd059566b211b7046b6e2535\" (test_cases.json). Review module.py against the user contract: validation order (kind, amount int >= 1 with bools rejected, id uniqueness or existence, available-funds check for debit and hold), effects of credit, debit, hold and release, zero result for empty ops, and no input mutation. Check that test_cases.json expectations match the contract. Set verdict to \"pass\" only if the implementation and tests are correct. The only run receipt you may cite is rcpt-75c7cca89913fe6feea654d0, which the Supervisor supplies: result pass, candidate and tests hashes above. Do not cite rcpt-4600d5701aef4f96f709ccb4 or any other receipt; the earlier review.json citation of it is unverified and must be replaced. Note in notes that unhashable id values (such as lists) raise TypeError, which the contract does not address. Do not write any other file.",
+  "row": {
+    "id": "pilot5-h_ledger",
+    "paper": "P2",
+    "task": "h_ledger",
+    "family": "h_ledger",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-pilot5"
+  }
+}

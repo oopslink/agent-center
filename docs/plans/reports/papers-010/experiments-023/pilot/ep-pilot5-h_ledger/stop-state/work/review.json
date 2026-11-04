@@ -1,0 +1,6 @@
+{
+  "candidate_hash": "2cbef4bced2a8a53f223ec2a2b0ed691507ad0ec1e23358942c07c1b820c412a",
+  "notes": "Review of module.py against the user contract. Validation order matches the contract: kind is checked first; for credit, debit and hold, amount must be an int >= 1 with bools rejected; hold checks id uniqueness before available funds; release checks id existence; debit and hold check available funds (balance minus held) before applying. Credit increases balance, debit decreases it, hold adds to held and records the id, and release removes the hold and ignores any amount field. Empty ops returns zeros. The input is not mutated: holds is a local dict and op fields are only read. All six test_cases.json expectations match the contract. Known gap outside the contract: unhashable id values (such as lists) raise TypeError from the dict membership test, which the contract does not address. Receipt: this verdict relies on Supervisor-supplied receipt rcpt-75c7cca89913fe6feea654d0 (result pass, bound to candidate_hash 2cbef4bc... and tests_hash ecab976e...), which I cannot verify independently. My own run_tests call in this session also returned pass with matching hashes for both public and user tests.",
+  "tests_hash": "ecab976eba808b468c15ad15b55e359559aa095fcd059566b211b7046b6e2535",
+  "verdict": "pass"
+}

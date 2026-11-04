@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 4.583112250082195,
+  "finished_utc": "2026-11-04T17:02:53.972567+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0009263000000000001,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 3343,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 515,
+    "output_tokens_details": {
+      "thinking_tokens": 286
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 3343,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 515,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 3343,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 3343
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 515,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 3343,
+      "webSearchRequests": 0,
+      "costUSD": 0.0009263000000000001,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 286,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 3343,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"finish\",\"args\":{\"status\":\"complete\",\"message\":\"module.py now implements solve(data) per the contract: it raises ValueError for negative gap, groups events by user, sorts each group by t (stable for equal t), splits sessions when the gap exceeds gap, counts repeated t values, and returns sessions sorted by user then start. It does not mutate the input. The last run_tests receipt (public, 3/3 passed) is bound to the current module.py hash e34ed8129c2dd420a8ee2d18126bab40518684c15a6569357825167c359c2f61. No user tests were submitted and no test_cases.json was provided, so coverage beyond the public checks is by code review only.\"}}",
+  "parsed": {
+    "op": "finish",
+    "args": {
+      "status": "complete",
+      "message": "module.py now implements solve(data) per the contract: it raises ValueError for negative gap, groups events by user, sorts each group by t (stable for equal t), splits sessions when the gap exceeds gap, counts repeated t values, and returns sessions sorted by user then start. It does not mutate the input. The last run_tests receipt (public, 3/3 passed) is bound to the current module.py hash e34ed8129c2dd420a8ee2d18126bab40518684c15a6569357825167c359c2f61. No user tests were submitted and no test_cases.json was provided, so coverage beyond the public checks is by code review only."
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "passed": false,
+  "error": "unsupported_import",
+  "imports": [
+    "copy"
+  ],
+  "candidate_hash": "0f62e35b287a9786f7dfda1d7be7f811584d6b9c9a8276935a20a07337d7dd7f",
+  "label": "public",
+  "duration_s": 0.03190812503453344
+}

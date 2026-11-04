@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 5.307568249991164,
+  "finished_utc": "2026-11-04T17:05:31.557189+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.001061,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 4059,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 498,
+    "output_tokens_details": {
+      "thinking_tokens": 129
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 4059,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 498,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 4059,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 4059
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 498,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 4059,
+      "webSearchRequests": 0,
+      "costUSD": 0.001061,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 129,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 4059,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"spawn\",\"args\":{\"role\":\"tester\",\"task\":\"Write test_cases.json for solve(data) in module.py. The file must be a JSON list of at least four distinct cases. Each case has an input field plus exactly one of output (the expected JSON result) or error (the exception class name, e.g. ValueError). Extra descriptive fields such as name or notes are allowed. Expectations must match this contract: data must be an object with object keys base and patch, otherwise ValueError. Deep-merge patch into base. For each patch key: null removes the key (no-op if absent); two objects merge recursively; two lists are replaced by the patch list; an absent base key inserts the patch value as is; otherwise differing JSON types raise ValueError, where types are object, list, string, boolean, number, and booleans and numbers differ. Result key order is base keys in original order, then patch-only keys in patch order. Inputs are not mutated. Cover at least: nested object merge, list replacement, null removal including absent key, type mismatch error, boolean vs number mismatch error, key ordering, and non-object data error. Write only test_cases.json.\"}}",
+  "parsed": {
+    "op": "spawn",
+    "args": {
+      "role": "tester",
+      "task": "Write test_cases.json for solve(data) in module.py. The file must be a JSON list of at least four distinct cases. Each case has an input field plus exactly one of output (the expected JSON result) or error (the exception class name, e.g. ValueError). Extra descriptive fields such as name or notes are allowed. Expectations must match this contract: data must be an object with object keys base and patch, otherwise ValueError. Deep-merge patch into base. For each patch key: null removes the key (no-op if absent); two objects merge recursively; two lists are replaced by the patch list; an absent base key inserts the patch value as is; otherwise differing JSON types raise ValueError, where types are object, list, string, boolean, number, and booleans and numbers differ. Result key order is base keys in original order, then patch-only keys in patch order. Inputs are not mutated. Cover at least: nested object merge, list replacement, null removal including absent key, type mismatch error, boolean vs number mismatch error, key ordering, and non-object data error. Write only test_cases.json."
+    }
+  }
+}

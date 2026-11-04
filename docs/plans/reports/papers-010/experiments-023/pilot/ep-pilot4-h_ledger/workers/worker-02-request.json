@@ -1,0 +1,18 @@
+{
+  "worker_id": "worker-02",
+  "role": "tester",
+  "task": "Write test_cases.json: a JSON list of at least four distinct test cases for solve(data) as defined by the user contract. Each case has an \"input\" object and exactly one of \"output\" (expected result dict with keys balance, held, available) or \"error\" (exception class name, e.g. \"ValueError\"). Optional extra fields such as \"name\" are allowed. Cover: empty ops returning zeros; credit then debit; credit then hold then available; release restoring funds, with the amount field ignored; an invalid kind; a bool amount; a zero or negative amount; a duplicate hold id; a release of an unknown id; a debit or hold exceeding available funds; and a non-dict operation if you choose. Derive every expected value by hand from the user contract, not from module.py. Write only test_cases.json.",
+  "row": {
+    "id": "pilot4-h_ledger",
+    "paper": "P2",
+    "task": "h_ledger",
+    "family": "h_ledger",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "run_version": "023-pilot4"
+  }
+}

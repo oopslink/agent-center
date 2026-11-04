@@ -1,0 +1,11 @@
+{
+  "id": "pilot-h_sessions-sonnet",
+  "paper": "P1",
+  "task": "h_sessions",
+  "family": "h_sessions",
+  "model": "claude-sonnet-5-5",
+  "identity": "single",
+  "ledger": "off",
+  "transport": "report_only",
+  "run_version": "023-pilot"
+}

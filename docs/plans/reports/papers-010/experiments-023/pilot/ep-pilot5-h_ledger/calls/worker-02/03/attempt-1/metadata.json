@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 6.9499764170031995,
+  "finished_utc": "2026-11-04T17:14:25.828369+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0013228,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 5063,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 620,
+    "output_tokens_details": {
+      "thinking_tokens": 458
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 5063,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 620,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 5063,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 5063
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 620,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 5063,
+      "webSearchRequests": 0,
+      "costUSD": 0.0013228,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 458,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 5063,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"finish\",\"args\":{\"status\":\"complete\",\"message\":\"test_cases.json is written with six cases: empty ops, credit then debit, credit/hold/release, insufficient-funds debit, bool amount, and unknown kind. I hand-checked each expected output against the contract. run_tests passed all 3 public and 6 user checks, and receipt rcpt-a98253624a78eb7b530914bb is bound to the current module.py and test_cases.json hashes. No other files were written.\"}}",
+  "parsed": {
+    "op": "finish",
+    "args": {
+      "status": "complete",
+      "message": "test_cases.json is written with six cases: empty ops, credit then debit, credit/hold/release, insufficient-funds debit, bool amount, and unknown kind. I hand-checked each expected output against the contract. run_tests passed all 3 public and 6 user checks, and receipt rcpt-a98253624a78eb7b530914bb is bound to the current module.py and test_cases.json hashes. No other files were written."
+    }
+  }
+}

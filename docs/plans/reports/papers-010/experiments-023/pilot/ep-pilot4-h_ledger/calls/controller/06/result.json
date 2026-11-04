@@ -1,0 +1,66 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 5.008276832988486,
+  "finished_utc": "2026-11-04T17:10:13.166132+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0018391,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 8032,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 465,
+    "output_tokens_details": {
+      "thinking_tokens": 312
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 8032,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 465,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 8032,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 8032
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 465,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 8032,
+      "webSearchRequests": 0,
+      "costUSD": 0.0018391,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 312,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 8032,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "The implementer's and tester's reported results came from their own sessions, and receipts can't be retrieved across sessions. I'll run the tests in this session so the review can bind to a receipt I hold.\n\n{\"op\":\"run_tests\",\"args\":{},\"note\":\"Running public and user tests in this session to obtain a receipt bound to the current module.py (9c47953f...) and test_cases.json (ad18ca88...). The worker-reported receipt cannot be used for a pass review.\"}",
+  "parsed": null
+}

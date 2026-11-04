@@ -1,0 +1,20 @@
+{
+  "worker_id": "worker-02",
+  "role": "tester",
+  "task": "Write test_cases.json only. It must be a JSON list of at least four distinct cases for solve(data) implementing the deep-merge contract. Each case has an input object with keys base and patch, plus exactly one of output (expected JSON result) or error (exception class name, e.g. ValueError). Optional name/notes fields are allowed. Cover: nested object merge (base {a:{x:1}}, patch {a:{y:2}} gives {a:{x:1,y:2}}); null removes a key and removing an absent key is a no-op; list replacement with no concatenation; boolean vs number type mismatch raises ValueError; non-object base or patch raises ValueError; key order (base order first, then patch-only keys in patch order). Expected values must follow the user contract exactly, not the current module.py behavior. Do not write module.py.",
+  "row": {
+    "id": "pilot5-h_merge",
+    "paper": "P2",
+    "task": "h_merge",
+    "family": "h_merge",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-pilot5"
+  }
+}

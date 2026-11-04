@@ -1,0 +1,83 @@
+{
+  "passed": true,
+  "passed_count": 3,
+  "total": 3,
+  "checks": [
+    {
+      "index": 0,
+      "input": {
+        "base": {},
+        "patch": {}
+      },
+      "expected": {
+        "output": {}
+      },
+      "observed": {
+        "output": {}
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 1,
+      "input": {
+        "base": {
+          "a": 1
+        },
+        "patch": {
+          "b": 2
+        }
+      },
+      "expected": {
+        "output": {
+          "a": 1,
+          "b": 2
+        }
+      },
+      "observed": {
+        "output": {
+          "a": 1,
+          "b": 2
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 2,
+      "input": {
+        "base": {
+          "a": {
+            "x": 1
+          }
+        },
+        "patch": {
+          "a": {
+            "y": 2
+          }
+        }
+      },
+      "expected": {
+        "output": {
+          "a": {
+            "x": 1,
+            "y": 2
+          }
+        }
+      },
+      "observed": {
+        "output": {
+          "a": {
+            "x": 1,
+            "y": 2
+          }
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    }
+  ],
+  "candidate_hash": "4a196807dfe865295e21d59d4af59671625a09db88c440ad7fba47115e2199a7",
+  "label": "public",
+  "duration_s": 0.035063875024206936
+}

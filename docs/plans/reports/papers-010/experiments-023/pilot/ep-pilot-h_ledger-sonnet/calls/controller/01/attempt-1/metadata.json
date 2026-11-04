@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 4.493039250024594,
+  "finished_utc": "2026-11-04T17:02:29.464840+00:00",
+  "model_reported": [
+    "claude-sonnet-5-5"
+  ],
+  "cost_usd_reported": 0.013878,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 2281,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 475,
+    "output_tokens_details": {
+      "thinking_tokens": 0
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 2281,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 475,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2281,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 2281
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-sonnet-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 475,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 2281,
+      "webSearchRequests": 0,
+      "costUSD": 0.013878,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 0,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 2281,
+      "canonicalModel": "claude-sonnet-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"write_file\",\"args\":{\"file\":\"module.py\",\"content\":\"def solve(data):\\n    balance = 0\\n    holds = {}\\n    held = 0\\n    for o in data['ops']:\\n        kind = o.get('kind') if isinstance(o, dict) else None\\n        if kind not in ('credit', 'debit', 'hold', 'release'):\\n            raise ValueError('bad kind')\\n        amount = o.get('amount')\\n        if kind != 'release':\\n            if isinstance(amount, bool) or not isinstance(amount, int) or amount < 1:\\n                raise ValueError('bad amount')\\n        if kind == 'hold':\\n            if o.get('id') in holds:\\n                raise ValueError('duplicate hold')\\n        elif kind == 'release':\\n            if o.get('id') not in holds:\\n                raise ValueError('unknown hold')\\n        if kind in ('debit', 'hold'):\\n            if amount > balance - held:\\n                raise ValueError('insufficient funds')\\n        if kind == 'credit':\\n            balance += amount\\n        elif kind == 'debit':\\n            balance -= amount\\n        elif kind == 'hold':\\n            holds[o.get('id')] = amount\\n            held += amount\\n        else:\\n            held -= holds.pop(o.get('id'))\\n    return {'balance': balance, 'held': held, 'available': balance - held}\\n\"}}",
+  "parsed": {
+    "op": "write_file",
+    "args": {
+      "file": "module.py",
+      "content": "def solve(data):\n    balance = 0\n    holds = {}\n    held = 0\n    for o in data['ops']:\n        kind = o.get('kind') if isinstance(o, dict) else None\n        if kind not in ('credit', 'debit', 'hold', 'release'):\n            raise ValueError('bad kind')\n        amount = o.get('amount')\n        if kind != 'release':\n            if isinstance(amount, bool) or not isinstance(amount, int) or amount < 1:\n                raise ValueError('bad amount')\n        if kind == 'hold':\n            if o.get('id') in holds:\n                raise ValueError('duplicate hold')\n        elif kind == 'release':\n            if o.get('id') not in holds:\n                raise ValueError('unknown hold')\n        if kind in ('debit', 'hold'):\n            if amount > balance - held:\n                raise ValueError('insufficient funds')\n        if kind == 'credit':\n            balance += amount\n        elif kind == 'debit':\n            balance -= amount\n        elif kind == 'hold':\n            holds[o.get('id')] = amount\n            held += amount\n        else:\n            held -= holds.pop(o.get('id'))\n    return {'balance': balance, 'held': held, 'available': balance - held}\n"
+    }
+  }
+}

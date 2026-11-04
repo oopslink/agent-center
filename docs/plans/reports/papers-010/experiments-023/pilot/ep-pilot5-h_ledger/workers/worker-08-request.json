@@ -1,0 +1,20 @@
+{
+  "worker_id": "worker-08",
+  "role": "integrator",
+  "task": "Write manifest.json only. It must be a JSON object with exactly the keys candidate_hash, tests_hash, review_hash. Set candidate_hash to \"2cbef4bced2a8a53f223ec2a2b0ed691507ad0ec1e23358942c07c1b820c412a\" (module.py sha256), tests_hash to \"ecab976eba808b468c15ad15b55e359559aa095fcd059566b211b7046b6e2535\" (test_cases.json sha256), and review_hash to \"9ee32c52ca0a46e0c2b7d5c557bb2e45fea939387740b7e9a63b4b1cacb6cded\" (review.json sha256, current content). Do not modify module.py, test_cases.json or review.json. Do not write any other file.",
+  "row": {
+    "id": "pilot5-h_ledger",
+    "paper": "P2",
+    "task": "h_ledger",
+    "family": "h_ledger",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-pilot5"
+  }
+}

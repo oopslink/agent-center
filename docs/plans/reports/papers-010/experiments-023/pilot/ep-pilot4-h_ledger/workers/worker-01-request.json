@@ -1,0 +1,18 @@
+{
+  "worker_id": "worker-01",
+  "role": "implementer",
+  "task": "Rewrite module.py so that solve(data) implements the user contract exactly. Use only the Python standard library and no I/O, dynamic code execution, or external packages. Process data['ops'] in order, checking each operation in this order: (1) kind must be one of credit, debit, hold, release, else raise ValueError; (2) for credit, debit and hold, amount must be an int (not bool) with value at least 1, else ValueError; (3) hold requires id not already an active hold, release requires id to be an active hold, else ValueError; (4) debit and hold require amount <= current available (balance minus held), else ValueError. credit adds amount to balance. debit subtracts amount from balance. hold adds an active hold {id: amount} and increases held by amount. release removes the hold named by id, decreasing held by its stored amount, and ignores any amount field. Return {'balance': int, 'held': int, 'available': balance - held}. The first failing operation raises and no result is returned. Empty ops returns zeros. Do not mutate the input. Write only module.py.",
+  "row": {
+    "id": "pilot4-h_ledger",
+    "paper": "P2",
+    "task": "h_ledger",
+    "family": "h_ledger",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "run_version": "023-pilot4"
+  }
+}

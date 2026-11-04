@@ -1,0 +1,70 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 6.1205518749775365,
+  "finished_utc": "2026-11-04T17:10:46.944954+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0034008,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 14843,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 864,
+    "output_tokens_details": {
+      "thinking_tokens": 704
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 14843,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 864,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 14843,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 14843
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 864,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 14843,
+      "webSearchRequests": 0,
+      "costUSD": 0.0034008,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 704,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 14843,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"inspect\",\"args\":{},\"note\":\"Checking that module.py and test_cases.json still match the hashes of my own run_tests receipt, and reading review.json's sha256, before the integrator writes the manifest. The reviewer's notes cite receipt rcpt-b995c5d925ed60e9184ec670, which this session did not issue. My receipt for these versions is rcpt-c2c00cbb718c9108087a2532, so I'll reconcile the notes before release.\"}",
+  "parsed": {
+    "op": "inspect",
+    "args": {},
+    "note": "Checking that module.py and test_cases.json still match the hashes of my own run_tests receipt, and reading review.json's sha256, before the integrator writes the manifest. The reviewer's notes cite receipt rcpt-b995c5d925ed60e9184ec670, which this session did not issue. My receipt for these versions is rcpt-c2c00cbb718c9108087a2532, so I'll reconcile the notes before release."
+  }
+}

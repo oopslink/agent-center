@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 9.08496395801194,
+  "finished_utc": "2026-11-04T17:12:31.491681+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0076106,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 35032,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1208,
+    "output_tokens_details": {
+      "thinking_tokens": 898
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 35032,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1208,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 35032,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 35032
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 1208,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 35032,
+      "webSearchRequests": 0,
+      "costUSD": 0.0076106,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 898,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 35032,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"finish\",\"args\":{\"status\":\"blocked\",\"message\":\"Not released. module.py (sha256 9c47953f...) and test_cases.json (sha256 ad18ca88...) are delivered. Supervisor run_tests in this session passed public 3/3 and user tests 12/12 under receipt rcpt-c2c00cbb718c9108087a2532, the only receipt this session holds. review.json (sha256 e89790925f...) cites rcpt-7af095397f3c0bbe8461a9aa, issued to worker-06's session, which this session cannot verify, so its pass verdict is not bound to a receipt I hold. manifest.json was never written: the integrator role was not spawned, the worker_start_budget of 6 is exhausted, and the supervisor has no file-write tool. Release needs a review bound to rcpt-c2c00cbb718c9108087a2532 and a manifest.json binding the three hashes.\"}}",
+  "parsed": {
+    "op": "finish",
+    "args": {
+      "status": "blocked",
+      "message": "Not released. module.py (sha256 9c47953f...) and test_cases.json (sha256 ad18ca88...) are delivered. Supervisor run_tests in this session passed public 3/3 and user tests 12/12 under receipt rcpt-c2c00cbb718c9108087a2532, the only receipt this session holds. review.json (sha256 e89790925f...) cites rcpt-7af095397f3c0bbe8461a9aa, issued to worker-06's session, which this session cannot verify, so its pass verdict is not bound to a receipt I hold. manifest.json was never written: the integrator role was not spawned, the worker_start_budget of 6 is exhausted, and the supervisor has no file-write tool. Release needs a review bound to rcpt-c2c00cbb718c9108087a2532 and a manifest.json binding the three hashes."
+    }
+  }
+}

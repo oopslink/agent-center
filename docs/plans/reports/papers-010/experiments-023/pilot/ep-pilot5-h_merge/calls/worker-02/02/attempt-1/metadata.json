@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 6.026135624968447,
+  "finished_utc": "2026-11-04T17:18:27.872943+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0009081,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 3227,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 525,
+    "output_tokens_details": {
+      "thinking_tokens": 407
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 3227,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 525,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 3227,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 3227
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 525,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 3227,
+      "webSearchRequests": 0,
+      "costUSD": 0.0009081,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 407,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 3227,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"finish\",\"args\":{\"status\":\"complete\",\"message\":\"Wrote test_cases.json with six cases covering nested object merge, null removal and absent-key no-op, list replacement, boolean/number type mismatch (ValueError), non-object base rejection (ValueError), and key ordering. Expected values follow the user contract. module.py was not modified.\"}}",
+  "parsed": {
+    "op": "finish",
+    "args": {
+      "status": "complete",
+      "message": "Wrote test_cases.json with six cases covering nested object merge, null removal and absent-key no-op, list replacement, boolean/number type mismatch (ValueError), non-object base rejection (ValueError), and key ordering. Expected values follow the user contract. module.py was not modified."
+    }
+  }
+}

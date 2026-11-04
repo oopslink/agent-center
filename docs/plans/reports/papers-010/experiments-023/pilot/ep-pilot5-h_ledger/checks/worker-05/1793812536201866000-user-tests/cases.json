@@ -1,0 +1,98 @@
+[
+  {
+    "input": {
+      "ops": []
+    },
+    "name": "empty_ops_returns_zeros",
+    "output": {
+      "available": 0,
+      "balance": 0,
+      "held": 0
+    }
+  },
+  {
+    "input": {
+      "ops": [
+        {
+          "amount": 10,
+          "kind": "credit"
+        },
+        {
+          "amount": 4,
+          "kind": "debit"
+        }
+      ]
+    },
+    "name": "credit_then_debit",
+    "output": {
+      "available": 6,
+      "balance": 6,
+      "held": 0
+    }
+  },
+  {
+    "input": {
+      "ops": [
+        {
+          "amount": 10,
+          "kind": "credit"
+        },
+        {
+          "amount": 3,
+          "id": "h1",
+          "kind": "hold"
+        },
+        {
+          "id": "h1",
+          "kind": "release"
+        }
+      ]
+    },
+    "name": "credit_hold_release",
+    "output": {
+      "available": 10,
+      "balance": 10,
+      "held": 0
+    }
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "ops": [
+        {
+          "amount": 5,
+          "kind": "credit"
+        },
+        {
+          "amount": 6,
+          "kind": "debit"
+        }
+      ]
+    },
+    "name": "debit_insufficient_funds"
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "ops": [
+        {
+          "amount": true,
+          "kind": "credit"
+        }
+      ]
+    },
+    "name": "bool_amount_rejected"
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "ops": [
+        {
+          "amount": 1,
+          "kind": "refund"
+        }
+      ]
+    },
+    "name": "unknown_kind_rejected"
+  }
+]

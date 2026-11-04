@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 8.855473957955837,
+  "finished_utc": "2026-11-04T17:07:27.852072+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0046065,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 19484,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1419,
+    "output_tokens_details": {
+      "thinking_tokens": 1001
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 19484,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1419,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 19484,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 19484
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 1419,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 19484,
+      "webSearchRequests": 0,
+      "costUSD": 0.0046065,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 1001,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 19484,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"spawn\",\"args\":{\"role\":\"reviewer\",\"task\":\"Rewrite review.json only. Do not touch module.py or test_cases.json. The file must be a JSON object with candidate_hash e9aa23423b47d1d883cffb441620a04f512ed1513450f2fd9cb3a2d6be38bb68, tests_hash e4410783b722ffcec0d17a45b6a6499affe61e1c529bd33539d2fc1b357a9739, verdict, and notes. Review module.py against the user contract: object-only validation with ValueError, deep merge, null removal including absent keys, list replacement, insertion of absent keys, ValueError on JSON type mismatch with booleans and numbers distinct, base-then-patch key order, and no input mutation. For evidence, cite only receipt rcpt-1c8cbfb5ffcbcb5c032921b3, which the supervisor obtained from a run_tests call on these exact hashes (public 3/3, user tests 8/8, result pass). State in notes that this receipt was issued to the supervisor session and that you did not run tests yourself, so you cannot independently verify it. Set verdict to pass only if your code review supports the contract compliance. Do not claim any receipt you did not receive.\"}}",
+  "parsed": {
+    "op": "spawn",
+    "args": {
+      "role": "reviewer",
+      "task": "Rewrite review.json only. Do not touch module.py or test_cases.json. The file must be a JSON object with candidate_hash e9aa23423b47d1d883cffb441620a04f512ed1513450f2fd9cb3a2d6be38bb68, tests_hash e4410783b722ffcec0d17a45b6a6499affe61e1c529bd33539d2fc1b357a9739, verdict, and notes. Review module.py against the user contract: object-only validation with ValueError, deep merge, null removal including absent keys, list replacement, insertion of absent keys, ValueError on JSON type mismatch with booleans and numbers distinct, base-then-patch key order, and no input mutation. For evidence, cite only receipt rcpt-1c8cbfb5ffcbcb5c032921b3, which the supervisor obtained from a run_tests call on these exact hashes (public 3/3, user tests 8/8, result pass). State in notes that this receipt was issued to the supervisor session and that you did not run tests yourself, so you cannot independently verify it. Set verdict to pass only if your code review supports the contract compliance. Do not claim any receipt you did not receive."
+    }
+  }
+}

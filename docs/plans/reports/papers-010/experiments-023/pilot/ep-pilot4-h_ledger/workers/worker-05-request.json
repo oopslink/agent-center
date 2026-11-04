@@ -1,0 +1,18 @@
+{
+  "worker_id": "worker-05",
+  "role": "reviewer",
+  "task": "Overwrite review.json with exactly these keys: candidate_hash \"9c47953f4de54ae0ad250f8888b343a6c01fa3239ce6dc86c46ae9f3446dc982\" (module.py sha256), tests_hash \"ad18ca88b76536c56cc6726e1b83207137ce8182f24eb03c8f3996b25f5a5f1e\" (test_cases.json sha256), verdict \"pass\", and notes (string). In notes, state that the supervisor session ran run_tests on these exact versions: public 3/3 passed and user-tests 12/12 passed, with receipt rcpt-c2c00cbb718c9108087a2532 (result pass, issuer controller, seq 2, contract P2-long-report_only). Do not claim that you ran run_tests and do not cite any other receipt (rcpt-a47dbc91d1b3618e9be1365a and rcpt-b995c5d925ed60e9184ec670 are superseded). Record the code review against the user contract: check order per operation (kind, then amount for credit/debit/hold, then hold-id uniqueness or release-id existence, then funds for debit/hold); bool amounts rejected; release ignores amount; no input mutation. Note the out-of-contract edge cases (missing 'ops' raises KeyError; unhashable hold id raises TypeError) as not covered by the contract. Write only review.json.",
+  "row": {
+    "id": "pilot4-h_ledger",
+    "paper": "P2",
+    "task": "h_ledger",
+    "family": "h_ledger",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "run_version": "023-pilot4"
+  }
+}

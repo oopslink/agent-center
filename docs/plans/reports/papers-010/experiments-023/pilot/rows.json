@@ -1,0 +1,68 @@
+[
+ {
+  "id": "pilot-h_ledger-haiku",
+  "paper": "P1",
+  "task": "h_ledger",
+  "family": "h_ledger",
+  "model": "claude-haiku-5-5",
+  "identity": "single",
+  "ledger": "off",
+  "transport": "report_only",
+  "run_version": "023-pilot"
+ },
+ {
+  "id": "pilot-h_ledger-sonnet",
+  "paper": "P1",
+  "task": "h_ledger",
+  "family": "h_ledger",
+  "model": "claude-sonnet-5-5",
+  "identity": "single",
+  "ledger": "off",
+  "transport": "report_only",
+  "run_version": "023-pilot"
+ },
+ {
+  "id": "pilot-h_sessions-haiku",
+  "paper": "P1",
+  "task": "h_sessions",
+  "family": "h_sessions",
+  "model": "claude-haiku-5-5",
+  "identity": "single",
+  "ledger": "off",
+  "transport": "report_only",
+  "run_version": "023-pilot"
+ },
+ {
+  "id": "pilot-h_sessions-sonnet",
+  "paper": "P1",
+  "task": "h_sessions",
+  "family": "h_sessions",
+  "model": "claude-sonnet-5-5",
+  "identity": "single",
+  "ledger": "off",
+  "transport": "report_only",
+  "run_version": "023-pilot"
+ },
+ {
+  "id": "pilot-h_merge-haiku",
+  "paper": "P1",
+  "task": "h_merge",
+  "family": "h_merge",
+  "model": "claude-haiku-5-5",
+  "identity": "single",
+  "ledger": "off",
+  "transport": "report_only",
+  "run_version": "023-pilot"
+ },
+ {
+  "id": "pilot-h_merge-sonnet",
+  "paper": "P1",
+  "task": "h_merge",
+  "family": "h_merge",
+  "model": "claude-sonnet-5-5",
+  "identity": "single",
+  "ledger": "off",
+  "transport": "report_only",
+  "run_version": "023-pilot"
+ }
+]

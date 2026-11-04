@@ -1,0 +1,70 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 6.340015708003193,
+  "finished_utc": "2026-11-04T17:11:50.665092+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0057961,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 27102,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 751,
+    "output_tokens_details": {
+      "thinking_tokens": 608
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 27102,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 751,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 27102,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 27102
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 751,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 27102,
+      "webSearchRequests": 0,
+      "costUSD": 0.0057961,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 608,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 27102,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"inspect\",\"args\":{},\"note\":\"Confirming the current hashes of module.py, test_cases.json and review.json (worker-05's re-issued review, sha256 7245e3a0...) before the integrator writes manifest.json. The review cites receipt rcpt-9d71339be0bbbb28d41b19fa from worker-05's own run_tests, so I'm checking that the bound hashes still match the delivered files.\"}",
+  "parsed": {
+    "op": "inspect",
+    "args": {},
+    "note": "Confirming the current hashes of module.py, test_cases.json and review.json (worker-05's re-issued review, sha256 7245e3a0...) before the integrator writes manifest.json. The review cites receipt rcpt-9d71339be0bbbb28d41b19fa from worker-05's own run_tests, so I'm checking that the bound hashes still match the delivered files."
+  }
+}

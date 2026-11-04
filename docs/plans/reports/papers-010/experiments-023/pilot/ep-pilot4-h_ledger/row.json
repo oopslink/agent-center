@@ -1,0 +1,13 @@
+{
+  "id": "pilot4-h_ledger",
+  "paper": "P2",
+  "task": "h_ledger",
+  "family": "h_ledger",
+  "model": "claude-haiku-5-5",
+  "organization": "long",
+  "binding": "distributed",
+  "ledger": "off",
+  "identity": "separate",
+  "transport": "report_only",
+  "run_version": "023-pilot4"
+}

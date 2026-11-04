@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 4.4977152911014855,
+  "finished_utc": "2026-11-04T17:17:17.282080+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0014966,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 6507,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 390,
+    "output_tokens_details": {
+      "thinking_tokens": 211
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 6507,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 390,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 6507,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 6507
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 390,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 6507,
+      "webSearchRequests": 0,
+      "costUSD": 0.0014966,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 211,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 6507,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"finish\",\"args\":{\"status\":\"complete\",\"message\":\"manifest.json written with candidate_hash 2cbef4bc...c412a, tests_hash ecab976e...2535, and review_hash 9ee32c52...cded, matching the current module.py, test_cases.json, and review.json. No other files were modified. The manifest records hashes only and does not assert a pass. The review's pass verdict relies on Supervisor-supplied receipt rcpt-75c7cca89913fe6feea654d0, which I could not verify independently.\"}}",
+  "parsed": {
+    "op": "finish",
+    "args": {
+      "status": "complete",
+      "message": "manifest.json written with candidate_hash 2cbef4bc...c412a, tests_hash ecab976e...2535, and review_hash 9ee32c52...cded, matching the current module.py, test_cases.json, and review.json. No other files were modified. The manifest records hashes only and does not assert a pass. The review's pass verdict relies on Supervisor-supplied receipt rcpt-75c7cca89913fe6feea654d0, which I could not verify independently."
+    }
+  }
+}

@@ -1,0 +1,70 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 3.572338833939284,
+  "finished_utc": "2026-11-04T17:10:16.739994+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0017944,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 8256,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 286,
+    "output_tokens_details": {
+      "thinking_tokens": 198
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 8256,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 286,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 8256,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 8256
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 286,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 8256,
+      "webSearchRequests": 0,
+      "costUSD": 0.0017944,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 198,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 8256,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"run_tests\",\"args\":{},\"note\":\"Retrying with a valid operation. Running public and user tests in this session against module.py 9c47953f... and test_cases.json ad18ca88..., since worker-reported receipts cannot be used for a pass review.\"}",
+  "parsed": {
+    "op": "run_tests",
+    "args": {},
+    "note": "Retrying with a valid operation. Running public and user tests in this session against module.py 9c47953f... and test_cases.json ad18ca88..., since worker-reported receipts cannot be used for a pass review."
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "worker_id": "executor-00",
+  "status": "failed",
+  "origin": "researcher_seeded_scripted_executor",
+  "model_generated": false,
+  "pid": 36591,
+  "candidate_check": {
+    "passed": false,
+    "passed_count": 2,
+    "total": 3,
+    "checks": [
+      {
+        "index": 0,
+        "input": {
+          "base": {},
+          "patch": {}
+        },
+        "expected": {
+          "output": {}
+        },
+        "observed": {
+          "output": {}
+        },
+        "passed": true,
+        "input_mutated": false
+      },
+      {
+        "index": 1,
+        "input": {
+          "base": {
+            "a": 1
+          },
+          "patch": {
+            "b": 2
+          }
+        },
+        "expected": {
+          "output": {
+            "a": 1,
+            "b": 2
+          }
+        },
+        "observed": {
+          "output": {
+            "a": 1,
+            "b": 2
+          }
+        },
+        "passed": true,
+        "input_mutated": false
+      },
+      {
+        "index": 2,
+        "input": {
+          "base": {
+            "a": {
+              "x": 1
+            }
+          },
+          "patch": {
+            "a": {
+              "y": 2
+            }
+          }
+        },
+        "expected": {
+          "output": {
+            "a": {
+              "x": 1,
+              "y": 2
+            }
+          }
+        },
+        "observed": {
+          "output": {
+            "a": {
+              "y": 2
+            }
+          }
+        },
+        "passed": false,
+        "input_mutated": false
+      }
+    ],
+    "candidate_hash": "0840143a411220f8dd76233c4ec0fdda0c2d5411c8d16030e58031842ba945f9",
+    "label": "public",
+    "duration_s": 0.016036625020205975
+  },
+  "files": {
+    "module.py": {
+      "sha256": "0840143a411220f8dd76233c4ec0fdda0c2d5411c8d16030e58031842ba945f9",
+      "content": "def solve(data):\n    out=dict(data['base'])\n    out.update(data['patch'])\n    return out\n"
+    }
+  }
+}

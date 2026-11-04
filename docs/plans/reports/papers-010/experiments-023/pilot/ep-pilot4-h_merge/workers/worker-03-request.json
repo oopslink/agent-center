@@ -1,0 +1,18 @@
+{
+  "worker_id": "worker-03",
+  "role": "tester",
+  "task": "Edit test_cases.json only. Case index 7 (the eighth case, named 'non-object data is rejected') has input \"not an object\", which conflicts with the contract's input shape of {\"base\": ..., \"patch\": ...}. Replace that case so its input is {\"base\": [], \"patch\": {}} with error \"ValueError\" and name \"non-object base is rejected\". Keep the other seven cases byte-identical in meaning. Keep the file a JSON list where each case has input plus exactly one of output or error. Do not touch module.py.",
+  "row": {
+    "id": "pilot4-h_merge",
+    "paper": "P2",
+    "task": "h_merge",
+    "family": "h_merge",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "run_version": "023-pilot4"
+  }
+}

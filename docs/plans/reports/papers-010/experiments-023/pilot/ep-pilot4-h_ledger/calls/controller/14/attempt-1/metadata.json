@@ -1,0 +1,70 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 4.607628874946386,
+  "finished_utc": "2026-11-04T17:11:32.139569+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0048798999999999995,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 23436,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 385,
+    "output_tokens_details": {
+      "thinking_tokens": 284
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 23436,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 385,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 23436,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 23436
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 385,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 23436,
+      "webSearchRequests": 0,
+      "costUSD": 0.0048798999999999995,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 284,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 23436,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"wait\",\"args\":{},\"note\":\"Awaiting worker-05's re-issued review.json. It should cite only receipt rcpt-c2c00cbb718c9108087a2532, the one this supervisor session received from its own run_tests. I will check the file hashes and notes before any manifest work.\"}",
+  "parsed": {
+    "op": "wait",
+    "args": {},
+    "note": "Awaiting worker-05's re-issued review.json. It should cite only receipt rcpt-c2c00cbb718c9108087a2532, the one this supervisor session received from its own run_tests. I will check the file hashes and notes before any manifest work."
+  }
+}

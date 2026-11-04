@@ -1,0 +1,222 @@
+{
+  "passed": true,
+  "passed_count": 8,
+  "total": 8,
+  "checks": [
+    {
+      "index": 0,
+      "input": {
+        "base": {
+          "a": {
+            "x": 1,
+            "y": 2
+          },
+          "b": 3
+        },
+        "patch": {
+          "a": {
+            "y": 5,
+            "z": 6
+          }
+        }
+      },
+      "expected": {
+        "name": "nested object merge",
+        "output": {
+          "a": {
+            "x": 1,
+            "y": 5,
+            "z": 6
+          },
+          "b": 3
+        }
+      },
+      "observed": {
+        "output": {
+          "a": {
+            "x": 1,
+            "y": 5,
+            "z": 6
+          },
+          "b": 3
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 1,
+      "input": {
+        "base": {
+          "l": [
+            1,
+            2,
+            3
+          ]
+        },
+        "patch": {
+          "l": [
+            4
+          ]
+        }
+      },
+      "expected": {
+        "name": "list replacement without concatenation",
+        "output": {
+          "l": [
+            4
+          ]
+        }
+      },
+      "observed": {
+        "output": {
+          "l": [
+            4
+          ]
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 2,
+      "input": {
+        "base": {
+          "a": 1,
+          "b": 2
+        },
+        "patch": {
+          "a": null,
+          "c": null
+        }
+      },
+      "expected": {
+        "name": "null removes existing key and absent key is no-op",
+        "output": {
+          "b": 2
+        }
+      },
+      "observed": {
+        "output": {
+          "b": 2
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 3,
+      "input": {
+        "base": {
+          "a": "s"
+        },
+        "patch": {
+          "a": 1
+        }
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "string vs number type mismatch"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 4,
+      "input": {
+        "base": {
+          "a": true
+        },
+        "patch": {
+          "a": 1
+        }
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "boolean vs number mismatch"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 5,
+      "input": {
+        "base": {
+          "a": 2,
+          "b": 1
+        },
+        "patch": {
+          "a": 9,
+          "c": 3,
+          "d": 4
+        }
+      },
+      "expected": {
+        "name": "key ordering: base order then patch-only keys in patch order",
+        "output": {
+          "a": 9,
+          "b": 1,
+          "c": 3,
+          "d": 4
+        }
+      },
+      "observed": {
+        "output": {
+          "a": 9,
+          "b": 1,
+          "c": 3,
+          "d": 4
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 6,
+      "input": {
+        "base": {
+          "a": "s"
+        },
+        "patch": {
+          "a": {
+            "x": 1
+          }
+        }
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "string vs object type mismatch"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 7,
+      "input": {
+        "base": [],
+        "patch": {}
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "non-object base is rejected"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    }
+  ],
+  "candidate_hash": "e9aa23423b47d1d883cffb441620a04f512ed1513450f2fd9cb3a2d6be38bb68",
+  "label": "user-tests",
+  "duration_s": 0.01864945807028562
+}

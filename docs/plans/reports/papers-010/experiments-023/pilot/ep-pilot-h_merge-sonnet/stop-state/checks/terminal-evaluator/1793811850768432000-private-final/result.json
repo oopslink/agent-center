@@ -1,0 +1,246 @@
+{
+  "passed": true,
+  "passed_count": 10,
+  "total": 10,
+  "checks": [
+    {
+      "index": 0,
+      "input": {
+        "base": {},
+        "patch": {}
+      },
+      "expected": {
+        "output": {}
+      },
+      "observed": {
+        "output": {}
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 1,
+      "input": {
+        "base": {
+          "a": 1
+        },
+        "patch": {
+          "b": 2
+        }
+      },
+      "expected": {
+        "output": {
+          "a": 1,
+          "b": 2
+        }
+      },
+      "observed": {
+        "output": {
+          "a": 1,
+          "b": 2
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 2,
+      "input": {
+        "base": {
+          "a": {
+            "x": 1
+          }
+        },
+        "patch": {
+          "a": {
+            "y": 2
+          }
+        }
+      },
+      "expected": {
+        "output": {
+          "a": {
+            "x": 1,
+            "y": 2
+          }
+        }
+      },
+      "observed": {
+        "output": {
+          "a": {
+            "x": 1,
+            "y": 2
+          }
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 3,
+      "input": {
+        "base": {
+          "a": [
+            1,
+            2
+          ]
+        },
+        "patch": {
+          "a": [
+            3
+          ]
+        }
+      },
+      "expected": {
+        "output": {
+          "a": [
+            3
+          ]
+        }
+      },
+      "observed": {
+        "output": {
+          "a": [
+            3
+          ]
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 4,
+      "input": {
+        "base": {
+          "a": 1,
+          "b": 2
+        },
+        "patch": {
+          "a": null
+        }
+      },
+      "expected": {
+        "output": {
+          "b": 2
+        }
+      },
+      "observed": {
+        "output": {
+          "b": 2
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 5,
+      "input": {
+        "base": {
+          "a": 1
+        },
+        "patch": {
+          "zz": null
+        }
+      },
+      "expected": {
+        "output": {
+          "a": 1
+        }
+      },
+      "observed": {
+        "output": {
+          "a": 1
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 6,
+      "input": {
+        "base": {
+          "b": 1,
+          "a": 1
+        },
+        "patch": {
+          "z": 1,
+          "c": 1
+        }
+      },
+      "expected": {
+        "output": {
+          "b": 1,
+          "a": 1,
+          "z": 1,
+          "c": 1
+        }
+      },
+      "observed": {
+        "output": {
+          "b": 1,
+          "a": 1,
+          "z": 1,
+          "c": 1
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 7,
+      "input": {
+        "base": {
+          "a": 1
+        },
+        "patch": {
+          "a": "one"
+        }
+      },
+      "expected": {
+        "error": "ValueError"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 8,
+      "input": {
+        "base": {
+          "a": true
+        },
+        "patch": {
+          "a": 1
+        }
+      },
+      "expected": {
+        "error": "ValueError"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 9,
+      "input": {
+        "base": [],
+        "patch": {}
+      },
+      "expected": {
+        "error": "ValueError"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    }
+  ],
+  "candidate_hash": "30868dbed23b5ffea7f10024931716b959f22994ac18c0f602031a1588018ee2",
+  "label": "private-final",
+  "duration_s": 0.027833875035867095
+}

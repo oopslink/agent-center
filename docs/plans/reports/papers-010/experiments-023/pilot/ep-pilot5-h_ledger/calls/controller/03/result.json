@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 5.901474166079424,
+  "finished_utc": "2026-11-04T17:14:08.261174+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0011826,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 4292,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 648,
+    "output_tokens_details": {
+      "thinking_tokens": 164
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 4292,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 648,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 4292,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 4292
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 648,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 4292,
+      "webSearchRequests": 0,
+      "costUSD": 0.0011826,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 164,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 4292,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"spawn\",\"args\":{\"role\":\"tester\",\"task\":\"Write test_cases.json only. It must be a JSON list of at least four distinct test cases. Each case is an object with \\\"input\\\" (a dict {\\\"ops\\\": [...]}) and exactly one of \\\"output\\\" (the expected result dict with keys balance, held, available) or \\\"error\\\" (the exception class name, \\\"ValueError\\\"). Optional descriptive fields such as \\\"name\\\" are allowed. Expectations must follow this contract exactly: operations apply in order; each op is checked in this order: (1) kind must be credit, debit, hold, or release, else ValueError; (2) for credit, debit, hold, amount must be an int >= 1, with booleans rejected, else ValueError; (3) hold requires its id not already an active hold, release requires its id to be an active hold, else ValueError; (4) debit and hold require amount <= balance - held, else ValueError. credit adds to balance. debit subtracts from balance. hold adds an active hold of amount under id (held increases, balance unchanged). release removes the hold and decreases held by its amount, ignoring any amount field. available = balance - held. Empty ops returns zeros. Include cases covering: empty ops, credit then debit, credit then hold then release, a failing insufficient-funds debit, a bool amount rejected, and an unknown kind. Use at least four cases total, and ensure the expected outputs are computed correctly by hand. Do not write any other file.\"}}",
+  "parsed": {
+    "op": "spawn",
+    "args": {
+      "role": "tester",
+      "task": "Write test_cases.json only. It must be a JSON list of at least four distinct test cases. Each case is an object with \"input\" (a dict {\"ops\": [...]}) and exactly one of \"output\" (the expected result dict with keys balance, held, available) or \"error\" (the exception class name, \"ValueError\"). Optional descriptive fields such as \"name\" are allowed. Expectations must follow this contract exactly: operations apply in order; each op is checked in this order: (1) kind must be credit, debit, hold, or release, else ValueError; (2) for credit, debit, hold, amount must be an int >= 1, with booleans rejected, else ValueError; (3) hold requires its id not already an active hold, release requires its id to be an active hold, else ValueError; (4) debit and hold require amount <= balance - held, else ValueError. credit adds to balance. debit subtracts from balance. hold adds an active hold of amount under id (held increases, balance unchanged). release removes the hold and decreases held by its amount, ignoring any amount field. available = balance - held. Empty ops returns zeros. Include cases covering: empty ops, credit then debit, credit then hold then release, a failing insufficient-funds debit, a bool amount rejected, and an unknown kind. Use at least four cases total, and ensure the expected outputs are computed correctly by hand. Do not write any other file."
+    }
+  }
+}

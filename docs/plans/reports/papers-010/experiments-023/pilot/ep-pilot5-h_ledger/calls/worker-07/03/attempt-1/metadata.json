@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 5.872186040971428,
+  "finished_utc": "2026-11-04T17:16:47.803934+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0017868,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 6788,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 858,
+    "output_tokens_details": {
+      "thinking_tokens": 643
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 6788,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 858,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 6788,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 6788
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 858,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 6788,
+      "webSearchRequests": 0,
+      "costUSD": 0.0017868,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 643,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 6788,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"finish\",\"args\":{\"status\":\"complete\",\"message\":\"review.json was written with verdict pass, candidate_hash 2cbef4bc..., tests_hash ecab976e..., and notes citing only the Supervisor-supplied receipt rcpt-75c7cca89913fe6feea654d0. My own run_tests call in this session returned pass with matching hashes under receipt rcpt-aed583e9b2ed672c9cc1cd87 (seq 7, worker-07). That receipt is not cited in the file, per instructions. The notes also flag that unhashable id values raise TypeError, which the contract does not address. No other file was written.\"}}",
+  "parsed": {
+    "op": "finish",
+    "args": {
+      "status": "complete",
+      "message": "review.json was written with verdict pass, candidate_hash 2cbef4bc..., tests_hash ecab976e..., and notes citing only the Supervisor-supplied receipt rcpt-75c7cca89913fe6feea654d0. My own run_tests call in this session returned pass with matching hashes under receipt rcpt-aed583e9b2ed672c9cc1cd87 (seq 7, worker-07). That receipt is not cited in the file, per instructions. The notes also flag that unhashable id values raise TypeError, which the contract does not address. No other file was written."
+    }
+  }
+}

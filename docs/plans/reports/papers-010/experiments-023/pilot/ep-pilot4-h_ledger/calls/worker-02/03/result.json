@@ -1,0 +1,275 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 11.726577499997802,
+  "finished_utc": "2026-11-04T17:09:56.162356+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0017117,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 4550,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1603,
+    "output_tokens_details": {
+      "thinking_tokens": 771
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 4550,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1603,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 4550,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 4550
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 1603,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 4550,
+      "webSearchRequests": 0,
+      "costUSD": 0.0017117,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 771,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 4550,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"write_file\",\"args\":{\"file\":\"test_cases.json\",\"content\":[{\"name\":\"empty_ops_returns_zeros\",\"input\":{\"ops\":[]},\"output\":{\"balance\":0,\"held\":0,\"available\":0}},{\"name\":\"credit_then_debit\",\"input\":{\"ops\":[{\"kind\":\"credit\",\"amount\":100},{\"kind\":\"debit\",\"amount\":30}]},\"output\":{\"balance\":70,\"held\":0,\"available\":70}},{\"name\":\"credit_hold_available\",\"input\":{\"ops\":[{\"kind\":\"credit\",\"amount\":100},{\"kind\":\"hold\",\"id\":\"h1\",\"amount\":40}]},\"output\":{\"balance\":100,\"held\":40,\"available\":60}},{\"name\":\"release_restores_funds_amount_ignored\",\"input\":{\"ops\":[{\"kind\":\"credit\",\"amount\":100},{\"kind\":\"hold\",\"id\":\"h1\",\"amount\":40},{\"kind\":\"release\",\"id\":\"h1\",\"amount\":999}]},\"output\":{\"balance\":100,\"held\":0,\"available\":100}},{\"name\":\"invalid_kind\",\"input\":{\"ops\":[{\"kind\":\"transfer\",\"amount\":5}]},\"error\":\"ValueError\"},{\"name\":\"bool_amount_rejected\",\"input\":{\"ops\":[{\"kind\":\"credit\",\"amount\":true}]},\"error\":\"ValueError\"},{\"name\":\"zero_amount_rejected\",\"input\":{\"ops\":[{\"kind\":\"credit\",\"amount\":0}]},\"error\":\"ValueError\"},{\"name\":\"negative_amount_rejected\",\"input\":{\"ops\":[{\"kind\":\"credit\",\"amount\":-5}]},\"error\":\"ValueError\"},{\"name\":\"duplicate_hold_id\",\"input\":{\"ops\":[{\"kind\":\"credit\",\"amount\":100},{\"kind\":\"hold\",\"id\":\"h1\",\"amount\":10},{\"kind\":\"hold\",\"id\":\"h1\",\"amount\":5}]},\"error\":\"ValueError\"},{\"name\":\"release_unknown_id\",\"input\":{\"ops\":[{\"kind\":\"credit\",\"amount\":100},{\"kind\":\"release\",\"id\":\"nope\"}]},\"error\":\"ValueError\"},{\"name\":\"debit_exceeds_available\",\"input\":{\"ops\":[{\"kind\":\"credit\",\"amount\":50},{\"kind\":\"debit\",\"amount\":60}]},\"error\":\"ValueError\"},{\"name\":\"hold_exceeds_available\",\"input\":{\"ops\":[{\"kind\":\"credit\",\"amount\":100},{\"kind\":\"hold\",\"id\":\"h1\",\"amount\":60},{\"kind\":\"hold\",\"id\":\"h2\",\"amount\":50}]},\"error\":\"ValueError\"}]}}",
+  "parsed": {
+    "op": "write_file",
+    "args": {
+      "file": "test_cases.json",
+      "content": [
+        {
+          "name": "empty_ops_returns_zeros",
+          "input": {
+            "ops": []
+          },
+          "output": {
+            "balance": 0,
+            "held": 0,
+            "available": 0
+          }
+        },
+        {
+          "name": "credit_then_debit",
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 100
+              },
+              {
+                "kind": "debit",
+                "amount": 30
+              }
+            ]
+          },
+          "output": {
+            "balance": 70,
+            "held": 0,
+            "available": 70
+          }
+        },
+        {
+          "name": "credit_hold_available",
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 100
+              },
+              {
+                "kind": "hold",
+                "id": "h1",
+                "amount": 40
+              }
+            ]
+          },
+          "output": {
+            "balance": 100,
+            "held": 40,
+            "available": 60
+          }
+        },
+        {
+          "name": "release_restores_funds_amount_ignored",
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 100
+              },
+              {
+                "kind": "hold",
+                "id": "h1",
+                "amount": 40
+              },
+              {
+                "kind": "release",
+                "id": "h1",
+                "amount": 999
+              }
+            ]
+          },
+          "output": {
+            "balance": 100,
+            "held": 0,
+            "available": 100
+          }
+        },
+        {
+          "name": "invalid_kind",
+          "input": {
+            "ops": [
+              {
+                "kind": "transfer",
+                "amount": 5
+              }
+            ]
+          },
+          "error": "ValueError"
+        },
+        {
+          "name": "bool_amount_rejected",
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": true
+              }
+            ]
+          },
+          "error": "ValueError"
+        },
+        {
+          "name": "zero_amount_rejected",
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 0
+              }
+            ]
+          },
+          "error": "ValueError"
+        },
+        {
+          "name": "negative_amount_rejected",
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": -5
+              }
+            ]
+          },
+          "error": "ValueError"
+        },
+        {
+          "name": "duplicate_hold_id",
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 100
+              },
+              {
+                "kind": "hold",
+                "id": "h1",
+                "amount": 10
+              },
+              {
+                "kind": "hold",
+                "id": "h1",
+                "amount": 5
+              }
+            ]
+          },
+          "error": "ValueError"
+        },
+        {
+          "name": "release_unknown_id",
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 100
+              },
+              {
+                "kind": "release",
+                "id": "nope"
+              }
+            ]
+          },
+          "error": "ValueError"
+        },
+        {
+          "name": "debit_exceeds_available",
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "debit",
+                "amount": 60
+              }
+            ]
+          },
+          "error": "ValueError"
+        },
+        {
+          "name": "hold_exceeds_available",
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 100
+              },
+              {
+                "kind": "hold",
+                "id": "h1",
+                "amount": 60
+              },
+              {
+                "kind": "hold",
+                "id": "h2",
+                "amount": 50
+              }
+            ]
+          },
+          "error": "ValueError"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "pilot-h_ledger-sonnet",
+  "paper": "P1",
+  "task": "h_ledger",
+  "family": "h_ledger",
+  "model": "claude-sonnet-5-5",
+  "identity": "single",
+  "ledger": "off",
+  "transport": "report_only",
+  "run_version": "023-pilot"
+}

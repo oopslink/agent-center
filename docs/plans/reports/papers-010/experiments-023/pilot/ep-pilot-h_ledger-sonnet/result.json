@@ -1,0 +1,338 @@
+{
+  "id": "pilot-h_ledger-sonnet",
+  "row": {
+    "id": "pilot-h_ledger-sonnet",
+    "paper": "P1",
+    "task": "h_ledger",
+    "family": "h_ledger",
+    "model": "claude-sonnet-5-5",
+    "identity": "single",
+    "ledger": "off",
+    "transport": "report_only",
+    "run_version": "023-pilot"
+  },
+  "status": "reported_complete",
+  "controller_turns": 3,
+  "worker_starts": 0,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "module.py implements solve(data) with the specified validation order: kind, then amount (booleans rejected), then hold id checks, then available funds. It handles credit, debit, hold and release, and does not mutate the input. All 3 public tests passed against the delivered hash 34af73d7..."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 1,
+  "initial_recovery_budget": {
+    "decisions": 12,
+    "worker_starts": 3
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "ops": []
+          },
+          "expected": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 100
+              },
+              {
+                "kind": "debit",
+                "amount": 40
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 60,
+              "held": 0,
+              "available": 60
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 60,
+              "held": 0,
+              "available": 60
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 20,
+                "id": "h1"
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 50,
+              "held": 20,
+              "available": 30
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 50,
+              "held": 20,
+              "available": 30
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 50,
+                "id": "h1"
+              },
+              {
+                "kind": "release",
+                "id": "h1"
+              },
+              {
+                "kind": "debit",
+                "amount": 50
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 30,
+                "id": "h1"
+              },
+              {
+                "kind": "debit",
+                "amount": 21
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "ops": [
+              {
+                "kind": "release",
+                "amount": 0,
+                "id": "nope"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "ops": [
+              {
+                "kind": "release",
+                "id": "nope"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 10
+              },
+              {
+                "kind": "hold",
+                "amount": 5,
+                "id": "h1"
+              },
+              {
+                "kind": "hold",
+                "amount": 999,
+                "id": "h1"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": true
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "ops": [
+              {
+                "kind": "freeze",
+                "amount": -1
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "34af73d75ec799035ed931b1dad4a2a379b48d59e5a0ec96e3e8fd0c4ee33e3c",
+      "label": "private-final",
+      "duration_s": 0.027469666907563806
+    },
+    "files": {
+      "module.py": {
+        "sha256": "34af73d75ec799035ed931b1dad4a2a379b48d59e5a0ec96e3e8fd0c4ee33e3c"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:02:38.637202+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "34af73d75ec799035ed931b1dad4a2a379b48d59e5a0ec96e3e8fd0c4ee33e3c"
+      }
+    }
+  },
+  "worker_summaries": [],
+  "controller_actions": [
+    {
+      "op": "write_file",
+      "file": "module.py",
+      "content": "def solve(data):\n    balance = 0\n    holds = {}\n    held = 0\n    for o in data['ops']:\n        kind = o.get('kind') if isinstance(o, dict) else None\n        if kind not in ('credit', 'debit', 'hold', 'release'):\n            raise ValueError('bad kind')\n        amount = o.get('amount')\n        if kind != 'release':\n            if isinstance(amount, bool) or not isinstance(amount, int) or amount < 1:\n                raise ValueError('bad amount')\n        if kind == 'hold':\n            if o.get('id') in holds:\n                raise ValueError('duplicate hold')\n        elif kind == 'release':\n            if o.get('id') not in holds:\n                raise ValueError('unknown hold')\n        if kind in ('debit', 'hold'):\n            if amount > balance - held:\n                raise ValueError('insufficient funds')\n        if kind == 'credit':\n            balance += amount\n        elif kind == 'debit':\n            balance -= amount\n        elif kind == 'hold':\n            holds[o.get('id')] = amount\n            held += amount\n        else:\n            held -= holds.pop(o.get('id'))\n    return {'balance': balance, 'held': held, 'available': balance - held}\n"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "module.py implements solve(data) with the specified validation order: kind, then amount (booleans rejected), then hold id checks, then available funds. It handles credit, debit, hold and release, and does not mutate the input. All 3 public tests passed against the delivered hash 34af73d7..."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:02:38.668824+00:00",
+  "evaluation_race_possible": false
+}

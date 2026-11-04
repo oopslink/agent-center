@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 6.388482374954037,
+  "finished_utc": "2026-11-04T17:14:35.854133+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.002081,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 8324,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 832,
+    "output_tokens_details": {
+      "thinking_tokens": 397
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 8324,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 832,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 8324,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 8324
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 832,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 8324,
+      "webSearchRequests": 0,
+      "costUSD": 0.002081,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 397,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 8324,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"spawn\",\"args\":{\"role\":\"reviewer\",\"task\":\"Write review.json only. It must be a JSON object with keys: candidate_hash, tests_hash, verdict, notes. Use candidate_hash \\\"2cbef4bced2a8a53f223ec2a2b0ed691507ad0ec1e23358942c07c1b820c412a\\\" (module.py) and tests_hash \\\"ecab976eba808b468c15ad15b55e359559aa095fcd059566b211b7046b6e2535\\\" (test_cases.json). Review module.py against the user contract: check the validation order (kind, amount int >= 1 with bools rejected, id uniqueness or existence, available-funds check for debit and hold), the effects of credit, debit, hold and release, the zero result for empty ops, and that the input is not mutated. Check that test_cases.json expectations match the contract. Set verdict to \\\"pass\\\" only if the review finds the implementation and tests correct, and cite run receipt rcpt-75c7cca89913fe6feea654d0 (result pass, candidate and tests hashes above) in notes. Otherwise set verdict to \\\"fail\\\" and explain the defect in notes. Note in notes that unhashable id values (such as lists) raise TypeError, which the contract does not address. Do not write any other file.\"}}",
+  "parsed": {
+    "op": "spawn",
+    "args": {
+      "role": "reviewer",
+      "task": "Write review.json only. It must be a JSON object with keys: candidate_hash, tests_hash, verdict, notes. Use candidate_hash \"2cbef4bced2a8a53f223ec2a2b0ed691507ad0ec1e23358942c07c1b820c412a\" (module.py) and tests_hash \"ecab976eba808b468c15ad15b55e359559aa095fcd059566b211b7046b6e2535\" (test_cases.json). Review module.py against the user contract: check the validation order (kind, amount int >= 1 with bools rejected, id uniqueness or existence, available-funds check for debit and hold), the effects of credit, debit, hold and release, the zero result for empty ops, and that the input is not mutated. Check that test_cases.json expectations match the contract. Set verdict to \"pass\" only if the review finds the implementation and tests correct, and cite run receipt rcpt-75c7cca89913fe6feea654d0 (result pass, candidate and tests hashes above) in notes. Otherwise set verdict to \"fail\" and explain the defect in notes. Note in notes that unhashable id values (such as lists) raise TypeError, which the contract does not address. Do not write any other file."
+    }
+  }
+}

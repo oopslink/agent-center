@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 6.402940458036028,
+  "finished_utc": "2026-11-04T17:09:12.652212+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0010392,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 3265,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 772,
+    "output_tokens_details": {
+      "thinking_tokens": 577
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 3265,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 772,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 3265,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 3265
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 772,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 3265,
+      "webSearchRequests": 0,
+      "costUSD": 0.0010392,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 577,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 3265,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"finish\",\"args\":{\"status\":\"complete\",\"message\":\"module.py implements solve(data) per the user contract: per-operation checks run in the specified order (kind, amount, hold id, then available funds), release ignores amount, no input mutation, and empty ops returns zeros. Public tests pass 3/3 with the delivered module.py (sha256 9c47953f...). Those public tests cover only basic cases, so the error paths (invalid kind, bool or non-positive amounts, duplicate or unknown hold ids, insufficient funds) were verified by reading the code, not by test runs.\"}}",
+  "parsed": {
+    "op": "finish",
+    "args": {
+      "status": "complete",
+      "message": "module.py implements solve(data) per the user contract: per-operation checks run in the specified order (kind, amount, hold id, then available funds), release ignores amount, no input mutation, and empty ops returns zeros. Public tests pass 3/3 with the delivered module.py (sha256 9c47953f...). Those public tests cover only basic cases, so the error paths (invalid kind, bool or non-positive amounts, duplicate or unknown hold ids, insufficient funds) were verified by reading the code, not by test runs."
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "model_requested": "claude-haiku-5-5",
+  "system": "You are a temporary tester for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nwrite_file(file,content): atomically replace a permitted file; module.py content is a string, JSON file content is an object/array. run_tests(): execute public and any submitted user tests on current files. inspect(): read current files and hashes. finish(status,message): end this session; status is complete or blocked.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+  "conversation": [
+    {
+      "role": "user",
+      "content": {
+        "assignment": "Write test_cases.json only. It must be a JSON list of at least four distinct test cases. Each case is an object with \"input\" (a dict {\"ops\": [...]}) and exactly one of \"output\" (the expected result dict with keys balance, held, available) or \"error\" (the exception class name, \"ValueError\"). Optional descriptive fields such as \"name\" are allowed. Expectations must follow this contract exactly: operations apply in order; each op is checked in this order: (1) kind must be credit, debit, hold, or release, else ValueError; (2) for credit, debit, hold, amount must be an int >= 1, with booleans rejected, else ValueError; (3) hold requires its id not already an active hold, release requires its id to be an active hold, else ValueError; (4) debit and hold require amount <= balance - held, else ValueError. credit adds to balance. debit subtracts from balance. hold adds an active hold of amount under id (held increases, balance unchanged). release removes the hold and decreases held by its amount, ignoring any amount field. available = balance - held. Empty ops returns zeros. Include cases covering: empty ops, credit then debit, credit then hold then release, a failing insufficient-funds debit, a bool amount rejected, and an unknown kind. Use at least four cases total, and ensure the expected outputs are computed correctly by hand. Do not write any other file.",
+        "user_contract": "Implement solve(data) for {\"ops\": list of operations}. Each operation is an object with \"kind\" and, depending on kind, \"amount\" and/or \"id\". Apply the operations in order and return {\"balance\": int, \"held\": int, \"available\": int} where available is balance minus held. Rules, checked in exactly this order for each operation: (1) \"kind\" must be one of credit, debit, hold, release; anything else raises ValueError. (2) For credit, debit and hold, \"amount\" must be an integer of at least 1; otherwise ValueError. Booleans are not integers here and raise ValueError. (3) For hold, \"id\" must not already name an active hold; for release, \"id\" must name an active hold; a violation raises ValueError. (4) For debit and hold, \"amount\" must not exceed the currently available funds; otherwise ValueError. credit increases balance. debit decreases balance. hold adds an active hold of amount under id. release removes the hold named by id and ignores any \"amount\" field. The first failing operation raises and no result is returned. An empty operation list returns zeros. Do not mutate the input.",
+        "allowed_files": [
+          "test_cases.json"
+        ],
+        "artifact_contracts": {
+          "test_cases.json": "JSON list of at least four distinct test inputs. Each case has input plus exactly one of output (the expected JSON result) or error (exception class name). Descriptive extra fields such as name or notes are allowed and ignored by execution. Test expectations must match the user contract."
+        },
+        "current_files": {
+          "module.py": {
+            "sha256": "2cbef4bced2a8a53f223ec2a2b0ed691507ad0ec1e23358942c07c1b820c412a",
+            "content": "def solve(data):\n    balance = 0\n    held = 0\n    holds = {}\n    for op in data['ops']:\n        kind = op.get('kind')\n        if kind not in ('credit', 'debit', 'hold', 'release'):\n            raise ValueError('invalid kind')\n        amount = None\n        if kind in ('credit', 'debit', 'hold'):\n            amount = op.get('amount')\n            if isinstance(amount, bool) or not isinstance(amount, int) or amount < 1:\n                raise ValueError('invalid amount')\n        if kind == 'hold':\n            hid = op.get('id')\n            if hid in holds:\n                raise ValueError('hold id already active')\n            if amount > balance - held:\n                raise ValueError('insufficient available funds')\n            holds[hid] = amount\n            held += amount\n        elif kind == 'release':\n            hid = op.get('id')\n            if hid not in holds:\n                raise ValueError('no active hold with id')\n            held -= holds.pop(hid)\n        elif kind == 'credit':\n            balance += amount\n        else:\n            if amount > balance - held:\n                raise ValueError('insufficient available funds')\n            balance -= amount\n    return {'balance': balance, 'held': held, 'available': balance - held}\n"
+          }
+        },
+        "decision_budget": 6,
+        "receipt_terms": "A pass review requires a genuine successful test receipt bound to the delivered module.py and test_cases.json versions. Receipts are returned to the session that ran the tests; there is no tool for retrieving a receipt issued by another session."
+      }
+    }
+  ],
+  "prompt_sha256": "f22e25d5b9e4018b3265af6f0b1711f22e1a6ea299ca76fb70b4e17f0a014ff4",
+  "argv": [
+    "claude",
+    "-p",
+    "--safe-mode",
+    "--tools",
+    "",
+    "--disable-slash-commands",
+    "--strict-mcp-config",
+    "--no-session-persistence",
+    "--system-prompt",
+    "You are a temporary tester for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nwrite_file(file,content): atomically replace a permitted file; module.py content is a string, JSON file content is an object/array. run_tests(): execute public and any submitted user tests on current files. inspect(): read current files and hashes. finish(status,message): end this session; status is complete or blocked.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+    "--model",
+    "claude-haiku-5-5",
+    "--effort",
+    "low",
+    "--output-format",
+    "json",
+    "--max-budget-usd",
+    "0.35"
+  ],
+  "started_utc": "2026-11-04T17:14:08.322971+00:00"
+}

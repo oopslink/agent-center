@@ -1,0 +1,20 @@
+{
+  "worker_id": "worker-04",
+  "role": "reviewer",
+  "task": "Write review.json only. It must be a JSON object with exactly these fields: candidate_hash \"08f0cce7d6b7b26b04f54ac4548bf4c36563b032217bccf480c18e694f096152\" (module.py sha256), tests_hash \"5fc11ba9f64d05f507befe34cebca5c88537833830209147f7835cca778f0aa1\" (test_cases.json sha256), verdict \"pass\", and notes (string). In notes, state that run_tests receipt rcpt-43c669a5778ab11618326636 (result pass, controller issuer) covers these exact versions, that the public check passed 3/3 and the user tests passed 6/6, that the implementation was checked against the user contract, and that the key-order case's observed output a,z,b,m matches the contract. Also note that the expected output object in key_order_base_then_patch_only lists keys as a,b,m,z; JSON object comparison is order-insensitive, so this cosmetic ordering does not affect the verdict, but key order is enforced by the observed-output check. Do not modify module.py or test_cases.json.",
+  "row": {
+    "id": "pilot5-h_merge",
+    "paper": "P2",
+    "task": "h_merge",
+    "family": "h_merge",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-pilot5"
+  }
+}

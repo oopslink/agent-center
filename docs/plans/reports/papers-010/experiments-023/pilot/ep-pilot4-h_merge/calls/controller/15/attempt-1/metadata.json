@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 8.126499583944678,
+  "finished_utc": "2026-11-04T17:08:07.503867+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0051649999999999995,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 23044,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1112,
+    "output_tokens_details": {
+      "thinking_tokens": 814
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 23044,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1112,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 23044,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 23044
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 1112,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 23044,
+      "webSearchRequests": 0,
+      "costUSD": 0.0051649999999999995,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 814,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 23044,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"spawn\",\"args\":{\"role\":\"integrator\",\"task\":\"Write manifest.json only. Do not touch module.py, test_cases.json, or review.json. It must be a JSON object with exactly these fields: candidate_hash \\\"e9aa23423b47d1d883cffb441620a04f512ed1513450f2fd9cb3a2d6be38bb68\\\" (sha256 of module.py), tests_hash \\\"e4410783b722ffcec0d17a45b6a6499affe61e1c529bd33539d2fc1b357a9739\\\" (sha256 of test_cases.json), and review_hash \\\"646601f8d78fa2f32c6d4563edd21f2f376afee0130622bb2c730cc582456556\\\" (sha256 of review.json). Before writing, confirm these hashes match the current file contents. If any file hash differs, do not write the manifest and report the mismatch.\"}}",
+  "parsed": {
+    "op": "spawn",
+    "args": {
+      "role": "integrator",
+      "task": "Write manifest.json only. Do not touch module.py, test_cases.json, or review.json. It must be a JSON object with exactly these fields: candidate_hash \"e9aa23423b47d1d883cffb441620a04f512ed1513450f2fd9cb3a2d6be38bb68\" (sha256 of module.py), tests_hash \"e4410783b722ffcec0d17a45b6a6499affe61e1c529bd33539d2fc1b357a9739\" (sha256 of test_cases.json), and review_hash \"646601f8d78fa2f32c6d4563edd21f2f376afee0130622bb2c730cc582456556\" (sha256 of review.json). Before writing, confirm these hashes match the current file contents. If any file hash differs, do not write the manifest and report the mismatch."
+    }
+  }
+}

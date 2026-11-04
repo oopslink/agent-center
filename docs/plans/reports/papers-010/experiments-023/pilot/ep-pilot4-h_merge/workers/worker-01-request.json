@@ -1,0 +1,18 @@
+{
+  "worker_id": "worker-01",
+  "role": "implementer",
+  "task": "Rewrite module.py so that solve(data) implements the user contract exactly. The current file is a shallow dict.update and fails the nested-object merge case. Requirements: data must be a dict with object keys 'base' and 'patch', both dicts, otherwise raise ValueError. Deep-merge patch into base. For each patch key: if the patch value is null, remove the key from the result (no-op if absent). If both base and patch values are objects, merge recursively with the same rules. If both are lists, the patch list replaces the base list with no concatenation. If the base key is absent, insert the patch value as is. Otherwise, if the two values have different JSON types (object, list, string, boolean, number; booleans and numbers differ), raise ValueError. Key order: base keys in original order, then patch-only keys in patch order. Never mutate inputs (use deep copies). Use only the Python standard library, no I/O, no dynamic code execution. Write only module.py.",
+  "row": {
+    "id": "pilot4-h_merge",
+    "paper": "P2",
+    "task": "h_merge",
+    "family": "h_merge",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "run_version": "023-pilot4"
+  }
+}

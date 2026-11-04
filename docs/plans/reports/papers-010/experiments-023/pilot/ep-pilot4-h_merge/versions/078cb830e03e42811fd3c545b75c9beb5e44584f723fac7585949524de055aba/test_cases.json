@@ -1,0 +1,131 @@
+[
+  {
+    "input": {
+      "base": {
+        "a": {
+          "x": 1,
+          "y": 2
+        },
+        "b": 3
+      },
+      "patch": {
+        "a": {
+          "y": 5,
+          "z": 6
+        }
+      }
+    },
+    "name": "nested object merge",
+    "output": {
+      "a": {
+        "x": 1,
+        "y": 5,
+        "z": 6
+      },
+      "b": 3
+    }
+  },
+  {
+    "input": {
+      "base": {
+        "l": [
+          1,
+          2,
+          3
+        ]
+      },
+      "patch": {
+        "l": [
+          4
+        ]
+      }
+    },
+    "name": "list replacement without concatenation",
+    "output": {
+      "l": [
+        4
+      ]
+    }
+  },
+  {
+    "input": {
+      "base": {
+        "a": 1,
+        "b": 2
+      },
+      "patch": {
+        "a": null,
+        "c": null
+      }
+    },
+    "name": "null removes existing key and absent key is no-op",
+    "output": {
+      "b": 2
+    }
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "base": {
+        "a": "s"
+      },
+      "patch": {
+        "a": 1
+      }
+    },
+    "name": "string vs number type mismatch"
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "base": {
+        "a": true
+      },
+      "patch": {
+        "a": 1
+      }
+    },
+    "name": "boolean vs number mismatch"
+  },
+  {
+    "input": {
+      "base": {
+        "a": 2,
+        "b": 1
+      },
+      "patch": {
+        "a": 9,
+        "c": 3,
+        "d": 4
+      }
+    },
+    "name": "key ordering: base order then patch-only keys in patch order",
+    "output": {
+      "a": 9,
+      "b": 1,
+      "c": 3,
+      "d": 4
+    }
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "base": {
+        "a": [
+          1
+        ]
+      },
+      "patch": {
+        "a": {
+          "x": 1
+        }
+      }
+    },
+    "name": "list vs object type mismatch"
+  },
+  {
+    "error": "ValueError",
+    "input": "not an object",
+    "name": "non-object data is rejected"
+  }
+]

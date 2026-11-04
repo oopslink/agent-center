@@ -1,0 +1,213 @@
+[
+  {
+    "input": {
+      "ops": []
+    },
+    "name": "empty_ops_returns_zeros",
+    "output": {
+      "available": 0,
+      "balance": 0,
+      "held": 0
+    }
+  },
+  {
+    "input": {
+      "ops": [
+        {
+          "amount": 100,
+          "kind": "credit"
+        },
+        {
+          "amount": 30,
+          "kind": "debit"
+        }
+      ]
+    },
+    "name": "credit_then_debit",
+    "output": {
+      "available": 70,
+      "balance": 70,
+      "held": 0
+    }
+  },
+  {
+    "input": {
+      "ops": [
+        {
+          "amount": 100,
+          "kind": "credit"
+        },
+        {
+          "amount": 40,
+          "id": "h1",
+          "kind": "hold"
+        }
+      ]
+    },
+    "name": "credit_hold_available",
+    "output": {
+      "available": 60,
+      "balance": 100,
+      "held": 40
+    }
+  },
+  {
+    "input": {
+      "ops": [
+        {
+          "amount": 100,
+          "kind": "credit"
+        },
+        {
+          "amount": 40,
+          "id": "h1",
+          "kind": "hold"
+        },
+        {
+          "amount": 999,
+          "id": "h1",
+          "kind": "release"
+        }
+      ]
+    },
+    "name": "release_restores_funds_amount_ignored",
+    "output": {
+      "available": 100,
+      "balance": 100,
+      "held": 0
+    }
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "ops": [
+        {
+          "amount": 5,
+          "kind": "transfer"
+        }
+      ]
+    },
+    "name": "invalid_kind"
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "ops": [
+        {
+          "amount": true,
+          "kind": "credit"
+        }
+      ]
+    },
+    "name": "bool_amount_rejected"
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "ops": [
+        {
+          "amount": 0,
+          "kind": "credit"
+        }
+      ]
+    },
+    "name": "zero_amount_rejected"
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "ops": [
+        {
+          "amount": -5,
+          "kind": "credit"
+        }
+      ]
+    },
+    "name": "negative_amount_rejected"
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "ops": [
+        {
+          "amount": 100,
+          "kind": "credit"
+        },
+        {
+          "amount": 10,
+          "id": "h1",
+          "kind": "hold"
+        },
+        {
+          "amount": 5,
+          "id": "h1",
+          "kind": "hold"
+        }
+      ]
+    },
+    "name": "duplicate_hold_id"
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "ops": [
+        {
+          "amount": 100,
+          "kind": "credit"
+        },
+        {
+          "id": "nope",
+          "kind": "release"
+        }
+      ]
+    },
+    "name": "release_unknown_id"
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "ops": [
+        {
+          "amount": 50,
+          "kind": "credit"
+        },
+        {
+          "amount": 60,
+          "kind": "debit"
+        }
+      ]
+    },
+    "name": "debit_exceeds_available"
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "ops": [
+        {
+          "amount": 100,
+          "kind": "credit"
+        },
+        {
+          "amount": 60,
+          "id": "h1",
+          "kind": "hold"
+        },
+        {
+          "amount": 50,
+          "id": "h2",
+          "kind": "hold"
+        }
+      ]
+    },
+    "name": "hold_exceeds_available"
+  },
+  {
+    "error": "ValueError",
+    "input": {
+      "ops": [
+        5
+      ]
+    },
+    "name": "non_dict_operation"
+  }
+]

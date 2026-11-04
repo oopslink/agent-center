@@ -1,0 +1,18 @@
+{
+  "worker_id": "worker-06",
+  "role": "integrator",
+  "task": "Write manifest.json only. Do not touch module.py, test_cases.json, or review.json. It must be a JSON object with exactly these fields: candidate_hash \"e9aa23423b47d1d883cffb441620a04f512ed1513450f2fd9cb3a2d6be38bb68\" (sha256 of module.py), tests_hash \"e4410783b722ffcec0d17a45b6a6499affe61e1c529bd33539d2fc1b357a9739\" (sha256 of test_cases.json), and review_hash \"646601f8d78fa2f32c6d4563edd21f2f376afee0130622bb2c730cc582456556\" (sha256 of review.json). Before writing, confirm these hashes match the current file contents. If any file hash differs, do not write the manifest and report the mismatch.",
+  "row": {
+    "id": "pilot4-h_merge",
+    "paper": "P2",
+    "task": "h_merge",
+    "family": "h_merge",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "run_version": "023-pilot4"
+  }
+}

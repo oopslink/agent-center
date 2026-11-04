@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 9.140034458017908,
+  "finished_utc": "2026-11-04T17:15:29.848344+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0036718000000000002,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 14308,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 1620,
+    "output_tokens_details": {
+      "thinking_tokens": 1098
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 14308,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 1620,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 14308,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 14308
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 1620,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 14308,
+      "webSearchRequests": 0,
+      "costUSD": 0.0036718000000000002,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 1098,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 14308,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"spawn\",\"args\":{\"role\":\"reviewer\",\"task\":\"Overwrite review.json only. It must be a JSON object with keys candidate_hash, tests_hash, verdict, notes. Use candidate_hash \\\"2cbef4bced2a8a53f223ec2a2b0ed691507ad0ec1e23358942c07c1b820c412a\\\" (module.py) and tests_hash \\\"ecab976eba808b468c15ad15b55e359559aa095fcd059566b211b7046b6e2535\\\" (test_cases.json). Review module.py against the user contract: validation order (kind, amount int >= 1 with bools rejected, id uniqueness or existence, available-funds check for debit and hold), effects of credit, debit, hold and release, zero result for empty ops, and no input mutation. Check that every test_cases.json expectation matches the contract. Set verdict to \\\"pass\\\" only if the implementation and tests are correct. The receipt to cite is rcpt-75c7cca89913fe6feea654d0. The Supervisor supplies it: it was returned to the Supervisor by its own run_tests call in this session (result pass, candidate_hash and tests_hash as above). Cite only this receipt in notes. Do not cite rcpt-4600d5701aef4f96f709ccb4, rcpt-0bcfbf8b922aff9d55f867fa, or any other receipt, and replace the earlier review.json content entirely. Note in notes that unhashable id values (such as lists) raise TypeError, which the contract does not address. Do not write any other file.\"}}",
+  "parsed": {
+    "op": "spawn",
+    "args": {
+      "role": "reviewer",
+      "task": "Overwrite review.json only. It must be a JSON object with keys candidate_hash, tests_hash, verdict, notes. Use candidate_hash \"2cbef4bced2a8a53f223ec2a2b0ed691507ad0ec1e23358942c07c1b820c412a\" (module.py) and tests_hash \"ecab976eba808b468c15ad15b55e359559aa095fcd059566b211b7046b6e2535\" (test_cases.json). Review module.py against the user contract: validation order (kind, amount int >= 1 with bools rejected, id uniqueness or existence, available-funds check for debit and hold), effects of credit, debit, hold and release, zero result for empty ops, and no input mutation. Check that every test_cases.json expectation matches the contract. Set verdict to \"pass\" only if the implementation and tests are correct. The receipt to cite is rcpt-75c7cca89913fe6feea654d0. The Supervisor supplies it: it was returned to the Supervisor by its own run_tests call in this session (result pass, candidate_hash and tests_hash as above). Cite only this receipt in notes. Do not cite rcpt-4600d5701aef4f96f709ccb4, rcpt-0bcfbf8b922aff9d55f867fa, or any other receipt, and replace the earlier review.json content entirely. Note in notes that unhashable id values (such as lists) raise TypeError, which the contract does not address. Do not write any other file."
+    }
+  }
+}

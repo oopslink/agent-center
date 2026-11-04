@@ -1,0 +1,324 @@
+{
+  "passed": true,
+  "passed_count": 12,
+  "total": 12,
+  "checks": [
+    {
+      "index": 0,
+      "input": {
+        "ops": []
+      },
+      "expected": {
+        "name": "empty_ops_returns_zeros",
+        "output": {
+          "available": 0,
+          "balance": 0,
+          "held": 0
+        }
+      },
+      "observed": {
+        "output": {
+          "balance": 0,
+          "held": 0,
+          "available": 0
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 1,
+      "input": {
+        "ops": [
+          {
+            "amount": 100,
+            "kind": "credit"
+          },
+          {
+            "amount": 30,
+            "kind": "debit"
+          }
+        ]
+      },
+      "expected": {
+        "name": "credit_then_debit",
+        "output": {
+          "available": 70,
+          "balance": 70,
+          "held": 0
+        }
+      },
+      "observed": {
+        "output": {
+          "balance": 70,
+          "held": 0,
+          "available": 70
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 2,
+      "input": {
+        "ops": [
+          {
+            "amount": 100,
+            "kind": "credit"
+          },
+          {
+            "amount": 40,
+            "id": "h1",
+            "kind": "hold"
+          }
+        ]
+      },
+      "expected": {
+        "name": "credit_hold_available",
+        "output": {
+          "available": 60,
+          "balance": 100,
+          "held": 40
+        }
+      },
+      "observed": {
+        "output": {
+          "balance": 100,
+          "held": 40,
+          "available": 60
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 3,
+      "input": {
+        "ops": [
+          {
+            "amount": 100,
+            "kind": "credit"
+          },
+          {
+            "amount": 40,
+            "id": "h1",
+            "kind": "hold"
+          },
+          {
+            "amount": 999,
+            "id": "h1",
+            "kind": "release"
+          }
+        ]
+      },
+      "expected": {
+        "name": "release_restores_funds_amount_ignored",
+        "output": {
+          "available": 100,
+          "balance": 100,
+          "held": 0
+        }
+      },
+      "observed": {
+        "output": {
+          "balance": 100,
+          "held": 0,
+          "available": 100
+        }
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 4,
+      "input": {
+        "ops": [
+          {
+            "amount": 5,
+            "kind": "transfer"
+          }
+        ]
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "invalid_kind"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 5,
+      "input": {
+        "ops": [
+          {
+            "amount": true,
+            "kind": "credit"
+          }
+        ]
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "bool_amount_rejected"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 6,
+      "input": {
+        "ops": [
+          {
+            "amount": 0,
+            "kind": "credit"
+          }
+        ]
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "zero_amount_rejected"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 7,
+      "input": {
+        "ops": [
+          {
+            "amount": -5,
+            "kind": "credit"
+          }
+        ]
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "negative_amount_rejected"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 8,
+      "input": {
+        "ops": [
+          {
+            "amount": 100,
+            "kind": "credit"
+          },
+          {
+            "amount": 10,
+            "id": "h1",
+            "kind": "hold"
+          },
+          {
+            "amount": 5,
+            "id": "h1",
+            "kind": "hold"
+          }
+        ]
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "duplicate_hold_id"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 9,
+      "input": {
+        "ops": [
+          {
+            "amount": 100,
+            "kind": "credit"
+          },
+          {
+            "id": "nope",
+            "kind": "release"
+          }
+        ]
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "release_unknown_id"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 10,
+      "input": {
+        "ops": [
+          {
+            "amount": 50,
+            "kind": "credit"
+          },
+          {
+            "amount": 60,
+            "kind": "debit"
+          }
+        ]
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "debit_exceeds_available"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 11,
+      "input": {
+        "ops": [
+          {
+            "amount": 100,
+            "kind": "credit"
+          },
+          {
+            "amount": 60,
+            "id": "h1",
+            "kind": "hold"
+          },
+          {
+            "amount": 50,
+            "id": "h2",
+            "kind": "hold"
+          }
+        ]
+      },
+      "expected": {
+        "error": "ValueError",
+        "name": "hold_exceeds_available"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    }
+  ],
+  "candidate_hash": "9c47953f4de54ae0ad250f8888b343a6c01fa3239ce6dc86c46ae9f3446dc982",
+  "label": "user-tests",
+  "duration_s": 0.01780166698154062
+}

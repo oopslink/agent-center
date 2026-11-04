@@ -1,0 +1,11 @@
+{
+  "id": "pilot-h_merge-sonnet",
+  "paper": "P1",
+  "task": "h_merge",
+  "family": "h_merge",
+  "model": "claude-sonnet-5-5",
+  "identity": "single",
+  "ledger": "off",
+  "transport": "report_only",
+  "run_version": "023-pilot"
+}
