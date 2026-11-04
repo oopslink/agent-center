@@ -1,43 +1,66 @@
 # A 篇引用编号（按首次出现顺序）
 
-T5 写完 §1–§3 后的状态。§4–§7 新增引用从 [36] 继续编号；T7 据此生成参考文献表。
+由 `consolidation/build_refs.py --renumber` 维护，参考文献表由同一脚本 `--write` 生成。
+插入新引用后重跑 `--renumber` 再 `--write`，不要手工改号。
 
-| # | key | 首次出现 |
-|---:|---|---|
-| 1 | MC94 | §2.1 |
-| 2 | schmidt1996coordination | §2.1 |
-| 3 | feldman2003reconceptualizing | §2.1 |
-| 4 | R01 | §2.2 |
-| 5 | shah2026characterizing | §2.2 |
-| 6 | albayaydh2026beyond | §2.2 |
-| 7 | zhou2026messages | §2.2 |
-| 8 | pitre2026understanding | §2.2 |
-| 9 | R05 | §2.2 |
-| 10 | R03 | §2.2 |
-| 11 | macedo2026harness | §2.2 |
-| 12 | R14 | §2.2 |
-| 13 | RV16_AUTOGEN | §2.2 |
-| 14 | RV16_METAGPT | §2.2 |
-| 15 | RV16_CHATDEV | §2.2 |
-| 16 | R11 | §2.2 |
-| 17 | R28 | §2.2 |
-| 18 | R29 | §2.2 |
-| 19 | R04 | §2.2 |
-| 20 | R08 | §2.2 |
-| 21 | park2023generative | §2.2 |
-| 22 | packer2023memgpt | §2.2 |
-| 23 | xu2025amem | §2.2 |
-| 24 | zhang2025gmemory | §2.2 |
-| 25 | wu2025longmemeval | §2.2 |
-| 26 | R26 | §2.2 |
-| 27 | R27 | §2.2 |
-| 28 | CL90_COMMIT | §2.3 |
-| 29 | babli2023plan | §2.3 |
-| 30 | KH92 | §2.3 |
-| 31 | nebel1995plan | §2.3 |
-| 32 | RBAC96 | §2.3 |
-| 33 | WU91 | §2.3 |
-| 34 | ackerman2000reexamining | §2.3 |
-| 35 | RV16_METHOD | §3.3 |
-
-**待 §4–§7 使用（claim-citations.md 已分配但尚未出现）：** wang2026approval、arora2026specifying、marla2026permission、yang2026privileges、sghaier2026dont、R15、R17、R32、moreau2010foundations、muto2026attestable、castillo2026evidence、veloso1993derivational、vanderkrogt2005coordination、komenda2012decentralized、yuan2026replan、olivera2000memory、argote2000knowledge、joshi2026deontic、qi2026memory、kirchdorfer2026organizational、liu2026know、R30、R31。
+| # | key |
+|---:|---|
+| 1 | MC94 |
+| 2 | schmidt1996coordination |
+| 3 | feldman2003reconceptualizing |
+| 4 | R01 |
+| 5 | shah2026characterizing |
+| 6 | albayaydh2026beyond |
+| 7 | zhou2026messages |
+| 8 | pitre2026understanding |
+| 9 | R05 |
+| 10 | R03 |
+| 11 | macedo2026harness |
+| 12 | R14 |
+| 13 | RV16_AUTOGEN |
+| 14 | RV16_METAGPT |
+| 15 | RV16_CHATDEV |
+| 16 | R11 |
+| 17 | R28 |
+| 18 | R29 |
+| 19 | R04 |
+| 20 | R08 |
+| 21 | park2023generative |
+| 22 | packer2023memgpt |
+| 23 | xu2025amem |
+| 24 | zhang2025gmemory |
+| 25 | wu2025longmemeval |
+| 26 | R26 |
+| 27 | R27 |
+| 28 | mao2025towards |
+| 29 | CL90_COMMIT |
+| 30 | babli2023plan |
+| 31 | KH92 |
+| 32 | nebel1995plan |
+| 33 | RBAC96 |
+| 34 | WU91 |
+| 35 | ackerman2000reexamining |
+| 36 | RV16_METHOD |
+| 37 | simmhan2005survey |
+| 38 | sadowski2018modern |
+| 39 | wang2026approval |
+| 40 | moreau2010foundations |
+| 41 | arora2026specifying |
+| 42 | marla2026permission |
+| 43 | yang2026privileges |
+| 44 | R32 |
+| 45 | R17 |
+| 46 | R15 |
+| 47 | veloso1993derivational |
+| 48 | vanderkrogt2005coordination |
+| 49 | komenda2012decentralized |
+| 50 | qi2026memory |
+| 51 | joshi2026deontic |
+| 52 | olivera2000memory |
+| 53 | argote2000knowledge |
+| 54 | kirchdorfer2026organizational |
+| 55 | R30 |
+| 56 | R31 |
+| 57 | yuan2026replan |
+| 58 | muto2026attestable |
+| 59 | castillo2026evidence |

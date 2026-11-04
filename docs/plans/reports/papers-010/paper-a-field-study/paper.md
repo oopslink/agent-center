@@ -11,7 +11,11 @@
 
 ## 摘要
 
-<!-- 由 Task 7 Step 4 填写。只允许出现 §4 中已复算的数字与 §7 的结论，不出现比较级。 -->
+多个大语言模型 Agent 协作交付软件时，会话、代际、规则作用域、角色与权限各自形成一条边界。本文研究一个持续运行的部署：当一项尚未满足的交付义务跨过这些边界时，它与承担者、凭据和合同之间的绑定关系在哪里失去确定性。材料为该部署冻结快照中的消息、任务动作、任务图代际、只读 Git 对象核验、团队规则治理事件与规则读取回执，按五级证据标注，技术故障的后果排除在设计层面的归因之外。
+
+记录呈现六类绑定断裂：责任、凭据、信息、成果与合同、适用范围、剩余义务。审计层面的归属与语义层面的归属可以不一致——819 条 `agent_started` 中 818 条的触发主体与所涉 Agent 对应同一逻辑实体，而同期记录中存在把 executor 失败交给外部主体的解释。保留任务图历史不等于继承产物：169 次父子转移中 149 次保留了全部父节点，只读 Git 核验仍确认一个中间候选未以前一候选为祖先、相应后端文件从存在变为缺失；而两个不同提交拥有相同完整文件树，说明提交变化不必然丢失内容。166 次拓扑改变中有 65 次没有任何共有任务转为完成，3 次拓扑未变的转移则全部记录了状态变化。团队规则的 57 个事件与 57 个 Git 提交逐一对应、230 条读取回执覆盖 12 个 Agent，但 27 个已审核提案中有 16 个作者与审核者相同，而一条要求所有任务先合入主分支的规则与中间候选的验收合同形成了循环。
+
+本文据此提出六项设计要求，均为"把某个被跨越的关系显式写下来"，而非增加流程。本研究是单部署、目的性选例的回顾性案例研究，不估计任何断裂的发生率、持续时间或相对架构风险；<!--allow-banned:发生率-->分类的一部分有作者对随机子集的人工判定，其余只有 AI 编码。
 
 **关键词：** 多智能体软件交付；责任连续性；凭据认可；计划修复；团队规则适用性
 
@@ -81,19 +85,21 @@ Agent Center 是一套让多个大语言模型（LLM）Agent 协作完成软件�
 
 最后，把相互关联的对象组织成过程记录时，单一 case 标识不足以表达多个对象之间的关系。[26]<!--ref:R26-->[27]<!--ref:R27--> 本文关联 Plan、generation、Task、候选产物与合同时采用同样的分析取向，但不提出新的过程挖掘算法。
 
+与本文最接近的既有工程对策是把"规范不足、协调错位、验证不当"三类缺陷归因于缺少结构化约束，并以显式行为契约加生命周期验证作为干预。[28]<!--ref:mao2025towards--> 它给出的是干预与度量，本文给出的是干预之前那份现场记录。
+
 本文不声称填补算法空白。它补的是一份具体部署的、带产物级核验的现场记录。
 
 ### 2.3 本研究借用的概念来源
 
 五条既有判别标准被本文直接使用，借用限度一并说明。
 
-**一次尝试结束，本身不是放弃目标的理由。** 持续目标理论把"行动者在什么条件下可以放弃目标"放在中心位置。[28]<!--ref:CL90_COMMIT--> 本文借用这条判别，不假定语言模型拥有该理论形式化的信念或意图；分析对象是软件记录中可观察的关系：谁承担目标、谁执行本次动作、执行结束后谁仍能采取合法的下一步。承诺在重规划时如何被保留或丢弃，在规划研究中也有系统比较。[29]<!--ref:babli2023plan-->
+**一次尝试结束，本身不是放弃目标的理由。** 持续目标理论把"行动者在什么条件下可以放弃目标"放在中心位置。[29]<!--ref:CL90_COMMIT--> 本文借用这条判别，不假定语言模型拥有该理论形式化的信念或意图；分析对象是软件记录中可观察的关系：谁承担目标、谁执行本次动作、执行结束后谁仍能采取合法的下一步。承诺在重规划时如何被保留或丢弃，在规划研究中也有系统比较。[30]<!--ref:babli2023plan-->
 
-**计划修改要定位哪些关系失效，而不是无条件重建。** 情境改变后需要找出不再成立的那部分，而非丢弃全部计划。[30]<!--ref:KH92--> 同时，复用并不必然比重建省力，最坏情况下保守复用有复杂度下界。[31]<!--ref:nebel1995plan--> 本文据此只问两件可独立推翻的事：新安排是否覆盖反馈揭示的缺口；保留的候选是否仍具备先前已验证的成果。
+**计划修改要定位哪些关系失效，而不是无条件重建。** 情境改变后需要找出不再成立的那部分，而非丢弃全部计划。[31]<!--ref:KH92--> 同时，复用并不必然比重建省力，最坏情况下保守复用有复杂度下界。[32]<!--ref:nebel1995plan--> 本文据此只问两件可独立推翻的事：新安排是否覆盖反馈揭示的缺口；保留的候选是否仍具备先前已验证的成果。
 
-**角色与权限是两层关系。** 角色访问控制把用户到角色的指派与角色到权限的关联分开建模。[32]<!--ref:RBAC96--> 由此不能推出"同角色产生的材料足够完成工作"：授权回答谁可以读，当前任务决定哪些事实值得读。
+**角色与权限是两层关系。** 角色访问控制把用户到角色的指派与角色到权限的关联分开建模。[33]<!--ref:RBAC96--> 由此不能推出"同角色产生的材料足够完成工作"：授权回答谁可以读，当前任务决定哪些事实值得读。
 
-**组织记忆要分获取、保留与提取。** 这一分解说明组织如何使用或误用过去的经验。[33]<!--ref:WU91--> 更贴近本文的是实证与批判层面的发现：组织记忆在实践中往往不是检索问题，而是记忆片段脱离原情境后不再可用。[34]<!--ref:ackerman2000reexamining--> 本文对"组织"的借用限于跨成员保存与传播的机制，不把数据库读取当成认知。
+**组织记忆要分获取、保留与提取。** 这一分解说明组织如何使用或误用过去的经验。[34]<!--ref:WU91--> 更贴近本文的是实证与批判层面的发现：组织记忆在实践中往往不是检索问题，而是记忆片段脱离原情境后不再可用。[35]<!--ref:ackerman2000reexamining--> 本文对"组织"的借用限于跨成员保存与传播的机制，不把数据库读取当成认知。
 
 ## 3 方法
 
@@ -136,7 +142,7 @@ Agent Center 是一套让多个大语言模型（LLM）Agent 协作完成软件�
 
 ### 3.3 这项研究做不到什么
 
-本文按软件工程案例研究的惯例区分情境解释与因果识别。[35]<!--ref:RV16_METHOD--> 以下限制适用于全文，后续各节不再重复。
+本文按软件工程案例研究的惯例区分情境解释与因果识别。[36]<!--ref:RV16_METHOD--> 以下限制适用于全文，后续各节不再重复。
 
 - **单部署、目的性选例、事后框架。** 研究问题与六类断裂的切分是在阅读材料之后形成的，未预注册，也未完成全库盲法编码。因此本文不估计发生率、持续时间，也不比较本架构与其它架构的风险。
 - **历史输入不可恢复。** 当次部署版本、完整模型输入与执行控制轨迹均未保留。部分案例因此永久停在参与者报告级别。
@@ -190,6 +196,8 @@ Agent Center 是一套让多个大语言模型（LLM）Agent 协作完成软件�
 同一组记录也包含一次有效的下游核对。角色映射被纠正后，PD 又以迭代分支不存在为前提要求重建；integration 核对远端后报告该分支已包含开发成果与验收证据，拒绝重复创建。下游没有因为指令来自协调者、或由用户转贴，就把错误前提当作事实继续执行。**该核对结论是参与者报告**：本研究没有重新执行当时的 Git 验证。此外，这组记录早于后来的内部 Supervisor/executor 设计，只用于跨角色协作的分析。
 
 **独立验收的作用在于产生上游没有覆盖的事实。** 2026-09-03 的 Graph 记录中，Supervisor 已报告跨页合并、计数与回归通过，Tester 对同一候选继续要求点击聚合边之后的取证，指出计数正确仍不足以证明两页证据进入了详情视图；后续候选又暴露跨项目请求使用错误作用域的问题。这些判定对应逐步展开的检查范围，不是同一事实的重复确认。相应源码未能完整读取，因此这些案例只支持对检查报告本身的分析，不足以估计监督误判的比例。
+
+这一类依赖在其它领域有成熟的处理方式可作参照：数据溯源研究把溯源记录的用途、粒度与信任模型分开讨论，[37]<!--ref:simmhan2005survey--> 而大规模代码评审的实证显示人类评审者同样依赖自动化证据（测试与分析结果）作出接受决定。[38]<!--ref:sadowski2018modern--> 两者都说明"证据由谁签发、适用于哪个对象"是可以被显式表达的，本部署的记录缺的正是这层表达。
 
 ### 4.3 信息绑定：消费者此刻的职责需要哪些事实
 
@@ -262,40 +270,354 @@ Agent Center 是一套让多个大语言模型（LLM）Agent 协作完成软件�
 
 ### 5.1 每类断裂的候选机制、反证与仍缺的判别
 
-要回答：逐类列出支持记录、反向记录、以及要把该机制与替代解释分开还需要什么条件。
+本节把每类断裂的候选机制与它的反向记录并列。**每一行都有反向记录**，这不是修辞上的平衡：一个只有支持证据的机制说明取证时没有找反例，而不是该机制更可靠。
+
+**表 3。六类断裂的候选机制、反向记录与仍缺的判别条件**
+
+| 断裂类别 | 候选机制 | 本部署的反向记录 | 要把该机制与替代解释分开，还缺什么 |
+|---|---|---|---|
+| 责任 | 执行隔离被进一步解释为责任隔离：审查子目标完成被误作目标责任完成 | I05 明确承责仍拒绝自己的候选；819 条 `agent_started` 中 818 条字段归属正确 | 在工具一致、无旧上下文、恢复路径可用的条件下，分别操纵身份表述与恢复义务的表达 |
+| 凭据 | 认可条件未在交接时被一致理解，接收方以"我没有直接观察到"替代"不存在" | 下游核对远端后拒绝按错误前提重建分支 | 固定任务与权限，操纵凭据的可查询性与签发者约束 |
+| 信息 | 按材料生产者的身份或角色过滤，遗漏消费者当前职责所需的跨角色事实 | 命名成员之间确实传播了可行动的事实；34 条版本化规则中 30 条被多个 Agent 读到 | 实现一个真实检索器，在同预算下比较角色视图、任务视图与两者结合 |
+| 成果与合同 | 图中保留节点被当作产物已继承；旧判定被当作对新合同仍然有效 | 不同提交同完整树说明提交变化不必然丢内容；Access 在原任务续修即可 | 在相同初始产物与合同下，实际执行续修、局部改图与重规划三种策略并独立验收 |
+| 适用范围 | 局部经验以无条件通则发布，扩大了规则与任务合同的不相容范围 | 条件化规则被用于一次交接；230/230 回执的提交不早于最新已入库事件 | 同一候选与合同下回放四种规则版本，再用未见任务比较实际采用 |
+| 剩余义务 | 局部合同完成掩盖了产品层未满足的条件 | NO-GO 报告任务完成而产品未可发布被正确区分 | 操纵剩余义务的显式登记，测无提示推进与义务丢失 |
+
+四条外部线索与这些机制相容，可用于定位，但都不是对本部署的实证。**凭据**一类最接近的既有工作系统化了 coding-agent harness 中"批准—执行绑定"的失效，即被批准的对象与真正执行的对象不是同一个；[39]<!--ref:wang2026approval--> 溯源研究则给出了"他方签发的断言此方是否接受"的形式框架。[40]<!--ref:moreau2010foundations--> **责任**一类对应需求工程侧关于显式规定委派自治边界的讨论，[41]<!--ref:arora2026specifying--> 以及重试与恢复路径上授权如何被重新评估或跳过。[42]<!--ref:marla2026permission--> **信息**一类可与 Agent 侧工具选择中的过度授权现象对读，[43]<!--ref:yang2026privileges--> 以及可见信息与信息被使用之间的差距；[44]<!--ref:R32--> 显示身份本身的效应在人名、机器式名称与无名条件下未检出稳定主效应，[45]<!--ref:R17--> persona 提示在事实问答中也未显示稳定增益，[46]<!--ref:R15--> 这两项都不是软件交付的结果变量。**成果**一类的设计空间包括复用推导轨迹而非成品，[47]<!--ref:veloso1993derivational--> 以及把计划修复当作跨责任边界的协调机制。[48]<!--ref:vanderkrogt2005coordination-->[49]<!--ref:komenda2012decentralized--> **适用范围**一类有两条直接相关的线索：写入闸门不足会把偶然共现的经验晋升为团队规则，[50]<!--ref:qi2026memory--> 而带条件的规范可以用道义逻辑显式表达义务、许可与适用范围。[51]<!--ref:joshi2026deontic--> 组织记忆的收集、存储与访问机制及其失效，[52]<!--ref:olivera2000memory--> 知识在组织单元间迁移时载体变化导致适用性不自动继承，[53]<!--ref:argote2000knowledge--> 以及把组织记忆作为 agentic 流程的一等构件，[54]<!--ref:kirchdorfer2026organizational--> 共同说明这一类问题不是本部署独有。
+
+**六类机制可以叠加，本研究无法分离它们。** 用户的一次提醒同时改变主体信息、动作提示与上下文焦点；一次改图同时改变任务组织与命名。因此表 3 最后一列不是"未来工作"的客套话，而是本研究给出的具体识别条件：每一行都指明了要分离哪两个变量。
 
 ### 5.2 训练先验为何只能列为未识别解释
 
-要回答：外部研究说明行为可由训练塑造，但本研究没有同源训练干预，也不知道历史部署模型的训练内容。
+一种与所有六类记录相容的解释是：模型从训练中习得的角色分工、工具调用与任务完成模式，不适配本系统要求的责任映射。这个解释不需要假定模型内部存在固定的 Agent 组织结构，它的可观察预测是：在输入、工具语义与权限都明确时，模型仍倾向于选择某种熟悉的分工或启动方式。
+
+外部研究支持"训练可以塑造交互行为"：通过交互轨迹微调可以改变 agent 行为，且训练数据组成会影响表现；[55]<!--ref:R30--> 消息来源的优先级行为也可以通过训练塑造。[56]<!--ref:R31--> 但这两项都没有检验本系统的封装，也不揭示历史部署所用模型的训练内容；后者的层级是系统／开发者／用户消息的优先级，不是业务中的监督者与执行者层级。
+
+因此本文把训练先验列为**未识别的竞争解释**，而不是候选原因之一。要让它成为可检验的原因，需要固定基础模型与训练量、对同源模型做成对的轨迹训练干预。本研究没有这个条件，也不能从模型自述的 reason 文本反推训练来源——模型响应是行为记录，不是其内部推理的转录。还须把权重中的倾向与外部 CLI 自带提示、当前工具描述、会话历史分开；即使不同模型在同一 harness 中表现不同，也只说明模型与接口存在交互。
 
 ### 5.3 单代无环为何不排除跨代重复
 
-要回答：每一版任务图无环约束的是什么；重复生成同一条恢复链的现象发生在哪一层；有限重复与无限循环的证据差别。
+每一代任务图无环，约束的是**该版本内**任务之间的依赖关系。如果验收未通过就触发重规划，而规划器每次都复制同一缺口、同一候选与同一检查，这个循环发生在**多次规划之间**——任何单张图上的环检测都发现不了它。
+
+本部署的记录支持这种现象存在，且只支持到"有限重复"：Insight 案例中有一组重复创建的五个节点，其中一个曾进入 running，最终五个全部废弃，未见这组节点带来新的交付证据。同一案例的另一条路径则保留已有候选、只替换缺失的视觉复验，随后出现终验报告。**两条路径外观相似，区别在于后一条补上了一项真正缺失的义务。**
+
+判别循环成因有三个可检查的位置。其一，系统是否把新代号当作新进展，未识别已有的活动恢复任务——Insight 与此相容，但根因未定，参与者关于读取被截断的说明无法核验。其二，后继是否从错误的基线重新引入已修缺陷——组织 Graph 的产物核验说明这种退步可以用 Git 检查发现，但该例没有证明反复退步。其三，失败是否来自未改变的外部前提——此时重复规划不能创造资源，而若用户确实改变了验收范围，则应记录为新合同而不是报告为循环。
+
+据此可以提出一条**尚待验证**的停止规则：改图前读取当前活动版本，核对目标与验收版本、候选文件树、未满足的检查及外部前提；若已有任务处理同一缺口，继续或复用它；仅当出现新义务或依赖变化时才局部改图。连续返回同一状态且没有新证据时，停止自动重建并交给有权限者决断。这条规则的依据是上述三个检查位置，不是对比实验的结果。要检验它，需要在固定初始产物与合同的条件下实际执行三种策略；已有一项在行程规划领域对扰动后 replan／repair／edit 三种修订策略做统一评测的工作，其任务域与软件交付不同，可借的是实验范式而不是结论。[57]<!--ref:yuan2026replan--> 仅凭拓扑未变就停止是错的：本部署中 3 次拓扑完全未变的转移全部伴随共有任务的状态变化。
 
 ## 6 证据边界
 
 ### 6.1 这些记录支持到哪一层
 
-要回答：描述、局部机制解释与因果识别的区别；为什么不给发生率、持续时间与相对架构风险。
+本文的全部结论停在两层：**描述**（记录里有什么）与**局部机制解释**（某一段记录中，义务是在哪一步失去承担者的）。没有任何结论属于因果识别。
+
+具体地说，本文**不给**以下数值，且这不是因为计算未完成，而是因为材料在原理上不支持：
+
+- **发生率与比率。** 片段是目的性选择的，没有候选片段的完整纳排台账，因此分子有而分母无。完整记录集上的计数（如 169 次转移中 149 次保留全部父节点）仍然给出，并标明分母；这类计数不能外推到窗口之外，也不能换算为"每多少次交付出现一次断裂"。
+- **持续时间。** 消息间隔只描述所选区间内相邻记录的时间差。下一条 Agent 消息的时间不是问题解决的时间，也不是无人介入时的停摆时长。
+- **相对架构风险。** 没有对照组。本部署的混合案例不能推出"Supervisor–executor 这类分工普遍不可行"；既有工作中存在该类分工的可行正例。
+- **改善趋势。** 操作者关于"早期频繁、提醒后改善、后来偶发"的回顾得到部分同期记录的支持（多主体纠偏、提示修订、正确承责与后续错误并存），但没有全时段的机会分母。不同日期涉及不同 Agent、会话与未知的部署版本，因此这不能称为同一模型学会后又遗忘。
+
+还有一类限制作用于全部解释：**人工介入同时改变多个变量**。用户的一次回复往往同时提供主体信息、动作提示与上下文焦点，Agent 的事后说明也可能是合理化。§4.1 中 dev3 的修复任务早于第二条身份提醒这一时序，正是用来阻止"一句身份提醒导致了修复"这种读法。
 
 ### 6.2 记录覆盖的缺口
 
-要回答：哪些对象在快照中没有记录、定向查询的空结果不能证明什么、哪些案例永久停在参与者报告级别。
+**两类对象在快照中没有记录：执行镜像与 worker 控制事件。** 对它们的定向查询返回空结果。空结果**不作为**"历史上不存在该执行"的证明——它只说明这两类记录没有进入快照。直接后果是 I04 的执行体创建与后续推送无法核验，该片段永久停在参与者报告级别。
+
+其他已知缺口：
+
+- **历史输入不可恢复。** 当次部署版本、完整模型输入与执行控制轨迹均未保留。源码中存在某个版本的工具说明，不证明某次执行加载了该版本；提交日期不是部署日期。
+- **部分结论只有参与者报告。** W02 的远端分支状态、I04 的 fork 调用、Mermaid 的修复推送、各案例的历史 PASS，均未由本研究重新执行验证。只读 Git 核验覆盖的是 10 项指定对象的祖先、文件存在性与完整树关系，不是重跑产品验收。
+- **读取审计左截断。** 规则正文回执只覆盖 2026-08-14 之后，更早发布的规则在该审计中必然缺失。审计表中的空格表示没有该条记录，不表示没有访问能力；回执也经过重复键去重，不代表读取次数。
+- **跨层窗口不同。** 消息与动作、读取审计、治理与 Git 统计三层的时间窗不同（§3.1），跨层推断只在各自窗口内成立。
+- **私有层历史不完整。** 恢复到的只有两个新建 home 的初始化内容与 23 份遗留文件，因此本文不比较私有、项目与团队三层记忆——这是材料缺失，不是比较得出了结果。
 
 ### 6.3 人工判定覆盖的范围
 
-要回答：一致率覆盖哪一部分编码、分歧条目的处置、未覆盖部分的风险。
+作者对一个随机子集做了独立于本文结论的判定，其**覆盖范围有限且不对称**，必须按下表读：
+
+| 小节 | 分类是否有人工判定 |
+|---|---|
+| §4.1 责任绑定 | 是（在抽样框内） |
+| §4.2 凭据绑定 | 是（在抽样框内） |
+| §4.6 剩余义务 | 是（在抽样框内） |
+| §4.3 信息绑定 | **否，仅 AI 编码** |
+| §4.4 成果与合同绑定 | **否，仅 AI 编码** |
+| §4.5 适用范围绑定 | **否，仅 AI 编码** |
+
+抽样框是台账中证据级别为原生记录或参与者报告、且能定位到单条原始记录的片段，共 50 条，以固定种子抽取 25 条。§4.3–4.5 没有人工判定的原因在 §3.4 已说明：四类判据只回答"义务落在谁身上"，套到规则治理事件或 Git 谱系核验上只会批量产出"无法判定"。这一限制的风险是明确的——**这三节的分类错误不会被任何人工环节拦住**，读者应按"AI 编码、未经人工复核"对待其分类，而其中的定量描述（回执计数、治理事件、Git 核验结果）不依赖分类，仍可按各自的证据级别采信。
+
+本节的做法不构成独立复核：作者是该系统的所有者，不是独立编码者。可以报告的是"作者对子集作了人工判定，一致率为若干"，不能报告为盲法双编码的一致性检验。**一致率与分歧条目待作者完成判定后填入**；分歧将作为结果报告，不向既有编码调整。本文在该结果填入之前，上表中"是"的三节同样应按"仅 AI 编码"对待。
 
 ## 7 结论
 
 ### 7.1 六类断裂与由此得到的设计要求
 
-要回答：各类断裂分别要求系统持续记录什么；评价这些设计时应分别观察哪几个结果。
+在这个部署的记录里，交付失败很少是因为模型写不出代码。反复出现的是另一件事：一项尚未满足的义务跨过某条边界之后，它与承担者、凭据或合同之间的绑定关系失去了确定性，而参与各方仍在按局部规则正确行动。六类断裂是这件事的六种形态。
+
+把它们并排放在一起，可以读出一条共同的设计要求：**边界两侧都需要显式携带那条被跨越的关系**。
+
+| 断裂类别 | 系统应持续记录的内容 |
+|---|---|
+| 责任 | 目标负责人独立于某次执行结果与单个任务终态保存；执行失败后向有权限者提供候选、未满足的验收项与可用的恢复动作 |
+| 凭据 | 回执标注候选版本、检查范围、结果与签发者，使接收方能独立核对而不必让另一角色重述 |
+| 信息 | 按消费者当前职责、任务与授权组织证据，而不是按材料生产者的身份或角色过滤 |
+| 成果与合同 | 后继声明列出保留的能力、精确候选与适用合同；范围变化时标明哪些旧检查仍有效、哪些必须重做 |
+| 适用范围 | 规则随文记录适用阶段、触发条件、例外与替代版本；更新表达替代关系而不是追加并列 |
+| 剩余义务 | 局部合同完成时，仍未满足的产品层条件保持可定位，并关联有能力且获授权的主体 |
+
+其中"凭据"一项在软件供应链领域已有可借的工程形态：可证实的构建链让可复现构建产出可被第三方验证的 attestation，[58]<!--ref:muto2026attestable--> 证据驱动的持续集成协议则让流水线每一步产出可验证证据并逐步累积。[59]<!--ref:castillo2026evidence--> 这说明把回执与候选产物绑定在技术上不是难题；本部署缺的是在交接协议里要求它。
+
+这些要求来自本部署的记录，**不是经过对照验证的改进方案**。它们各自要求的是"把某个关系写下来"，而不是"增加一道流程"。本文的材料能支持的只有一件事：这些关系在当前实现中可以同时为真而未被表达。
+
+因此评价这类设计时，应当分别观察四个结果，而不是合成一个成功率：模型是否承接了义务；恢复动作是否真的生效；候选是否通过了独立验收；以及人工补足了多少次、补的是哪一类关系（主体、对象与阶段、操作顺序、还是催促继续）。把这四项合并成一个指标，会让"正确拒绝"与"义务丢失"落在同一侧。
+
+最后，有三件事本文明确没有做到：没有估计任何断裂的发生率，没有识别封装本身的因果作用，也没有把现场现象归因于模型的训练先验。<!--allow-banned:发生率-->要回答这些，需要的是表 3 最后一列列出的那些条件——固定权限与事实，一次只操纵一个变量。
 
 ## 声明
 
-<!-- 由 Task 7 Step 3 填写。 -->
+**作者贡献。** oopslink 是本文唯一作者：提出研究问题、提供部署背景与现场解释、决定研究范围，并对一个随机子集完成人工判定。
+
+**AI 使用。** 本研究在取证、编码、定量复算、实验脚本撰写与文稿起草中使用了 AI 助手（Claude Opus 5）。AI 不是本文作者——生成式 AI 无法对文稿内容负责，也无法同意投稿平台的条款。AI 生成的分类与解释由作者审阅后保留或修改；§3.4 与 §6.3 说明了人工判定覆盖的范围与未覆盖的部分。作为分析对象的模型响应属于方法与材料，不属于作者贡献。模型响应是行为记录，不能直接揭示其内部推理。
+
+**伦理与隐私。** 本研究使用作者自有系统的既有工程协作记录，属于非人类被试研究，未新增用户实验，未采集第三方个人数据。本文不声称已获机构审查批准，也不声称经判定豁免——作者未就此征询审查机构。记录中包含用户与 Agent 的协作内容、内部路径与稳定标识；公开前由作者复核可识别信息并作必要脱敏，原生标识保留用于本地可追溯性。
+
+**数据可用性。** 部署原件保存在授权本地档案，不公开。公开的是只含派生物的复现包：动作日志派生表、读取回执审计的脱敏版、169 次父子转移表、Git 对象哈希与核验脚本。原始协作对话不在其中，因此本文的案例可按标识追溯，但不可还原到具体个人。
+
+**利益冲突。** 作者是本文所研究系统的开发者与运营者。这一关系同时构成本研究的材料来源与其主要局限：作者不是独立编码者，§6.3 据此限定了人工判定的表述。
+
+**资助。** 本研究未获得资助。
+
+**同源材料。** 本文与同批的受控实验研究使用**互不重叠**的证据：本文只用部署记录，该研究只用新采集的实验数据。本文内部，§4.3 与 §4.5 共用同一批 230 条读取回执，已在相应位置标明不重复计数。
+
+## 参考文献
+
+[1] Malone, Thomas W., Crowston, Kevin, “The interdisciplinary study of coordination,” *ACM Computing Surveys*, vol. 26, no. 1, pp. 87–119, 1994. DOI: [10.1145/174666.174668](https://doi.org/10.1145/174666.174668).
+
+[2] Schmidt, Kjeld, Simone, Carla, “Coordination mechanisms: Towards a conceptual foundation of CSCW systems design,” *Computer Supported Cooperative Work (CSCW)*, vol. 5, no. 2-3, pp. 155–200, 1996. DOI: [10.1007/BF00133655](https://doi.org/10.1007/BF00133655).
+
+[3] Feldman, Martha S., Pentland, Brian T., “Reconceptualizing Organizational Routines as a Source of Flexibility and Change,” *Administrative Science Quarterly*, vol. 48, no. 1, pp. 94–118, 2003. DOI: [10.2307/3556620](https://doi.org/10.2307/3556620).
+
+[4] Cemri, Mert, Pan, Melissa Z., Yang, Shuyi, Agrawal, Lakshya A., Chopra, Bhavya, Tiwari, Rishabh, Keutzer, Kurt, Parameswaran, Aditya, Klein, Dan, Ramchandran, Kannan, Zaharia, Matei, Gonzalez, Joseph E., Stoica, Ion, “Why Do Multi-Agent LLM Systems Fail?,” arXiv:2503.13657, 2025. DOI: [10.48550/arXiv.2503.13657](https://doi.org/10.48550/arXiv.2503.13657). （预印本，未经同行评审）
+
+[5] Shah, Mehil B., Morovati, Mohammad Mehdi, Rahman, Mohammad Masudur, Khomh, Foutse, “Characterizing Faults in Agentic AI: A Taxonomy of Types, Symptoms, and Root Causes,” arXiv:2603.06847 [cs.SE], 2026. DOI: [10.48550/arXiv.2603.06847](https://doi.org/10.48550/arXiv.2603.06847). （预印本，未经同行评审）
+
+[6] Albayaydh, Wael, Zhao, Rui, Flechais, Ivan, “Beyond the Leaderboard: A Synthesis of Tool-Use, Planning, and Reasoning Failures in Large Language Model Agents,” arXiv:2607.05775 [cs.AI], 2026. DOI: [10.48550/arXiv.2607.05775](https://doi.org/10.48550/arXiv.2607.05775). （预印本，未经同行评审）
+
+[7] Zhou, Jinhao, Zhang, Xiaoyu, Yu, Jiongchi, Chen, Fahao, Wu, Jun, “When Messages Go Wrong: Understanding Communication Faults in LLM-Based Multi-Agent Systems,” arXiv:2610.15459 [cs.SE], 2026. DOI: [10.48550/arXiv.2610.15459](https://doi.org/10.48550/arXiv.2610.15459). （预印本，未经同行评审）
+
+[8] Pitre, Priya, Hou, Jun, Fang, Yi, Ramakrishnan, Naren, Wang, Xuan, “Understanding Communication Failures in Multi-Agent LLM Systems,” arXiv:2610.32060 [cs.AI], 2026. DOI: [10.48550/arXiv.2610.32060](https://doi.org/10.48550/arXiv.2610.32060). （预印本，未经同行评审）
+
+[9] Zhao, Xiangxin, Li, Han, Li, Shuaiting, Zhao, Tianyi, Barr, Earl T., Sarro, Federica, Ye, He, “Failure as a Process: An Anatomy of CLI Coding Agent Trajectories,” arXiv:2607.09510, 2026. DOI: [10.48550/arXiv.2607.09510](https://doi.org/10.48550/arXiv.2607.09510). （预印本，未经同行评审）
+
+[10] Chen, Jingyi, Chen, Songqiang, Zhu, Hengcheng, Cao, Jialun, Shen, Jiasi, Cheung, Shing-Chi, “Understanding Agent-Reactive Bugs at the Model-Harness Boundary: An Empirical Study of LLM Agent Issue Reports,” arXiv:2607.15684, 2026. DOI: [10.48550/arXiv.2607.15684](https://doi.org/10.48550/arXiv.2607.15684). （预印本，未经同行评审）
+
+[11] de Macedo, Sanderson Oliveira, “What makes a harness a harness: necessary and sufficient conditions for an agent harness,” arXiv:2606.10106 [cs.SE], 2026. DOI: [10.48550/arXiv.2606.10106](https://doi.org/10.48550/arXiv.2606.10106). （预印本，未经同行评审）
+
+[12] Fei, Tianxiang, Chen, Cheng, Pan, Yue, Zheng, Mao, Song, Mingyang, “CodeDelegator: Mitigating Context Pollution via Role Separation in Code-as-Action Agents,” arXiv:2601.14914, 2026. DOI: [10.48550/arXiv.2601.14914](https://doi.org/10.48550/arXiv.2601.14914). （预印本，未经同行评审）
+
+[13] Wu, Qingyun, Bansal, Gagan, Zhang, Jieyu, Wu, Yiran, Li, Beibin, Zhu, Erkang, Jiang, Li, Zhang, Xiaoyun, Zhang, Shaokun, Liu, Jiale, Awadallah, Ahmed Hassan, White, Ryen W., Burger, Doug, Wang, Chi, “AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation,” arXiv:2308.08155, 2023. DOI: [10.48550/arXiv.2308.08155](https://doi.org/10.48550/arXiv.2308.08155). （预印本，未经同行评审）
+
+[14] Hong, Sirui, Zhuge, Mingchen, Chen, Jiaqi, Zheng, Xiawu, Cheng, Yuheng, Zhang, Ceyao, Wang, Jinlin, Wang, Zili, Yau, Steven Ka Shing, Lin, Zijuan, Zhou, Liyang, Ran, Chenyu, Xiao, Lingfeng, Wu, Chenglin, Schmidhuber, Jürgen, “MetaGPT: Meta Programming for A Multi-Agent Collaborative Framework,” arXiv:2308.00352, 2023. DOI: [10.48550/arXiv.2308.00352](https://doi.org/10.48550/arXiv.2308.00352). （预印本，未经同行评审）
+
+[15] Qian, Chen, Liu, Wei, Liu, Hongzhang, Chen, Nuo, Dang, Yufan, Li, Jiahao, Yang, Cheng, Chen, Weize, Su, Yusheng, Cong, Xin, Xu, Juyuan, Li, Dahai, Liu, Zhiyuan, Sun, Maosong, “ChatDev: Communicative Agents for Software Development,” *Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)*, pp. 15174–15186, 2024. DOI: [10.18653/v1/2024.acl-long.810](https://doi.org/10.18653/v1/2024.acl-long.810).
+
+[16] Zhang, Jiayi, Xiang, Jinyu, Yu, Zhaoyang, Teng, Fengwei, Chen, Xionghui, Chen, Jiaqi, Zhuge, Mingchen, Cheng, Xin, Hong, Sirui, Wang, Jinlin, Zheng, Bingnan, Liu, Bang, Luo, Yuyu, Wu, Chenglin, “AFlow: Automating Agentic Workflow Generation,” arXiv:2410.10762, 2024. DOI: [10.48550/arXiv.2410.10762](https://doi.org/10.48550/arXiv.2410.10762). （预印本，未经同行评审）
+
+[17] Wang, Yanbo, Xu, Zixiang, Huang, Yue, Wang, Xiangqi, Song, Zirui, Gao, Lang, Wang, Chenxi, Tang, Xiangru, Zhao, Yue, Cohan, Arman, Zhang, Xiangliang, Chen, Xiuying, “DyFlow: Dynamic Workflow Framework for Agentic Reasoning,” arXiv:2509.26062, 2025. DOI: [10.48550/arXiv.2509.26062](https://doi.org/10.48550/arXiv.2509.26062). （预印本，未经同行评审）
+
+[18] Wang, Siyu, Lu, Ruotian, Yang, Zhihao, Wang, Yuchao, Zhang, Yanzhou, Xu, Lei, Xu, Qimin, Yin, Guojun, Chen, Cailian, Guan, Xinping, “AgentConductor: Topology Evolution for Multi-Agent Competition-Level Code Generation,” arXiv:2602.17100, 2026. DOI: [10.48550/arXiv.2602.17100](https://doi.org/10.48550/arXiv.2602.17100). （预印本，未经同行评审）
+
+[19] Pan, Melissa Z., Arabzadeh, Negar, Cogo, Riccardo, Zhu, Yuxuan, Xiong, Alexander, Agrawal, Lakshya A, Mao, Huanzhi, Shen, Emma, Pallerla, Sid, Patel, Liana, Liu, Shu, Shi, Tianneng, Liu, Xiaoyuan, Davis, Jared Quincy, Lacavalla, Emmanuele, Basile, Alessandro, Yang, Shuyi, Castro, Paul, Kang, Daniel, Sen, Koushik, Song, Dawn, Gonzalez, Joseph E., Stoica, Ion, Zaharia, Matei, Ellis, Marquita, “Measuring Agents in Production,” *Proceedings of the 43rd International Conference on Machine Learning*, vol. 306, pp. 95649–95695, 2026.
+
+[20] Shekkizhar, Sarath, Jwalapuram, Prathyusha, Ke, Zixuan, Patil, Vaidehi, Wang, Jiayu, Bansal, Srijan, Nguyen, Trong Huy, Jiang, Dingfeng, Liu, Dongqi, Zhao, Ruochen, Lu, Wei, Carenini, Giuseppe, Bansal, Mohit, Savarese, Silvio, Joty, Shafiq, “Why Do Agent Teams Fail Across Boundaries? A Failure Taxonomy for Agent-to-Agent Systems with Private States,” arXiv:2610.19342, 2026. DOI: [10.48550/arXiv.2610.19342](https://doi.org/10.48550/arXiv.2610.19342). （预印本，未经同行评审）
+
+[21] Park, Joon Sung, O'Brien, Joseph C., Cai, Carrie J., Morris, Meredith Ringel, Liang, Percy, Bernstein, Michael S., “Generative Agents: Interactive Simulacra of Human Behavior,” *Proceedings of the 36th Annual ACM Symposium on User Interface Software and Technology*, 2023. DOI: [10.1145/3586183.3606763](https://doi.org/10.1145/3586183.3606763).
+
+[22] Packer, Charles, Wooders, Sarah, Lin, Kevin, Fang, Vivian, Patil, Shishir G., Stoica, Ion, Gonzalez, Joseph E., “MemGPT: Towards LLMs as Operating Systems,” arXiv:2310.08560, 2023. DOI: [10.48550/arXiv.2310.08560](https://doi.org/10.48550/arXiv.2310.08560). （预印本，未经同行评审）
+
+[23] Xu, Wujiang, Liang, Zujie, Mei, Kai, Gao, Hang, Tan, Juntao, Zhang, Yongfeng, “A-Mem: Agentic Memory for LLM Agents,” *Advances in Neural Information Processing Systems*, vol. 38, 2025. DOI: [10.52202/085713-0593](https://doi.org/10.52202/085713-0593).
+
+[24] Zhang, Guibin, Fu, Muxin, Wan, Guancheng, Yu, Miao, Wang, Kun, Yan, Shuicheng, “G-Memory: Tracing Hierarchical Memory for Multi-Agent Systems,” arXiv:2506.07398 [cs.MA], 2025. DOI: [10.48550/arXiv.2506.07398](https://doi.org/10.48550/arXiv.2506.07398). （预印本，未经同行评审）
+
+[25] Wu, Di, Wang, Hongwei, Yu, Wenhao, Zhang, Yuwei, Chang, Kai-Wei, Yu, Dong, “LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory,” *International Conference on Learning Representations*, 2025.
+
+[26] Wil M. P. van der Aalst, “Object-Centric Process Mining: Dealing with Divergence and Convergence in Event Data,” 2019. DOI: [10.1007/978-3-030-30446-1_1](https://doi.org/10.1007/978-3-030-30446-1_1).
+
+[27] Adams, Jan Niklas, Schuster, Daniel, Schmitz, Seth, Schuh, Günther, van der Aalst, Wil M. P., “Defining Cases and Variants for Object-Centric Event Data,” arXiv:2208.03235, 2022. DOI: [10.48550/arXiv.2208.03235](https://doi.org/10.48550/arXiv.2208.03235). （预印本，未经同行评审）
+
+[28] Mao, Zhenyu, Keung, Jacky, Zhang, Fengji, Liu, Shuo, Wang, Yifei, Li, Jialong, “Towards Engineering Multi-Agent LLMs: A Protocol-Driven Approach,” arXiv:2510.12120 [cs.SE], 2025. DOI: [10.48550/arXiv.2510.12120](https://doi.org/10.48550/arXiv.2510.12120). （预印本，未经同行评审）
+
+[29] Cohen, Philip R., Levesque, Hector J., “Intention is choice with commitment,” *Artificial Intelligence*, vol. 42, no. 2-3, pp. 213–261, 1990. DOI: [10.1016/0004-3702(90)90055-5](https://doi.org/10.1016/0004-3702(90)90055-5).
+
+[30] Babli, Mohannad, Sapena, \'Oscar, Onaindia, Eva, “Plan commitment: Replanning versus plan repair,” *Engineering Applications of Artificial Intelligence*, vol. 123, pp. 106275, 2023. DOI: [10.1016/j.engappai.2023.106275](https://doi.org/10.1016/j.engappai.2023.106275).
+
+[31] Kambhampati, Subbarao, Hendler, James A., “A validation-structure-based theory of plan modification and reuse,” *Artificial Intelligence*, vol. 55, no. 2-3, pp. 193–258, 1992. DOI: [10.1016/0004-3702(92)90056-4](https://doi.org/10.1016/0004-3702(92)90056-4).
+
+[32] Nebel, Bernhard, Koehler, Jana, “Plan reuse versus plan generation: a theoretical and empirical analysis,” *Artificial Intelligence*, vol. 76, no. 1-2, pp. 427–454, 1995. DOI: [10.1016/0004-3702(94)00082-C](https://doi.org/10.1016/0004-3702(94)00082-C).
+
+[33] Sandhu, R.S., Coyne, E.J., Feinstein, H.L., Youman, C.E., “Role-based access control models,” *Computer*, vol. 29, no. 2, pp. 38–47, 1996. DOI: [10.1109/2.485845](https://doi.org/10.1109/2.485845).
+
+[34] Walsh, James P., Ungson, Gerardo Rivera, “Organizational Memory,” *The Academy of Management Review*, vol. 16, no. 1, pp. 57–91, 1991. DOI: [10.5465/amr.1991.4278992](https://doi.org/10.5465/amr.1991.4278992).
+
+[35] Ackerman, Mark S., Halverson, Christine A., “Reexamining organizational memory,” *Communications of the ACM*, vol. 43, no. 1, pp. 58–64, 2000. DOI: [10.1145/323830.323845](https://doi.org/10.1145/323830.323845).
+
+[36] Runeson, Per, Höst, Martin, “Guidelines for conducting and reporting case study research in software engineering,” *Empirical Software Engineering*, vol. 14, pp. 131–164, 2009. DOI: [10.1007/s10664-008-9102-8](https://doi.org/10.1007/s10664-008-9102-8).
+
+[37] Simmhan, Yogesh L., Plale, Beth, Gannon, Dennis, “A survey of data provenance in e-science,” *ACM SIGMOD Record*, vol. 34, no. 3, pp. 31–36, 2005. DOI: [10.1145/1084805.1084812](https://doi.org/10.1145/1084805.1084812).
+
+[38] Sadowski, Caitlin, S\"oderberg, Emma, Church, Luke, Sipko, Michal, Bacchelli, Alberto, “Modern code review: a case study at Google,” *Proceedings of the 40th International Conference on Software Engineering: Software Engineering in Practice (ICSE-SEIP)*, pp. 181–190, 2018. DOI: [10.1145/3183519.3183525](https://doi.org/10.1145/3183519.3183525).
+
+[39] Wang, Yang, “Approval Laundering: Systematizing Approval--Execution Binding Failures in AI Coding-Agent Harnesses,” arXiv:2609.38983 [cs.CR], 2026. DOI: [10.48550/arXiv.2609.38983](https://doi.org/10.48550/arXiv.2609.38983). （预印本，未经同行评审）
+
+[40] Moreau, Luc, “The Foundations for Provenance on the Web,” *Foundations and Trends in Web Science*, vol. 2, no. 2--3, pp. 99–241, 2010. DOI: [10.1561/1800000010](https://doi.org/10.1561/1800000010).
+
+[41] Arora, Chetan, Vogelsang, Andreas, Sharma, Abbi, “Specifying the Delegated-Autonomy Boundary: Requirements Engineering for Agentic AI,” arXiv:2607.17225 [cs.SE], 2026. DOI: [10.48550/arXiv.2607.17225](https://doi.org/10.48550/arXiv.2607.17225). （预印本，未经同行评审）
+
+[42] Marla, Deekshith, Bhatnagar, Kushagra, “Permission to Retry: A Study of Authorization and Recovery in AI Agent Workflows,” arXiv:2610.31916 [cs.AI], 2026. DOI: [10.48550/arXiv.2610.31916](https://doi.org/10.48550/arXiv.2610.31916). （预印本，未经同行评审）
+
+[43] Yang, Kaiyue, Bu, Yuyan, Yi, Jingwei, Wang, Yuchi, Zhou, Biyu, Dai, Juntao, Hu, Songlin, Yang, Yaodong, “When Lower Privileges Suffice: Investigating Over-Privileged Tool Selection in LLM Agents,” arXiv:2606.20023 [cs.SE], 2026. DOI: [10.48550/arXiv.2606.20023](https://doi.org/10.48550/arXiv.2606.20023). （预印本，未经同行评审）
+
+[44] , “,”
+
+[45] Banks, Jaime, Bowman, Nicholas David, Saladino, Roman, “Lexical Anthropomorphization Influences on Moral Judgments of AI Bad Behavior,” arXiv:2604.25814, 2026. DOI: [10.48550/arXiv.2604.25814](https://doi.org/10.48550/arXiv.2604.25814). （预印本，未经同行评审）
+
+[46] Zheng, Mingqian, Pei, Jiaxin, Logeswaran, Lajanugen, Lee, Moontae, Jurgens, David, “When "A Helpful Assistant" Is Not Really Helpful: Personas in System Prompts Do Not Improve Performances of Large Language Models,” *Findings of the Association for Computational Linguistics: EMNLP 2024*, pp. 15126–15154, 2024. DOI: [10.18653/v1/2024.findings-emnlp.888](https://doi.org/10.18653/v1/2024.findings-emnlp.888).
+
+[47] Veloso, Manuela M., Carbonell, Jaime G., “Derivational Analogy in PRODIGY: Automating Case Acquisition, Storage, and Utilization,” *Machine Learning*, vol. 10, no. 3, pp. 249–278, 1993. DOI: [10.1023/A:1022686910523](https://doi.org/10.1023/A:1022686910523).
+
+[48] van der Krogt, Roman, de Weerdt, Mathijs, “Coordination Through Plan Repair,” *Advances in Artificial Intelligence -- IBERAMIA 2005*, pp. 264–274, 2005. DOI: [10.1007/11579427_27](https://doi.org/10.1007/11579427_27).
+
+[49] Komenda, Anton\'\in, Nov\'ak, Peter, P\vechou\vcek, Michal, “Decentralized Multi-agent Plan Repair in Dynamic Environments,” arXiv:1202.2773 [cs.AI], 2012. DOI: [10.48550/arXiv.1202.2773](https://doi.org/10.48550/arXiv.1202.2773). （预印本，未经同行评审）
+
+[50] Qi, Yijiashun, Xu, Xiang, Li, Yuxuan, “When Not to Write Memory: Governing False Promotion from Correlated Agent Traces,” arXiv:2607.02579 [cs.SE], 2026. DOI: [10.48550/arXiv.2607.02579](https://doi.org/10.48550/arXiv.2607.02579). （预印本，未经同行评审）
+
+[51] Joshi, Anupam, Finin, Tim, Joshi, Karuna, Kagal, Lalana, “Deontic Policies for Runtime Governance of Agentic AI Systems,” *2026 IEEE International Conference on Web Services (ICWS)*, pp. 1255–1264, 2026. DOI: [10.1109/ICWS72778.2026.00159](https://doi.org/10.1109/ICWS72778.2026.00159).
+
+[52] Olivera, Fernando, “Memory Systems in Organizations: An Empirical Investigation of Mechanisms for Knowledge Collection, Storage and Access,” *Journal of Management Studies*, vol. 37, no. 6, pp. 811–832, 2000. DOI: [10.1111/1467-6486.00205](https://doi.org/10.1111/1467-6486.00205).
+
+[53] Argote, Linda, Ingram, Paul, “Knowledge Transfer: A Basis for Competitive Advantage in Firms,” *Organizational Behavior and Human Decision Processes*, vol. 82, no. 1, pp. 150–169, 2000. DOI: [10.1006/obhd.2000.2893](https://doi.org/10.1006/obhd.2000.2893).
+
+[54] Kirchdorfer, Lukas, Rebmann, Adrian, Warmuth, Christian, Kampik, Timotheus, Heilker, Theiss, Berg, Gregor, “Organizational Memory for Agentic Business Process Execution,” arXiv:2607.03228 [cs.AI], 2026. DOI: [10.48550/arXiv.2607.03228](https://doi.org/10.48550/arXiv.2607.03228). （预印本，未经同行评审）
+
+[55] Zeng, Aohan, Liu, Mingdao, Lu, Rui, Wang, Bowen, Liu, Xiao, Dong, Yuxiao, Tang, Jie, “AgentTuning: Enabling Generalized Agent Abilities for LLMs,” *Findings of the Association for Computational Linguistics: ACL 2024*, pp. 3053–3077, 2024. DOI: [10.18653/v1/2024.findings-acl.181](https://doi.org/10.18653/v1/2024.findings-acl.181).
+
+[56] Wallace, Eric, Xiao, Kai, Leike, Reimar, Weng, Lilian, Heidecke, Johannes, Beutel, Alex, “The Instruction Hierarchy: Training LLMs to Prioritize Privileged Instructions,” arXiv:2404.13208, 2024. DOI: [10.48550/arXiv.2404.13208](https://doi.org/10.48550/arXiv.2404.13208). （预印本，未经同行评审）
+
+[57] Yuan, Xiaofei, Zhang, Yan, Qiao, Shaobo, He, Huangleshuai, Ni, Leyan, Ju, Mingchen, Yang, Lujia, Xu, Sijia, Tang, Yifu, Yang, Zhengyi, “Replan, Repair, or Edit? A Unified Empirical Evaluation of Travel Agents for Itinerary Revision under Resource Disruptions,” arXiv:2609.19654 [cs.AI], 2026. DOI: [10.48550/arXiv.2609.19654](https://doi.org/10.48550/arXiv.2609.19654). （预印本，未经同行评审）
+
+[58] Muto, Kenichiro, Suzaki, Kuniyasu, “Attestable Build Chain: Enabling Trust in Reproducible Builds,” *2026 56th Annual IEEE International Conference on Dependable Systems and Networks Workshops (DSN-W)*, pp. 196–203, 2026. DOI: [10.1109/DSN-W70714.2026.00051](https://doi.org/10.1109/DSN-W70714.2026.00051).
+
+[59] Castillo, Fernando, Brito, Eduardo, Pullonen-Raudvere, Pille, Werner, Sebastian, Tai, Stefan, “An Evidence-driven Protocol for Trustworthy CI Pipelines,” arXiv:2605.21089 [cs.CR], 2026. DOI: [10.48550/arXiv.2605.21089](https://doi.org/10.48550/arXiv.2605.21089). （预印本，未经同行评审）
 
 ## 证据附录
 
-<!-- 由 Task 7 填写。 -->
+本附录的编号沿用五篇工作稿的原始编号，便于与本地档案对照；它们不是外部文献编号。
+消息只证明当时可见的表述，Task 事件证明对应的状态动作，源码静态阅读只证明指定位置的实现差异。
+以下时间均为协调世界时（UTC）。未重新执行历史测试。
+
+### §1.1 的证据
+
+| 编号 | 用途 | 原生 ID / 类型 | UTC 时间 | 原文 |
+|---|---|---|---|---|
+| A01 | 2026-07-23历史身份契约 | 文档/源码 | 不适用 | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/division-006/sources/agent-supervisor-executor-identity-contract.md) |
+| A14 | 2026-06-28并发设计初稿：原始约束与预期机制；设计意图，非部署效果 | Git `28bb445e8dd5aa9535bf8b4826019f7fa0322f9d`；该文献第 1–8、11–12 节 | 首次提交 2026-06-28T07:29:47Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/002-p1-design-origin/sources/agent-concurrent-execution-first.md) |
+
+### §3.2 的证据
+
+| 编号 | 用途 | 原生 ID / 类型 | UTC 时间 | 原文 |
+|---|---|---|---|---|
+| A00 | 010检索范围、案例筛选、排除与原始材料导航 | 文档/源码 | 不适用 | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/findings.md) |
+| B00 | 010检索、纳排、C07更正与证据范围 | 文档/派生索引 | 不适用 | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/findings.md) |
+| X | bug与未定根因不承担设计负效应 | [007排除台账](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/agent-harness-identity-cases-007.md) | 不适用 | [原文](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/agent-harness-identity-cases-007.md) |
+
+### §4.1 的证据
+
+| 编号 | 用途 | 原生 ID / 类型 | UTC 时间 | 原文 |
+|---|---|---|---|---|
+| A02a | I01恢复失败与外部介入表述 | `01KY4B5KS3272X3AMXDXHQMEC0` | 2026-07-22T07:20:47.651234Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY4B5KS3272X3AMXDXHQMEC0.json) |
+| A02b | I01用户纠正 | `01KY4B74V6XGRFG85EV29RS1RT` | 2026-07-22T07:21:37.894896Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY4B74V6XGRFG85EV29RS1RT.json) |
+| A02c | I01责任更正与行动计划 | `01KY4B7K5QXK434NNHY9K1FKEF` | 2026-07-22T07:21:52.567652Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY4B7K5QXK434NNHY9K1FKEF.json) |
+| A03a | I02交付验收表述 | `01KY5BMKX9ZM03BTJTENTQSKDB` | 2026-07-22T16:48:13.737573Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5BMKX9ZM03BTJTENTQSKDB.json) |
+| A03b | I02用户纠正完成责任 | `01KY5BYKS2T49YEXAGRPQQ9XWN` | 2026-07-22T16:53:41.282145Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5BYKS2T49YEXAGRPQQ9XWN.json) |
+| A03c | I02承认责任外推 | `01KY5BZ3804ZA0ETH34RA1XEH1` | 2026-07-22T16:53:57.120322Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5BZ3804ZA0ETH34RA1XEH1.json) |
+| A03d | I02 PD报告空工作区与配置 | `01KY5C4XXCTE2AGYB373M42A9Y` | 2026-07-22T16:57:08.268484Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5C4XXCTE2AGYB373M42A9Y.json) |
+| A03e | I02 PD反对未改配置盲重试 | `01KY5C5HW683A4YZG91P23RC7G` | 2026-07-22T16:57:28.71098Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5C5HW683A4YZG91P23RC7G.json) |
+| A04a | I04等待中心修复dispatch | `01KZABVT594GFNYTWZ7AZRHF30` | 2026-08-06T01:44:03.497609Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABVT594GFNYTWZ7AZRHF30.json) |
+| A04b | I04用户询问启动主体 | `01KZABY7HSVA1FF42EH7XYX7GX` | 2026-08-06T01:45:22.745154Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABY7HSVA1FF42EH7XYX7GX.json) |
+| A04c | I04责任更正及fork报告 | `01KZAC08EKE041V1XB1C2XWE5V` | 2026-08-06T01:46:29.203159Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZAC08EKE041V1XB1C2XWE5V.json) |
+| A05.1 | Task动作：agent_started | `01KZ8WKNMFVY3YXBYYZ5R7CJC7` | 2026-08-05T11:58:13.645778Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json) |
+| A05.2 | Task动作：blocked | `01KZ8XR3C69NRCX6KDFWCQJ0WX` | 2026-08-05T12:18:07.366266Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json) |
+| A05.3 | Task动作：unblocked | `01KZ966KGSZCPSZF17W4AZBMQ4` | 2026-08-05T14:45:51.255316Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json) |
+| A05.4 | Task动作：reset | `01KZABTH2T53KGBM29XXJZTX0Z` | 2026-08-06T01:43:21.433874Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json) |
+| A05.5 | Task动作：agent_started | `01KZABTY199NCZQG05NWKXC3NX` | 2026-08-06T01:43:34.694818Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json) |
+| A05.6 | Task动作：blocked | `01KZABVT5A8ZQK8JZE7ZPEE524` | 2026-08-06T01:44:03.497908Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json) |
+| A05.7 | Task动作：unblocked | `01KZABZ4G4PRHBPYRZBSQXB5SR` | 2026-08-06T01:45:52.384647Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json) |
+| A05.8 | Task动作：blocked | `01KZAD3AABJJ32SB0CSHQSZJ6Y` | 2026-08-06T02:05:37.994988Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json) |
+| A05.9 | Task动作：unblocked | `01KZAM0BDXPP3YVCZP2CN3SEHT` | 2026-08-06T04:06:20.857687Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json) |
+| A04d | I04工具语义与状态/生命周期事后解释 | `01KZACFHV3BFM5CP04CR07Q79W` | 2026-08-06T01:54:50.339993Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZACFHV3BFM5CP04CR07Q79W.json) |
+| A16 | 自动派发改为Supervisor显式fork：提示与实际入口 | Git `b27f59650ad3061d67da0bec9893feb258405a19`及父版本 | 2026-07-26 14:09:54 UTC | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/sources/dispatch/changes.diff) |
+| A17 | reset自动派发说明纠错；不证明当次部署 | Git `00bddae72e94ee5419339b0b95f4fb439af0a927`及父版本 | 2026-08-06 03:24:22 UTC | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/sources/reset/changes.diff) |
+| A21 | 多时点人工纠偏、9月责任断裂与原生Task事件；分离故障和责任响应 | 149条用户角色词命中中的定向扩展；原生消息、动作与领域事件 | 2026-07至09 | [原文](../p1-logical-agent-identity/longitudinal-analysis.md) |
+| A10a | I05明确自有交付责任 | `01KZDJ41E4XMR6RSRDW2342DCE` | 2026-08-07T07:31:07.844252Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDJ41E4XMR6RSRDW2342DCE.json) |
+| A10b | I05缺生产证据而拒绝自己的候选 | `01KZDKN7K7XRNZ0DPE7G9V0GQA` | 2026-08-07T07:57:59.783637Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDKN7K7XRNZ0DPE7G9V0GQA.json) |
+| A10c | I05补证或回撤计划 | `01KZDKS2M645VTZJ9GR8SW0MDJ` | 2026-08-07T08:00:05.766163Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDKS2M645VTZJ9GR8SW0MDJ.json) |
+| A15 | 身份提示、执行提示与审查回写的历史修订 | Git `3dcd57bf35fc6ed0572df93c4e8616b043f1e591`及父版本 | 2026-07-23 01:38:22 UTC | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/sources/identity/changes.diff) |
+
+### §4.2 的证据
+
+| 编号 | 用途 | 原生 ID / 类型 | UTC 时间 | 原文 |
+|---|---|---|---|---|
+| B03.1 | 旧006 C07-E01原文；sender和顺序按010核对 | `01KV71B56MYTKFX58W48VARSTA` | 2026-06-16T01:39:41.396427Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E01.json) |
+| B03.2 | 旧006 C07-E02原文；sender和顺序按010核对 | `01KV71F5Q1DGQ5MP1Q29XMQ2H4` | 2026-06-16T01:41:52.993389Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E02.json) |
+| B03.3 | 旧006 C07-E03原文；sender和顺序按010核对 | `01KV71PF2XKD4YY5ERFD4ACJNV` | 2026-06-16T01:45:51.965601Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E03.json) |
+| B03x | integration明确开发期职责、移交ship | `01KV71C7NM79RDSTBBVEM5K6BY` | 2026-06-16T01:40:16.692144Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KV71C7NM79RDSTBBVEM5K6BY.json) |
+| B03.4 | 旧006 C07-E04原文；sender和顺序按010核对 | `01KV71VRQBZC147BD2RTTQ0KYE` | 2026-06-16T01:48:45.675353Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E04.json) |
+| B03.5 | 旧006 C07-E05原文；sender和顺序按010核对 | `01KV71XZ0F9CXTWEMS6YEAP4DK` | 2026-06-16T01:49:57.64719Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E05.json) |
+| B03.6 | 旧006 C07-E06原文；sender和顺序按010核对 | `01KV724CC96MF8A8SKPZACE06C` | 2026-06-16T01:53:27.945879Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E06.json) |
+| B03.7 | 旧006 C07-E07原文；sender和顺序按010核对 | `01KV72HHZQN6EXSGA9DCWZ7ZS7` | 2026-06-16T02:00:39.671089Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E07.json) |
+| B03.8 | 旧006 C07-E08原文；sender和顺序按010核对 | `01KV72MY58X8TTJ7PCJ3P7DXA9` | 2026-06-16T02:02:30.440646Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E08.json) |
+| B03.9 | 旧006 C07-E09原文；sender和顺序按010核对 | `01KV730J1MXKES7PXRRD3WJXNJ` | 2026-06-16T02:08:51.252117Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E09.json) |
+| B03.10 | 旧006 C07-E10原文；sender和顺序按010核对 | `01KV736EDS5M1P398Y28DJXKPF` | 2026-06-16T02:12:04.153627Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E10.json) |
+| B05a | Graph G7 Supervisor局部通过 | `01M1KYSW1EP98VCC0DFPJMXQB1` | 2026-09-03T15:39:36.366098Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S04-02.json) |
+| B05b | Graph G7 Tester点击取证拒绝 | `01M1KYWDAFAM06Z867W7QFMVVX` | 2026-09-03T15:40:59.599882Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S04-03.json) |
+| B05c | Graph G8同项目通过 | `01M1KZNHMCRFAE8VWDHE36XFHT` | 2026-09-03T15:54:43.212456Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S05-02.json) |
+| B05d | Graph G8跨项目拒绝 | `01M1KZSCCMZHXY1PQXAM1FNNRS` | 2026-09-03T15:56:48.916638Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S05-04.json) |
+| B05e | Graph G9 scope通过 | `01M1M0YT5A3RYX7GE2NE3XEXSB` | 2026-09-03T16:17:15.434128Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S05-07.json) |
+| B05f | Graph G9 Tester最终通过 | `01M1M1CV7QBV5NABRJ817XFCWH` | 2026-09-03T16:24:55.287485Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S05-09.json) |
+
+### §4.3 的证据
+
+| 编号 | 用途 | 原生 ID / 类型 | UTC 时间 | 原文 |
+|---|---|---|---|---|
+| N01-E01 | 名称与详情导航偏好 | [消息01KV5HZX…](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E01.json) | 不适用 | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E01.json) |
+
+### §4.4 的证据
+
+| 编号 | 用途 | 原生 ID / 类型 | UTC 时间 | 原文 |
+|---|---|---|---|---|
+| 008-GIT | 祖先、父提交、文件、同树及失败读取的命令与退出码 | [source-checks.json](/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/logs/source-checks.json) | 不适用 | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/logs/source-checks.json) |
+
+### §4.6 的证据
+
+| 编号 | 用途 | 原生 ID / 类型 | UTC 时间 | 原文 |
+|---|---|---|---|---|
+| B01a | 第一次启动要求 | `01M14JPXVK1Z8CKDYMTD3TSPAX` | 2026-08-28T16:19:40.531485Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14JPXVK1Z8CKDYMTD3TSPAX.json) |
+| B01b | 再次启动要求 | `01M14K5QQTGJF62VANSQC5WW38` | 2026-08-28T16:27:45.786608Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14K5QQTGJF62VANSQC5WW38.json) |
+| B01c | PD报告assignee拒绝并待确定负责人 | `01M14K6T665DY5ZSR50T9ACMW4` | 2026-08-28T16:28:21.062508Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14K6T665DY5ZSR50T9ACMW4.json) |
+| B01d | 用户要求自行分配 | `01M14KC5XZJD4PGDV4614XEWSV` | 2026-08-28T16:31:16.927437Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KC5XZJD4PGDV4614XEWSV.json) |
+| B01e | PD报告分配与启动 | `01M14KDD3C9JDTE6PYV3Y01MB1` | 2026-08-28T16:31:57.036572Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KDD3C9JDTE6PYV3Y01MB1.json) |
+| B01f | 原生首任务ready系统消息 | `01M14KD520A5X362XVHJ64EKC7` | 2026-08-28T16:31:48.800276Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KD520A5X362XVHJ64EKC7.json) |
+| B02 | 五节点、四个不同负责人的初始分配，仅读初始generation | `generation-709baba8` | 2026-08-28T16:31:48.222683Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json) |
+| B07a | Task task-045a426e创建合同：给出GO/NO-GO报告 | `generation-57b10f96` | 2026-09-01T13:31:02.01844Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/C05.json) |
+| B07b | 报告验收通过而产品NO-GO | `01M1EPVGFF85ZSCH2KNSDSKGHX` | 2026-09-01T14:44:29.295627Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S06-02.json) |
+| B07c | 持久NO-GO报告及已测实现标识；未重跑命令 | 文档/派生索引 | 不适用 | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/sources/spark-release-README.md) |
+| B08.1a | R01 Task结论 | `01M0QM59RA181QMKVGFFYGHDR9` | 2026-08-23T15:34:52.426323Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S01-05.json) |
+| B08.1b | R01 Plan同步 | `01M0QM5VPGR8P4F4377DGRB2PN` | 2026-08-23T15:35:10.800032Z | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S01-06.json) |
+| B08 | 四组配对与会话归属派生索引 | 文档/派生索引 | 不适用 | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/derived/relay-pairs.json) |
+
+### §6.2 的证据
+
+| 编号 | 用途 | 原生 ID / 类型 | UTC 时间 | 原文 |
+|---|---|---|---|---|
+| A05 | 定向查询空结果，不作不存在历史执行的证明 | 文档/源码 | 不适用 | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/worker_control_events-selected.json) |

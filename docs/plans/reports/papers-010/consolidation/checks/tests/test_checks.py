@@ -76,6 +76,45 @@ class TestClaimStrength(TempTree):
         self.assertEqual(code, 0)
         self.assertEqual([h["level"] for h in report["hits"]], ["warning"])
 
+    def test_allow_marker_exempts_a_deliberate_negated_use(self):
+        """行内 <!--allow-banned--> 标记使该行的命中降级为 allowed，而非 blocker。"""
+        paper = self.write(
+            "paper.md",
+            "# 标题\n\n## 7 结论\n\n"
+            "本文没有估计发生率。<!--allow-banned:发生率-->\n\n"
+            "另一处声称 A 优于 B。\n",
+        )
+        banned = self.write("banned.txt", BANNED)
+        code, out, _ = run(
+            "claim_strength.py",
+            "--paper", str(paper),
+            "--banned", str(banned),
+            "--sections", "abstract,conclusion,body",
+        )
+        report = json.loads(out)
+        levels = {(h["term"], h["level"]) for h in report["hits"]}
+        self.assertIn(("发生率", "allowed"), levels, report)
+        self.assertIn(("优于", "blocker"), levels, report)
+        self.assertEqual(code, 1)  # 未标记的"优于"仍然是 blocker
+
+    def test_allow_marker_only_exempts_the_named_term(self):
+        paper = self.write(
+            "paper.md",
+            "# 标题\n\n## 7 结论\n\n本文不比较收益也不给发生率。<!--allow-banned:发生率-->\n",
+        )
+        banned = self.write("banned.txt", BANNED)
+        code, out, _ = run(
+            "claim_strength.py",
+            "--paper", str(paper),
+            "--banned", str(banned),
+            "--sections", "abstract,conclusion,body",
+        )
+        report = json.loads(out)
+        levels = {(h["term"], h["level"]) for h in report["hits"]}
+        self.assertIn(("发生率", "allowed"), levels)
+        self.assertIn(("收益", "blocker"), levels)
+        self.assertEqual(code, 1)
+
     def test_clean_paper_has_no_hits(self):
         paper = self.write(
             "paper.md",

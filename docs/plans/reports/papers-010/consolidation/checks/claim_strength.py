@@ -7,12 +7,16 @@
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
 from _common import iter_lines
 
 BLOCKER_SECTIONS = {"abstract", "conclusion"}
+# 行内 <!--allow-banned:词1,词2--> 把该行指定词的命中降级为 allowed。
+# 用于故意的否定式表述（例如声明本文不给发生率），使例外显式且可审。
+ALLOW = re.compile(r"<!--\s*allow-banned:([^>]*?)-->")
 
 
 def main():
@@ -34,13 +38,22 @@ def main():
     for lineno, (line, tag, _is_table, _is_caption) in enumerate(iter_lines(text), start=1):
         if tag not in enabled:
             continue
+        allowed = set()
+        for m in ALLOW.finditer(line):
+            allowed.update(t.strip() for t in m.group(1).split(",") if t.strip())
         for term in terms:
             if term in line:
+                if term in allowed:
+                    level = "allowed"
+                elif tag in BLOCKER_SECTIONS:
+                    level = "blocker"
+                else:
+                    level = "warning"
                 hits.append(
                     {
                         "term": term,
                         "section": tag,
-                        "level": "blocker" if tag in BLOCKER_SECTIONS else "warning",
+                        "level": level,
                         "line": lineno,
                         "excerpt": line.strip()[:120],
                     }
@@ -53,7 +66,8 @@ def main():
         "terms": terms,
         "hits": hits,
         "blockers": len(blockers),
-        "warnings": len(hits) - len(blockers),
+        "warnings": sum(1 for h in hits if h["level"] == "warning"),
+        "allowed": sum(1 for h in hits if h["level"] == "allowed"),
     }
     print(json.dumps(report, ensure_ascii=False, indent=1))
     return 1 if blockers else 0
