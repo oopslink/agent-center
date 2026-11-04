@@ -1,0 +1,214 @@
+--- P1/revision009.md
++++ P1/revision010.md
+@@ -1,16 +1,16 @@
+-# Supervisor–Executor 架构中的责任归属问题：基于 Agent Center 的案例研究
+-
+-*Responsibility Attribution in Supervisor–Executor Architectures: A Case Study of Agent Center*
++# Supervisor–Executor 架构中的责任归属：案例研究与受控行为实验
++
++*Responsibility Attribution in Supervisor–Executor Architectures: A Case Study and Controlled Behavioral Experiments*
+ 
+ ## 中文摘要
+ 
+-为突破串行执行和身份与进程绑定的限制，Agent Center 将常驻 Supervisor 与临时 executor 封装为一个逻辑 Agent。本文基于冻结协作记录与历史源码开展探索性案例研究，考察统一任务归属如何转化为跨会话的行动责任。主案例中，Agent 已识别缺少执行体，仍将启动归给中心，经用户纠正后报告显式 fork。补查发现，历史实现曾从自动派发改为 Supervisor 显式启动，reset 工具仍承诺自动派发的说明随后被修正；实际部署和完整输入未恢复，因此该案例保留为行为材料，不用于证明架构造成停摆。本文区分身份关系混用、生命周期接口、审查闭环、旧上下文、训练所得行为先验及一般推理失误六项竞争解释，并提出判别对照。现有资料较直接地支持调查操作契约及其呈现，尚不能识别模型训练与外部结构冲突的作用。有效监督反例表明，统一责任与执行隔离可以并存。设计启示是显式表达当前角色、权限、下一动作与结果去向，先消除接口缺陷，再评价结构的收益和代价。全部分析尚未人工复核，所提实验未执行。（证据 A00–A17）
++为支持并发执行与统一回写，Agent Center将常驻Supervisor与临时executor封装为一个逻辑Agent。本文结合冻结协作记录、历史源码和受控动作实验，分析统一归属如何转化为跨会话的行动责任。案例中出现启动责任被归给中心的表述，但历史派发协议变更与工具说明缺陷使其不能直接证明架构造成停摆。为区分表述与上下文因素，本文在相同权限和状态信息下，运行两模型、16条件、8情境、2呈现版本的512次动作选择，并开展32次默认预期诊断。工具说明一致且无旧规则时，两模型均为64/64首次到达控制边界，统一身份与组件表述的配对差异为0。全部条件下，Sonnet为256/256，Haiku为253/256；三个未首步启动的输出均处于旧历史条件，选择了额外的合法准备步骤，事后反馈观察均在下一步启动。默认诊断全部回答主体未指定。因此，本测量未检出统一身份的独立不利效应，也未复现身份误归属或停摆；训练结构冲突仍未获得因果支持。结果提示应将身份、动作顺序与长期失效分开测量，保留明确的责任协议和有效监督。实验为合成短题，不代表生产交付，全部分析尚未人工复核。（证据A00–A19）
+ 
+ **关键词：**逻辑 Agent；Supervisor/executor；责任归属；执行生命周期；agent harness
+ 
+ ## Abstract
+ 
+-Agent Center combined a persistent supervisor with temporary executors under one logical agent to support concurrency while retaining unified task ownership. This exploratory case study examines how that ownership translates into action responsibility across sessions, using frozen collaboration records and historical source code. In the main episode, the agent noticed that no executor existed but attributed executor creation to the center; after a user correction, it reported an explicit fork. Additional source inspection reveals a transition from automatic dispatch to supervisor-initiated execution and a subsequent correction to reset-tool wording that still promised automatic dispatch. The deployed version and complete model input remain unavailable, so the episode is retained as behavioral evidence rather than evidence that the architecture caused a stall. We compare six explanations: conflated identity relations, lifecycle interfaces, incomplete review-to-repair loops, stale context, learned behavioral priors, and general reasoning errors. Local materials most directly motivate investigation of operational contracts and their presentation; they do not identify a training-induced conflict with the external architecture. Counterexamples show that shared accountability can coexist with isolated execution and useful supervision. We propose explicit representations of the current role, permissions, next action, and result recipient, followed by controlled comparisons after known interface defects have been removed. The analyses have not been human-verified, and the proposed experiments have not been conducted. (Evidence A00–A17)
++Agent Center combined a persistent supervisor with temporary executors under one logical agent to support concurrent execution and unified writeback. We examine responsibility attribution using frozen collaboration records, historical source code, and controlled action-selection experiments. A historical episode attributed executor creation to the center, but changes in dispatch policy and inconsistent tool descriptions prevent attributing its stall to the architecture. We conducted 512 action selections across two models, 16 conditions, eight synthetic scenarios, and two presentation variants, plus 32 incomplete-protocol probes. With consistent descriptions and no legacy rules, both models reached the specified control boundary in 64/64 first actions; the paired difference between unified-agent and component framings was zero. Across all conditions, Sonnet reached 256/256 boundaries and Haiku 253/256. All three non-progressing first actions occurred with legacy history and inserted a legal preparation step. In a separately labeled post hoc continuation, each enqueued an executor on its next action. All incomplete-protocol probes answered that the actor was unspecified. These tests detected no independent disadvantage of unified identity framing and did not reproduce actor misattribution or stalling. They do not identify a training-induced conflict. The findings distinguish identity attribution, action sequencing, and sustained failure, while motivating explicit operational responsibility. The synthetic short tasks do not establish production delivery performance, and the analyses have not been human-verified. (Evidence A00–A19)
+ 
+ **Keywords:** logical agent; supervisor/executor; accountability; execution lifecycle; agent harness
+ 
+@@ -43,6 +43,8 @@
+ 训练来源需要单独检验。AgentTuning以交互轨迹微调模型，说明agent行为会受训练数据影响；Instruction Hierarchy通过训练塑造对不同消息来源的优先级处理。[4]<!--ref:R30--><!--anchor:section:2.2, 3.3, 3.4-->[5]<!--ref:R31--><!--anchor:section:3, 4--> 两者提供行为可学习的依据，却没有验证本系统模型的训练内容或Supervisor–Executor冲突。本文将该解释保留为待检验假说，并与外部提示和历史上下文分开。
+ 
+ ## 3 材料与方法
++
++### 3.1 历史案例与源码
+ 
+ 本研究对同一部署的冻结记录开展目的性案例分析，结合历史身份契约、设计初稿和监督检查案例，分别考察设计意图、责任解释与后续动作。定向检索与阅读的范围见表1，精确记录、检索过程和复算入口见[补充附录](evidence-details.md)。设计文档用于重建方案由来，不能替代历史部署状态。（A00、A01、A14）
+ 
+@@ -62,6 +64,16 @@
+ | I04原生Task动作 | 9条 | Task状态时序，不等于9次执行 |
+ | 表2对读片段 | 4个 | I01、I02、I04及反例I05，不估计发生率 |
+ 
++### 3.2 受控动作实验
++
++为先排除可控的接口和上下文混杂，另构造八类状态情境，覆盖尚未启动、恢复后无执行体、已有待受理请求、健康执行、健康未知、执行会话无中心权限、拒绝后修复和外部审批缺失。工具描述与确定性状态转换逐项核对；模型输出一个JSON动作，外部模拟器判断其主体、权限与状态效果。正确等待和合法上报均可达到对应控制边界，多余检查则单列为合法未推进，不自动编码成身份混淆。这些是从案例机制提炼的合成短题，不是历史生产事故重放。（A18）
++
++实验交叉四个二水平因素：工具说明一致／保留reset自动派发旧措辞，无旧协议／带明确标为旧版的自动派发记录，一个逻辑Agent内部两种角色／两个共享任务归属的运行组件，以及Supervisor–Executor／Control unit–Work unit标签。两身份组的归属、权限、当前行动者、上下文边界与交付责任完全相同，只改变一句身份表述。因此，该对照识别等信息条件下的表述效应，并未改变进程拓扑。干净子集只包含说明一致、无旧规则条件，其余用于干扰诊断。
++
++固定模型为`claude-sonnet-5-5`与`claude-haiku-5-5`，经同一Claude CLI 2.1.317调用，effort均为low。每次以新进程、空工作目录、无真实工具、无项目定制与会话持久化运行；归档历史只按因素有意加入。CLI与服务可能仍有不可见固定提示，隔离条件不等于纯模型权重。16条件×8情境×2呈现版本×2模型共512次动作选择；两呈现版本调整工具顺序、归档位置和对象ID，是固定稳健性检查，不是独立随机重复。另以32次规则不完备的诊断观察默认主体选择，允许回答“未指定”，不计算正确率。
++
++输入、规则和调用脚本在正式任务输出前以哈希冻结；2次连通性请求不计入分析。内容错误不重试，传输失败最多重试一次。预定的16组恢复观察复用首步，只有未推进时才追加至多两步模拟器反馈。所有有效内容与失败记录均保留，身份和标签效应在干净子集内按情境及呈现版本配对，分别报告模型结果。固定情境的交叉组合不作为独立生产任务，不作总体发生率或训练来源推断。完整协议、原始返回和评分依据见[实验附录](controlled-experiments.md)。（A18、A19）
++
+ ## 4 研究发现
+ 
+ ### 4.1 识别执行缺失后，启动责任仍被归于中心
+@@ -139,17 +151,47 @@
+ 
+ **图3。**（a）2221个Task按无动作行、仅迁移、存在非迁移动作互斥分组；（b）非迁移记录的角色配置×动作计数，颜色采用log(1+n)，格内为原数值，空格为0；（c）四类动作内actor与所涉Agent的关系，分母是各行动记录数。角色来自冻结配置，并非历史角色；start表示领域动作日志，不能等同executor进程启动。
+ 
++### 4.6 排除可控混杂后，未检出统一身份表述的不利效应
++
++说明一致、无旧协议的干净子集中，两模型均在64/64次首次动作到达规定的控制边界。每个模型的统一身份组与组件表述组均为32/32，32个配对的推进率差为0；常用角色标签与中性标签也是各32/32、差0。这个结果对“统一身份本身足以造成责任误归属”提供了有界反证：在当前状态、权限和义务明确时，两种表述都可以被正确使用。它不能证明两种架构等价，也不能估计信息较少或长上下文中的表示负担。（A18、A19）
++
++**表5。合成动作实验与默认预期诊断的分层结果**
++
++| 条件或指标 | Sonnet 5.5 | Haiku 5.5 | 统计含义 |
++|---|---:|---:|---|
++| 一致说明＋无旧协议 | 64/64 | 64/64 | 首次到达规定控制边界 |
++| 一致说明＋旧协议记录 | 64/64 | 63/64 | 同上；非推进为额外start步骤 |
++| 遗留reset说明＋无旧协议 | 64/64 | 64/64 | 同上 |
++| 遗留reset说明＋旧协议记录 | 64/64 | 62/64 | 同上 |
++| A全部条件 | 256/256 | 253/256（98.83%） | 有限合成题集，不是交付率 |
++| 主体匹配且动作合法 | 256/256 | 256/256 | 不将额外合法步骤算作越权 |
++| B诊断回答“未指定” | 16/16 | 16/16 | 选择分布，不是正确率 |
++
++三个未首次启动的输出均来自Haiku的S1、组件表述和呈现版本0，并带有旧协议记录。它们正确选择controller，却将获取lease、置为running作为fork之前的步骤；当前协议实际允许从open直接入队。这一可见行为是多做一次合法准备，没有出现等待中心自动创建的动作。说明一致时，旧历史相对无旧历史的配对差为−1.5625个百分点（63对共同推进、1对仅干净条件推进）；Sonnet为0。无旧历史时，遗留reset说明的配对差在两模型均为0。差异集中于同一短情境，不能解释为一般历史干扰率或工具缺陷无害。（A19）
++
++三个输出的对应统一身份、无旧规则和呈现版本1对照均直接fork。正反材料因而都不支持把非推进归咎于统一封装；也不足以把少数反向差异解释成统一封装更优。合理等待、未知执行体先检查、worker上报无权执行的中心动作、拒绝后安排获授权修复和缺审批先请求等行为，均按各自情境保留为正面结果。
++
++![图4：受控动作实验的完整矩阵与配对差异](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/papers-010/p1-logical-agent-identity/figures/p1-fig4-controlled-experiments.png)
++
++**图4。**（a）两模型×四种说明／历史条件×八情境，每格汇总两身份×两标签×两呈现的8输出，合计512次；框线标示未全部首步推进的单元。（b）预定配对率差，身份／标签仅取干净子集，每模型32对；历史仅取一致工具、说明仅取无旧历史，各64对，单位为百分点。（c）两类不完备协议诊断：D1创建执行体、D2发起修复，每模型每题8次。固定情境的描述结果不附总体置信区间；底表、全部异常与矢量文件见实验附录。
++
++### 4.7 额外准备步骤没有在本次观察中发展为停摆
++
++预定恢复观察的16个干净组合都在首步达到控制边界，未触发后续调用，因此这一部分没有测到纠错能力。为判断三个非推进输出是否会持续等待，主实验后另固定事后诊断协议，纳入全部三例并仅回填模拟器的真实状态反馈。三者下一步均选择fork_executor，共追加3次调用，没有人工指定下一动作。首步的253/256仍保留；二步到达入队边界既不能改写为首步正确，也不能外推完整交付成功。至少在这些短序列中，多一个合法步骤与停摆并不等价。（A19）
++
++32个不完备协议诊断全部回答主体“未指定”，没有从统一身份或Supervisor标签直接推出固定的创建者、修复者。其可见解释区分了统一任务归属与动作分配。这是未检出显式默认主体偏好的结果；题目明确允许并提示不确定时回答未指定，可能压低默认补全倾向，故不能据此断言模型没有行为先验，更不能判定训练来源。（A18、A19）
++
+ ## 5 机制分析与设计启示
+ 
+-“抽象模型问题”“架构问题”与“训练所得行为模式”作用于不同环节，可能共同导致同一错误。本文以行为记录约束解释：需要解释的是，模型为何把一个应由当前控制会话发起的动作归给中心，或者为何在拒绝自身产物后没有延续修复责任。以下六项机制是待区分的解释，不是六个已经确认的根因。
++“抽象模型问题”“架构问题”与“训练所得行为模式”作用于不同环节，可能共同导致同一错误。本文以行为记录约束解释：需要解释的是，模型为何把一个应由当前控制会话发起的动作归给中心，或者为何在拒绝自身产物后没有延续修复责任。以下六项机制是待区分的解释；受控实验为其中部分提供了有界反证，并非确认了六个根因。
+ 
+ ### 5.1 抽象层：统一归属不等于统一行动者
+ 
+ 将多个执行单元归于一个Agent，在软件模型上可以自洽。身份契约可以规定统一任务归属和对外交付责任，同时允许不同会话拥有不同权限、上下文及生命周期。危险出现在从“属于同一个Agent”继续推出“知道同样的信息、具有同样的能力、承担同一个下一动作”。这种推导并非原抽象的必然要求，却可能由笼统的身份说明诱发。（A01、A14）
+ 
+-表5将统一身份中需要分别绑定的关系展开。对于某项任务，归属主体可以始终是同一Agent，但创建executor的动作主体是Supervisor，写代码的是executor，资源分配由运行时完成；这些关系不会因为共享名称而自动成立。因而，抽象层的待检验问题是：统一身份表述是否让模型把不同类型的关系混用，而非“一个Agent包含多个进程”是否在逻辑上错误。
+-
+-**表5。逻辑Agent中的关系分解及可能的错误推导**
++表6将统一身份中需要分别绑定的关系展开。对于某项任务，归属主体可以始终是同一Agent，但创建executor的动作主体是Supervisor，写代码的是executor，资源分配由运行时完成；这些关系不会因为共享名称而自动成立。因而，抽象层的待检验问题是：统一身份表述是否让模型把不同类型的关系混用，而非“一个Agent包含多个进程”是否在逻辑上错误。
++
++**表6。逻辑Agent中的关系分解及可能的错误推导**
+ 
+ | 关系 | 本设计中的含义 | 需要阻止的推导 |
+ |---|---|---|
+@@ -187,37 +229,38 @@
+ 
+ ### 5.5 竞争解释及当前证据强度
+ 
+-表6按证据能区分到的层次比较机制。源码支持契约和接口变化的存在，行为记录支持责任解释的变化；从二者进一步推断模型的内部机制，需要额外干预。当前最有直接本地材料的调查方向是操作契约及其呈现，训练先验冲突尚无本地隔离证据。
+-
+-**表6。责任误归属的候选机制、反证与判别条件**
+-
+-| 机制 | 当前支持或线索 | 竞争解释／反证 | 可区分的观察 |
++源码支持契约和接口变化的存在，历史行为记录支持责任解释的变化；受控短题则约束了哪些解释能够在明确协议下复现。表7将三类证据分开。当前实验削弱了直接以统一身份解释全部异常的说法；它没有在抽象、历史上下文与模型训练之间选出唯一根因。
++
++**表7。候选机制与受控实验后的证据判断**
++
++| 机制 | 历史支持或线索 | 本轮实验及反向证据 | 尚缺判别 |
+ |---|---|---|---|
+-| H1 身份关系混用 | 同一身份下权限和上下文不同；责任外推表述 | 明确承责仍有效审查；未测表述效应 | 保持运行结构不变，显式关系表是否优于统一身份宣言 |
+-| H2 状态与启动协议分离 | 发现无execution后仍等待；恢复说明与fork说明不一致 | 工具缺陷可能足以解释部分行为 | 修复说明后，结构化下一动作是否仍有额外作用 |
+-| H3 审查子目标替代交付闭环 | 历史提示突出判断与block出口 | 同时要求帮助解阻；合理拒绝不是失败 | 拒绝后是否选择获授权的修复、补证或升级 |
+-| H4 历史上下文残留 | 自动派发到显式fork的源码变更 | 无当次会话与记忆快照 | 同一当前协议下，移除已废弃规则是否降低误用 |
+-| H5 训练所得模式与外部结构不匹配 | 外部研究表明agent行为可经训练改变 | 本地训练数据未知；CLI提示和历史规则可替代解释 | 同源模型的受控训练干预是否改变特定契约下的错误 |
+-| H6 一般推理或状态跟踪失误 | 多步恢复可能发生遗漏与重复 | 缺少与身份无关的等难度任务对照 | 去除角色与身份词后，同构状态任务是否仍出现同类错误 |
+-
+-H1–H6可以叠加。例如，接口未说明下一动作时，模型可能用旧会话规则或训练形成的常见模式填补空缺。一次用户提醒同时提供了主体、入口和新的上下文焦点，因此提醒后的改变不能独立识别其中任何一个机制。
+-
+-### 5.6 以对照干预代替事后心理解释
+-
+-首先应固定无已知缺陷的运行协议，建立含正确启动、已有活跃执行体、权限不足、等待资源和候选不合格等情境的动作判定集。不能把所有“等待”编码为错误，也不能用自述“我知道自己是Supervisor”代替实际动作。主要指标应包括首次合法动作、无效恢复循环、越权或重复fork、适当升级，以及拒绝后的责任延续；完整交付、调用成本和延迟另行测量。
+-
+-**表7。用于区分机制的对照设计；均尚未执行**
+-
+-| 对照 | 保持相同的条件 | 操作变量与可解释范围 |
++| H1 身份关系混用 | 同一归属下权限和上下文不同；有责任外推表述 | 干净条件身份配对差为0；三例额外步骤均在组件组 | 长上下文与实际多会话下的表示及拓扑对照 |
++| H2 状态与启动协议分离 | 无execution仍等待；恢复说明曾不一致 | 三例多做start，反馈后均fork；仅改reset文字未复现停摆 | 更贴近恢复路径的工具调用与确定性调度对照 |
++| H3 审查子目标替代交付闭环 | 审查与block出口突出 | 获授权修复情境均正确安排修复；历史也有有效监督 | 跨轮审查后是否仍延续修复，而非只看单步 |
++| H4 历史上下文残留 | 自动派发转显式fork；无实际会话快照 | Haiku一致说明下有1个配对差异；Sonnet无差异 | 更多任务与独立重复，区分干扰和采样变化 |
++| H5 训练所得模式冲突 | 外部研究说明行为可由训练塑造 | 明确协议下无错主体；默认诊断均未指定 | 同源模型训练干预；商业模型比较不足 |
++| H6 一般推理或状态跟踪失误 | 多步恢复可能遗漏与重复 | 三例更接近额外前置步骤推断，未见主体错误 | 无角色语义的同构长程状态任务 |
++
++H1–H6仍可能叠加。用户提醒同时改变主体信息、动作提示和上下文焦点；本轮模拟器反馈又改变了任务状态。二者都不能被当作针对某种内部心理机制的单一纠正。应分别记录哪个输出变量改变，再决定需要哪一层干预。
++
++### 5.6 已执行对照与下一层因果识别
++
++本轮完成的是等信息表述、说明一致性、旧规则和角色标签的交叉短题，而非009拟议的全部干预。将“统一宣言与完整关系表”直接比较会同时改变信息量，因此本轮先把身份对照收窄为一句表述；增加结构化下一动作则暂缓，先核对说明缺陷。这样的收窄使变量更可解释，也限制了结论覆盖范围。
++
++**表8。已执行的比较与仍需研究的因果层次**
++
++| 对照 | 本轮状态 | 可识别内容与后续要求 |
+ |---|---|---|
+-| 责任表示 | 模型、进程结构、权限、工具与任务 | 统一身份叙述／显式归属和动作表；识别表示效应 |
+-| 生命周期接口 | 实际状态转换、权限与可用动作 | 一致的文字说明／增加结构化下一动作；识别接口表达效应 |
+-| 上下文历史 | 当前协议、事实信息与上下文预算 | 无旧规则／明确标为历史的旧规则；识别历史干扰 |
+-| 角色词汇 | 上述协议与主体关系 | Supervisor–Executor／中性控制与工作单元标签；识别词汇敏感性 |
+-| 执行控制 | 同等任务、权限与验收合同 | 模型选择调度／确定性状态协调器；比较减少决策的实际代价和收益 |
+-| 训练来源 | 同一基础模型、相同训练量与通用数据 | 成对加入不同的行动责任轨迹；只能支持该受控训练的因果作用 |
+-
+-前四项可交叉构成16种条件，按情境配对并对顺序和采样重复作控制；不能把同一任务的重复输出当作独立部署。角色词效应若仅在旧历史条件下出现，更支持上下文交互；若在全部协议明确的条件下仍出现，则保留模型行为倾向解释。要进一步归因训练，仍需最后一项的同源训练对照；仅更换商业模型不足以完成该识别。详细情境、判定规则与未执行状态见[机制研究附录](mechanism-analysis.md)。
++| 等信息的统一身份／组件表述 | 已执行，干净子集每模型32对，差0 | 单句表示效应；未改变拓扑或上下文边界 |
++| 一致／遗留reset说明 | 已执行，无旧历史每模型64对，差0 | 指定文字干预；需覆盖真实reset恢复任务 |
++| 无旧协议／旧版本记录 | 已执行，一致说明每模型64对 | Haiku差−1.5625个百分点，Sonnet差0；需独立重复 |
++| 常用／中性角色标签 | 已执行，干净子集每模型32对，差0 | 局部词汇敏感性；工具名仍含executor |
++| 简短宣言／完整关系表／结构化下一动作 | 未执行 | 固定事实与任务，分离信息量、表示和提示强度 |
++| 模型调度／确定性状态协调器 | 未执行 | 比较真实交付、错误恢复、延迟和成本 |
++| 同源模型的成对轨迹训练 | 未执行 | 固定基础模型与训练量，检验训练对特定责任映射的因果作用 |
++
++下一步应在协议仍一致的条件下增加长程状态变换和真实工具执行，预先固定任务、反例与评分，再比较身份表示和调度机制。不能为得到错误而有选择地删除必要信息。模型训练的解释需要受控训练干预；更换商业模型、观察模型自述或角色改名均不能独立识别训练来源。
+ 
+ ### 5.7 设计启示：显式表达责任关系，保留有效监督
+ 
+@@ -231,15 +274,17 @@
+ 
+ 本轮恢复了指定Git版本的提示、派发入口与工具说明，仍未恢复当次部署版本、完整模型输入和执行控制轨迹。接口说明缺陷排除于架构负效应；历史协议变化也不能自动证明会话残留旧规则。模型—harness研究提供解释视角，不能替代本地缺失的因果证据。[2]<!--ref:R03--><!--anchor:section:I-->（A15–A17）
+ 
+-训练先验假说没有本地训练数据、同源模型对照或已执行干预。公开训练研究证明行为可被训练改变，不能逆推本部署的训练来源。所提出的16条件设计与合成情境仅为待执行协议，没有新的模型效果量。
++受控实验是八类规则清晰的合成短题，不包含真实代码交付、长上下文压力或完整进程拓扑。两呈现版本不是随机重复；干净条件100%的表现带来天花板限制。旧说明仅修改reset文字，旧协议又明确标为历史，未覆盖生产中各种隐蔽残留；中性标签保留了动作名中的executor。默认预期题提示不确定时回答未指定，也限制了对隐含倾向的测量。三个额外步骤集中于同一情境，事后续步不属于预定恢复检验，不能估计一般停摆或纠错率。
++
++模型版本来自当次返回，不代表未知历史模型。相同CLI减少了外部调用差异，仍不能审计服务全部固定提示或分离模型能力、训练和解码。没有同源训练干预，公开训练研究和本轮行为结果均不能逆推训练来源。实验首步推进率不是生产交付率，未检出差异不等于证明架构等价。
+ 
+ 监督案例的源码核对只支持指定变化，没有重跑历史浏览器或生产验收。全部分析尚未人工复核，四篇论文复用同一部署与部分案例，不能视为独立重复验证。吞吐、成本、认知负荷及替代方案收益仍需在固定条件下测量。（A00、A11、A12）
+ 
+ ## 7 结论
+ 
+-将Supervisor与临时executor归为同一逻辑Agent，源于并发执行与统一回写的工程需求。现有行为材料表明，稳定归属并不自动确定下一动作主体；历史源码则揭示，身份表述、启动协议和恢复说明曾分别变化。因而，责任误归属需要在抽象关系、架构接口、上下文历史和模型行为模式之间比较解释，不能直接归为模型不理解某种新架构。（A14–A17）
+-
+-本文能够支持的设计判断是：统一身份宣言不足以替代明确的行动协议，应分别表达当前角色、权限、结果去向与后续责任，并先排除说明和实现不一致。训练所得行为先验与外部结构冲突是值得检验的假说，尚无本地因果证据。统一责任、执行隔离和有效监督是否值得组合，需要在协议一致的条件下比较真实交付收益与成本。（A01、A10–A12）
++将Supervisor与临时executor归为同一逻辑Agent，源于并发执行与统一回写的工程需求。历史案例暴露了任务归属与行动责任之间的解释问题，但源码中的派发变更和说明缺陷限制了架构归因。两模型的受控短题进一步显示：说明一致、无旧规则且关系明确时，统一身份与组件表述均正确完成全部64次首步选择，没有检出身份表述或常用角色词汇的不利效应。（A14–A19）
++
++旧历史条件下的三个额外准备步骤在下一步均启动执行，默认预期诊断也未暴露固定主体偏好。由此，责任误归属、动作顺序冗余和长期停摆必须分别测量，训练结构冲突仍是尚未识别的解释。设计上应明确当前角色、权限、结果去向与后续责任，并保留能增加证据的监督；统一身份、执行隔离及程序调度的净收益仍需在长程真实任务中比较。（A10–A12、A18、A19）
+ 
+ ## 参考文献
+ 
+@@ -306,10 +351,12 @@
+ | A15 | 身份提示、执行提示与审查回写的历史修订 | Git `3dcd57bf35fc6ed0572df93c4e8616b043f1e591`及父版本 | 2026-07-23 01:38:22 UTC | [固定差分](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/sources/identity/changes.diff) |
+ | A16 | 自动派发改为Supervisor显式fork：提示与实际入口 | Git `b27f59650ad3061d67da0bec9893feb258405a19`及父版本 | 2026-07-26 14:09:54 UTC | [固定差分](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/sources/dispatch/changes.diff) |
+ | A17 | reset自动派发说明纠错；不证明当次部署 | Git `00bddae72e94ee5419339b0b95f4fb439af0a927`及父版本 | 2026-08-06 03:24:22 UTC | [固定差分](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/sources/reset/changes.diff) · [来源哈希](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/source-provenance.json) |
++| A18 | 合成实验冻结协议、全部输入与确定性评分 | 512动作＋32诊断；2模型 | 2026-11-03 | [协议](/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/protocol.md)、[冻结哈希](/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/design-lock.json)、[方法](/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/method-details.md) |
++| A19 | 全量结果、正反证据与恢复边界 | 544主输出；另3次事后续步；16预定组合无新增调用 | 2026-11-03 | [报告](/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/report.md)、[逐行评分](/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/analysis/rows.csv)、[事后续步](/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/analysis/posthoc-recovery-summary.json) |
+ 
+ ## 声明
+ 
+-**数据可用性。** 本稿使用既有冻结研究包，原生消息与代码片段按附录路径可在授权本地环境中查阅，阅读范围见同目录 `read-log.json`。这些本地路径不代表公共数据仓库或开放许可。对外共享范围、脱敏方式和许可仍需数据持有人确认。
++**数据可用性。** 本稿使用既有冻结研究包，原生消息与代码片段按附录路径可在授权本地环境中查阅，阅读范围见同目录 `read-log.json`。这些本地路径不代表公共数据仓库或开放许可。对外共享范围、脱敏方式和许可仍需数据持有人确认。 本轮实验的冻结输入、原始返回、状态评分、全部非推进输出、正例、图源及事后诊断单独归档于[受控实验目录](/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/README.md)。
+ 
+ **伦理与隐私。** 材料包含用户和 Agent 协作记录。伦理审查机构、批准或豁免状态尚未由作者声明；本文不声称已获批准或无需审查。公开前应由责任作者复核可识别信息、访问授权与必要脱敏，原生标识用于本地可追溯性。
+ 
+@@ -319,6 +366,6 @@
+ 
+ **资助。** 本研究未获得资助。
+ 
+-**AI 使用。** 既有研究为单AI探索；010早期使用分工AI进行补查、引用核验、起草与审阅。009机制修订由同一AI定向补查和自查，未新增独立评阅。本文未重跑模型实验，未知历史模型和运行参数不予补造。原研究与本轮工作均尚未人工复核，责任作者需核查事实、引用与最终论述。
++**AI 使用。** 既有研究为单AI探索；010早期使用分工AI补查、引用核验、起草与审阅。009机制修订及本轮受控实验由同一AI设计、执行、分析与自查，未新增独立评阅。本轮保存547次正式模型调用及2次不计样本的连通性检查；未重跑历史部署，未知历史模型与参数不予补造。原研究与本轮工作均尚未人工复核，责任作者需核查事实、引用与最终论述。
+ 
+ **同源与跨篇重合。** 本文与责任悬空、角色上下文及 有向无环图（DAG）演化工作稿来自同一部署和冻结快照，复用部分 006–009 与 010 证据；尤其 I05 和监督案例也用于边界分析。复用记录保持原生标识，不累计为新增独立样本，不宣称四篇相互独立验证。

@@ -1,0 +1,111 @@
+{
+  "experiment_root": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002",
+  "paper": "P4",
+  "files": [
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/protocol.md",
+      "sha256": "0bb6d07d6049b26ee9fcffd479e1571d4f6d55d803a0ae9f4432aa0263e8792c"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/method-details.md",
+      "sha256": "0b321e6463721e0df8d6a20d5834441ebffa384b316526c7c058fcf5d025fc17"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/design-lock.json",
+      "sha256": "7e084d9ec1a07a50abb80f806672553bc7e5c83885b5005979de6972d10ab504"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/design.json",
+      "sha256": "8f51b9cbdcc83c818eab298387a07f1726774c56720086ece8408848c5855e46"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/cases.json",
+      "sha256": "688114aabcbee9f032496c1bd572be7fdc4f2d2e47c4c4daa53b8ff2ba07b65c"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/design_lib.py",
+      "sha256": "c9b62da538140298bc53cdc21d4c170d0942515cc2b18d16aa1ad09e06634621"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/analyze.py",
+      "sha256": "5c93065e8533ceab4e87e443065d05a8a591efa976ebcb340762afa3789e8088"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/analysis/rows.csv",
+      "sha256": "1cda2f193618564cb120a7b00de9f2a8cad709b2621ca52ff61a8997e19a7262"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/analysis/summary.json",
+      "sha256": "d118675ae57fc7d5d74637d982a9e2fd05b0072740ccdc06efa3acc995c045c0"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/analysis/paired-effects.json",
+      "sha256": "7f6ac28b3690531eb71563f49b56f7ffde56f8b39948fe9782110f9903ae11d3"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/analysis/feedback-summary.json",
+      "sha256": "52bbfa91c060aca33c98275ced3bd78988863598ffa50c1995b9e44a32d1a131"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/analysis/structural-witnesses.json",
+      "sha256": "d280514d63045f2bd50072ef1538748a9a6ac4a36d3414e9bbf5add4cc2d9d69"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/analysis/validation.json",
+      "sha256": "ebb70a657a9add38b66b54e42f11a8972d2558ac03f8990b4b0e57fd5b148e2c"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/make_figures.py",
+      "sha256": "55e7268d6f90909641d398d64c15986b48b81362507c196372a0016282747511"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/analysis/validity-audit.json",
+      "sha256": "97b427778d761fd4b99d3801c0e808337ac26e267ea2d7d94a0fa786361fbbe2"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/analysis/supplement-validation.json",
+      "sha256": "f8ab90ef92e6e8a12788d77be99a26380c7c6c244c5e549dd2b9557d275cc959"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/validity-repair/protocol.md",
+      "sha256": "0b011402f05ad56ddb895df1497d71ccc234d49ea21a40c9030bbd035c13fdd3"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/validity-repair/design-lock.json",
+      "sha256": "b52ad424bf01636b839d61cf75f9aa1a64a5ca7ab521e654fe5468b1d4a553ba"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/validity-repair/design.json",
+      "sha256": "0b99480d71d63c29d6244cd62d78102315a9f723e58154efd0ca87ff68a3a8f6"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/validity-repair/summary.json",
+      "sha256": "16a514d763eb91cd5786e54838597918dc0baac2b828303eca660f93fe4271a1"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/execution-summary.json",
+      "sha256": "359b45bb2a53a38259f074b66448ee2a5dd5c40a8134b59ad623dc3c3a1fbe4d"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/report.md",
+      "sha256": "84fd9a9ca7426dc1cc2e74f51763222662b1ce23ed31e12be7a2e3b93ac5474c"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/reports/P4.md",
+      "sha256": "5f38026472c8b2e502a77082d01832c56aa40fb2bb26db6439bbe615cccd5849"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/analysis/interpretation-notes.json",
+      "sha256": "abf27ae64ab33f3ebef27ef1c7be391dd4d98633dda010f51ece263b1918b350"
+    }
+  ],
+  "raw": "All 768 primary responses and selected feedback under experiment_root; manifest.json contains all attempts.",
+  "primary_calls_this_paper": 256,
+  "primary_calls_total": 768,
+  "feedback_calls_total": 24,
+  "posthoc_repair_calls_total": 128,
+  "all_requests_total": 920,
+  "transport_attempts_total": 921,
+  "human_review": "not_completed",
+  "independent_review": false
+}

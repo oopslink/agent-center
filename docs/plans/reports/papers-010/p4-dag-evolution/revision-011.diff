@@ -1,0 +1,192 @@
+--- P4/before/draft.md
++++ P4/after/draft.md
+@@ -1,16 +1,16 @@
+-# DAG evolution 的实际价值：改图、修复与成果继承
+-
+-**论文类型：**案例驱动的研究与立场工作稿；作者、单位及通讯信息待补。**状态：**人工智能（AI）辅助分析与写作，尚未人工复核。
++# 任务图演化中的产物继承与验收范围：案例研究与受控实验
++
++**论文类型：**案例研究与受控行为实验工作稿；作者、单位及通讯信息待补。**状态：**人工智能（AI）辅助分析与写作，尚未人工复核。
+ 
+ ## 中文摘要
+ 
+-动态任务图可以表达新工作，但图的增长不等于交付改善。本文复用 Agent Center 的冻结运行记录，以008阶段205条 generation 的结构筛查、六个主案例和两个混合排除案例为基础，并结合004阶段的合同谱系比较，区分图变化、代码修复、信息增量、环境条件与验收范围。本轮重算排除六个显式夹具后，102个Plan中26个有generation，共195条。原研究及本轮分析尚未人工复核，未重跑生产验收。案例显示：Mermaid 修复报告早于新增代际46.486869秒；Access 的一次局部修复在原任务内完成；组织Graph保留旧图节点仍出现代码继承缺口；Spark两个不同提交却具有相同父提交和完整文件树。用户追加范围与外部等待具有独立意义，后继PASS也不能恢复已撤回的旧合同结论。Insight重复G9的五个节点事实可核，根因仍未知，故排除设计负效应归因。本文据此主张保留局部改图能力，并将每次变化绑定到具体前提、候选产物和验收合同。该主张是案例支持的设计方向，不是DAG演化提高成功率或降低成本的因果结论。
++任务图演化能够组织新增义务，但不能直接代表产物继承或验收改善。本文结合Agent Center的195个非显式夹具generation快照、真实案例及256次受控短题响应，区分任务图、候选产物、合同和环境。历史证据同时包含图保留而能力缺失、不同提交同完整树、原任务续修与后继合同替代，说明单看代际不足以判断交付。实验交叉累计／活动图及产物、合同关系联表／分表，两模型原严格得分均96/128，但候选与合同字段均128/128；全部负分来自两题的动作分类歧义，不能用于DAG负面归因。排除两题全部条件后，两模型均96/96，各因素配对差均0；另冻结64次材料修复复测，单独保存。本文提出以变化前提、仍有效成果和待满足合同约束恢复形式。当前证据未证明动态图净收益、长期成本或内部认知原因，全部分析尚未人工复核。
+ 
+ **关键词：**DAG演化；Agent harness；产物继承；验收合同；过程重建
+ 
+ ## Abstract
+ 
+-Dynamic task graphs can represent new work, but graph growth does not establish delivery improvement. This working paper reuses frozen Agent Center records: a structural screening of 205 generations, six focal cases and two mixed excluded cases from study 008, and contract-lineage comparisons from study 004. It distinguishes graph edits, code repairs, new information, environmental prerequisites, and changes in acceptance scope. A recomputation excluding six explicitly marked fixture plans yields 195 generations across 26 of the remaining 102 plans. The original research and the present analysis have not undergone human review, and production acceptance tests were not rerun. A Mermaid repair report preceded a new generation by 46.486869 seconds, while an Access correction occurred within its original task. Preserved graph nodes did not guarantee code inheritance in the organization-graph case. Conversely, two different Spark commits had the same parent and complete tree. New user requirements and external waiting conditions had distinct meanings, and a successor PASS did not reinstate a revoked earlier verdict. Five duplicate Insight G9 nodes were documented, but their root cause remains unknown and is excluded from negative design attribution. We argue for retaining local graph adaptation while binding each change to concrete premises, candidate artifacts, and acceptance contracts. The evidence supports a design direction, not a causal estimate of success-rate or cost improvements.
++Task-graph evolution can organize new obligations but does not directly establish artifact inheritance or improved acceptance. This study combines 195 Agent Center generation snapshots after excluding explicit fixture plans, historical cases, and 256 controlled short-task responses. It separates the task graph, candidate artifact, contract, and environment. Historical evidence includes preserved graph history with missing capabilities, different commits with identical complete trees, in-task repair, and replacement contracts. The experiment crossed cumulative versus active graph views with joined versus distributed artifact and contract relations. Both models scored 96/128 under the frozen strict rubric, although candidate and contract fields were correct in all 128 responses. Every mismatch came from overlapping action categories in two fixtures and is excluded from negative DAG attribution. Across the other six scenarios, both models scored 96/96 with zero paired differences for all factors. A separately frozen 64-call material-repair study is preserved independently. The analysis motivates recovery choices grounded in changed premises, retained artifacts, and outstanding contracts, without establishing the net delivery value of dynamic graphs, long-term cost, or internal cognitive causes. Human verification has not been completed.
+ 
+ **Keywords:** DAG evolution; agent harness; artifact inheritance; acceptance contract; process reconstruction
+ 
+@@ -35,7 +35,11 @@
+ 
+ 三类工作流方法也提示，比较需要对齐干预单位。搜索完整程序、在同题推理中生成子图与持久开发任务的代际管理，虽然都涉及图，却承担不同的记忆、执行和评价职责。本文只把它们用于界定可比较的问题，不把一个基准中的有效结构搬成生产流程的普遍答案。相关文献在本稿中是事后比较材料，不被描述为早期系统设计的来源。[1]<!--ref:R11--><!--anchor:section:4-->[2]<!--ref:R28--><!--anchor:section:3.1, 3.2-->[3]<!--ref:R29--><!--anchor:section:2.1.2, 3.2.2-->
+ 
++图历史的呈现也可能影响当前证据的选取。Lost in the Middle的问答与检索实验说明，信息位置的效果随任务与模型而异，简单任务还可能出现天花板。本轮因而将历史视图作为有界表示因素，不把短题表现外推为动态图长期收益或部署模型的注意力机制。[7]<!--ref:R32--><!--anchor:section:2.3, 3.2-->
++
+ ## 3 材料与方法
++
++### 3.1 冻结部署资料与案例重建
+ 
+ 本研究复用DAG演化专项的冻结记录、逐案证据与Git核查结果。结构盘点覆盖108个Plan、205条generation；排除六个显式夹具后，102个Plan中有26个保存了generation，共195条（表1）。其中20个Plan有子代，形成169个父子转移。显式夹具排除与设计失效归因是不同筛选，剩余结构记录仍含运行恢复与未知根因。[008-M1](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/agent-harness-evolution-008.md)、[008-M2](/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/derived/delta-summary.json)
+ 
+@@ -58,6 +62,16 @@
+ ![图1：非显式夹具Plan的代际记录分布](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/papers-010/p4-dag-evolution/figures/p4-fig1-generation-distribution.png)
+ 
+ **图1。**26个非显式夹具Plan按generation记录数排序，每行保留同一Plan的（a）记录数，（b）根与最后累计节点数，（c）根与最后seq依赖深度。空心圆为根、实心菱形为最后记录；节点轴为以2为底的对数，重合表示数值相同。合计195条记录，G编号见补充映射；不表示无bug样本或成功终局。
++
++### 3.2 受控图视图与证据关联实验
++
++另以八种合成状态检验修复形式和证据范围选择：已有代码缺陷、新独立检查、已有回执待挂接、外部资源等待、授权新范围、能力丢失后的产物恢复、同树不同提交和替代合同通过。三个二水平因素为累计／活动图视图、产物关系联表／分表、合同关系联表／分表。累计视图展开18个已完成且无活动依赖的历史节点，活动视图保留其计数与无活动依赖事实；两组当前义务相同。联表与分表保留相同候选—提交—完整树—功能及合同—范围关系，只改变关系计算方式。
++
++每模型8情境×8条件×2呈现顺序共128次，两模型合计256次，固定Sonnet/Haiku 5.5、同一隔离CLI与low effort。全部输入、评分和运行脚本在正式输出前哈希冻结。模型推荐下一处置，按action、candidate、contract分别核对；没有实际修改图、代码或生产验收。格式问题、字段错误和一次规则反馈后修改分别保存。这是表示与关联恢复对照，不是静态图对动态图的交付消融。
++
++另构造四对相同任务图分别对应不同产物能力、合同范围、判定有效性和环境的状态，以检查仅凭图判断通过是否充分。这些是分析性反例，不能计作真实回归或模型错误。原始输出、所有反向证据和图源见[实验附录](controlled-experiments.md)，全部分析尚未人工复核。
++
++输出读取后另做题目有效性审计；预检的表示等价与程序测试不能保证规范答案唯一。发现缺陷的情境按全部条件排除负面归因，原分数不改写。另固定本篇两题的全部条件、顺序和模型，共64次材料修复复测，属于事后诊断；不是新增预定独立样本，也不与主分母合并。具体问题及结果见研究发现。
+ 
+ ## 4 研究发现
+ 
+@@ -150,13 +164,34 @@
+ 
+ 结构差分因此只能回答“记录中改变了什么”。变化是否解决交付缺口，仍需与候选产物、检查信息和适用合同连接。
+ 
++### 4.7 图视图未改变候选和合同选择，原动作评分需排除分类歧义
++
++256次请求全部返回，原严格得分两模型均96/128。候选与合同字段却均128/128，全部64次不匹配集中在D5与D8的动作标签。复核发现，D5已说明新范围写入合同，却要求revise_scope，模型均选择补验证；D8已有有效回执但未说明是否挂接，模型均选择attach_evidence，并明确旧合同不会恢复。两者都是原材料与唯一答案之间的有效性问题，不能计作DAG或模型的错误。
++
++排除D5/D8所有条件后，两模型在六个情境中均96/96；累计／活动视图、产物联表／分表与合同联表／分表的配对差均为0，每因素48对。局部修复、新检查、补回执、合理等待、恢复缺失能力与同树复用均获得正确处置。这些是明确协议下的正面证据，反对将图历史或关系分表本身预设为必然致错；短题天花板仍不能证明真实长期策略等价。
++
++**表5。图视图实验的原评分与材料审计**
++
++| 分析层 | Sonnet 5.5 | Haiku 5.5 | 解释 |
++|---|---:|---:|---|
++| 原严格评分 | 96/128 | 96/128 | D5/D8动作分类有歧义 |
++| 原候选、合同均正确 | 128/128 | 128/128 | 不能由动作标签推断产物或范围混淆 |
++| 排除D5/D8全部条件 | 96/96 | 96/96 | 六情境；三因素配对差均为0 |
++| 材料修复后新调用 | 32/32 | 32/32 | 事后冻结；与原分母分开 |
++
++为检验材料解释，另固定64次新调用：D5改为范围已获授权但尚未记入合同，D8补明回执已挂接但判定尚未登记，并区分动作含义。两模型分别32/32与32/32。它只说明明确待办状态后的分类行为，不能给原歧义题补上并不存在的初始信息，也不构成DAG演化提高交付率的证据。
++
++![图6：图视图、关系呈现与有效性审计](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/papers-010/p4-dag-evolution/figures/p4-fig6-controlled-mechanisms.png)
++
++**图6。**上左显示排除D5/D8后的全条件严格得分（每格12次），上右保留八情境原评分并标注缺陷题；下部是每因素48对的比较和另行材料修复结果。D5/D8的零分代表冻结答案标签不匹配，不能作为图或产物失败。没有执行真实图编辑、代码修复或静态／动态策略对照。
++
+ ## 5 机制分析与设计启示
+ 
+ ### 5.1 根据变化的前提选择恢复形式
+ 
+-一次generation可能同时承载组织调整、代码变化、补充检查、新需求与外部等待。表5将其分开，要求每项效果主张对应到能够支持它的记录。
+-
+-| 表5：变化因素 | 案例中可识别的内容 | 评价边界 |
++一次generation可能同时承载组织调整、代码变化、补充检查、新需求与外部等待。表6将其分开，要求每项效果主张对应到能够支持它的记录。
++
++| 表6：变化因素 | 案例中可识别的内容 | 评价边界 |
+ |---|---|---|
+ | 图编辑 | Mermaid复验、Insight只补视觉证据 | 解释后续工作安排，不等于代码修复 |
+ | 代码改变 | 渲染队列、向导覆盖、Risk与typed-delete | 检查精确候选与行为，不由节点数代理 |
+@@ -170,9 +205,9 @@
+ 
+ ### 5.2 为保留成果建立可核的产物与验收关系
+ 
+-图保留节点、代码继承成果和验收继续有效是三个不同判断。组织Graph的缺口与Spark的同树反例表明，单看代际顺序或单看一个SHA是否位于祖先链中都不充分。表6给出互补的证据对象。
+-
+-| 表6：证据对象 | 能够核实的内容 | 仍不能推出 |
++图保留节点、代码继承成果和验收继续有效是三个不同判断。组织Graph的缺口与Spark的同树反例表明，单看代际顺序或单看一个SHA是否位于祖先链中都不充分。表7给出互补的证据对象。
++
++| 表7：证据对象 | 能够核实的内容 | 仍不能推出 |
+ |---|---|---|
+ | 图及代际 | 节点、边、父代、保留或废弃决策 | 当前运行正确、代码已继承 |
+ | 精确候选与Git关系 | 指定祖先、完整树、文件存在 | 产品行为与完整合同已通过 |
+@@ -183,9 +218,9 @@
+ 
+ ### 5.3 用关联重建修正结果归属
+ 
+-交付谱系比较中，完整单Plan证据B1已经保留本地的后继叙述，B2进一步增加明确关联端点。表7显示，新增信息可能补全候选验收、核对替代关系或补充祖先证据，原有撤回与未知发布范围仍然保留。关联的价值是说明结果属于哪个目标和合同，不能用“翻转多少失败”代替评价。[004-C](/Users/oopslink/works/research/agent-harness-study/run-001/lineage-004/derived/comparisons.json)
+-
+-| 表7：案例 | B1已能判断 | B2新增内容 | 不变的边界 |
++交付谱系比较中，完整单Plan证据B1已经保留本地的后继叙述，B2进一步增加明确关联端点。表8显示，新增信息可能补全候选验收、核对替代关系或补充祖先证据，原有撤回与未知发布范围仍然保留。关联的价值是说明结果属于哪个目标和合同，不能用“翻转多少失败”代替评价。[004-C](/Users/oopslink/works/research/agent-harness-study/run-001/lineage-004/derived/comparisons.json)
++
++| 表8：案例 | B1已能判断 | B2新增内容 | 不变的边界 |
+ |---|---|---|---|
+ | Insight | 旧Plan废弃且已承接新Plan | 新开发合同的后继终验报告 | 生产发布仍未知 |
+ | Access | 旧PASS撤回、新合同已出现 | 新候选终验及合同关联 | 旧PASS仍撤销 |
+@@ -194,6 +229,33 @@
+ 
+ 据此，演化记录可以以一次明确前提下的处置为单位，连接仍有效的产物、待满足合同和下一动作。界面也可分别呈现当前可执行工作与累计历史，避免用历史图大小代表当前负担。后续对照需要固定或记录任务、合同、环境和权限，比较不同恢复形式的交付与协调成本，才能评价动态图的净价值。
+ 
++### 5.4 任务图是控制表示，不是全部交付状态
++
++把完整状态分为任务图G、候选产物A、验收合同C与环境E，验收应写成对特定A在C和E下的判断，而非G的单一属性。相同任务图可以关联不同代码树、不同范围或不同环境；保留一个完成节点，不能使其对应能力自动出现在后继文件中。本轮四对构造保持G相同，分别改变能力保留、合同范围、判定撤回和真实环境证据，使正确处置不同。它们证明单看图不足以判定交付，不证明图无用或某次生产故障由图引起。
++
++这种分层也解释了两类相反的真实证据。组织Graph案例报告后继候选缺少旧成果，说明组织继承与产物继承不能互相替代；Spark不同提交同完整树则说明，提交标识变化也不必然意味着需要从头验收。可复用性还取决于合同、环境及既有回执是否仍有效，仅有同树关系不自动恢复发布授权。图编辑、代码修复和验收更新因此需要分别记录，再说明相互关联。
++
++### 5.5 演化的价值取决于它改变了哪一个前提
++
++改图能够为新增义务分配工作，不能自行修复代码、制造环境权限或补出不存在的事实。已有任务中的局部缺陷可能只需续修；有效回执未关联可能只需补证；新范围可能需要更新合同和任务；真实外部请求已发出则可能需要等待。DAG evolution的候选收益是组织这些变化，其候选代价是重复恢复状态、重建责任和使旧证据失去明确归属。新generation数量无法直接度量任一项。
++
++累计历史和活动前沿承担不同用途：前者用于审计，后者支持当前选择。本轮删去十八个无活动依赖的已完成节点细节，同时保留历史计数和当前任务，测量的是输入视图；它没有禁用真实改图，也没有运行长期恢复策略。即使两视图得分一致，也不能据此取消历史保存；即使存在差异，也不能直接将其解释为动态图净收益。
++
++要检验“重复折腾”，必须把固定合同下的无效重试与新增范围、补事实、合法拒绝分开。更有鉴别力的后续实验应固定初始产物、工具、权限和目标，比较原任务续修、局部增图和必须新代际三种策略；保持相同检查机会，观察接受质量、回归、状态恢复成本、人工补充及未完成删失。当前的恢复选项实验只提供决定下一步的行为证据，尚未完成这项长程策略比较。
++
++### 5.6 深层解释与尚缺的因果检验
++
++**表9。DAG演化的竞争机制**
++
++| 解释 | 当前证据与反证 | 未完成检验 |
++|---|---|---|
++| 图保存就等于成果继承 | Graph缺口与同图异产物构造反对；同树不同SHA也需保留 | 固定目标的产物继承门禁对照 |
++| 关系分散导致恢复错误 | 六有效短情境均全对，未支持分表必然致错 | 增大候选与合同数量、控制长度 |
++| 累计历史阻碍当前处置 | 当前48配对／模型差0；历史有审计价值 | 必要历史与无关历史交叉的长期任务 |
++| 更多generation意味着修复有效 | 修复可先于改图；原任务续修也有效 | 固定代码与新信息，比较恢复策略 |
++| 后继PASS改善旧结果 | Access旧结论撤回不能被新合同恢复 | 固定／变化合同分别评价，处理删失 |
++| 重复改图必然无用 | 未知根因重复链已排除，补检查与新义务有用途 | 测额外义务覆盖、协调代价与人工输入 |
++
+ ## 6 局限
+ 
+ 本研究没有静态图与动态图的随机或匹配对照，不能估计成功率、token成本、耗时或认知负荷变化。案例是目的性选择，结构统计也不是无故障效果样本；累计Task、消息和generation均不能直接作为活动执行分母。[008-M1](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/agent-harness-evolution-008.md)
+@@ -202,11 +264,15 @@
+ 
+ 合同也可能在历史过程中发生修改，当前描述不能倒推最初要求。B2不是结果真值，后继PASS不能用来比较单角色与多角色方案。全部分析尚未人工复核，谱系与演化研究相互复用案例，不构成独立重复验证。[004-M](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/agent-harness-lineage-004.md)
+ 
++新增实验是八个固定英语短情境的交叉呈现，不是128个独立任务，也没有多次随机重复。两个顺序版本只反转记录/块顺序，冻结协议概述中的“标识映射”未实现，偏差保留在实施记录。两固定模型不代表模型总体；CLI报告的模型标识可查，平台不可见输入仍未完全审计。两组共享明确的处置规范，部分目标直接提示动作，存在较强提示与天花板边界；没有把格式错误当作内部认知或责任错误。
++
++P4比较历史视图和证据关联呈现，没有让模型实际改图、修代码或运行验收。十八个已完成节点没有活动依赖；不能推广到历史节点携带必要约束的情况。产物和合同元数据被设置为完整可信，未测错误元数据的恢复。新独立检查与授权新范围的处置遵循实验给定分类，现实中可能由同一次图操作承载；这里的标签错误未必意味着实际调度错误。静态/动态策略、长期成本与最终交付的随机对照仍未执行。
++
+ ## 7 结论
+ 
+-DAG演化在这些案例中的具体用途，是将新工作、局部复验与范围处置纳入可追踪路径。代码修复可以先于改图或留在原任务中；历史节点保留不保证代码继承，提交变化也不必然改变内容；后继合同通过不恢复已撤回的旧判断。结构统计进一步显示，历史保留、边变化和任务状态变化需要分别观察。
+-
+-本文因此建议保留局部适应能力，以明确前提、候选产物、验收范围和下一动作约束每次变化，并允许续修、补证据及等待。现有材料支持这些用途和边界，尚不能证明动态图整体改善交付，也不足以确定哪些恢复形式更经济。
++DAG演化的直接作用是组织新增义务与恢复路径，代码能力、合同有效性和环境前提需要分别核对。图保留不推出产物继承，提交变化不必然改变内容，后继PASS也不恢复撤回的旧结论。这些边界解释了为何有些局部改图有用，而另一些处置应是续修、补证或等待。
++
++受控短题的有效情境中，两模型在累计／活动视图及联表／分表条件下均正确；原负分集中于实验动作分类歧义，已排除并另行修复复测。当前证据支持区分图、产物、合同和环境，尚未证明动态图的净交付收益或某种恢复策略更经济。
+ <!-- BODY_END -->
+ 
+ ## 参考文献
+@@ -223,9 +289,11 @@
+ 
+ [6] J. N. Adams, D. Schuster, S. Schmitz, G. Schuh, and W. M. P. van der Aalst, “Defining Cases and Variants for Object-Centric Event Data,” arXiv:2208.03235v1, 2022. DOI: [10.48550/arXiv.2208.03235](https://doi.org/10.48550/arXiv.2208.03235). [核定版本](https://arxiv.org/abs/2208.03235v1).
+ 
++[7] N. F. Liu et al., “Lost in the Middle: How Language Models Use Long Contexts,” *Transactions of the Association for Computational Linguistics*, vol. 12, pp. 157–173, 2024. DOI: [10.1162/tacl_a_00638](https://doi.org/10.1162/tacl_a_00638). [出版记录](https://aclanthology.org/2024.tacl-1.9/).
++
+ ## 研究声明
+ 
+-**数据可用性。**冻结提取、证据副本、差分和Git命令日志保存在私有run-001目录。附录为本机绝对路径；公开共享、许可及脱敏方案待作者确认，不能由这些链接推断数据已经公开。
++**数据可用性。**冻结提取、证据副本、差分和Git命令日志保存在私有run-001目录。附录为本机绝对路径；公开共享、许可及脱敏方案待作者确认，不能由这些链接推断数据已经公开。 本轮合成输入、全部模型响应、评分、反馈与图源另存于[实验附录](controlled-experiments.md)，逐次结果见[实验底表](experiment-results.csv)，修改前稿和可回放差分见[修订记录](REVISION-011.md)。
+ 
+ **伦理与隐私。**使用既有开发消息、稳定身份、任务及产物记录，没有新增用户实验。伦理审查状态、使用授权与外部发布范围待补；最终发表应核查敏感配置、内部路径与对话的披露权限。
+ 
+@@ -235,7 +303,7 @@
+ 
+ **资助。** 本研究未获得资助。
+ 
+-**AI使用。**001—009原研究为单AI探索；010本轮有分工AI补查、引用核验、写作和审阅。原研究及本轮分析均尚未人工复核；AI审阅不构成独立人工复核或跨模型复现。精确模型版本与参数未完整记录。
++**AI使用。**001—009原研究及010写作阶段的AI参与记录保留；本轮011由同一AI完成实验实现、分析、写作和有界自查，未新增独立评阅。实验调用固定claude-sonnet-5-5和claude-haiku-5-5、low effort，版本标识与原始响应保存；历史部署模型和参数未知处仍不补造。模型输出不作为内部推理或训练来源真值。原研究与本轮分析均尚未人工复核；未重跑历史产品验收。
+ 
+ **同源数据及跨篇重合。**本文与P1—P3共享Agent Center和run-001材料，Mermaid、Access及部分角色检查记录有重合。本篇以008演化与004结果谱系为主，不把重读或跨篇引用当新样本。外部文献用于比较，不声称后出研究影响更早的系统设计。
+ 

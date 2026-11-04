@@ -1,11 +1,14 @@
 {
   "paper": "P2",
-  "revision": "006-dense-evidence",
+  "revision": "011-p234-controlled-mechanisms",
   "count_rule": "Han characters plus English lexical tokens; URLs and HTML comments excluded. Separate main prose from tables/captions/headings; abstracts/references/appendices excluded.",
-  "prose_count": 7250,
-  "text_including_tables_captions_headings": 8264,
+  "prose_count": 6744,
+  "text_including_tables_captions_headings": 8411,
   "previous_target": 6000,
   "previous_budget_status": "Author requested quantitative expansion; prior length target is historical, not re-certified.",
-  "figures": 4,
-  "tables": 6
+  "figures": 5,
+  "tables": 8,
+  "supplement": "evidence-details.md",
+  "count_note": "Author-authorized mechanism and controlled experiment expansion; prior length target historical, not recertified.",
+  "experiment_supplement": "controlled-experiments.md"
 }

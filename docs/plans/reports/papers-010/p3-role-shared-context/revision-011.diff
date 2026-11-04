@@ -1,0 +1,175 @@
+--- P3/before/draft.md
++++ P3/after/draft.md
+@@ -1,16 +1,16 @@
+-# Agent 不需要人格化名字，但需要按角色共享上下文
+-
+-**论文类型：**案例驱动的研究与立场工作稿；作者、单位及通讯信息待补。**状态：**人工智能（AI）辅助分析与写作，尚未人工复核。
++# Agent 命名与上下文组织的作用边界：案例研究与受控实验
++
++**论文类型：**案例研究与受控行为实验工作稿；作者、单位及通讯信息待补。**状态：**人工智能（AI）辅助分析与写作，尚未人工复核。
+ 
+ ## 中文摘要
+ 
+-自动交付与团队体验对 Agent 身份提出不同要求。本研究以 Agent Center 的冻结运行资料、命名偏好、身份配置、共享规则机制及一位开发者的回顾性自述为材料，区分显示名、稳定身份、角色、权限、持久记忆与本次上下文。007阶段对26961条消息进行词法筛查，后续目的性编码包含42个证据用途、41项不同源记录；本稿重新读取所用证据，分析尚未人工复核。案例显示，用户希望名称可读且可导航，同时要求底层保留稳定引用；同一角色称呼不自动赋予规则治理权；命名成员已经共享事实与规则，230条规则加载审计对应34条版本化规则，其中30条被至少两个Agent读取；加载不能解释为有效遵守。单人自述还表明团队领导和掌控体验具有独立产品意义。本文提出，自动交付不应以长期人格化名字为必要条件；共享上下文可围绕角色履责需要组织，并受项目、任务、权限、阶段和版本约束。该方案是待验证的设计立场，现有资料没有匿名对照，也没有检验角色共享相对于其它方案的净收益。
++Agent的名字、稳定身份与信息边界承担不同功能。本文结合Agent Center冻结运行资料、规则读取审计、一位开发者的回顾性自述与256次受控短题响应，检验显示标签及上下文选择的不同作用。实验保持稳定ID、职责和权限不变，交叉人名／不透明标签与个人、同生产者角色、全部获准及当前范围四种材料策略。两模型的直接解决均为12/32、8/32、32/32、32/32，分别等于构造材料的充分性上限；缺材料时正确请求上下文不算推理失败。名字对直接解决的配对差均为0，严格接口得分差则为+6.25和0个百分点，涉及格式及引用用途歧义，不能断言所有命名效果为零。全部与精确边界视图均全对，未检出后者的正确性优势。结果支持将信息到达、使用与团队体验分开，反对把同角色材料过滤等同于充分共享；按职责需求组织信息的净收益仍待真实任务验证。全部分析尚未人工复核。
+ 
+ **关键词：**Agent harness；角色上下文；身份分离；共享记忆；开发者体验
+ 
+ ## Abstract
+ 
+-Automated delivery and the experience of managing an agent team impose different requirements on identity. This case-grounded working paper examines frozen Agent Center records, naming preferences, identity configurations, shared-rule mechanisms, and one developer's retrospective account. It distinguishes display names, stable identifiers, roles, authorization, persistent memory, and the context supplied to a particular execution. The earlier identity study screened 26,961 messages and purposefully coded 42 evidence uses from 41 distinct source records. The evidence used here was reread, but the analysis has not undergone human review. The developer requested readable names while retaining stable machine references. Role labels did not themselves grant rule-governance authority, and named agents already shared facts and rules. The 230 stored rule-load audits cover 34 versioned rules, 30 of which were read by at least two agents; these records do not establish understanding or compliance. The developer's account also identifies team leadership and perceived control as distinct experiential values. We propose that automated delivery should not require a persistent personified name for every execution unit. Role-oriented context views may organize shared information, subject to project, task, authorization, phase, and version boundaries. This is a design position, not a validated performance improvement: the available data contain neither an anonymous-agent control nor a comparative evaluation of role-oriented sharing.
++Agent names, stable identifiers, and information boundaries serve different functions. This study combines frozen Agent Center records, rule-loading audits, one developer's retrospective account, and 256 controlled short-task responses. Holding stable IDs, responsibilities, and permissions fixed, the experiment crosses human names versus opaque labels with personal, same-producer-role, all-authorized, and current-scope context selection. For both models, direct resolution was 12/32, 8/32, 32/32, and 32/32, respectively, matching the information-sufficiency ceilings imposed by the fixtures. Correct requests for missing context are not reasoning failures. Name contrasts were zero for direct resolution, but strict interface contrasts were +6.25 and zero percentage points, involving formatting and citation-purpose ambiguity rather than evidence of universal naming equivalence. All-authorized and bounded views both achieved full scores, providing no accuracy advantage for bounded selection in these short tasks. The findings separate information availability, information use, and team experience, and challenge same-producer-role filtering as a sufficient sharing policy. The net benefit of responsibility-relevant retrieval remains untested in real delivery tasks. The analysis has not undergone human verification.
+ 
+ **Keywords:** agent harness; role-oriented context; identity separation; shared memory; developer experience
+ 
+@@ -50,7 +50,11 @@
+ 
+ **图1。**身份、授权与上下文结构。显示名用于指代，稳定身份关联审计，角色表述职责；正文加载仍受权限、阶段和版本限制。下部虚线为设计建议，不能与已观察的共享读取混为部署效果。
+ 
++信息是否可见还不同于模型是否能正确使用。Lost in the Middle在特定问答和检索设置中报告位置差异，也保留简单检索接近全对的模型结果。因此，材料覆盖与使用正确性需要分开测量；该研究既不检验本系统的角色共享，也不能确定本轮模型的内部原因。[5]<!--ref:R32--><!--anchor:section:2.3, 3.2-->
++
+ ## 3 材料与方法
++
++### 3.1 冻结部署资料与案例重建
+ 
+ 本研究复用身份专项的冻结提取物、配置映射、证据副本与固定源码。该专项对26,961条消息进行词法筛查，目的性编码最终形成42个证据用途、41项不同源记录。本文以具有明确用途的证据片段为分析单位：偏好用于解释交互需求，原生配置与加载行用于核实记录事实，参与者报告用于重建判断，源码用于说明指定版本的机制。完整筛查流程见[补充附录](evidence-details.md)。[M1](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/coverage.md)
+ 
+@@ -70,6 +74,14 @@
+ | Agent—版本化规则关联 | 129对 | 去重后的关联，不是129次有效遵守 |
+ | 开发者回顾性体验自述 | 1人 | 未收集匿名对照、量表或命名效果估计 |
+ 
++### 3.2 名字与上下文选择的交叉实验
++
++另构造八种候选处置情境，包含跨角色检查、旧版结果、合同变化、授权缺失和只读执行者。交叉两种显示标签与四种材料选择策略：人名Nora/Luca或不带角色含义的Q104/Q207；按holder选择的个人历史、按producer_role选择的同角色材料、全部可授权材料、以及按当前项目—候选—合同—版本精确过滤的bounded视图。稳定ID、职责与实际权限保持不变。这里的role-only特指按材料生产者角色过滤，并不代表所有按职责相关性组织共享的方案；bounded未使用角色分类。
++
++每模型8情境×8条件×2记录顺序版本共128次，两模型合计256次。调用使用与其它篇相同的隔离CLI、固定Sonnet/Haiku 5.5和low effort，输入及评分事前哈希冻结。先计算当前事实覆盖和是否足以作出判定，再评分处置、候选、合同和证据引用。已知检查失败可直接拒绝，审批缺失与审批未知分别请求授权或上下文；不能把正确请求缺失材料算成推理错误。“直接解决”要求可用材料充分且处置符合规范，不等同真实产品交付。
++
++四策略有意改变进入输入的内容，效果须与覆盖和记录数一起解释，不能归因于名字或纯角色词。名字对照仅检验一组显示字符串在稳定ID存在时的作用，不测人格提示、称呼消歧或开发者体验。另构造四对同角色视图相同而跨角色检查结果不同的状态，作为信息不足的形式反例，独立于模型调用数。全量资料见[实验附录](controlled-experiments.md)，分析尚未人工复核。
++
+ ## 4 研究发现
+ 
+ ### 4.1 可读名称与稳定身份服务于不同需求
+@@ -168,15 +180,36 @@
+ 
+ 因此，角色标签适合作为待检验的上下文筛选维度，不能直接充当共享收益的来源。共同事实、任务阶段与权限仍需同时参与组织信息。
+ 
++### 4.8 名字未改变直接处置，信息分区决定了哪些情境可以判定
++
++两模型均完成128次主响应。四策略能够直接形成处置的比例首先由材料覆盖决定：个人历史3/8情境、同生产者角色2/8、全部与精确边界视图均8/8。两模型的直接解决分别为12/32、8/32、32/32、32/32，恰好达到各策略的充分信息上限（表7）。这说明此次差异主要落在信息是否到达；不能把按规则挡在输入之外的事实算成模型没有理解。个人策略有一题只凭当前失败即可拒绝，所以充分判定3/8不同于两项事实齐全2/8。
++
++**表7。材料覆盖、严格接口与直接处置分别计量**
++
++| 选择策略 | 两项事实齐全／情境 | 足以处置／情境 | Sonnet严格／直接（各32次） | Haiku严格／直接（各32次） |
++|---|---:|---:|---:|---:|
++| 个人holder | 2/8 | 3/8 | 27／12 | 32／12 |
++| 同producer_role | 2/8 | 2/8 | 25／8 | 30／8 |
++| 全部获准记录 | 8/8 | 8/8 | 32／32 | 32／32 |
++| 当前范围bounded | 8/8 | 8/8 | 32／32 | 32／32 |
++
++proper减opaque的直接解决差，两模型均为0（每模型64对）。严格得分差则分别为+6.25和0个百分点，不能写成所有命名效果均为零。全部14次严格不匹配中，八次Sonnet输出带JSON前解释；其余六次的处置、候选和合同都正确，仅证据列表包含用来解释排除的note或旧记录。回答明确说明这些材料不能证明当前通过，故不能把列表不符解释为使用旧PASS放行。评分要求只列当前检查／授权证据，而“IDs used”的提示允许对排除理由有另一种理解，需保留这一接口歧义。
++
++事后抽取格式失败中的唯一JSON后，两模型的核心处置字段均128/128；此诊断不改写严格得分116/128与126/128，也不把引文不符说成已通过原规则。没有观察到可解析输出在证据不足时直接接受候选。全部与bounded分别提供7条与3条记录，但两模型都32/32严格符合；该短题未检出精确过滤相对全部材料的正确性优势，亦未测真实检索召回和维护成本。
++
++![图5：信息覆盖与模型处置分解](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/papers-010/p3-role-shared-context/figures/p3-fig5-controlled-context.png)
++
++**图5。**左上是由选择规则决定的当前事实覆盖与充分性，右上分别显示严格符合和直接解决；下部为显示名与策略的配对差。策略差有意包含材料差，名字对照保持稳定ID、角色、权限和记录不变。role-only仅按材料生产者角色过滤，bounded未使用角色分类；蓝色的直接解决包含合格拒绝、授权请求和向有权者返回结果，不是产品交付率。
++
+ ## 5 机制分析与设计启示
+ 
+ ### 5.1 用职责组织共享视图，保留独立的身份与授权
+ 
+ 名称、稳定身份、职责和权限分别回答如何辨认、记录归谁、当前做什么及允许访问什么。配置中的多身份同角色与同身份多角色，以及跨角色规则共享，说明信息组织不宜固定为“一名Agent拥有一个不可复用的知识容器”。本文建议将角色用作共同知识之上的职责视图，而不是永久知识所有者。[M3](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json)
+ 
+-表7给出待验证的信息分层。项目事实可以跨角色复用，任务增量关联具体目标和合同，职责视图选择当前所需材料，私有执行记录保留敏感信息与独立尝试。该方案允许执行单元替换或角色变化时重新选择信息，而不必重新建立全部事实。
+-
+-| 表7：建议共享层 | 放入的材料 | 必须携带的边界 | 证据状态 |
++表8给出待验证的信息分层。项目事实可以跨角色复用，任务增量关联具体目标和合同，职责视图选择当前所需材料，私有执行记录保留敏感信息与独立尝试。该方案允许执行单元替换或角色变化时重新选择信息，而不必重新建立全部事实。
++
++| 表8：建议共享层 | 放入的材料 | 必须携带的边界 | 证据状态 |
+ |---|---|---|---|
+ | 项目事实 | 当前接口、可核验约束、已确认决定 | 项目、来源、有效版本 | 建议，未消融验证 |
+ | 角色视图 | 本次职责所需规则与检查清单 | 角色、阶段、读取权限 | 建议，未消融验证 |
+@@ -195,23 +228,54 @@
+ 
+ 共享内容也会传播错误解释。Rule Registry的集成报告纠正了上游候选串行继承的说法，指出它们实际为兄弟分支。多次转述增加可见性，并不增加独立证据；职责视图因此需要区分参与者报告与已核事实。[N05-E06](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E06.json)
+ 
+-后续评价可保留相同显示名，固定任务、模型、工具和权限，比较个人历史、任务事实与角色视图的组织方式，测量事实到达、过期信息引用、权限拒绝与交付正确性。如果角色分类增加维护工作，却没有减少信息缺失，就应缩小或放弃这一层；若任务视图已足够，也不必强加角色目录。
++本轮比较已测量有限短题中的事实覆盖、选择与引用；后续还须在真实任务中固定工具和权限，比较按履责需要的视图、个人历史与任务事实，测量检索召回、权限边界及交付正确性。如果角色分类增加维护工作，却没有减少信息缺失，就应缩小或放弃这一层；若任务视图已足够，也不必强加角色目录。
+ 
+ 名称和团队体验则需要单独的用户研究。可读名称可以作为呈现选项，执行机制仍使用可替换、可追责的工作单元。现有自述支持保留这一选择的动机，尚不能说明其对其它开发者的吸引力或自动交付效果。[N06-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N06-E01.json)
+ 
++### 5.4 名字、记忆所有权与信息充分性是不同机制
++
++名称是一种指代方式，持久身份是记录关联键，个人记忆则是一种材料分区。只有当系统把名称或身份进一步作为唯一检索边界时，命名与信息隔离才在实现上耦合；改变显示字符串本身不会移动材料、更新权限或合并context。历史命名成员已经共享规则，是“有名字必然妨碍共享”的反证；本轮名字条件又保持stable ID与材料完全相同，专门检验显示标签这一较窄因素。
++
++检索的核心条件可以写为：本次可见且获准的信息，应覆盖作出处置所需的事实，而非覆盖同名或同角色成员的全部历史。设K(s)为某决策需要的事实，R(s)为选入的获准记录；只有在R包含一组足以区分合法处置的证据时，模型才可能直接决策。四对构造保持同角色视图完全相同，仅改变被过滤的跨角色检查结果，正确处置随之从接受变为拒绝。这证明该过滤规则不能保证信息充分；它不是模型推理失败，也不说明所有职责视图都无效。
++
++按生产者角色过滤与按消费者履责需要选取材料尤其应分开。开发者可能需要测试者的失败记录，测试者可能需要发布负责人的授权，协调者可能需要跨角色的剩余义务。角色可以帮助描述信息需求，却不能预先决定所有权。bounded对照只按项目、候选、合同和版本过滤，未使用角色；若这种方案已充分，则不能将它的效果记在“角色共享”的名下。
++
++### 5.5 事实到达、正确使用与体验收益分属不同结果链
++
++信息选入仍不等于正确使用。候选、合同、版本、权限和证据来源可能在回答中错配；因此实验分别报告材料充分性、处置字段和证据引用，并将正确请求补充视为边界保护。直接处置率较低时，应先确定是缺材料、模型误用还是格式不合规，才能决定增加共享、改善联结或调整接口。全部广播虽可能提高召回，却同时带入旧版记录；精确过滤依赖可靠元数据，当前完美元数据条件不能证明真实检索器的净收益。
++
++开发者体验则沿另一条链发生：可读成员、可见分工与指令反馈可能共同增强团队领导和掌控感。现有一人回顾性自述不能拆开这些因素，也不能由模型匿名对照替代。产品可以保留可选名称，同时使执行单元可替换、信息可追溯；要估计名称的独立体验作用，还需固定界面、响应质量和权限，开展开发者交叉使用比较。本文不把“上瘾”的日常表达诊断为临床成瘾，也不将沉浸感计作自动交付改善。
++
++### 5.6 哪些解释获得了支持，哪些仍未验证
++
++**表9。名字与上下文的竞争机制**
++
++| 解释 | 当前证据 | 可否外推 |
++|---|---|---|
++| 显示名直接妨碍自动处置 | 两模型直接解决的名字配对差均0；严格分数不全相同 | 仅一组标签与稳定ID，不能证明全部名字无用 |
++| 个人持有边界阻断必要事实 | 构造中充分性3/8，直接解决与上限一致 | 选择规则的结果，不是生产失败频率 |
++| 同角色就足够共享 | producer_role策略充分性2/8；存在跨角色必要证据 | 否定该窄过滤规则，不否定履责相关视图 |
++| 更多无关材料导致误用 | all与bounded均32/32；当前短题未见优势 | 长上下文、错误元数据与召回成本未测 |
++| 角色标签赋予权限 | 只读情境正确返回结果；历史治理拒绝提供反证 | 实际授权仍须独立来源，不由称呼决定 |
++| 名称产生团队掌控感 | 一人自述支持整体体验，无法分离名字贡献 | 需要真实开发者交叉使用实验 |
++
+ ## 6 局限
+ 
+ 这是单系统、目的性取样的回顾性研究。词法检索、邻接窗口和检索后收紧的故障排除会影响案例构成，证据用途与配对观测也不是独立任务样本。配置只代表冻结时点，固定源码不等于每次历史执行的实际输入。全部分析尚未人工复核。[M1](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/coverage.md)
+ 
+-治理与历史验收部分依赖参与者报告，没有重跑完整交付流程。加载审计不能证明理解或遵守；数据中的名称多为项目或角色标签，不构成人格化人名与匿名执行器的严格比较。现有材料既未估计命名效果，也未确定角色共享优于任务共享。[S](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md)
+-
+-体验材料只有一位开发者，不能推断普遍吸引力或临床成瘾。外部persona与命名研究涉及不同任务，只提供概念对照。[1]<!--ref:R15--><!--anchor:section:4-->[2]<!--ref:R17--><!--anchor:section:3.1.2, 3.2.2--> 表7还同时涉及分层、版本和权限过滤，未来比较需要分开控制这些因素，避免将整体变化归于“角色”一词。
++治理与历史验收部分依赖参与者报告，没有重跑完整交付流程。加载审计不能证明理解或遵守；数据中的名称多为项目或角色标签，不构成人格化人名与匿名执行器的严格比较。历史材料本身未估计命名效果；新增字符串对照仍未确定所有命名方式的作用，也未证明角色共享优于任务共享。[S](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md)
++
++体验材料只有一位开发者，不能推断普遍吸引力或临床成瘾。外部persona与命名研究涉及不同任务，只提供概念对照。[1]<!--ref:R15--><!--anchor:section:4-->[2]<!--ref:R17--><!--anchor:section:3.1.2, 3.2.2--> 表8还同时涉及分层、版本和权限过滤，未来比较需要分开控制这些因素，避免将整体变化归于“角色”一词。
++
++新增实验是八个固定英语短情境的交叉呈现，不是128个独立任务，也没有多次随机重复。两个顺序版本只反转记录/块顺序，冻结协议概述中的“标识映射”未实现，偏差保留在实施记录。两固定模型不代表模型总体；CLI报告的模型标识可查，平台不可见输入仍未完全审计。两组共享明确的处置规范，部分目标直接提示动作，存在较强提示与天花板边界；没有把格式错误当作内部认知或责任错误。
++
++名字对照只有Nora/Luca与Q104/Q207一组字符串，并始终提供稳定ID；未检验长期人格设定、同名消歧、跨会话记忆或交互界面。检索策略有意改变事实覆盖，不能把覆盖差称为模型认知差。role-only按生产者角色过滤，bounded不使用角色；没有比较完整的职责相关检索器。全部/精确过滤均依赖正确元数据，未模拟错误标注、检索漏召回、隐私泄漏或长上下文压力。直接解决指标包含合格拒绝和授权请求，不是交付成功率。开发者体验仍只有原来的一人自述，没有新增用户对照。
+ 
+ ## 7 结论
+ 
+-本案例中的名称承担可读交互与团队呈现功能，稳定身份承担引用与归属，角色和权限分别约束职责与访问。命名成员已经共享事实和规则，跨角色重合也广泛存在，而同角色优势对分层口径敏感。上下文组织问题因此不能通过简单删名解决。
+-
+-本文主张，自动交付不应依赖每个执行单元的长期人格化名字；共同事实可按职责、任务、阶段与版本形成受权限约束的上下文视图。该立场保留了名称的体验价值，也为执行替换与信息连续性提供设计方向。角色视图是否减少信息缺失并改善交付，仍须通过对照检验。
++名称、稳定身份、权限和信息组织承担不同功能。此次显示标签对照未改变直接处置；按个人或材料生产者角色筛选，则因遗漏跨角色事实减少可直接判定的情境。两模型在信息充分时均能按给定规则处置，全部与精确边界视图也没有表现出正确性差异。
++
++因此，删除名字不是共享机制，按生产者角色分区也不是充分方案。更具体的设计目标是让获授权执行者取得当前目标所需的、可追溯的事实；角色可参与需求描述，其价值仍须同任务视图比较。可读名称与团队掌控体验可以作为独立产品选择，尚不能由一人自述或模型对照估计普遍收益。
+ <!-- BODY_END -->
+ 
+ ## 参考文献
+@@ -224,9 +288,11 @@
+ 
+ [4] S. Shekkizhar et al., “Why Do Agent Teams Fail Across Boundaries? A Failure Taxonomy for Agent-to-Agent Systems with Private States,” arXiv:2610.19342v2, 2026. DOI: [10.48550/arXiv.2610.19342](https://doi.org/10.48550/arXiv.2610.19342). [核定版本](https://arxiv.org/abs/2610.19342v2).
+ 
++[5] N. F. Liu et al., “Lost in the Middle: How Language Models Use Long Contexts,” *Transactions of the Association for Computational Linguistics*, vol. 12, pp. 157–173, 2024. DOI: [10.1162/tacl_a_00638](https://doi.org/10.1162/tacl_a_00638). [出版记录](https://aclanthology.org/2024.tacl-1.9/).
++
+ ## 研究声明
+ 
+-**数据可用性。**证据副本、原始记录指针及固定源码保存在私有研究目录，附录提供本机绝对路径，外部读者无法直接访问。公开数据与脱敏许可待作者确认，不声称数据已公开。
++**数据可用性。**证据副本、原始记录指针及固定源码保存在私有研究目录，附录提供本机绝对路径，外部读者无法直接访问。公开数据与脱敏许可待作者确认，不声称数据已公开。 本轮合成输入、全部模型响应、评分、反馈与图源另存于[实验附录](controlled-experiments.md)，逐次结果见[实验底表](experiment-results.csv)，修改前稿和可回放差分见[修订记录](REVISION-011.md)。
+ 
+ **伦理与隐私。**资料包含开发对话、稳定身份和配置关系。伦理审查状态、授权范围与公开脱敏方案待补。本文仅呈现论证所需片段，没有新增用户实验。
+ 
+@@ -236,7 +302,7 @@
+ 
+ **资助。** 本研究未获得资助。
+ 
+-**AI使用。**001—009原研究为单AI探索；010本轮有分工AI补查、引用核验、写作及审阅。原研究与本轮分析均尚未人工复核；AI评阅不等于独立人工复核或跨模型复现。精确模型版本及参数未完整记录。最终作者须核对事实、引文、数据权限及结论。
++**AI使用。**001—009原研究及010写作阶段的AI参与记录保留；本轮011由同一AI完成实验实现、分析、写作和有界自查，未新增独立评阅。实验调用固定claude-sonnet-5-5和claude-haiku-5-5、low effort，版本标识与原始响应保存；历史部署模型和参数未知处仍不补造。模型输出不作为内部推理或训练来源真值。原研究与本轮分析均尚未人工复核；未重跑历史产品验收。
+ 
+ **同源数据及跨篇重合。**本文与同组P1、P2、P4共享Agent Center与run-001材料；角色检查、规则治理及部分代码谱系片段存在重合。本文主分析为007 N01—N06，不将其它篇章或同一源记录的重复引用计作独立复现。外部文献只用于比较，不声称其影响了时间更早的系统设计。
+ 

@@ -1,0 +1,10 @@
+--- P2/before/draft.md
++++ P2/after/draft.md
+@@ -1,4 +1,6 @@
+-# 多 Agent 工作流中的责任映射与流程复杂度：案例研究与受控实验
++# 多智能体工作流中的协调失效与责任分配
++
++*Coordination Failures and Responsibility Allocation in Multi-Agent Workflows*
+ 
+ ## 中文摘要
+ 

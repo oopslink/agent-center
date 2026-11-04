@@ -259,5 +259,72 @@
     "source_provenance": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/source-provenance.json",
     "summary_sha256": "bb932cf9dd46e2047c5c01ade2fcd7d5079e636668d39837fcfd31d1f1551c97",
     "record": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/self-review.md"
+  },
+  "findings_led_prose_revision": {
+    "revision": "007-findings-led-prose",
+    "utc": "2026-11-03T09:51:08.275226+00:00",
+    "scope": "Read existing manuscript bodies and preserved analytical results; reorganized prose and source pointers. No new raw-data query, full-source reread, or citation/retraction re-verification.",
+    "base_sha256": "3088cc7e5e051e4ff0bb9ffa25ec4ec6f6b81d10fde5d49a55ca6ffecaa2ae2a",
+    "final_sha256": "c67ca8e6c0b9a0ca1a0bb4d6906e1e1ced2c452d9afd4e9b7947987f7810d9d7",
+    "review": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/007-findings-led-prose/claim-review.md",
+    "independent_review": false,
+    "human_review": "not_completed",
+    "targeted_source_rereads": []
+  },
+  "title_revision_008": {
+    "utc": "2026-11-03T11:41:54.523967+00:00",
+    "base_sha256": "c67ca8e6c0b9a0ca1a0bb4d6906e1e1ced2c452d9afd4e9b7947987f7810d9d7",
+    "final_sha256": "47df19375b5e56db9865d86ca2c950fb5503d663f8402a6ea3ce90e60066ac08",
+    "scope": "Title and existing abstract/introduction inspected for alignment; no source-data or literature rereview.",
+    "record": "revisions/008-p1-academic-title/README.md"
+  },
+  "mechanism_revision_009": {
+    "utc": "2026-11-03T11:52:10.225491+00:00",
+    "base_sha256": "47df19375b5e56db9865d86ca2c950fb5503d663f8402a6ea3ce90e60066ac08",
+    "final_sha256": "52585a418f4e696429f762c41eb2d7e6536cc327e662916707a76f12cfd130e5",
+    "source_provenance": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/source-provenance.json",
+    "literature_reading": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/literature/citation-checks.json",
+    "source_scope": "Targeted historical prompt, dispatch and recovery-description diffs and listed source passages; not every line of archived code.",
+    "reread_evidence": [
+      "A01",
+      "A04a",
+      "A04c",
+      "A04d",
+      "A14"
+    ],
+    "no_new_model_experiment": true,
+    "independent_review": false,
+    "human_review": "not_completed"
+  },
+  "controlled_experiment_revision_010": {
+    "utc": "2026-11-03T13:05:42.027205+00:00",
+    "base_sha256": "52585a418f4e696429f762c41eb2d7e6536cc327e662916707a76f12cfd130e5",
+    "final_sha256": "431f08b4ecfe22508b926ee0cbbef1174c3caad5a2b59cd8e3de15ca490970a8",
+    "source_provenance": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/010-p1-controlled-experiments/experiment-provenance.json",
+    "scope": "All 544 primary outputs structurally scored; semantic reading of all 32 probes, all 3 nonprogress responses, 16 rule-selected positives and all 3 continuations. No claim of semantic rereading all historical messages or all 512 action explanations.",
+    "experiment_total_calls": 547,
+    "excluded_connectivity": 2,
+    "independent_review": false,
+    "human_review": "not_completed"
+  },
+  "title_revision_012": {
+    "utc": "2026-11-03T13:44:45.132017+00:00",
+    "base_sha256": "431f08b4ecfe22508b926ee0cbbef1174c3caad5a2b59cd8e3de15ca490970a8",
+    "final_sha256": "bf919679adcaf04157f1d7f21f696d68853a32105cd42b13d526228e90049baa",
+    "scope": "Current title, abstract and introduction inspected for title alignment; no evidence or reference rereview.",
+    "abstracts_regenerated": false,
+    "record": "revisions/012-academic-titles/README.md"
+  },
+  "author_metadata_revision_013": {
+    "utc": "2026-11-03T13:46:31.735229+00:00",
+    "base_sha256": "bf919679adcaf04157f1d7f21f696d68853a32105cd42b13d526228e90049baa",
+    "final_sha256": "c41f80af86e101ed813bf7b86148725cf9de0b33fc75f836d92c2a13759fd55a",
+    "author": {
+      "name": "oopslink",
+      "url": "https://github.com/oopslink"
+    },
+    "scope": "Author metadata and stale placeholders only; no new research or source review.",
+    "abstracts_regenerated": false,
+    "record": "revisions/013-author-metadata/README.md"
   }
 }

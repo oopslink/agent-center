@@ -246,5 +246,49 @@
     "source_provenance": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/source-provenance.json",
     "summary_sha256": "bb932cf9dd46e2047c5c01ade2fcd7d5079e636668d39837fcfd31d1f1551c97",
     "record": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/self-review.md"
+  },
+  "findings_led_prose_revision": {
+    "revision": "007-findings-led-prose",
+    "utc": "2026-11-03T09:51:08.275226+00:00",
+    "scope": "Read existing manuscript bodies and preserved analytical results; reorganized prose and source pointers. No new raw-data query, full-source reread, or citation/retraction re-verification.",
+    "base_sha256": "835f182b0f9d72a505cf988ea486421be997022632f90be00da9660f66e6ecdb",
+    "final_sha256": "03c200a063a0fa482bcc5821cd734ece9bc5483f82dca770e64f3f8307c68bda",
+    "review": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/007-findings-led-prose/claim-review.md",
+    "independent_review": false,
+    "human_review": "not_completed",
+    "targeted_source_rereads": [
+      "N01-E04",
+      "N01-E05",
+      "N01-E06"
+    ]
+  },
+  "revision_011": {
+    "utc": "2026-11-03T13:40:26.010682+00:00",
+    "base_sha256": "03c200a063a0fa482bcc5821cd734ece9bc5483f82dca770e64f3f8307c68bda",
+    "final_sha256": "d35d7e97dcb5eb82efd105aa7b61859256be733acdf8054d3b16595e9e9c409a",
+    "targeted_historical_read": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/011-p234-controlled-mechanisms/targeted-reads.json",
+    "scope": "All 768 primary responses mechanically scored; all strict negatives, all 24 feedback, 43 primary rule-selected positives and 8 repair positives semantically inspected. Additional R32 abstract/methods/sections2.3/3.2 read. No claim of full historical reread.",
+    "human_review": "not_completed",
+    "independent_review": false
+  },
+  "title_revision_012": {
+    "utc": "2026-11-03T13:44:45.132017+00:00",
+    "base_sha256": "d35d7e97dcb5eb82efd105aa7b61859256be733acdf8054d3b16595e9e9c409a",
+    "final_sha256": "f0c69fb4a0938d2588cf39994279f4e1bbe469616394b292d2f78a77612acdf7",
+    "scope": "Current title, abstract and introduction inspected for title alignment; no evidence or reference rereview.",
+    "abstracts_regenerated": false,
+    "record": "revisions/012-academic-titles/README.md"
+  },
+  "author_metadata_revision_013": {
+    "utc": "2026-11-03T13:46:31.735229+00:00",
+    "base_sha256": "f0c69fb4a0938d2588cf39994279f4e1bbe469616394b292d2f78a77612acdf7",
+    "final_sha256": "16539601fc2add9239cc30c3b7429f63426fdfe725c6de489c273d7b315ec618",
+    "author": {
+      "name": "oopslink",
+      "url": "https://github.com/oopslink"
+    },
+    "scope": "Author metadata and stale placeholders only; no new research or source review.",
+    "abstracts_regenerated": false,
+    "record": "revisions/013-author-metadata/README.md"
   }
 }

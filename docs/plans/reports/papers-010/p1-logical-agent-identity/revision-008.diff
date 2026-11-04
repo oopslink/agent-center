@@ -1,0 +1,10 @@
+--- P1-before-008.md
++++ P1-after-008.md
+@@ -1,4 +1,6 @@
+-# 一个逻辑 Agent，两类执行体：Supervisor/executor 的身份混淆风险
++# Supervisor–Executor 架构中的责任归属问题：基于 Agent Center 的案例研究
++
++*Responsibility Attribution in Supervisor–Executor Architectures: A Case Study of Agent Center*
+ 
+ ## 中文摘要
+ 

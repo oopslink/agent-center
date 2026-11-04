@@ -1,15 +1,19 @@
 # Agent Center四篇论文工作稿（010）
 
-2026-11-02。按作者改定的四个问题，**已完成四篇完整论文工作稿，并补入可复算数据、图表与结构图；研究仍为AI探索，尚未人工复核。** 每篇包含中英文摘要、相关研究、方法、案例、讨论、局限、参考文献和证据附录。已完成扩展分析与制图修订006；正文计数与图表／图注分别保存。
+**作者：** oopslink
+
+**作者主页：** [https://github.com/oopslink](https://github.com/oopslink)
+
+2026-11-02。按作者改定的四个问题，**已完成四篇完整论文工作稿，并补入可复算数据、图表与结构图；研究仍为AI探索，尚未人工复核。** 每篇包含中英文摘要、相关研究、方法、案例、讨论、局限、参考文献和证据附录。已完成007正文重组、P1实验010与P2–P4机制实验011；正文计数与图表／图注分别保存。
 
 ## 论文与各自要回答的问题
 
 | 论文 | 研究问题 | 论证边界 |
 |---|---|---|
-| [P1 一个逻辑Agent，两类执行体：Supervisor/executor的身份混淆风险](papers-010/p1-logical-agent-identity/paper.md) | 为何为并发与按任务选模型引入逻辑Agent封装，这一方案又怎样带来身份和行动责任误解？ | 认为现有封装不适合作为本部署默认解法是工程评价；“身份”指行动者与责任归属，架构净因果效果未估计 |
-| [P2 复杂工作流中的责任悬空：Agent团队为何会反复协调而停止推进](papers-010/p2-workflow-responsibility/paper.md) | 为什么清楚的前置条件仍被交回用户决定，角色口号为何不能确定下一动作？ | 不把正常守门、等待授权、不同范围的验收叫扯皮；不声称模型有推诿动机或已测得停摆率 |
-| [P3 Agent不需要人格化名字，但需要按角色共享上下文](papers-010/p3-role-shared-context/paper.md) | 哪些需求需要标签、哪些需要稳定身份和职责相关知识，团队体验与自动交付如何分开？ | 无需人格化不等于删除可读名字；角色共享是设计立场，尚无效果对照 |
-| [P4 DAG evolution的实际价值：改图、修复与成果继承](papers-010/p4-dag-evolution/paper.md) | 改图什么时候表达了真实新工作，代码、产物与验收变化各自起什么作用？ | 不以代数、任务数或后继PASS衡量收益；不把未知根因的重复改图计为设计失效 |
+| [P1 Supervisor–Executor 架构中的身份抽象与责任归属](papers-010/p1-logical-agent-identity/paper.md) | 统一归属如何转为行动责任；抽象、架构、上下文与训练模式分别可能起什么作用？ | 干净合成条件未检出身份表示效应；训练原因和真实交付效果尚未识别 |
+| [P2 多智能体工作流中的协调失效与责任分配](papers-010/p2-workflow-responsibility/paper.md) | 为什么清楚的前置条件仍被交回用户决定，角色口号为何不能确定下一动作？ | 不把正常守门、等待授权、不同范围的验收叫扯皮；不声称模型有推诿动机或已测得停摆率 |
+| [P3 多智能体系统中的命名、角色与上下文共享](papers-010/p3-role-shared-context/paper.md) | 哪些需求需要标签、哪些需要稳定身份和职责相关知识，团队体验与自动交付如何分开？ | 名字直接处置差为0；按生产者角色过滤会漏跨角色事实，完整职责视图的净收益仍未验证 |
+| [P4 智能体任务图演化中的产物继承与验收语义](papers-010/p4-dag-evolution/paper.md) | 改图什么时候表达了真实新工作，代码、产物与验收变化各自起什么作用？ | 不以代数、任务数或后继PASS衡量收益；不把未知根因的重复改图计为设计失效 |
 
 四篇共用同一个部署、同一冻结快照及部分案例。P1分析同一逻辑Agent内部的身份/行动责任；P2分析跨角色与任务的推进责任；P3分析身份与知识组织；P4分析恢复与产物。复用证据会明确标注，不当作四次独立验证。
 
@@ -17,7 +21,26 @@
 
 ## 010补查如何改变写作基础
 
-**最新扩展分析与图形重组（006）。** 四篇现有16图、24表；本轮新增5图、6表，重绘全部图形。七幅机制／时序图保留证据关系并压缩版式，九幅统计图覆盖完整矩阵、配对分布和多面板分析。[全部图册](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/gallery.md) · [16页矢量校样](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/figure-proof.pdf) · [方法、结果与底表](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/README.md)。
+**最新作者信息修订（013）。** 四篇统一署名oopslink，作者主页为[https://github.com/oopslink](https://github.com/oopslink)；移除过期的作者占位说明，保留未声明的CRediT分工状态。研究正文、中英文摘要、数据及图表不变。[修改与检查](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/013-author-metadata/README.md)。
+
+
+**此前题名修订（012）。** 四篇题名改为具体研究对象与分析问题，去掉重复的长方法副标题，并统一中英文题名。正文、摘要、数据、图表和引用逐字节保留。[题名对照、依据与检查](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/012-academic-titles/README.md)。
+
+
+**此前机制实验修订（011）。** P2–P4各256次主调用，另24次事前字段反馈和128次事后材料修复，共920请求、921传输尝试。原125次评分不匹配中106次落在四个有缺陷的情境，13次为格式，6次为引用用途歧义；缺陷情境全部条件排除负面归因，原评分不改写。修复后128/128。P3两模型个人／同生产者角色／全部／当前范围视图的直接处置均12/32、8/32、32/32、32/32；名字直接差均0，但严格分数并非都相同。P2/P4有效短题没有提供语义负效应证据；未执行真实长期协作、用户体验或静态／动态策略对照。新增三图六表，四篇合计20图34表。全部尚未人工复核。
+
+[三篇修订全过程](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/011-p234-controlled-mechanisms/README.md) · [完整实验报告](/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/report.md) · [原评分与材料审计](/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/analysis/validity-audit.json)。
+
+
+**此前实验修订（010）。** P1完成512次动作选择＋32次默认诊断。干净条件两模型均64/64，统一身份与组件表述的配对差为0；全部条件Sonnet256/256、Haiku253/256。三个额外start均在旧历史下，并在另行标记的事后续步中启动，未观察到停摆。32诊断均未指定主体，训练冲突未获因果支持。新增三面板图与结果表，四篇合计17图28表。[P1修改记录](papers-010/p1-logical-agent-identity/REVISION-010.md) · [实验报告](papers-010/p1-logical-agent-identity/controlled-experiments.md)。
+
+**此前机制修订（009）。** P1补查三次历史源码变更，比较六项竞争解释并新增三表；四篇当前合计16图、27张主文表。I04存在接口说明缺陷的混杂风险，停摆不用于架构负效应。训练所得行为模式与外部结构冲突保留为假说；16条件对照尚未执行。中英文摘要局部同步，无新增模型效果量。[P1修改记录](papers-010/p1-logical-agent-identity/REVISION-009.md)。
+
+**题名修订（008）。** P1改为《Supervisor–Executor 架构中的责任归属问题：基于 Agent Center 的案例研究》，并补入对应英文题名；正文、摘要、图表、数据与引文保留。[修订说明与差分](papers-010/p1-logical-agent-identity/REVISION-008.md)。
+
+**正文修订（007）。** 四篇按“研究发现—机制分析—设计启示”组织正文，逐秒时序、原生标识、查询明细与历史摘要纠错集中到各篇补充附录。16幅图、24张主文表及其数据保留；P2图4仅澄清配对分母表述。中英文摘要未重新生成，相关研究、参考文献及声明保留。[逐篇修改与明细入口](papers-010/revision-007.md)。本轮为同一AI定向修订与自查，未新增独立评阅或人工复核，旧审阅不自动覆盖当前文字。
+
+**此前扩展分析与图形重组（006）。** 四篇现有16图、24表；本轮新增5图、6表，重绘全部图形。七幅机制／时序图保留证据关系并压缩版式，九幅统计图覆盖完整矩阵、配对分布和多面板分析。[全部图册](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/gallery.md) · [16页矢量校样](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/figure-proof.pdf) · [方法、结果与底表](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/README.md)。
 
 新增证据包括：597条迁移动作剥离后，非迁移记录覆盖927/2221个Task；195个快照的seq依赖均无环，26Plan负责人中位数保持6.5而深度由3到6；230条规则审计对应67个context，28/34规则跨角色配置共享；169父子转移中160次改状态、16次改负责人，3次拓扑未变仍有状态改动。统计单位和反证都保留，不能解释为无bug样本或架构因果效果；仍未人工复核。
 
@@ -59,7 +82,7 @@ W02旧选编11条，完整区间实际22条，新增5条用户消息；同一纠
 
 作者选择引用存在性和撤稿政策均严格处理。本轮从既有30条文献中定向核验14条，13条允许引用，保留精确身份、版本、正文节定位和核验范围。R16的出版记录指向伦理批准/知情同意勘误，勘误全文未核实，暂不采用其研究结论；不把勘误误称撤稿。[核验范围与排除](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_literature/README.md)
 
-正文采用简体中文和中英文摘要、IEEE引用及Markdown工作稿。作者已声明无资助，四篇写明“本研究未获得资助”。作者单位、CRediT、利益冲突及机构伦理状态仍等待作者声明；没有指定投稿会议或取得人工审阅，不声称已可投稿。AI写作/审阅不能替代人工复核或历史产品验收重跑。
+正文采用简体中文和中英文摘要、IEEE引用及Markdown工作稿。作者已声明无资助，四篇写明“本研究未获得资助”。作者署名及主页已明确；机构、CRediT、利益冲突及伦理状态仍等待作者声明；没有指定投稿会议或取得人工审阅，不声称已可投稿。AI写作/审阅不能替代人工复核或历史产品验收重跑。
 
 四篇初稿及003版分别经过独立于起草调用的AI审阅，历史版本未留下未解决的Critical/Major问题；P3英文摘要将复数Users改为The developer，P1/P3的编辑差分另行核对。这里的“独立”仅指调用与输入隔离，不代表独立人类判断、不同模型或实验复现。[最终审阅处置与正文哈希](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase6_review/final-disposition.json)
 
@@ -77,4 +100,4 @@ W02旧选编11条，完整区间实际22条，新增5条用户消息；同一纠
 - [原三篇方案（历史版本）](agent-harness-paper-proposal-010.md)
 - [当前失败复盘](agent-harness-failure-review.md) · [009综合](agent-harness-synthesis-009.md)
 
-本轮仅研究与写作；未修改产品、生产数据或Git引用，未启动付费模型消融，未提交Git。完整私有库与对话不是公开数据包，论文写作不代表对外发布原始材料。
+本轮仅研究与写作；011完成920次模型请求，另保留010的P1实验；未修改产品、生产数据或Git引用，未提交Git。完整私有库与对话不是公开数据包，论文写作不代表对外发布原始材料。

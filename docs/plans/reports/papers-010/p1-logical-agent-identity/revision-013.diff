@@ -1,0 +1,22 @@
+--- P1/before/draft.md
++++ P1/after/draft.md
+@@ -1,6 +1,10 @@
+ # Supervisor–Executor 架构中的身份抽象与责任归属
+ 
+ *Identity Abstraction and Responsibility Attribution in Supervisor–Executor Architectures*
++
++**作者：** oopslink
++
++**作者主页：** [https://github.com/oopslink](https://github.com/oopslink)
+ 
+ ## 中文摘要
+ 
+@@ -360,7 +364,7 @@
+ 
+ **伦理与隐私。** 材料包含用户和 Agent 协作记录。伦理审查机构、批准或豁免状态尚未由作者声明；本文不声称已获批准或无需审查。公开前应由责任作者复核可识别信息、访问授权与必要脱敏，原生标识用于本地可追溯性。
+ 
+-**作者贡献。** 作者名单、单位、通讯作者及 CRediT 角色待作者确认；AI 不被列为作者。
++**作者贡献。** 署名作者为 oopslink；具体 CRediT 贡献角色待补充。AI 不列为作者。
+ 
+ **利益冲突。** 待作者声明，不据缺少信息推断不存在利益冲突。
+ 

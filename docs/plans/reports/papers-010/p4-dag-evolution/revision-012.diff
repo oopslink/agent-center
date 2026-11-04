@@ -1,0 +1,10 @@
+--- P4/before/draft.md
++++ P4/after/draft.md
+@@ -1,4 +1,6 @@
+-# 任务图演化中的产物继承与验收范围：案例研究与受控实验
++# 智能体任务图演化中的产物继承与验收语义
++
++*Artifact Inheritance and Acceptance Semantics in Evolving Agent Task Graphs*
+ 
+ **论文类型：**案例研究与受控行为实验工作稿；作者、单位及通讯信息待补。**状态：**人工智能（AI）辅助分析与写作，尚未人工复核。
+ 
