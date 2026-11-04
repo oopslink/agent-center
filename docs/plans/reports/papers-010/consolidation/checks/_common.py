@@ -36,6 +36,59 @@ def iter_lines(text):
         yield line, _section_tag(heading), bool(TABLE_ROW.match(line)), bool(CAPTION.match(line))
 
 
+def iter_lines_numbered(text):
+    """与 iter_lines 相同，但带上**原文件中的真实行号**。
+
+    iter_lines 跳过标题行后再 enumerate，会让报出的行号随标题数累积偏移，
+    使审计工具的锚点失效。
+    """
+    heading = None
+    for lineno, line in enumerate(text.splitlines(), start=1):
+        m = HEADING.match(line)
+        if m:
+            if len(m.group(1)) <= 2:
+                heading = m.group(2)
+            continue
+        yield lineno, (line, _section_tag(heading), bool(TABLE_ROW.match(line)),
+                       bool(CAPTION.match(line)))
+
+
+def text_by_position(text, enabled):
+    """按位置类别分别返回文本：abstract / conclusion / body / tables / captions。
+
+    与 `scanned_text` 的区别是**不拼接**：跨位置一致性必须逐类比对，
+    拼成一个字符串后"某处出现过"就会被当成通过。
+    """
+    out = {k: [] for k in ("abstract", "conclusion", "body", "tables", "captions")}
+    for line, tag, is_table, is_caption in iter_lines(text):
+        if is_table:
+            if "tables" in enabled:
+                out["tables"].append(line)
+            continue
+        if is_caption:
+            if "captions" in enabled:
+                out["captions"].append(line)
+            continue
+        if tag in enabled:
+            out[tag].append(line)
+    return {k: "\n".join(v) for k, v in out.items() if v}
+
+
+def numbers_near(haystack, anchor):
+    """取出锚点附近的数字。锚点是含一个捕获组的正则，组内为数字。"""
+    found = []
+    for m in re.finditer(anchor, haystack):
+        raw = m.group(1).replace(",", "")
+        try:
+            found.append(int(raw))
+        except ValueError:
+            try:
+                found.append(float(raw))
+            except ValueError:
+                continue
+    return found
+
+
 def scanned_text(text, enabled):
     """按启用的扫描类别拼出待扫描文本。enabled 是标签集合。"""
     out = []

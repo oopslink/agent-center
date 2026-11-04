@@ -1054,8 +1054,8 @@
   },
   {
    "path": "b-controlled/verify.py",
-   "sha256": "8a4057978dafb5d4eea7a274a27a63434328d3e21db329401978f85c633823df",
-   "bytes": 9327
+   "sha256": "80917d302674fc31046285c39e7366fa5f4318543648d8e8968b64bece456fd1",
+   "bytes": 9741
   }
  ],
  "skipped_binary": []

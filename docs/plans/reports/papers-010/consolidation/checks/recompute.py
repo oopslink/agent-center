@@ -21,9 +21,9 @@ import statistics
 import sys
 from pathlib import Path
 
-from _common import contains_number, scanned_text
+from _common import contains_number, numbers_near, scanned_text, text_by_position
 
-NEUTRAL = {"not_found", "no_data"}
+NEUTRAL = {"not_found", "no_data", "ok_weak"}
 
 
 def _rows(path):
@@ -47,12 +47,17 @@ def p2_checks(data_root):
     sub = [r for r in rows if r["both_delivered"].strip().lower() == "true"]
     totals = [_int(r, "total") for r in sub]
     out = [
-        {"id": "p2_controller_sum", "derived": sum(_int(r, "controller_turns") for r in rows)},
-        {"id": "p2_worker_sum", "derived": sum(_int(r, "worker_decisions") for r in rows)},
-        {"id": "p2_total_sum", "derived": sum(_int(r, "total") for r in rows)},
-        {"id": "p2_both_delivered_n", "derived": len(sub)},
+        {"id": "p2_controller_sum", "derived": sum(_int(r, "controller_turns") for r in rows),
+         "anchor": r"其中\s*([\d,]+)\s*次发生在控制端"},
+        {"id": "p2_worker_sum", "derived": sum(_int(r, "worker_decisions") for r in rows),
+         "anchor": r"([\d,]+)\s*次发生在工作端"},
+        {"id": "p2_total_sum", "derived": sum(_int(r, "total") for r in rows),
+         "anchor": r"合计多出\s*([\d,]+)\s*次决策"},
+        {"id": "p2_both_delivered_n", "derived": len(sub),
+         "anchor": r"均完成交付的\s*([\d,]+)\s*对"},
         {"id": "p2_both_delivered_median",
-         "derived": int(statistics.median(totals)) if totals else None},
+         "derived": int(statistics.median(totals)) if totals else None,
+         "anchor": r"总增量的中位数为\s*([\d,]+)"},
         {"id": "p2_both_delivered_range",
          "derived": [min(totals), max(totals)] if totals else None},
     ]
@@ -75,15 +80,21 @@ def p4_checks(data_root):
     changed = [r for r in rows if r["topology_changed"].strip().lower() == "true"]
     unchanged = [r for r in rows if r["topology_changed"].strip().lower() == "false"]
     return [
-        {"id": "p4_transitions_total", "derived": len(rows)},
-        {"id": "p4_topology_changed", "derived": len(changed)},
-        {"id": "p4_topology_unchanged", "derived": len(unchanged)},
+        {"id": "p4_transitions_total", "derived": len(rows),
+         "anchor": r"([\d,]+)\s*次父子转移"},
+        {"id": "p4_topology_changed", "derived": len(changed),
+         "anchor": r"([\d,]+)\s*次拓扑改变"},
+        {"id": "p4_topology_unchanged", "derived": len(unchanged),
+         "anchor": r"([\d,]+)\s*次拓扑(?:完全)?未变"},
         {"id": "p4_parent_retained",
-         "derived": sum(1 for r in rows if r["all_parent_nodes_retained"].strip().lower() == "true")},
+         "derived": sum(1 for r in rows if r["all_parent_nodes_retained"].strip().lower() == "true"),
+         "anchor": r"([\d,]+)\s*次保留了全部父节点"},
         {"id": "p4_became_completed_changed",
-         "derived": sum(1 for r in changed if _int(r, "became_completed") > 0)},
+         "derived": sum(1 for r in changed if _int(r, "became_completed") > 0),
+         "anchor": r"([\d,]+)\s*次(?:同时)?(?:出现|有)(?:任何)?共有任务转为完成"},
         {"id": "p4_became_completed_unchanged",
-         "derived": sum(1 for r in unchanged if _int(r, "became_completed") > 0)},
+         "derived": sum(1 for r in unchanged if _int(r, "became_completed") > 0),
+         "anchor": r"其中\s*([\d,]+)\s*次有任务转为完成"},
     ]
 
 
@@ -99,8 +110,10 @@ def rt017_checks(data_root):
                 for i in ("rt017_episodes", "rt017_reported_cost")]
     data = json.loads(path.read_text(encoding="utf-8"))
     return [
-        {"id": "rt017_episodes", "derived": data.get("complete")},
-        {"id": "rt017_reported_cost", "derived": data.get("reported_cost_usd")},
+        {"id": "rt017_episodes", "derived": data.get("complete"),
+         "anchor": r"([\d,]+)\s*次执行中实现全部通过独立检查"},
+        {"id": "rt017_reported_cost", "derived": data.get("reported_cost_usd"),
+         "anchor": r"其状态文件记报告价\s*([\d.]+)\s*美元"},
     ]
 
 
@@ -168,6 +181,7 @@ def main():
     enabled = {"body"} | {s.strip() for s in args.also_scan.split(",") if s.strip()}
     full_text = Path(args.paper).read_text(encoding="utf-8")
     haystack = scanned_text(full_text, enabled)
+    by_position = text_by_position(full_text, enabled)
     data_root = Path(args.data_root)
 
     prefixes = tuple(p.strip() for p in args.checks.split(",") if p.strip())
@@ -192,10 +206,35 @@ def main():
         if derived is None:
             chk["status"] = "no_data"
             continue
+        anchor = chk.get("anchor")
+        if anchor:
+            # 逐位置取锚点附近的数字并比对：拼成一个字符串会让"某处对了"冒充一致。
+            positions = {k: numbers_near(v, anchor) for k, v in by_position.items()}
+            positions = {k: v for k, v in positions.items() if v}
+            chk["positions"] = positions
+            if not positions:
+                chk["status"] = "not_found"
+            else:
+                def same(x):
+                    if isinstance(derived, float) or isinstance(x, float):
+                        # 正文通常只写到有限位，按引文的精度比较
+                        digits = len(str(x).split(".")[1]) if "." in str(x) else 0
+                        return round(float(derived), digits) == round(float(x), digits)
+                    return x == derived
+                bad = {k: v for k, v in positions.items() if any(not same(x) for x in v)}
+                chk["status"] = "position_conflict" if bad else "ok"
+                if bad:
+                    chk["conflicting_positions"] = bad
+            continue
         values = derived if isinstance(derived, list) else [derived]
-        chk["status"] = (
-            "ok" if all(contains_number(haystack, v) for v in values) else "cited_not_found"
-        )
+        if not all(contains_number(haystack, v) for v in values):
+            chk["status"] = "cited_not_found"
+        elif all(isinstance(v, int) and abs(v) < 10 for v in values):
+            # 个位数在任意长文本中几乎必然命中：成员判定对它没有鉴别力。
+            chk["status"] = "ok_weak"
+            chk["note"] = "derived 为个位数，成员判定无鉴别力；需锚点才能真正核验"
+        else:
+            chk["status"] = "ok"
 
     if not prefixes or "p1".startswith(prefixes) or any(p == "p1" for p in prefixes):
         checks.append(census_check(full_text))
@@ -207,6 +246,11 @@ def main():
         "scanned": sorted(enabled),
         "checks": checks,
         "failing": [c["id"] for c in failing],
+        "weak": [c["id"] for c in checks if c.get("status") == "ok_weak"],
+        "unanchored": [c["id"] for c in checks
+                       if c.get("anchor") and c.get("status") == "not_found"],
+        "cross_position_verified": [c["id"] for c in checks
+                                    if c.get("anchor") and c.get("status") == "ok"],
     }
     print(json.dumps(report, ensure_ascii=False, indent=1))
     return 1 if failing else 0

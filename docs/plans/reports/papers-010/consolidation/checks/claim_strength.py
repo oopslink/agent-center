@@ -11,12 +11,14 @@ import re
 import sys
 from pathlib import Path
 
-from _common import iter_lines
+from _common import iter_lines_numbered
 
 BLOCKER_SECTIONS = {"abstract", "conclusion"}
 # 行内 <!--allow-banned:词1,词2--> 把该行指定词的命中降级为 allowed。
 # 用于故意的否定式表述（例如声明本文不给发生率），使例外显式且可审。
 ALLOW = re.compile(r"<!--\s*allow-banned:([^>]*?)-->")
+# 按句切分：Markdown 的一个段落通常是一整行，若按行豁免，一个标记会放过整段。
+SENTENCE = re.compile(r"[^。！？]*(?:[。！？]+(?:<!--[^>]*-->)?|$)")
 
 
 def main():
@@ -35,14 +37,19 @@ def main():
     text = Path(args.paper).read_text(encoding="utf-8")
 
     hits = []
-    for lineno, (line, tag, _is_table, _is_caption) in enumerate(iter_lines(text), start=1):
+    for lineno, (line, tag, _is_table, _is_caption) in iter_lines_numbered(text):
         if tag not in enabled:
             continue
-        allowed = set()
-        for m in ALLOW.finditer(line):
-            allowed.update(t.strip() for t in m.group(1).split(",") if t.strip())
-        for term in terms:
-            if term in line:
+        for sentence in SENTENCE.findall(line):
+            if not sentence.strip():
+                continue
+            allowed = set()
+            for m in ALLOW.finditer(sentence):
+                allowed.update(t.strip() for t in m.group(1).split(",") if t.strip())
+            bare = ALLOW.sub("", sentence)
+            for term in terms:
+                if term not in bare:
+                    continue
                 if term in allowed:
                     level = "allowed"
                 elif tag in BLOCKER_SECTIONS:
@@ -55,7 +62,7 @@ def main():
                         "section": tag,
                         "level": level,
                         "line": lineno,
-                        "excerpt": line.strip()[:120],
+                        "excerpt": sentence.strip()[:120],
                     }
                 )
 

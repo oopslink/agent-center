@@ -97,6 +97,25 @@ class TestClaimStrength(TempTree):
         self.assertIn(("优于", "blocker"), levels, report)
         self.assertEqual(code, 1)  # 未标记的"优于"仍然是 blocker
 
+    def test_allow_marker_exempts_only_its_own_sentence(self):
+        """标记只豁免它所在的那一句；同一行其它句子的命中仍是 blocker。"""
+        paper = self.write(
+            "paper.md",
+            "# 标题\n\n## 7 结论\n\n"
+            "本文没有估计发生率。<!--allow-banned:发生率-->"
+            "另外本架构的断裂发生率显著低于同类架构。\n",
+        )
+        banned = self.write("banned.txt", BANNED)
+        code, out, _ = run(
+            "claim_strength.py", "--paper", str(paper), "--banned", str(banned),
+            "--sections", "abstract,conclusion,body",
+        )
+        report = json.loads(out)
+        levels = sorted((h["term"], h["level"]) for h in report["hits"])
+        self.assertIn(("发生率", "allowed"), levels, report)
+        self.assertIn(("发生率", "blocker"), levels, report)
+        self.assertEqual(code, 1)
+
     def test_allow_marker_only_exempts_the_named_term(self):
         paper = self.write(
             "paper.md",
@@ -129,6 +148,100 @@ class TestClaimStrength(TempTree):
         )
         self.assertEqual(code, 0)
         self.assertEqual(json.loads(out)["hits"], [])
+
+
+class TestCrossPositionConsistency(TempTree):
+    """同一个量在摘要/正文/表/图题四处出现时，必须逐处一致。
+
+    原实现把四类位置拼成一个字符串做成员判定，于是"改一处漏三处"恰好是
+    它结构上无法检出的——这正是计划 Review Focus 第 1 条要求抓的失败模式。
+    """
+
+    def make(self, body_n, abstract_n=None, table_n=None, caption_n=None):
+        parts = ["# 标题", ""]
+        if abstract_n is not None:
+            parts += ["## 摘要", "", f"共 {abstract_n} 次父子转移。", ""]
+        parts += ["## 4 结果", "", f"记录中共 {body_n} 次父子转移。", ""]
+        if table_n is not None:
+            parts += ["| 项 | 值 |", "|---|---:|", f"| 父子转移 | {table_n} 次父子转移 |", ""]
+        if caption_n is not None:
+            parts += [f"**表 1。**共 {caption_n} 次父子转移的分布。", ""]
+        return self.write("paper.md", "\n".join(parts))
+
+    def data(self):
+        self.write(
+            "data/p4-transitions.csv",
+            "id,parent,plan,topology_changed,all_parent_nodes_retained,shared_status_changes,"
+            "became_completed,left_completed\n"
+            + "".join(f"g{i},g0,p1,True,True,1,1,0\n" for i in range(3)),
+        )
+        return self.root / "data"
+
+    def run_it(self, paper, data, *extra):
+        return run("recompute.py", "--paper", str(paper), "--data-root", str(data),
+                   "--checks", "p4", "--also-scan", "tables,captions,abstract", *extra)
+
+    def test_all_positions_agreeing_passes(self):
+        data = self.data()
+        paper = self.make(3, abstract_n=3, table_n=3, caption_n=3)
+        code, out, _ = self.run_it(paper, data)
+        ids = {c["id"]: c for c in json.loads(out)["checks"]}
+        self.assertEqual(ids["p4_transitions_total"]["status"], "ok", out)
+        self.assertEqual(code, 0, out)
+
+    def test_abstract_disagreeing_with_body_is_detected(self):
+        """只改摘要、正文不动 —— 原实现在这里返回 ok。"""
+        data = self.data()
+        paper = self.make(3, abstract_n=9)
+        code, out, _ = self.run_it(paper, data)
+        ids = {c["id"]: c for c in json.loads(out)["checks"]}
+        chk = ids["p4_transitions_total"]
+        self.assertEqual(chk["status"], "position_conflict", out)
+        self.assertIn("abstract", json.dumps(chk, ensure_ascii=False))
+        self.assertEqual(code, 1)
+
+    def test_table_disagreeing_with_body_is_detected(self):
+        data = self.data()
+        paper = self.make(3, table_n=9)
+        code, out, _ = self.run_it(paper, data)
+        ids = {c["id"]: c for c in json.loads(out)["checks"]}
+        self.assertEqual(ids["p4_transitions_total"]["status"], "position_conflict", out)
+        self.assertEqual(code, 1)
+
+    def test_caption_disagreeing_with_body_is_detected(self):
+        data = self.data()
+        paper = self.make(3, caption_n=9)
+        code, out, _ = self.run_it(paper, data)
+        ids = {c["id"]: c for c in json.loads(out)["checks"]}
+        self.assertEqual(ids["p4_transitions_total"]["status"], "position_conflict", out)
+        self.assertEqual(code, 1)
+
+    def test_positions_where_the_anchor_is_absent_are_not_required(self):
+        """没提这个量的位置不算冲突。"""
+        data = self.data()
+        paper = self.make(3)
+        code, out, _ = self.run_it(paper, data)
+        ids = {c["id"]: c for c in json.loads(out)["checks"]}
+        self.assertEqual(ids["p4_transitions_total"]["status"], "ok", out)
+        self.assertEqual(code, 0, out)
+
+    def test_unanchored_checks_are_reported_not_silently_neutral(self):
+        """锚点在任何位置都找不到时，必须在报告里列出，而不是静默中立。"""
+        data = self.data()
+        paper = self.write("paper.md", "# 标题\n\n## 4 结果\n\n表里有个 3。\n")
+        code, out, _ = self.run_it(paper, data)
+        rep = json.loads(out)
+        self.assertIn("p4_transitions_total", rep["unanchored"])
+        self.assertEqual(code, 0, out)  # 不计为失败，但必须可见
+
+    def test_report_lists_the_value_found_in_each_position(self):
+        data = self.data()
+        paper = self.make(3, abstract_n=9, table_n=3)
+        _code, out, _ = self.run_it(paper, data)
+        chk = {c["id"]: c for c in json.loads(out)["checks"]}["p4_transitions_total"]
+        self.assertEqual(chk["positions"]["abstract"], [9])
+        self.assertEqual(chk["positions"]["body"], [3])
+        self.assertEqual(chk["positions"]["tables"], [3])
 
 
 class TestNumberCandidates(unittest.TestCase):
@@ -191,6 +304,23 @@ class TestCrossrefs(TempTree):
         report = json.loads(out)
         self.assertEqual(code, 1)
         self.assertIn("01KY4B5KS3272X3AMXDXHQMEC0", report["shared_record_ids"])
+
+    def test_disjoint_detects_shared_ledger_codes(self):
+        """A 篇附录用的是 A01–A21 这类台账编号，不是 ULID；漏掉它们检查就空转。"""
+        a = self.write("a.md", "# A\n\n| A21 | 多时点人工纠偏 | 原生消息 |\n")
+        b = self.write("b.md", "# B\n\n附录复用案例 A21 的部署记录。\n")
+        code, out, _ = run("crossrefs.py", "--disjoint", str(a), str(b))
+        report = json.loads(out)
+        self.assertIn("A21", report["shared_record_ids"], report)
+        self.assertEqual(code, 1)
+
+    def test_disjoint_detects_shared_evidence_codes_of_other_families(self):
+        for code_text in ("B03.1", "N01-E01", "E04-10", "M02"):
+            a = self.write("a.md", f"# A\n\n| {code_text} | 用途 |\n")
+            b = self.write("b.md", f"# B\n\n见 {code_text}。\n")
+            rc, out, _ = run("crossrefs.py", "--disjoint", str(a), str(b))
+            self.assertIn(code_text, json.loads(out)["shared_record_ids"], code_text)
+            self.assertEqual(rc, 1, code_text)
 
     def test_disjoint_passes_when_no_shared_ids(self):
         a = self.write("a.md", "# A\n\n记录 `01KY4B5KS3272X3AMXDXHQMEC0`。\n")
@@ -257,14 +387,15 @@ class TestRecompute(TempTree):
         return self.root / "data"
 
     def test_cited_number_absent_from_paper_is_reported(self):
+        """无锚点的检查走成员判定：数字在正文里找不到即报 cited_not_found。"""
         data = self.make_data_root()
         paper = self.write("paper.md", "# 标题\n\n控制端共增加 99 次决策。\n")
         code, out, _ = run("recompute.py", "--paper", str(paper), "--data-root", str(data))
         report = json.loads(out)
-        self.assertEqual(code, 1)
         ids = {c["id"]: c for c in report["checks"]}
-        self.assertEqual(ids["p2_controller_sum"]["derived"], 7)
-        self.assertEqual(ids["p2_controller_sum"]["status"], "cited_not_found")
+        self.assertEqual(ids["p2_both_delivered_range"]["derived"], [5, 7])
+        self.assertEqual(ids["p2_both_delivered_range"]["status"], "cited_not_found")
+        self.assertEqual(code, 1)
 
     def test_all_derived_numbers_present_passes(self):
         data = self.make_data_root()
@@ -365,18 +496,18 @@ class TestRecompute(TempTree):
         data = self.make_data_root()
         paper = self.write(
             "paper.md",
-            "# 标题\n\n## 中文摘要\n\n控制端 7 次。\n\n## 1 引言\n\n无数字。\n",
+            "# 标题\n\n## 中文摘要\n\n范围 5 至 7。\n\n## 1 引言\n\n无数字。\n",
         )
-        code, out, _ = run("recompute.py", "--paper", str(paper), "--data-root", str(data))
-        report = json.loads(out)
-        ids = {c["id"]: c for c in report["checks"]}
-        self.assertEqual(ids["p2_controller_sum"]["status"], "cited_not_found")
-        code2, out2, _ = run(
+        _code, out, _ = run("recompute.py", "--paper", str(paper), "--data-root", str(data))
+        ids = {c["id"]: c for c in json.loads(out)["checks"]}
+        self.assertEqual(ids["p2_both_delivered_range"]["status"], "cited_not_found")
+        _code2, out2, _ = run(
             "recompute.py", "--paper", str(paper), "--data-root", str(data),
             "--also-scan", "abstract",
         )
         ids2 = {c["id"]: c for c in json.loads(out2)["checks"]}
-        self.assertEqual(ids2["p2_controller_sum"]["status"], "ok")
+        # 个位数 derived 归为 ok_weak（成员判定无鉴别力），但不再是"找不到"
+        self.assertIn(ids2["p2_both_delivered_range"]["status"], ("ok", "ok_weak"))
 
 
 if __name__ == "__main__":

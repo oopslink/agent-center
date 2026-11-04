@@ -19,9 +19,14 @@ from _common import sections
 SECTION_REF = re.compile(r"§\s*(\d+(?:\.\d+)*)")
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 BIB_ENTRY = re.compile(r"^@(\w+)\s*\{\s*([^,\s]+)\s*,", re.MULTILINE)
+# 原生记录标识的三类写法。第三类是台账与证据附录实际使用的编号
+# （A21、B03.1、N01-E01、E04-10、M02）——漏掉它们，不重叠检查就会空转：
+# 两篇都不含 ULID 时交集自然为空，看起来通过。
 RECORD_PATTERNS = (
     re.compile(r"\b01[0-9A-Z]{24}\b"),
     re.compile(r"\b(?:generation|task|plan)-[0-9a-f]{8}\b"),
+    re.compile(r"(?<![0-9A-Za-z])(?:A\d{2}[a-z]?|B\d{2}(?:\.\d+)?[a-z]?|"
+               r"N\d{2}-E\d{2}|E\d{2}-\d{2}|M\d{2})(?![0-9A-Za-z])"),
 )
 
 

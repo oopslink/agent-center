@@ -144,7 +144,12 @@ def computed():
 def main():
     lock=json.loads((HERE/'design-lock.json').read_text(encoding='utf-8'))
     actual=hashlib.sha256((HERE/'scripts/analyse023.py').read_bytes()).hexdigest()
-    if lock.get('scoring_sha256')!=actual:
+    if 'scoring_sha256' not in lock:
+        # analyse023.py 内的同类检查写成 `if expected and ...`，删掉键即静默停用；
+        # 这里要求该键必须存在，缺失即失败。analyse023.py 本身不能改——它的哈希
+        # 就是锁，事后改它等于重新冻结评分脚本。
+        print('design-lock 缺少 scoring_sha256：评分映射未被冻结',file=sys.stderr);return 1
+    if lock['scoring_sha256']!=actual:
         print(f"评分映射与 design-lock 不一致：{lock.get('scoring_sha256')} vs {actual}",file=sys.stderr);return 1
     print(f"评分映射哈希与 design-lock 一致：{actual[:16]}…\n")
     got=computed();bad=[]
