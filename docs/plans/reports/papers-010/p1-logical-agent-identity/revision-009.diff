@@ -1,0 +1,246 @@
+--- P1-before-009.md
++++ P1-after-009.md
+@@ -4,13 +4,13 @@
+ 
+ ## 中文摘要
+ 
+-为突破一个 Agent 只能串行执行任务、身份与执行进程绑定的限制，Agent Center 将常驻 Supervisor 与按任务创建、完成后退出的 executor 封装为一个逻辑 Agent，期望兼顾并行、按任务选模型和统一回写。本文先重建设计动机，再考察这一方案引入的身份混淆风险。本文把“身份认同”操作化为行动者、能力和交付责任的归属，基于 Agent Center 冻结记录开展探索性案例分析。8 月 6 日的主案例呈现了将 Task 状态恢复误当中心自动创建 executor、经用户指出启动主体后改述并报告显式 fork 的过程；7 月的片段提供责任外推表述，但其线程和工作区故障不计入设计负效应。历史身份契约表明责任统一与执行隔离可以并存，明确自有交付仍拒绝缺证据产物的反例，以及 Access、Spark 的语义检查，则说明监督可能保留实际价值。作为工程复盘，本文认为这种依赖模型维持内部角色与统一责任映射的方案不适合作为本部署的默认解法；这一评价基于可见责任断裂与人工纠正，不等于已隔离证明架构净收益为负。原研究与本轮补查均为人工智能（AI）探索性分析，尚未人工复核；本轮另有 AI 写作和审阅。本文提出将并发隔离与模型身份职责分开设计等建议，效果尚待检验。（证据 A00–A14）
++为突破串行执行和身份与进程绑定的限制，Agent Center 将常驻 Supervisor 与临时 executor 封装为一个逻辑 Agent。本文基于冻结协作记录与历史源码开展探索性案例研究，考察统一任务归属如何转化为跨会话的行动责任。主案例中，Agent 已识别缺少执行体，仍将启动归给中心，经用户纠正后报告显式 fork。补查发现，历史实现曾从自动派发改为 Supervisor 显式启动，reset 工具仍承诺自动派发的说明随后被修正；实际部署和完整输入未恢复，因此该案例保留为行为材料，不用于证明架构造成停摆。本文区分身份关系混用、生命周期接口、审查闭环、旧上下文、训练所得行为先验及一般推理失误六项竞争解释，并提出判别对照。现有资料较直接地支持调查操作契约及其呈现，尚不能识别模型训练与外部结构冲突的作用。有效监督反例表明，统一责任与执行隔离可以并存。设计启示是显式表达当前角色、权限、下一动作与结果去向，先消除接口缺陷，再评价结构的收益和代价。全部分析尚未人工复核，所提实验未执行。（证据 A00–A17）
+ 
+ **关键词：**逻辑 Agent；Supervisor/executor；责任归属；执行生命周期；agent harness
+ 
+ ## Abstract
+ 
+-Agent Center packaged a persistent supervisor and task-scoped executors as one logical agent to overcome serial task execution and the coupling of identity to a single process. The design sought parallel execution, per-task model selection, and centralized writeback. We reconstruct this motivation before examining the resulting identity-mapping risk. This exploratory case study operationalizes identity as the attribution of actions, capabilities, and delivery responsibility. In an August 6 episode from Agent Center, an agent expected task-state recovery to create an executor automatically, then revised that interpretation after a user identified the responsible actor. Native task events corroborate state transitions, while executor creation remains a participant report. July episodes contain responsibility-shifting language, but thread and workspace failures are excluded from claims about architectural harm. A historical identity contract, a justified rejection of the agent's own artifact, and substantive Access and Spark reviews show that shared accountability can coexist with execution isolation and useful supervision. Our engineering assessment is that relying on the model to reconcile internal roles with unified accountability is a poor default solution for this deployment: selected episodes required human correction of responsibility attribution. This assessment does not isolate architectural causation or establish a negative net benefit. The underlying research and supplemental analysis are AI exploratory work, with additional AI writing and review in this round and no completed human verification. Separating concurrency and isolation mechanisms from model-facing identity duties is proposed but remains untested. (Evidence A00–A14)
++Agent Center combined a persistent supervisor with temporary executors under one logical agent to support concurrency while retaining unified task ownership. This exploratory case study examines how that ownership translates into action responsibility across sessions, using frozen collaboration records and historical source code. In the main episode, the agent noticed that no executor existed but attributed executor creation to the center; after a user correction, it reported an explicit fork. Additional source inspection reveals a transition from automatic dispatch to supervisor-initiated execution and a subsequent correction to reset-tool wording that still promised automatic dispatch. The deployed version and complete model input remain unavailable, so the episode is retained as behavioral evidence rather than evidence that the architecture caused a stall. We compare six explanations: conflated identity relations, lifecycle interfaces, incomplete review-to-repair loops, stale context, learned behavioral priors, and general reasoning errors. Local materials most directly motivate investigation of operational contracts and their presentation; they do not identify a training-induced conflict with the external architecture. Counterexamples show that shared accountability can coexist with isolated execution and useful supervision. We propose explicit representations of the current role, permissions, next action, and result recipient, followed by controlled comparisons after known interface defects have been removed. The analyses have not been human-verified, and the proposed experiments have not been conducted. (Evidence A00–A17)
+ 
+ **Keywords:** logical agent; supervisor/executor; accountability; execution lifecycle; agent harness
+ 
+@@ -22,7 +22,7 @@
+ 
+ 分离进程以后，模型还需要理解另一组关系：当前会话负责控制，具体实现发生在其它会话，而后续修复和最终交付仍由同一逻辑 Agent 承担。历史身份契约明确规定，执行隔离不转移交付责任。选编记录却出现了已识别执行缺失、仍等待中心创建 executor，以及将自身任务描述为等待外部交付的表述。本文考察这一责任映射为何需要用户介入纠正。（A01、A03、A04）
+ 
+-本文把“身份混淆”限定为行动者、能力和交付责任的误归属，不涉及模型的意识或内在自我。相关研究已有角色规范与协调失败分类，本文着重解释本部署中的具体设计取舍。[1]<!--ref:R01--><!--anchor:section:4--> 核心发现是：中心能够稳定记录同一 Agent，并不保证模型能够正确判断内部执行的下一动作。基于这些局部责任断裂，本文不建议将依赖模型自行维持该映射的封装作为本部署的默认并发方案。这是工程评价，架构的净收益与因果效应尚未识别。（A04、A10–A14）
++本文把“身份混淆”限定为行动者、能力和交付责任的误归属，不涉及模型的意识或内在自我。相关研究已有角色规范与协调失败分类。[1]<!--ref:R01--><!--anchor:section:4--> 本文进一步比较三层解释：逻辑身份抽象是否诱发关系混用，架构和上下文是否充分表达行动协议，以及模型既有行为模式是否与外部结构不匹配。历史源码补查揭示了派发协议变更与工具说明缺陷；因此研究重点是区分这些机制及其证据，不能用混合案例直接判定统一身份封装无效。（A04、A14–A17）
+ 
+ ![图1：逻辑 Agent 的设计结构](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/papers-010/p1-logical-agent-identity/figures/p1-fig1-architecture.png)
+ 
+@@ -40,6 +40,8 @@
+ 
+ 据此，本文把身份契约理解为关系约束：某个执行单元属于谁、某个控制动作由谁完成、某个产物由谁负责。这比模型是否会复述“我是 Supervisor”更严格。能够复述角色名而仍把执行创建归给中心，仍属于本文要研究的行为风险。（A01、A04）
+ 
++训练来源需要单独检验。AgentTuning以交互轨迹微调模型，说明agent行为会受训练数据影响；Instruction Hierarchy通过训练塑造对不同消息来源的优先级处理。[4]<!--ref:R30--><!--anchor:section:2.2, 3.3, 3.4-->[5]<!--ref:R31--><!--anchor:section:3, 4--> 两者提供行为可学习的依据，却没有验证本系统模型的训练内容或Supervisor–Executor冲突。本文将该解释保留为待检验假说，并与外部提示和历史上下文分开。
++
+ ## 3 材料与方法
+ 
+ 本研究对同一部署的冻结记录开展目的性案例分析，结合历史身份契约、设计初稿和监督检查案例，分别考察设计意图、责任解释与后续动作。定向检索与阅读的范围见表1，精确记录、检索过程和复算入口见[补充附录](evidence-details.md)。设计文档用于重建方案由来，不能替代历史部署状态。（A00、A01、A14）
+@@ -47,6 +49,8 @@
+ 过程重建以“原先的行动责任解释—用户纠正—后续表述或动作—原生记录核对”为顺序。消息用于识别参与者的判断，Task 动作用于确认状态转换，固定源码用于核对指定产物的变化。执行体创建若只有 Agent 报告，始终保留为报告级证据。主案例的控制事件和执行镜像未能恢复，因此能够分析责任解释的变化，无法独立确认全部启动细节。（A04、A05）
+ 
+ 纳入分析的片段须能定位到具体行动或交付责任。明显线程、工作区及配置故障不承担设计负效应；混合片段只保留可分离的责任表述。同时纳入明确承责仍拒绝不合格产物、以及监督检查增加具体要求的反例。全部材料来自探索性研究，尚未人工复核；本研究没有重跑历史模型或实施架构消融。（A02、A03、A10–A12）
++
++本轮机制补查另检查三次历史提交及其父版本的身份提示、派发控制与工具说明，并核对两篇训练研究。采用竞争解释比较：对每项机制分别记录支持、反证、替代解释和可区分干预。源码仅证明指定版本的实现，消息仅证明可见表述；二者不能自动拼成当次模型输入。新增来源与筛选处置见[机制研究附录](mechanism-analysis.md)。（A15–A17）
+ 
+ **表1。P1材料与证据单位**
+ 
+@@ -66,7 +70,9 @@
+ 
+ Task 动作日志确认了恢复、启动状态、阻塞和解除阻塞的顺序，图2将其与用户纠正及 Agent 报告对齐。执行体创建和后续推送仍只有参与者报告；同一任务随后又因合同缺口被阻塞。因此，该片段支持启动责任误归属及纠正过程，不足以确认完整执行恢复或最终交付。（A04e、A05）
+ 
+-这一过程提示，仅增加状态信息可能不足以解决问题：Agent 已经知道“尚无执行体”，仍需要识别有权创建执行体的主体和入口。Agent 事后将误解归于把 reset 的重新派发说明外推为自动 fork，这使工具语义与生命周期边界成为候选解释。缺少当时完整输入与运行轨迹，尚不能确定逻辑身份封装、工具措辞和运行条件各自的作用。（A04d）
++这一过程提示，执行状态识别与动作主体选择需要分别分析。Agent的事后说明将reset措辞列为误解线索，同时承认它解释不了更早一次unblock后的等待。该自述也将问题概括为只核验running，与此前明确报告缺少execution并不完全一致，不能作为完整的内部推理记录。（A04a、A04d）
++
++本轮源码补查发现，系统曾从自动派发改为Supervisor显式fork；修订前的reset说明仍承诺自动派发，之后才删除这一承诺并补上显式fork要求。该工具说明缺陷与Agent自述相容，但部署版本、当次可见说明及首次等待的原因仍未知。因此，I04保留为责任误归属及纠正案例，不以其停摆后果支持架构本身有害。（A16、A17）
+ 
+ ![图2：I04关键时序](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/papers-010/p1-logical-agent-identity/figures/p1-fig2-responsibility-timeline.png)
+ 
+@@ -92,23 +98,23 @@
+ |---|---|---|---|
+ | I01，7月22日 | 将内部恢复外推给平台 | 用户指出同一Agent的执行责任 | 线程损坏；后续计划不等于恢复已验 |
+ | I02，7月22日 | 将自身未完成任务描述为验收外部交付 | 用户纠正完成者定位；PD反对缺仓库盲重试 | 空工作区与配置问题；承责不能替代资源 |
+-| I04，8月6日 | 将Task恢复外推为中心自动建executor | 用户补充启动主体；Task动作支持时序 | 原生fork事件、实际prompt和版本缺失 |
++| I04，8月6日 | 将Task恢复外推为中心自动建executor | 用户补充启动主体；Task动作支持时序 | 源码存在恢复说明缺陷；当次部署、prompt及原生fork事件缺失 |
+ | I05，8月7日 | 明确自身负责，仍拒绝缺证据候选 | 监督判断与统一责任可以并存 | 后续接管、权限变化与误提及混杂 |
+ 
+-### 4.4 排除运行故障后，证据支持局部机制而非发生率
+-
+-七个目的性选编片段中，四个混有运行或配置问题，一项属于开发者观察和设计回应，剩余为一个行为主例与一个明确承责的反例（表3）。故障排除实质缩小了可用于讨论设计风险的材料，不能继续用未筛选事故的数量支撑架构批评。
+-
+-**表3。身份材料的筛选与严格敏感性分析**
++### 4.4 排除明显故障后，材料用于机制比较而非架构归因
++
++七个目的性选编片段的数量不变：四个混有运行或配置问题，一项属于开发者观察和设计回应，一项是行为主例，一项是明确承责的反例。本轮对主例I04新增接口说明缺陷的混杂风险标记。缺陷存在于历史源码，尚未证明当次生产使用该版本，故不能把它计为第五个已确认生产bug；也不能继续把I04视为排除实现问题后的干净架构负例。
++
++**表3。身份材料的筛选与严格敏感性分析；009更新用途**
+ 
+ | 分组 | 片段数 | 片段 | 可用于哪种判断 |
+ |---|---:|---|---|
+ | 运行／配置混合，排除设计负效应 | 4 | I01、I02、I06、I07 | 仅保留可分离的责任语言；交付失败不计入架构后果 |
+ | 开发者观察与设计回应 | 1 | I03 | 设计动机与当时诊断，不是独立行为重复 |
+-| 行为主例，架构根因未识别 | 1 | I04 | 责任误归属与纠正过程；非架构因果估计 |
++| 行为主例，新增接口混杂风险 | 1 | I04 | 责任误归属与纠正过程；停摆不支持架构负效应 |
+ | 明确承责的反例 | 1 | I05 | 责任明确仍可合理拒绝自己的产物；后续混合交接不纳入 |
+ 
+-若要求架构根因具有独立运行轨迹核验，主案例也不满足这一标准，合格的因果负例为0。这限制了本文的结论层次：现有证据可以定位责任解释中的薄弱环节，不能估计其频率，也不能将一主例一反例换算为失败率。
++若要求以独立运行轨迹确认架构根因，合格因果负例仍为0。现有材料能够发现责任解释的问题、约束候选机制和设计后续对照，不能估计频率，也不能将片段数换算为架构失败率。005与006的原始筛选底表保留，新处置另行记录以避免改写研究历史。（A15–A17）
+ 
+ 记录覆盖还限制了生命周期重建。2,221个 Task 中，1,238个关联到动作日志（55.7%），但执行镜像和控制事件在快照中没有记录。这两类缺失限制了对 executor 创建和模型输入的核验，不代表历史上没有执行。下一节进一步区分实时行为与迁移重建记录，以明确可观测范围。
+ 
+@@ -135,37 +141,105 @@
+ 
+ ## 5 机制分析与设计启示
+ 
+-### 5.1 将并发机制与模型承担的身份解释分开设计
+-
+-任务级执行单元解决并发和隔离，统一写入入口约束共享状态；让常驻模型把多个临时执行单元理解为“自己”，则额外引入了跨会话责任映射。主案例暴露了这项映射的薄弱处：模型能够发现没有执行，却未把执行创建落实为自己的下一动作。混合案例还提示，将实现放到另一执行体之后，监督会话可能用等待外部交付的方式描述自身工作。（A03、A04、A14）
+-
+-基于这一工程复盘，本文不建议默认依靠模型自行解释内部主体关系来实现并发。候选方向是保留任务级执行、权限隔离和有增量的审查，将确定性的调度、状态与责任关系交由明确接口表达。CodeDelegator 在其基准中的分工收益也说明，执行角色分离可以有用，不能由本部署的局部问题推出所有分层结构无效。[3]<!--ref:R14--><!--anchor:section:4.1, 5.2, 5.3--> 这项简化建议尚未经过等价任务对照。（A01、A10、A14）
+-
+-### 5.2 让恢复响应直接说明下一动作
+-
+-状态恢复接口应同时说明当前状态、活动执行体、有权操作的主体和允许的下一动作。例如，恢复 Task 的响应可明确指出是否已经创建执行单元，以及尚需由谁调用哪个入口。这样，模型就不必从 running 或“重新派发”的措辞自行推导执行生命周期。（A04、A05）
+-
+-可程序化的检查包括执行标识关联、状态转换与执行创建分别记账，以及缺少启动证据时给出恢复入口。自动恢复仍须处理旧执行是否存活、幂等、授权与资源条件，不能简化为“没有 execution 就再 fork”。角色说明的验收对象也应是能否选择正确动作和升级路径，而非能否复述身份宣言。（A01、A04、A06）
+-
+-### 5.3 保留增加证据的监督，并延续拒绝后的责任
+-
+-Access 与 Spark 的正例将监督价值落在具体缺口、检查要求和产物变化上。设计应保存候选、所查合同、发现的问题及后续责任，以区分语义检查与相同结论的重复转述。拒绝候选后，修复、补证或升级应继续关联有能力且获授权的主体；统一责任并不意味着可以降低质量门槛或越过权限。（A03、A10–A12）
+-
+-后续验证可以保持任务、执行隔离和验收合同不变，比较不同责任说明与工具响应，观察正确启动、合理升级、拒绝后的修复延续，以及最终交付。若显式映射仍不能减少责任误归属，就需要重新审视这一封装，而不是继续增加身份口号。当前材料未提供该比较的效果量。
++“抽象模型问题”“架构问题”与“训练所得行为模式”作用于不同环节，可能共同导致同一错误。本文以行为记录约束解释：需要解释的是，模型为何把一个应由当前控制会话发起的动作归给中心，或者为何在拒绝自身产物后没有延续修复责任。以下六项机制是待区分的解释，不是六个已经确认的根因。
++
++### 5.1 抽象层：统一归属不等于统一行动者
++
++将多个执行单元归于一个Agent，在软件模型上可以自洽。身份契约可以规定统一任务归属和对外交付责任，同时允许不同会话拥有不同权限、上下文及生命周期。危险出现在从“属于同一个Agent”继续推出“知道同样的信息、具有同样的能力、承担同一个下一动作”。这种推导并非原抽象的必然要求，却可能由笼统的身份说明诱发。（A01、A14）
++
++表5将统一身份中需要分别绑定的关系展开。对于某项任务，归属主体可以始终是同一Agent，但创建executor的动作主体是Supervisor，写代码的是executor，资源分配由运行时完成；这些关系不会因为共享名称而自动成立。因而，抽象层的待检验问题是：统一身份表述是否让模型把不同类型的关系混用，而非“一个Agent包含多个进程”是否在逻辑上错误。
++
++**表5。逻辑Agent中的关系分解及可能的错误推导**
++
++| 关系 | 本设计中的含义 | 需要阻止的推导 |
++|---|---|---|
++| 任务归属 | 任务持续属于逻辑Agent | 同属一个Agent，所以任一会话都能执行全部动作 |
++| 当前动作主体 | Supervisor发起fork；executor执行获分配的工作 | 任务已归属，所以中心会自动完成创建 |
++| 权限 | executor不能写中心；Supervisor持有相应入口 | executor无权限，所以整个Agent只能等待外部人员 |
++| 知识与记忆 | 会话各自持有输入；结果通过接口回传 | 子执行单元已经知道的信息，监督会话也必然知道 |
++| 交付义务 | 拒绝候选后仍需安排获授权的修复、补证或升级 | 监督者已作出拒绝，自己的交付责任也已结束 |
++
++这里的“自己”至少可能指当前模型会话或逻辑责任主体。把两者写成同一个代词，会增加解释负担；直接给出任务归属、当前角色、允许动作与结果接收者，是可以检验的替代表示。有效监督反例表明，模型有时能够同时保持统一责任与独立审查，故这种混用不是必然结果。（A10）
++
++### 5.2 架构层：业务状态没有唯一确定执行动作
++
++Task状态机与executor生命周期是两套相关但不等价的状态。恢复任务、取得lease、排入控制队列和真正创建执行体，可以发生在不同步骤。只返回running而不说明哪一步已经发生，会把跨状态机的关系推断留给模型。主案例尤其说明，单纯补充“execution为空”仍不充分：Agent已经注意到空缺，却把处理空缺的责任归给中心。（A04、A05）
++
++历史源码进一步给出了需要区分的两种情况。若运行时确实采用显式fork，但工具仍承诺自动派发，这是接口说明缺陷，应先修复并从架构负效应中排除。若工具完全一致，仍要求模型在多个入口间自行拼接启动与恢复协议，则可以进一步研究这种分解带来的决策负担。把两者合并，会将可修正的实现问题错误升级为结构缺陷。（A16、A17）
++
++因此，可比较的设计变量是确定性调度由程序还是模型承担，以及接口是否直接提供合法下一动作。自动启动能够减少选择步骤，但仍需处理权限、存活执行体、幂等和资源条件。不能仅因减少了一次模型决策，就假定交付效果或成本必然改善。
++
++### 5.3 上下文层：角色指令、恢复闭环与历史规则可能错位
++
++源码中的身份表述和启动协议曾分别改变。较早的Supervisor提示强调协调、监督及不亲自执行；身份修订强化同一Agent的交付责任，却仍保留系统自动派发。后续提交才将启动改为Supervisor显式调用fork。可见，知道“执行体属于我”与知道“这一次由我启动”是两个独立命题，补充前者不能替代后者。（A15、A16）
++
++审查指令也可能形成局部闭环：核验产物、发现缺口、执行block，每一步均符合要求，但没有为缺口安排修复主体和恢复动作。模型于是可能正确完成“审查”子目标，却没有推进整个交付目标。历史提示确实列出了审查与阻塞出口，也包含帮助解决阻塞的要求；尚不能据此断言修复义务完全缺失。需要检验的是义务能否在具体失败状态下转化为可执行动作。（A15；A03、A10）
++
++另一项竞争解释是旧规则残留于会话、摘要或持久记忆。较早版本中的自动派发预期有实际系统来源，不必先诉诸模型训练。只有恢复了当次输入，才能判断新指令与旧记录是否同时出现，或者旧规则是否仍被当作当前规则。提交日期早于行为日期，不足以证明旧上下文被保留或新版本已部署。（A16、A17）
++
++### 5.4 模型层：行为先验冲突是合理假说，但不是已知训练事实
++
++作者提出的训练解释，可以更精确地表述为：模型从训练中学到的角色分工、工具调用与任务完成模式，可能不适配外部系统要求的责任映射。这不需要假定模型内部存在一个固定的Agent组织结构。可观察的预测是，在输入、工具语义和权限均明确时，模型仍倾向于选择某种熟悉的分工或启动方式。
++
++AgentTuning通过交互轨迹微调改变模型的agent行为，其消融说明训练数据组成会影响表现；它并未测量Supervisor–Executor身份冲突。[4]<!--ref:R30--><!--anchor:section:2.2, 3.3, 3.4--> Instruction Hierarchy则说明消息来源的优先级行为可以通过训练塑造；该层级不是业务中的监督者与执行者层级。[5]<!--ref:R31--><!--anchor:section:3, 4--> 两项研究支持“训练可以塑造行为模式”，不能证明本部署模型学过哪种架构，或其错误由该训练引起。
++
++还须把权重中的倾向与外部CLI自带提示、当前工具描述、会话历史分开。即使不同模型在同一harness中表现不同，也只说明模型与接口可能存在交互；若模型能力、训练数据和解码方式同时不同，不能将差异单独归因于“内化了原生Agent结构”。角色改名后改善同样只能支持对措辞敏感，不能定位这种敏感来自预训练、后训练还是本轮上下文。
++
++### 5.5 竞争解释及当前证据强度
++
++表6按证据能区分到的层次比较机制。源码支持契约和接口变化的存在，行为记录支持责任解释的变化；从二者进一步推断模型的内部机制，需要额外干预。当前最有直接本地材料的调查方向是操作契约及其呈现，训练先验冲突尚无本地隔离证据。
++
++**表6。责任误归属的候选机制、反证与判别条件**
++
++| 机制 | 当前支持或线索 | 竞争解释／反证 | 可区分的观察 |
++|---|---|---|---|
++| H1 身份关系混用 | 同一身份下权限和上下文不同；责任外推表述 | 明确承责仍有效审查；未测表述效应 | 保持运行结构不变，显式关系表是否优于统一身份宣言 |
++| H2 状态与启动协议分离 | 发现无execution后仍等待；恢复说明与fork说明不一致 | 工具缺陷可能足以解释部分行为 | 修复说明后，结构化下一动作是否仍有额外作用 |
++| H3 审查子目标替代交付闭环 | 历史提示突出判断与block出口 | 同时要求帮助解阻；合理拒绝不是失败 | 拒绝后是否选择获授权的修复、补证或升级 |
++| H4 历史上下文残留 | 自动派发到显式fork的源码变更 | 无当次会话与记忆快照 | 同一当前协议下，移除已废弃规则是否降低误用 |
++| H5 训练所得模式与外部结构不匹配 | 外部研究表明agent行为可经训练改变 | 本地训练数据未知；CLI提示和历史规则可替代解释 | 同源模型的受控训练干预是否改变特定契约下的错误 |
++| H6 一般推理或状态跟踪失误 | 多步恢复可能发生遗漏与重复 | 缺少与身份无关的等难度任务对照 | 去除角色与身份词后，同构状态任务是否仍出现同类错误 |
++
++H1–H6可以叠加。例如，接口未说明下一动作时，模型可能用旧会话规则或训练形成的常见模式填补空缺。一次用户提醒同时提供了主体、入口和新的上下文焦点，因此提醒后的改变不能独立识别其中任何一个机制。
++
++### 5.6 以对照干预代替事后心理解释
++
++首先应固定无已知缺陷的运行协议，建立含正确启动、已有活跃执行体、权限不足、等待资源和候选不合格等情境的动作判定集。不能把所有“等待”编码为错误，也不能用自述“我知道自己是Supervisor”代替实际动作。主要指标应包括首次合法动作、无效恢复循环、越权或重复fork、适当升级，以及拒绝后的责任延续；完整交付、调用成本和延迟另行测量。
++
++**表7。用于区分机制的对照设计；均尚未执行**
++
++| 对照 | 保持相同的条件 | 操作变量与可解释范围 |
++|---|---|---|
++| 责任表示 | 模型、进程结构、权限、工具与任务 | 统一身份叙述／显式归属和动作表；识别表示效应 |
++| 生命周期接口 | 实际状态转换、权限与可用动作 | 一致的文字说明／增加结构化下一动作；识别接口表达效应 |
++| 上下文历史 | 当前协议、事实信息与上下文预算 | 无旧规则／明确标为历史的旧规则；识别历史干扰 |
++| 角色词汇 | 上述协议与主体关系 | Supervisor–Executor／中性控制与工作单元标签；识别词汇敏感性 |
++| 执行控制 | 同等任务、权限与验收合同 | 模型选择调度／确定性状态协调器；比较减少决策的实际代价和收益 |
++| 训练来源 | 同一基础模型、相同训练量与通用数据 | 成对加入不同的行动责任轨迹；只能支持该受控训练的因果作用 |
++
++前四项可交叉构成16种条件，按情境配对并对顺序和采样重复作控制；不能把同一任务的重复输出当作独立部署。角色词效应若仅在旧历史条件下出现，更支持上下文交互；若在全部协议明确的条件下仍出现，则保留模型行为倾向解释。要进一步归因训练，仍需最后一项的同源训练对照；仅更换商业模型不足以完成该识别。详细情境、判定规则与未执行状态见[机制研究附录](mechanism-analysis.md)。
++
++### 5.7 设计启示：显式表达责任关系，保留有效监督
++
++本研究据此提出三个有条件的设计判断。第一，统一Agent可以保留为任务归属和审计标识，模型输入应分别说明当前角色、可用权限、结果去向与下一动作，避免要求模型从“executor也是你”推导全部行为。第二，运行协议变更必须同步提示、工具说明和恢复入口，并处理旧会话规则；这是先消除实现混杂的前提。第三，可确定的启动与恢复关系应尽量由明确协议承载，再比较交给模型判断的增量收益。
++
++监督的价值仍应由它增加的具体证据衡量。Access与Spark案例中的语义检查不能因身份问题而被一并否定；拒绝不合格产物后，修复、补证或升级应继续关联有能力且获授权的主体。（A10–A12）CodeDelegator的分工结果也约束了推广边界：角色分离具有可行的正面实例，本部署的混合案例不能推出该类结构普遍无效。[3]<!--ref:R14--><!--anchor:section:4.1, 5.2, 5.3-->
+ 
+ ## 6 局限
+ 
+-本研究是单部署、目的性选例的探索，未估计身份混淆的发生率、持续时间或相对架构风险。用户纠正不是受控干预，Agent 的事后解释也可能是合理化。主案例可确认的是责任解释与状态记录的对应，不能确认其全部内部推理过程。（A00、A04、A05）
+-
+-历史提示、部署版本和执行控制轨迹未完整恢复，工具语义或运行条件仍可能参与形成主案例。明显线程与工作区故障已排除设计负效应，但剩余行为材料也不是已确认无故障的架构样本。模型—harness 研究提供解释视角，不能替代本地缺失的因果证据。[2]<!--ref:R03--><!--anchor:section:I-->（A02–A05）
++本研究是单部署、目的性选例的探索，未估计身份混淆的发生率、持续时间或相对架构风险。用户纠正同时改变主体信息、动作提示及上下文焦点，不是单变量干预；Agent的事后解释也可能是合理化。主案例可确认责任解释与状态记录的对应，无法恢复其完整内部过程。（A00、A04、A05）
++
++本轮恢复了指定Git版本的提示、派发入口与工具说明，仍未恢复当次部署版本、完整模型输入和执行控制轨迹。接口说明缺陷排除于架构负效应；历史协议变化也不能自动证明会话残留旧规则。模型—harness研究提供解释视角，不能替代本地缺失的因果证据。[2]<!--ref:R03--><!--anchor:section:I-->（A15–A17）
++
++训练先验假说没有本地训练数据、同源模型对照或已执行干预。公开训练研究证明行为可被训练改变，不能逆推本部署的训练来源。所提出的16条件设计与合成情境仅为待执行协议，没有新的模型效果量。
+ 
+ 监督案例的源码核对只支持指定变化，没有重跑历史浏览器或生产验收。全部分析尚未人工复核，四篇论文复用同一部署与部分案例，不能视为独立重复验证。吞吐、成本、认知负荷及替代方案收益仍需在固定条件下测量。（A00、A11、A12）
+ 
+ ## 7 结论
+ 
+-将 Supervisor 与临时 executor 封装为逻辑 Agent，旨在突破串行执行并保留统一交互与回写。现有案例表明，这种统一记录并不保证模型能够正确延续跨会话的行动责任：它可能识别执行缺失，却把创建执行体归于中心，需要用户补上主体解释。（A14、A01、A04）
+-
+-本文据此对该部署的默认方案持否定的工程评价，同时保留执行隔离与有效监督的价值。更值得检验的方向，是明确区分并发执行、授权、审查和下一动作责任，减少模型必须自行解释的内部主体关系。现有证据支持这一设计问题及检验方向，尚不能确定架构净效应或替代方案优势。（A10–A12）
++将Supervisor与临时executor归为同一逻辑Agent，源于并发执行与统一回写的工程需求。现有行为材料表明，稳定归属并不自动确定下一动作主体；历史源码则揭示，身份表述、启动协议和恢复说明曾分别变化。因而，责任误归属需要在抽象关系、架构接口、上下文历史和模型行为模式之间比较解释，不能直接归为模型不理解某种新架构。（A14–A17）
++
++本文能够支持的设计判断是：统一身份宣言不足以替代明确的行动协议，应分别表达当前角色、权限、结果去向与后续责任，并先排除说明和实现不一致。训练所得行为先验与外部结构冲突是值得检验的假说，尚无本地因果证据。统一责任、执行隔离和有效监督是否值得组合，需要在协议一致的条件下比较真实交付收益与成本。（A01、A10–A12）
+ 
+ ## 参考文献
+ 
+@@ -174,6 +248,10 @@
+ [2] J. Chen, S. Chen, H. Zhu, J. Cao, J. Shen, and S.-C. Cheung, “Understanding Agent-Reactive Bugs at the Model-Harness Boundary: An Empirical Study of LLM Agent Issue Reports,” arXiv:2607.15684v1, 2026. doi: [10.48550/arXiv.2607.15684](https://doi.org/10.48550/arXiv.2607.15684). [已核版本](https://arxiv.org/abs/2607.15684v1).
+ 
+ [3] T. Fei, C. Chen, Y. Pan, M. Zheng, and M. Song, “CodeDelegator: Mitigating Context Pollution via Role Separation in Code-as-Action Agents,” arXiv:2601.14914v1, 2026. doi: [10.48550/arXiv.2601.14914](https://doi.org/10.48550/arXiv.2601.14914). [已核版本](https://arxiv.org/abs/2601.14914v1).
++
++[4] A. Zeng et al., “AgentTuning: Enabling Generalized Agent Abilities for LLMs,” in Findings of the Association for Computational Linguistics: ACL 2024, pp. 3053–3077, 2024. doi: [10.18653/v1/2024.findings-acl.181](https://doi.org/10.18653/v1/2024.findings-acl.181). [正式论文](https://aclanthology.org/2024.findings-acl.181/).
++
++[5] E. Wallace, K. Xiao, R. Leike, L. Weng, J. Heidecke, and A. Beutel, “The Instruction Hierarchy: Training LLMs to Prioritize Privileged Instructions,” arXiv:2404.13208v1, 2024. doi: [10.48550/arXiv.2404.13208](https://doi.org/10.48550/arXiv.2404.13208). [已核版本](https://arxiv.org/abs/2404.13208v1).
+ 
+ ## 证据附录
+ 
+@@ -225,6 +303,9 @@
+ | A12d | Spark新二十五类断言 | 文档/源码 | 不适用 | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/sources/spark-after/App.test.ts) |
+ | A13 | 009逐案报告与源码/核验范围 | 文档/源码 | 不适用 | [原文](/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/reports/exact/agent-harness-review-increment-cases-009.md) |
+ | A14 | 2026-06-28并发设计初稿：原始约束与预期机制；设计意图，非部署效果 | Git `28bb445e8dd5aa9535bf8b4826019f7fa0322f9d`；§1–8、§11–12 | 首次提交 2026-06-28T07:29:47Z | [固定原文](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/002-p1-design-origin/sources/agent-concurrent-execution-first.md) · [版本与哈希](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/002-p1-design-origin/sources/provenance.json) |
++| A15 | 身份提示、执行提示与审查回写的历史修订 | Git `3dcd57bf35fc6ed0572df93c4e8616b043f1e591`及父版本 | 2026-07-23 01:38:22 UTC | [固定差分](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/sources/identity/changes.diff) |
++| A16 | 自动派发改为Supervisor显式fork：提示与实际入口 | Git `b27f59650ad3061d67da0bec9893feb258405a19`及父版本 | 2026-07-26 14:09:54 UTC | [固定差分](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/sources/dispatch/changes.diff) |
++| A17 | reset自动派发说明纠错；不证明当次部署 | Git `00bddae72e94ee5419339b0b95f4fb439af0a927`及父版本 | 2026-08-06 03:24:22 UTC | [固定差分](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/sources/reset/changes.diff) · [来源哈希](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/source-provenance.json) |
+ 
+ ## 声明
+ 
+@@ -238,6 +319,6 @@
+ 
+ **资助。** 本研究未获得资助。
+ 
+-**AI 使用。** 既有研究为单 AI 探索；010 本轮使用分工 AI 进行补查、引用核验、起草与审阅。本文未重跑模型实验，未知历史模型和运行参数不予补造。原研究与本轮工作均尚未人工复核，责任作者需核查事实、引用与最终论述。
++**AI 使用。** 既有研究为单AI探索；010早期使用分工AI进行补查、引用核验、起草与审阅。009机制修订由同一AI定向补查和自查，未新增独立评阅。本文未重跑模型实验，未知历史模型和运行参数不予补造。原研究与本轮工作均尚未人工复核，责任作者需核查事实、引用与最终论述。
+ 
+ **同源与跨篇重合。** 本文与责任悬空、角色上下文及 有向无环图（DAG）演化工作稿来自同一部署和冻结快照，复用部分 006–009 与 010 证据；尤其 I05 和监督案例也用于边界分析。复用记录保持原生标识，不累计为新增独立样本，不宣称四篇相互独立验证。

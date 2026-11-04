@@ -1,0 +1,547 @@
+{
+  "utc": "2026-11-04T09:19:00.210986+00:00",
+  "planned": 54,
+  "completed": 34,
+  "rows": [
+    {
+      "id": "P2-p2_rank-sonnet-long-joined",
+      "paper": "P2",
+      "task": "p2_rank",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_allocate-sonnet-unified-on",
+      "paper": "P1",
+      "task": "p1_allocate",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_rank-haiku-short-joined",
+      "paper": "P2",
+      "task": "p2_rank",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_allocate-sonnet-separate-off",
+      "paper": "P1",
+      "task": "p1_allocate",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_expiry-haiku-short-joined",
+      "paper": "P2",
+      "task": "p2_expiry",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_records-haiku-short-joined",
+      "paper": "P2",
+      "task": "p2_records",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_expiry-sonnet-short-distributed",
+      "paper": "P2",
+      "task": "p2_expiry",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_allocate-haiku-single",
+      "paper": "P1",
+      "task": "p1_allocate",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_rank-haiku-short-distributed",
+      "paper": "P2",
+      "task": "p2_rank",
+      "model": "claude-haiku-5-5",
+      "status": "budget_exhausted",
+      "recorded_autonomous_delivery": false,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_expiry-haiku-long-joined",
+      "paper": "P2",
+      "task": "p2_expiry",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_intervals-sonnet-separate-off",
+      "paper": "P1",
+      "task": "p1_intervals",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_intervals-haiku-unified-off",
+      "paper": "P1",
+      "task": "p1_intervals",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_intervals-haiku-separate-off",
+      "paper": "P1",
+      "task": "p1_intervals",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_intervals-haiku-separate-on",
+      "paper": "P1",
+      "task": "p1_intervals",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_order-sonnet-unified-on",
+      "paper": "P1",
+      "task": "p1_order",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_allocate-haiku-separate-on",
+      "paper": "P1",
+      "task": "p1_allocate",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_rank-sonnet-long-distributed",
+      "paper": "P2",
+      "task": "p2_rank",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_allocate-haiku-unified-on",
+      "paper": "P1",
+      "task": "p1_allocate",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_allocate-haiku-separate-off",
+      "paper": "P1",
+      "task": "p1_allocate",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_records-sonnet-long-joined",
+      "paper": "P2",
+      "task": "p2_records",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_expiry-haiku-short-distributed",
+      "paper": "P2",
+      "task": "p2_expiry",
+      "model": "claude-haiku-5-5",
+      "status": "requested_external",
+      "recorded_autonomous_delivery": false,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_intervals-haiku-unified-on",
+      "paper": "P1",
+      "task": "p1_intervals",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_order-haiku-unified-off",
+      "paper": "P1",
+      "task": "p1_order",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_order-sonnet-separate-off",
+      "paper": "P1",
+      "task": "p1_order",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_intervals-haiku-single",
+      "paper": "P1",
+      "task": "p1_intervals",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_records-haiku-long-distributed",
+      "paper": "P2",
+      "task": "p2_records",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_intervals-sonnet-separate-on",
+      "paper": "P1",
+      "task": "p1_intervals",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_order-haiku-separate-off",
+      "paper": "P1",
+      "task": "p1_order",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_rank-haiku-long-distributed",
+      "paper": "P2",
+      "task": "p2_rank",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_records-sonnet-long-distributed",
+      "paper": "P2",
+      "task": "p2_records",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_order-haiku-unified-on",
+      "paper": "P1",
+      "task": "p1_order",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_allocate-haiku-unified-off",
+      "paper": "P1",
+      "task": "p1_allocate",
+      "model": "claude-haiku-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_records-sonnet-short-distributed",
+      "paper": "P2",
+      "task": "p2_records",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_allocate-sonnet-unified-off",
+      "paper": "P1",
+      "task": "p1_allocate",
+      "model": "claude-sonnet-5-5",
+      "status": "reported_complete",
+      "recorded_autonomous_delivery": true,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_order-haiku-separate-on",
+      "paper": "P1",
+      "task": "p1_order",
+      "model": "claude-haiku-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_rank-sonnet-short-distributed",
+      "paper": "P2",
+      "task": "p2_rank",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_expiry-haiku-long-distributed",
+      "paper": "P2",
+      "task": "p2_expiry",
+      "model": "claude-haiku-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_order-haiku-single",
+      "paper": "P1",
+      "task": "p1_order",
+      "model": "claude-haiku-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_intervals-sonnet-single",
+      "paper": "P1",
+      "task": "p1_intervals",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_expiry-sonnet-short-joined",
+      "paper": "P2",
+      "task": "p2_expiry",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_rank-haiku-long-joined",
+      "paper": "P2",
+      "task": "p2_rank",
+      "model": "claude-haiku-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_records-haiku-short-distributed",
+      "paper": "P2",
+      "task": "p2_records",
+      "model": "claude-haiku-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_expiry-sonnet-long-joined",
+      "paper": "P2",
+      "task": "p2_expiry",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_intervals-sonnet-unified-off",
+      "paper": "P1",
+      "task": "p1_intervals",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_order-sonnet-single",
+      "paper": "P1",
+      "task": "p1_order",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_allocate-sonnet-single",
+      "paper": "P1",
+      "task": "p1_allocate",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_intervals-sonnet-unified-on",
+      "paper": "P1",
+      "task": "p1_intervals",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_records-haiku-long-joined",
+      "paper": "P2",
+      "task": "p2_records",
+      "model": "claude-haiku-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_records-sonnet-short-joined",
+      "paper": "P2",
+      "task": "p2_records",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_order-sonnet-separate-on",
+      "paper": "P1",
+      "task": "p1_order",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_order-sonnet-unified-off",
+      "paper": "P1",
+      "task": "p1_order",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P1-p1_allocate-sonnet-separate-on",
+      "paper": "P1",
+      "task": "p1_allocate",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_expiry-sonnet-long-distributed",
+      "paper": "P2",
+      "task": "p2_expiry",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    },
+    {
+      "id": "P2-p2_rank-sonnet-short-joined",
+      "paper": "P2",
+      "task": "p2_rank",
+      "model": "claude-sonnet-5-5",
+      "status": "not_started",
+      "recorded_autonomous_delivery": null,
+      "primary_eligible": false,
+      "reason": "Entire v1 superseded after confirmed H04 instrument defect; outcomes retained, not selectively rerun."
+    }
+  ]
+}

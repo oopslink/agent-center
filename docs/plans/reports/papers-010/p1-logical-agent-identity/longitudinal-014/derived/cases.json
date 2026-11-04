@@ -1,0 +1,99 @@
+[
+  {
+    "id": "L01",
+    "type": "mixed-trigger/ownership-correction",
+    "anchors": [
+      "01KY4B5KS3272X3AMXDXHQMEC0",
+      "01KY4B74V6XGRFG85EV29RS1RT",
+      "01KY4B7K5QXK434NNHY9K1FKEF"
+    ],
+    "limit": "线程故障排除；只保留内部失败被当外部责任的表述与纠正，不证明合法恢复全部可行。"
+  },
+  {
+    "id": "L02",
+    "type": "mixed-trigger/ownership-correction",
+    "anchors": [
+      "01KY5BMKX9ZM03BTJTENTQSKDB",
+      "01KY5BYKS2T49YEXAGRPQQ9XWN",
+      "01KY5BZ3804ZA0ETH34RA1XEH1",
+      "01KY5C4XXCTE2AGYB373M42A9Y",
+      "01KY5C5HW683A4YZG91P23RC7G"
+    ],
+    "limit": "空workspace/materializer混杂；不把仓库缺失或整个阻塞结果归于身份封装。"
+  },
+  {
+    "id": "L03",
+    "type": "contemporaneous-operator-observation-and-design-response",
+    "anchors": [
+      "01KY68C1K5SHCFA4SFNZSS7C4C",
+      "01KY68TD24Y07FCY5CZY56JEDZ",
+      "01KY699NV8C4KRZ8DNXC4858KM",
+      "01KY69AW978C5TVS6GBM5TXK6N"
+    ],
+    "limit": "所有agent是操作者当时观察，不是全体逐例标注；源码改动不证明当日已部署。"
+  },
+  {
+    "id": "L04",
+    "type": "startup-responsibility-correction",
+    "anchors": [
+      "01KZABVT594GFNYTWZ7AZRHF30",
+      "01KZABY7HSVA1FF42EH7XYX7GX",
+      "01KZAC08EKE041V1XB1C2XWE5V",
+      "01KZACFHV3BFM5CP04CR07Q79W"
+    ],
+    "limit": "reset说明缺陷与派发变更仍混杂；创建执行体仅有报告，不重分类成架构净因果案例。"
+  },
+  {
+    "id": "L05",
+    "type": "positive-responsibility-and-quality-review",
+    "anchors": [
+      "01KZDJ41E4XMR6RSRDW2342DCE",
+      "01KZDKN7K7XRNZ0DPE7G9V0GQA",
+      "01KZDKS2M645VTZJ9GR8SW0MDJ"
+    ],
+    "limit": "正确承责可见；不是无人工干预基线，不能否定早期困难或证明团队永久改善。"
+  },
+  {
+    "id": "L06",
+    "type": "visibility-complaint/not-repair-failure",
+    "anchors": [
+      "01KZG850KPD719RY7K3PVMXMFN"
+    ],
+    "limit": "身份提醒嵌在进度不可见投诉，不单独计作修复责任中断。"
+  },
+  {
+    "id": "L07",
+    "type": "mixed-runtime/ownership-wording",
+    "anchors": [
+      "01KZQQMJHHZ2BR69ZVVA6Z2ATQ",
+      "01KZQQTJTZHXSQ687330E7GJE8",
+      "01KZQQVEC2Y51A0ACEVK57BB6Q",
+      "01KZQQWTZZCCDTG8P1ZYMDJKSQ"
+    ],
+    "limit": "此前已报告fork accepted却无新execution；重复用户消息合并一次纠正机会，不把重复fork或无法执行自动当作认知失误。"
+  },
+  {
+    "id": "L08",
+    "type": "later-owner-vs-reviewer-correction",
+    "anchors": [
+      "01M1NJPH00SNX2PKBSVVMKA4RH",
+      "01M1NJWYCQYTYXT37FCD004M8X",
+      "01M1NK31VXQ3AJMG0CQDG1Y3F0",
+      "01M1NK72402T0YWKAP4PT9ZWZJ"
+    ],
+    "limit": "保留原生failed及承认处置问题；后续runtime重启/无reopen限制排除，不能要求越权恢复。"
+  },
+  {
+    "id": "L09",
+    "type": "later-responsibility-continuation-with-native-new-task",
+    "anchors": [
+      "01M1NR44ZFJ04S7HKR6HT3XYYS",
+      "01M1NR4CJ6CATJGP1T9EKMM7SK",
+      "01M1NRAFM5RP2N4TWS32W8JVJQ",
+      "01M1NRC54NBS3EBES8CTBPA7MP",
+      "01M1NRCMXMXT0RX58VWDAK8EZQ",
+      "01M1NRFGD1F1NF8XPQN4F9D9E2"
+    ],
+    "limit": "先行动指令后新task，身份提醒再晚1.614726秒；不能归因第二条提醒。后继task错基线failed，既不算最终成功也不另算身份错误。"
+  }
+]

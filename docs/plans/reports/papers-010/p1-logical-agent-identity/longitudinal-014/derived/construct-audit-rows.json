@@ -1,0 +1,4610 @@
+[
+  {
+    "id": "A-sonnet-C13-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C10-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C10-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C13-S5-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C13-S5-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S1-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S1-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S7-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S7-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S3-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S3-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S8-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S8-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C01-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C01-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S8-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S8-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S8",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C16-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C16-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C14-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C14-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C12-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C12-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C08-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C08-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C11-S4-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C11-S4-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S1-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S1-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S1",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C15-S4-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C15-S4-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S4",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C04-S6-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C04-S6-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C09-S2-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C09-S2-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C02-S6-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C02-S6-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S6",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S3-v0",
+    "model": "claude-sonnet-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S3-v0",
+    "model": "claude-haiku-5-5",
+    "case": "S3",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C07-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C07-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C06-S2-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C06-S2-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S2",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C05-S5-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C05-S5-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S5",
+    "identity": "unified",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": false,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-sonnet-C03-S7-v1",
+    "model": "claude-sonnet-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  },
+  {
+    "id": "A-haiku-C03-S7-v1",
+    "model": "claude-haiku-5-5",
+    "case": "S7",
+    "identity": "components",
+    "explicit_followup_responsibility": true,
+    "explicit_precise_repair": true,
+    "prompt_sha256_verified": true
+  }
+]

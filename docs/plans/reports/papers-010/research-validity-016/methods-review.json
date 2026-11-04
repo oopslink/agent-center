@@ -1,0 +1,162 @@
+{
+  "audit_utc": "2026-11-04T07:33:14.688403+00:00",
+  "date_local": "2026-11-03",
+  "role": "academic-paper revision peer_reviewer: substantive method and data audit",
+  "decision": "Suitable basis for exploratory single-deployment cases plus bounded behavioral probes; insufficient for architecture-level causal or general-effect claims",
+  "not_a_submission_decision": true,
+  "papers": [
+    {
+      "paper": "P1",
+      "baseline_path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/016-research-validity/before/docs/plans/reports/papers-010/p1-logical-agent-identity/paper.md",
+      "baseline_sha256": "e29da78c2cc5cbcacd623c6cd24ef0e9cbbbe5c49f4e2037521a0b60ace136aa",
+      "supported_evidence_layers": [
+        "descriptive",
+        "local_process",
+        "explicit_protocol_behavior"
+      ],
+      "architecture_causal_effect_identified": false,
+      "hard_gaps_not_fixable_by_prose": [
+        "No actual architecture manipulation",
+        "No persistent unprompted recovery measurement",
+        "No historical deployment/input reconstruction",
+        "No identifiable training cause"
+      ]
+    },
+    {
+      "paper": "P2",
+      "baseline_path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/016-research-validity/before/docs/plans/reports/papers-010/p2-workflow-responsibility/paper.md",
+      "baseline_sha256": "4c9717fbd667f07a25cd7be15108eea3993d8430339a02eb6361d666b4ffb8cb",
+      "supported_evidence_layers": [
+        "descriptive",
+        "local_process",
+        "representation_behavior"
+      ],
+      "architecture_causal_effect_identified": false,
+      "hard_gaps_not_fixable_by_prose": [
+        "No real handoff/dependency manipulation",
+        "Two of eight fixtures invalid, posthoc repairs not holdout",
+        "No team liveness or end-to-end outcome",
+        "No intervention exposure denominator"
+      ]
+    },
+    {
+      "paper": "P3",
+      "baseline_path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/016-research-validity/before/docs/plans/reports/papers-010/p3-role-shared-context/paper.md",
+      "baseline_sha256": "08bf497fd3e90a6ccb3668016a9e2000b1b2fb873d4b58e08bec230d3973bb90",
+      "supported_evidence_layers": [
+        "descriptive",
+        "information_identifiability",
+        "label_and_input_selection_behavior"
+      ],
+      "architecture_causal_effect_identified": false,
+      "hard_gaps_not_fixable_by_prose": [
+        "No no-name condition or lexical-set replication",
+        "Constructed exact metadata filtering, not retrieval benchmark",
+        "Producer-role view not consumer-duty view",
+        "Single-person experience not naming effect"
+      ]
+    },
+    {
+      "paper": "P4",
+      "baseline_path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/016-research-validity/before/docs/plans/reports/papers-010/p4-dag-evolution/paper.md",
+      "baseline_sha256": "327dc19e4226d95f9faa97d7f90786f1ef6c61f4f99d4d43c1adeecd4837e0b7",
+      "supported_evidence_layers": [
+        "descriptive",
+        "artifact_contract_process",
+        "representation_behavior"
+      ],
+      "architecture_causal_effect_identified": false,
+      "hard_gaps_not_fixable_by_prose": [
+        "No static/dynamic graph strategy intervention",
+        "Two of eight action-label oracles invalid",
+        "Explicit protocol predetermines proposed recovery principles",
+        "No counterfactual code/contract cost or end-to-end outcome"
+      ]
+    },
+    {
+      "paper": "P5",
+      "baseline_path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/016-research-validity/before/docs/plans/reports/papers-010/p5-memory-applicability/paper.md",
+      "baseline_sha256": "60fcb3ee1a15ed303784233cf8a0ea3afb36b1b35d42f03a0738a5dd141ec4f6",
+      "supported_evidence_layers": [
+        "descriptive",
+        "local_constraint_process"
+      ],
+      "architecture_causal_effect_identified": false,
+      "hard_gaps_not_fixable_by_prose": [
+        "Private memory histories incomplete",
+        "Rule positive/negative cases differ in task and joint interventions",
+        "Read receipt not verified adoption",
+        "No controlled layer comparison"
+      ]
+    }
+  ],
+  "construct_audit": "construct-audit.json",
+  "input_rows": "construct-input-rows.csv",
+  "input_census_verified": 1280,
+  "findings": [
+    {
+      "id": "M016-01",
+      "severity": "Major",
+      "type": "construct_validity",
+      "issue": "P1-P4 explicit protocols state principles later interpreted; behavior probes are not independent validation of those principles or architectures",
+      "fixable_by_prose": "Narrow contribution and classify experiments as conditional protocol-following probes",
+      "requires_new_research": "Yes for spontaneous long-run ownership, actual workflow/graph intervention, or retrieval effectiveness"
+    },
+    {
+      "id": "M016-02",
+      "severity": "Major",
+      "type": "selection_and_external_validity",
+      "issue": "Purposive windows, repeated agents/versions, one deployment and overlapping evidence cannot support incidence or population effects",
+      "fixable_by_prose": "Define analytic population, selection logic and level of inference",
+      "requires_new_research": "Yes for exposure rates, cross-deployment effects or learning curves"
+    },
+    {
+      "id": "M016-03",
+      "severity": "Major",
+      "type": "oracle_validity",
+      "issue": "P2 W2/W8 and P4 D5/D8 each invalidate 2/8 scenario families; posthoc same-fixture repairs do not supply independent validation",
+      "fixable_by_prose": "Keep original, excluded and repaired analyses distinct; no negative attribution from defective fixtures",
+      "requires_new_research": "Independent content review and held-out families"
+    },
+    {
+      "id": "M016-04",
+      "severity": "Major",
+      "type": "measurement_independence",
+      "issue": "Same AI generates tasks, expected answers, selections and interpretation; no independent factual/coding adjudication",
+      "fixable_by_prose": "Disclose scope and explicit observable criteria; do not invent agreement statistics",
+      "requires_new_research": "Separate verification of cases and ground truth"
+    },
+    {
+      "id": "M016-05",
+      "severity": "Minor",
+      "type": "reproducibility",
+      "issue": "Local raw/derived provenance is extensive but absolute paths and private data do not provide public independent reproduction",
+      "fixable_by_prose": "Separate local recalculation, public reproduction, and historical causal reconstruction",
+      "requires_new_research": "Shareable redacted evidence bundle and environment contract"
+    }
+  ],
+  "not_applicable": [
+    "Questionnaire reliability/validity: no questionnaire was conducted",
+    "Linear regression misspecification: no regression was fitted",
+    "Selective significance reporting: no inferential significance tests, all original responses and mismatches preserved"
+  ],
+  "strengths": [
+    "Original raw results and negative evidence retained",
+    "Posthoc audit and repair analyses labeled",
+    "Known system bugs and legal waits distinguished",
+    "Scenario and repeated-response denominators generally identified"
+  ],
+  "no_evidence_claimed": [
+    "Training data leakage",
+    "Fabricated data detected",
+    "Human review completed",
+    "Architecture equivalence proved"
+  ],
+  "not_performed": [
+    "No new model calls",
+    "No score changes",
+    "No paper edits",
+    "No production or frozen-DB writes",
+    "No external literature verification by this role"
+  ]
+}

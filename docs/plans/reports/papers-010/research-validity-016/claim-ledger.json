@@ -1,0 +1,137 @@
+{
+  "scope": "Retrospective claim map, not newly coded corpus or independent verification",
+  "claims": [
+    {
+      "paper": "P1",
+      "id": "P1-C1",
+      "claim": "统一软件归属未在本部署可靠维持交付责任",
+      "construct": "责任外置",
+      "observable_criterion": "未完成目标＋将自身executor失败外置的解释＋后续义务未承接；不能仅凭failed状态",
+      "evidence": "A02–A06、A15、A21；正文4.1–4.3及图5",
+      "counterevidence": "A10正确承责；9月新Task早于身份提醒，行动指令也是解释",
+      "alternative_explanations": "工具措辞、恢复入口、未知完整输入和模型版本",
+      "evidence_level": "M：局部过程解释，不识别架构净因果",
+      "unresolved_test": "多轮未见任务、实际执行隔离与持续义务表示的分别操纵"
+    },
+    {
+      "paper": "P1",
+      "id": "P1-C2",
+      "claim": "充分责任说明下，本组身份措辞未改变干净条件首步推进",
+      "construct": "协议遵循",
+      "observable_criterion": "固定情境与顺序配对，干净条件每模型64/64，身份配对差0",
+      "evidence": "A18–A22；图4；512输入全量核查",
+      "counterevidence": "其它条件仍有未首步推进及事后续步；历史反复纠偏保留",
+      "alternative_explanations": "全部输入已给恢复责任；拓扑和权限未变化",
+      "evidence_level": "B：短题表示试验",
+      "unresolved_test": "不能据此排除长期身份混淆或推断训练来源"
+    },
+    {
+      "paper": "P2",
+      "id": "P2-C1",
+      "claim": "选定交接中，角色职责未确定当前动作的主体、对象或合同",
+      "construct": "行动绑定缺口",
+      "observable_criterion": "将具体目标与合法动作、主体、对象、阶段逐项对照，人工补充内容可定位",
+      "evidence": "B01–B03、B07–B09；W01/W02；图1–3",
+      "counterevidence": "有效下游核查、独立验收和NO-GO报告",
+      "alternative_explanations": "缺完整历史输入；执行条件和对象事实也可能改变",
+      "evidence_level": "M：目的性案例机制",
+      "unresolved_test": "实际交接复杂度与行动绑定分别操纵"
+    },
+    {
+      "paper": "P2",
+      "id": "P2-C2",
+      "claim": "有效短题中的表示展开未造成语义字段错误",
+      "construct": "局部表示敏感性",
+      "observable_criterion": "六情境各模型96/96语义正确；严格91/96与96/96分开",
+      "evidence": "正文4.7；图5；256输入全量核查",
+      "counterevidence": "W2/W8全部64输出保留为缺陷情境；Sonnet五次格式失败",
+      "alternative_explanations": "gate只是谓词；所有输入直接要求自主准备；修复无独立留出集",
+      "evidence_level": "B：协议给定的动作选择",
+      "unresolved_test": "不能解释为实际工作流无复杂度成本"
+    },
+    {
+      "paper": "P3",
+      "id": "P3-C1",
+      "claim": "命名成员已经跨身份、跨角色访问共享规则",
+      "construct": "共享可达性",
+      "observable_criterion": "230去重回执及版本化规则访问对应；不将回执视为采用",
+      "evidence": "正文4.3–4.7；图2–4",
+      "counterevidence": "空格不证明无能力；角色差对分层口径敏感",
+      "alternative_explanations": "重复成员、版本与phase；历史角色未完整重建",
+      "evidence_level": "D：共享通路描述",
+      "unresolved_test": "与P5重复使用同230回执，不能累计为独立验证"
+    },
+    {
+      "paper": "P3",
+      "id": "P3-C2",
+      "claim": "固定生产者角色过滤可遗漏当前消费者的必要事实",
+      "construct": "信息充分性",
+      "observable_criterion": "同视图无法区分需不同处置的状态；personal3/8、role2/8、all/bounded8/8由选择器产生",
+      "evidence": "正文4.8；图5；p3-constructed-coverage.csv",
+      "counterevidence": "all与bounded直接处置相同；角色可用作消费者需求索引",
+      "alternative_explanations": "任务人为需要跨角色证据；无实际检索错误或预算",
+      "evidence_level": "M/B：构造反例及给定信息下行为",
+      "unresolved_test": "实际检索器、同预算、未见任务族"
+    },
+    {
+      "paper": "P3",
+      "id": "P3-C3",
+      "claim": "两套显示标签未改变直接处置，命名必要性仍未识别",
+      "construct": "标签效应／人类体验",
+      "observable_criterion": "Nora/Luca与Q104/Q207等事实比较；一人回顾单列",
+      "evidence": "正文4.6、4.8；图5；N05自述",
+      "counterevidence": "严格评分与引用格式并非全同；没有无名条件；团队感有自述",
+      "alternative_explanations": "单一标签集合与显式权限说明；完整团队界面共同影响体验",
+      "evidence_level": "B：局部标签；D：单人自述",
+      "unresolved_test": "无名、人名、角色标签多集合对照；用户体验另行研究"
+    },
+    {
+      "paper": "P4",
+      "id": "P4-C1",
+      "claim": "选定改图承载变化义务，不能独自解释产物或验收变化",
+      "construct": "工作组织／交付谱系",
+      "observable_criterion": "分别检查图增量、Git祖先及树、候选、合同和环境",
+      "evidence": "正文4.1–4.4；图2–3；008-GIT",
+      "counterevidence": "修复报告早于改图；原任务续修、补证和合法等待；同树不同SHA",
+      "alternative_explanations": "共同代码修改、人工信息和验收范围变化",
+      "evidence_level": "M：过程重建",
+      "unresolved_test": "同初态下实际运行原任务续修、局部改图、重规划"
+    },
+    {
+      "paper": "P4",
+      "id": "P4-C2",
+      "claim": "父节点高保留率描述历史累积，视图短题不能测演化净收益",
+      "construct": "结构描述／协议遵循",
+      "observable_criterion": "169转移149全保留；六有效情境每模型96/96",
+      "evidence": "正文4.5–4.7；图1、4–6",
+      "counterevidence": "D5/D8全部64原不匹配保留；有记录Plan存在选择性",
+      "alternative_explanations": "所有题规定图不修代码且关闭历史无当前依赖",
+      "evidence_level": "D/B：描述与短题",
+      "unresolved_test": "不将转移当独立交付；新留出任务和成本/质量评价"
+    },
+    {
+      "paper": "P5",
+      "id": "P5-C1",
+      "claim": "Team发布及跨成员访问通路可核，但授权审核不是独立真值检查",
+      "construct": "治理状态／可达性",
+      "observable_criterion": "57提交与事件对应；30提案、27审核、230回执各自分母",
+      "evidence": "M01；正文4.1–4.2；图2–3",
+      "counterevidence": "16/27同作者自审；3pending右删失；0/230旧commit受覆盖限制",
+      "alternative_explanations": "私有材料缺历史；去重与左截断使复用机会分母未知",
+      "evidence_level": "D：实现和治理描述",
+      "unresolved_test": "不计算跨层复用收益或将计数连成转化漏斗"
+    },
+    {
+      "paper": "P5",
+      "id": "P5-C2",
+      "claim": "无阶段条件的main通则与中间验收顺序冲突；条件化规则有采用正例",
+      "construct": "适用性／采用",
+      "observable_criterion": "规则条款与合同顺序相交；原生阻塞及明确采用分别定位",
+      "evidence": "M02–M04；正文4.3–4.5；案例附录",
+      "counterevidence": "pending也可会话采用；M03伴随人工提示、候选证据和图改变",
+      "alternative_explanations": "M02/M03不同任务，不是前后配对干预",
+      "evidence_level": "M：约束机制与过程对读",
+      "unresolved_test": "同任务规则条件、替代版本及跨会话采用对照，尚未执行"
+    }
+  ]
+}

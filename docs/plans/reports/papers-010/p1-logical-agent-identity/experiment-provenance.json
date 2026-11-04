@@ -1,0 +1,66 @@
+{
+  "experiment_root": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001",
+  "files": [
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/protocol.md",
+      "sha256": "eee9576d736576ba3b99ac72ccb98247a5ab848c231ff7e9d464165f5e17e632"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/design-lock.json",
+      "sha256": "2c1a2be343d9ac73edbf1536af876f733b14a1cf76a1270b2b4ea805e7e11aa2"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/design.json",
+      "sha256": "a7b90d4049b14ec87d0959acf02ca758d7d0476c844c3aef4950210cec91688c"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/cases.json",
+      "sha256": "d4d9f9bac7a0108c0d651095f218f1f7e2841d101a9b836b64a8c05b8ed9e536"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/engine.py",
+      "sha256": "ccabc023dd00c267c17d9475f788bd963643053f1a5203c1520ecb5590892e07"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/analysis/rows.csv",
+      "sha256": "6d0bb21e801e8de87880128b45011b1bda0bc9ff75bf083204c0390d00bd527b"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/analysis/summary.json",
+      "sha256": "f1e68ada46e9ee3e9728db93fb352d895441ea29aa05c5083fef32d5bf6b2a1c"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/analysis/paired-effects.json",
+      "sha256": "6978d631211ff233735f08b33d31c6736e4dd2234b7d8410fa20bcfecf70c01b"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/analysis/posthoc-recovery-summary.json",
+      "sha256": "fe3583e25e4b278c345d75f1aa7355baf7ef7e6a45803ee60e34d9cde5fe8362"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/posthoc-recovery-protocol.md",
+      "sha256": "feb7e863e2bffe096b38301e287caf13a343020ff9c518e8c08dc10866b9e413"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/posthoc-recovery-lock.json",
+      "sha256": "ca1f42703dfa36283eaddf2a060b904b086a0fa4dbb33c64f9175b26dbee88d5"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/report.md",
+      "sha256": "3cbae8156ddb7434dd323c719897fde415a053cddd740c3c498e9752e3840510"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/make_figure.py",
+      "sha256": "7f57feeaf2121d78b2e9f861f6dbaa9f3021345118e1fb910697cd4b7fbb048e"
+    }
+  ],
+  "raw_records": "raw/ and recovery-raw/ under experiment_root, all attempts retained; root manifest.json inventories bytes.",
+  "call_counts": {
+    "main_action": 512,
+    "default_probe": 32,
+    "posthoc_continuation": 3,
+    "excluded_connectivity": 2
+  },
+  "human_review": "not_completed",
+  "independent_review": false
+}

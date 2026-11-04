@@ -1,0 +1,114 @@
+[
+  {
+    "id": "D-S-A1",
+    "case": "D",
+    "model": "claude-sonnet-5-5",
+    "access": true,
+    "rep": 1
+  },
+  {
+    "id": "D-S-A2",
+    "case": "D",
+    "model": "claude-sonnet-5-5",
+    "access": true,
+    "rep": 2
+  },
+  {
+    "id": "D-S-A3",
+    "case": "D",
+    "model": "claude-sonnet-5-5",
+    "access": true,
+    "rep": 3
+  },
+  {
+    "id": "D-S-X1",
+    "case": "D",
+    "model": "claude-sonnet-5-5",
+    "access": false,
+    "rep": 1
+  },
+  {
+    "id": "D-H-A1",
+    "case": "D",
+    "model": "claude-haiku-5-5",
+    "access": true,
+    "rep": 1
+  },
+  {
+    "id": "D-H-A2",
+    "case": "D",
+    "model": "claude-haiku-5-5",
+    "access": true,
+    "rep": 2
+  },
+  {
+    "id": "D-H-A3",
+    "case": "D",
+    "model": "claude-haiku-5-5",
+    "access": true,
+    "rep": 3
+  },
+  {
+    "id": "D-H-X1",
+    "case": "D",
+    "model": "claude-haiku-5-5",
+    "access": false,
+    "rep": 1
+  },
+  {
+    "id": "I-S-A1",
+    "case": "I",
+    "model": "claude-sonnet-5-5",
+    "access": true,
+    "rep": 1
+  },
+  {
+    "id": "I-S-A2",
+    "case": "I",
+    "model": "claude-sonnet-5-5",
+    "access": true,
+    "rep": 2
+  },
+  {
+    "id": "I-S-A3",
+    "case": "I",
+    "model": "claude-sonnet-5-5",
+    "access": true,
+    "rep": 3
+  },
+  {
+    "id": "I-S-X1",
+    "case": "I",
+    "model": "claude-sonnet-5-5",
+    "access": false,
+    "rep": 1
+  },
+  {
+    "id": "I-H-A1",
+    "case": "I",
+    "model": "claude-haiku-5-5",
+    "access": true,
+    "rep": 1
+  },
+  {
+    "id": "I-H-A2",
+    "case": "I",
+    "model": "claude-haiku-5-5",
+    "access": true,
+    "rep": 2
+  },
+  {
+    "id": "I-H-A3",
+    "case": "I",
+    "model": "claude-haiku-5-5",
+    "access": true,
+    "rep": 3
+  },
+  {
+    "id": "I-H-X1",
+    "case": "I",
+    "model": "claude-haiku-5-5",
+    "access": false,
+    "rep": 1
+  }
+]

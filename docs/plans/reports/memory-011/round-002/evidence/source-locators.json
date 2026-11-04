@@ -1,0 +1,308 @@
+[
+  {
+    "case": "M01",
+    "type": "message",
+    "id": "01KZWXQ9JN8KHZBXH4ENCXG5QQ",
+    "timestamp": "2026-08-13T06:42:29.58964Z",
+    "file": "raw/conversations/channel-3a89b8fa.json",
+    "pointer": "/194",
+    "file_sha256": "6ccf733decfb0f5a08b9e913bc096cd0e88a8b15946e3a45c927a72f8d564342"
+  },
+  {
+    "case": "M01",
+    "type": "message",
+    "id": "01KZWVCFCHH17P4HW9HKJ51GEZ",
+    "timestamp": "2026-08-13T06:01:37.93772Z",
+    "file": "raw/conversations/channel-3a89b8fa.json",
+    "pointer": "/190",
+    "file_sha256": "6ccf733decfb0f5a08b9e913bc096cd0e88a8b15946e3a45c927a72f8d564342"
+  },
+  {
+    "case": "M02",
+    "type": "message",
+    "id": "01M0XFG3K9ASSGDBBZC3B0KCV3",
+    "timestamp": "2026-08-25T22:08:50.281183Z",
+    "file": "raw/conversations/01M0WH6C1PH9XXXDMCKW671ATD.json",
+    "pointer": "/0",
+    "file_sha256": "2e0afbcc6ee799f99f86ccc35ff0e989c5da5a8a8413705d42a0b53d6a5cbd36"
+  },
+  {
+    "case": "M02",
+    "type": "message",
+    "id": "01M0XFPQXEPNPQQECMYJPZ7004",
+    "timestamp": "2026-08-25T22:12:27.694684Z",
+    "file": "raw/conversations/01M0WH51Z022K0QN865QC90H93.json",
+    "pointer": "/150",
+    "file_sha256": "ef6283a08773273e683dd97fe4d8dd2c342bf4e886fb8bb9edb243f256e930a1"
+  },
+  {
+    "case": "M02",
+    "type": "message",
+    "id": "01M0XFQ6BBYV4SCZ9D177KGJM6",
+    "timestamp": "2026-08-25T22:12:42.4755Z",
+    "file": "raw/conversations/01M0XFP3JB2V1MSKPCY7EKMTFZ.json",
+    "pointer": "/0",
+    "file_sha256": "2565d956afef12b0a42858dca90bce958de533e781e2c42c16217cc5b47eef0a"
+  },
+  {
+    "case": "M03",
+    "type": "message",
+    "id": "01M2MR2ZK8PQ35DBJRZD76G3KH",
+    "timestamp": "2026-09-16T09:17:11.144792Z",
+    "file": "raw/conversations/01M2FMC6C6A3KN2KK2RZRY9V94.json",
+    "pointer": "/109",
+    "file_sha256": "a33d9155a06192be131dc49ccf6e583dc586b1bb8a8d7772e80395ff1b6e0d5e"
+  },
+  {
+    "case": "M03",
+    "type": "message",
+    "id": "01M2MR466E1QKRSD2SJD0GDNM4",
+    "timestamp": "2026-09-16T09:17:50.670988Z",
+    "file": "raw/conversations/01M2MPQ2AEQXF6EEKKFQ3AJR4Z.json",
+    "pointer": "/0",
+    "file_sha256": "7497d5b8fab673aa2b39be3ae2b6d235cdf7c9303b1bbaf61779d37386ff5f64"
+  },
+  {
+    "case": "M04",
+    "type": "message",
+    "id": "01M22CDGT2C2PCM0T3ZDBQ32WF",
+    "timestamp": "2026-09-09T06:06:53.762917Z",
+    "file": "raw/conversations/01M1EVGSHVR5AF0R32BX45XMWH.json",
+    "pointer": "/19",
+    "file_sha256": "9288bcd847b687e475d898fc921c3facf2c05469a4c8f0e7ff51ba351be3b648"
+  },
+  {
+    "case": "M04",
+    "type": "message",
+    "id": "01M22DEYN8YDDQ4BYCZG5SP6M9",
+    "timestamp": "2026-09-09T06:25:09.288702Z",
+    "file": "raw/conversations/01M1EVGSHVR5AF0R32BX45XMWH.json",
+    "pointer": "/21",
+    "file_sha256": "9288bcd847b687e475d898fc921c3facf2c05469a4c8f0e7ff51ba351be3b648"
+  },
+  {
+    "case": "M06",
+    "type": "message",
+    "id": "01KWHFR3ZXSRY4X5FJR22720K6",
+    "timestamp": "2026-07-02T13:19:32.349885Z",
+    "file": "raw/conversations/01KWHEW4D7H31KY53YF0867N69.json",
+    "pointer": "/4",
+    "file_sha256": "da9c32321a0db336a15221334696bc6d6d2e69324958f3acd800688aaa5e7916"
+  },
+  {
+    "case": "M06",
+    "type": "message",
+    "id": "01KWHFVVT6YJ3828WWKCFERARX",
+    "timestamp": "2026-07-02T13:21:35.046698Z",
+    "file": "raw/conversations/01KWHEW4D7H31KY53YF0867N69.json",
+    "pointer": "/6",
+    "file_sha256": "da9c32321a0db336a15221334696bc6d6d2e69324958f3acd800688aaa5e7916"
+  },
+  {
+    "case": "M05",
+    "type": "task-action",
+    "id": "01KXCV5T61EPM8B98JWABNPSAR",
+    "timestamp": "2026-07-13T04:18:45.057225Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/0",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M05",
+    "type": "task-action",
+    "id": "01KXCVHW3B044CK2XG1RV891PM",
+    "timestamp": "2026-07-13T04:25:20.235318Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/1",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M02",
+    "type": "task-action",
+    "id": "01M0XFFC7SWZFFBY2B2KNHWZGG",
+    "timestamp": "2026-08-25T22:08:26.350993Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/2",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M02",
+    "type": "task-action",
+    "id": "01M0XFG3KBP0QQPK675R02AGWY",
+    "timestamp": "2026-08-25T22:08:50.28251Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/3",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M02",
+    "type": "task-action",
+    "id": "01M0XFPQ1K3MZK25HR4H2VPX7K",
+    "timestamp": "2026-08-25T22:12:26.801016Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/4",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M02",
+    "type": "task-action",
+    "id": "01M0XFQ6BDBK133D5GJNMMZNAQ",
+    "timestamp": "2026-08-25T22:12:42.476715Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/5",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M03",
+    "type": "task-action",
+    "id": "01M15TJQTZED4GNF4GKMBA3RTY",
+    "timestamp": "2026-08-29T03:56:26.323401Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/6",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M03",
+    "type": "task-action",
+    "id": "01M15XB4E4STHREYBZ62MYA653",
+    "timestamp": "2026-08-29T04:44:42.78888Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/7",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M03",
+    "type": "task-action",
+    "id": "01M15XB4E4STHREYBZ62Y6D56Z",
+    "timestamp": "2026-08-29T04:44:42.78888Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/8",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M03",
+    "type": "task-action",
+    "id": "01M2MQD75DBJK839GZHA6JBGH2",
+    "timestamp": "2026-09-16T09:05:17.989709Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/9",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M03",
+    "type": "task-action",
+    "id": "01M2MQNGX8N75X1VD71M6M82R3",
+    "timestamp": "2026-09-16T09:09:50.119552Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/10",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M03",
+    "type": "task-action",
+    "id": "01M2MQW2JXNN8WSXBR3RQPN6JW",
+    "timestamp": "2026-09-16T09:13:24.820962Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/11",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M03",
+    "type": "task-action",
+    "id": "01M2MR59ZFH4YXS70Z19C1Q0EX",
+    "timestamp": "2026-09-16T09:18:27.305898Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/12",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M03",
+    "type": "task-action",
+    "id": "01M2MRYT8D8MSQS9ENJEK0VWC2",
+    "timestamp": "2026-09-16T09:32:23.179329Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/13",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M03",
+    "type": "task-action",
+    "id": "01M2MSN0XVHRM9RH4Q8RQR7WFP",
+    "timestamp": "2026-09-16T09:44:30.90695Z",
+    "file": "raw/db/case-task-actions.json",
+    "pointer": "/14",
+    "file_sha256": "e5bb7e6e1db12965959fc2d8b42ba03599a63e3a6aef5d105408e03765955f4d"
+  },
+  {
+    "case": "M03",
+    "type": "domain-event",
+    "id": "01M2MPQ1RNT10MDQY3BT1MDM7D",
+    "timestamp": "2026-09-16T08:53:11.573741Z",
+    "file": "raw/db/case-domain-events.json",
+    "pointer": "/0",
+    "file_sha256": "35c819ca6a63c8b888575084b24f04db9f57e6282c675290a4909332af95ea24"
+  },
+  {
+    "case": "M03",
+    "type": "domain-event",
+    "id": "01M2MQD75EK9421190WEM8KX1T",
+    "timestamp": "2026-09-16T09:05:17.998349Z",
+    "file": "raw/db/case-domain-events.json",
+    "pointer": "/2",
+    "file_sha256": "35c819ca6a63c8b888575084b24f04db9f57e6282c675290a4909332af95ea24"
+  },
+  {
+    "case": "M03",
+    "type": "domain-event",
+    "id": "01M2MQPA11NJPMWS416SRRR25C",
+    "timestamp": "2026-09-16T09:10:15.840265Z",
+    "file": "raw/db/case-domain-events.json",
+    "pointer": "/4",
+    "file_sha256": "35c819ca6a63c8b888575084b24f04db9f57e6282c675290a4909332af95ea24"
+  },
+  {
+    "case": "M03",
+    "type": "domain-event",
+    "id": "01M2MQW2K0ZQYMBHY2RZQNAPQD",
+    "timestamp": "2026-09-16T09:13:24.832314Z",
+    "file": "raw/db/case-domain-events.json",
+    "pointer": "/5",
+    "file_sha256": "35c819ca6a63c8b888575084b24f04db9f57e6282c675290a4909332af95ea24"
+  },
+  {
+    "case": "M03",
+    "type": "domain-event",
+    "id": "01M2MR466HWP7XDVTMCXE88R1A",
+    "timestamp": "2026-09-16T09:17:50.672869Z",
+    "file": "raw/db/case-domain-events.json",
+    "pointer": "/7",
+    "file_sha256": "35c819ca6a63c8b888575084b24f04db9f57e6282c675290a4909332af95ea24"
+  },
+  {
+    "case": "M03",
+    "type": "domain-event",
+    "id": "01M2MR2NF26Q4M6WGKJTKAYVDK",
+    "timestamp": "2026-09-16T09:17:00.77051Z",
+    "file": "raw/db/case-domain-events.json",
+    "pointer": "/8",
+    "file_sha256": "35c819ca6a63c8b888575084b24f04db9f57e6282c675290a4909332af95ea24"
+  },
+  {
+    "case": "M03",
+    "type": "domain-event",
+    "id": "01M2MR59ZGFTFA3D5HPGA913A3",
+    "timestamp": "2026-09-16T09:18:27.312063Z",
+    "file": "raw/db/case-domain-events.json",
+    "pointer": "/10",
+    "file_sha256": "35c819ca6a63c8b888575084b24f04db9f57e6282c675290a4909332af95ea24"
+  },
+  {
+    "case": "M03",
+    "type": "domain-event",
+    "id": "01M2MRXANZ2F8PSQFKNF09RRCC",
+    "timestamp": "2026-09-16T09:31:34.462678Z",
+    "file": "raw/db/case-domain-events.json",
+    "pointer": "/12",
+    "file_sha256": "35c819ca6a63c8b888575084b24f04db9f57e6282c675290a4909332af95ea24"
+  }
+]

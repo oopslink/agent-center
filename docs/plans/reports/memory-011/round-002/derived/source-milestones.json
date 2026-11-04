@@ -1,0 +1,57 @@
+[
+  {
+    "query": "4e588233",
+    "exit": 0,
+    "git_metadata": "4e5882336358b41ae4f1cfec6d205603f4b48ed4\t2026-06-27T14:45:49+08:00\t2026-06-27T14:45:49+08:00\tfeat(memory): wire scoped Memory engine into agent runtime (W2/T482)"
+  },
+  {
+    "query": "d80eb55e",
+    "exit": 0,
+    "git_metadata": "d80eb55ed71de51918ba3b69987d0f4e1e18e6ca\t2026-07-01T17:49:44+08:00\t2026-07-01T17:49:44+08:00\trefactor(cognition): rename memory file CLAUDE.md → MEMORY.md for CLI neutrality"
+  },
+  {
+    "query": "c5ba6eed",
+    "exit": 0,
+    "git_metadata": "c5ba6eed4cda258e2d30a23076c6f7ae9cba64bb\t2026-07-12T22:28:07+08:00\t2026-07-12T22:28:07+08:00\tfeat(team): Team Phase-1 S3 — progressive loading + templates + role→agent [Team S3]"
+  },
+  {
+    "query": "3a06de58",
+    "exit": 0,
+    "git_metadata": "3a06de58bc4c9d8a7a38ee6d709bafe3943456fd\t2026-07-31T09:03:59+08:00\t2026-07-31T09:03:59+08:00\tfix(runtime): harden memory and codex recovery"
+  },
+  {
+    "query": "332ca77f",
+    "exit": 0,
+    "git_metadata": "332ca77fb7b5c018fe927628a164cb2101b3d5ff\t2026-07-31T18:41:28+08:00\t2026-07-31T18:41:28+08:00\tfeat(memory): add agent memory management"
+  },
+  {
+    "query": "50f2812b",
+    "exit": 0,
+    "git_metadata": "50f2812ba988e1de839b5807dbe0132465a76423\t2026-08-08T16:01:17+08:00\t2026-08-08T16:01:17+08:00\tfeat: add team memory rules"
+  },
+  {
+    "query": "bacc8eaf",
+    "exit": 0,
+    "git_metadata": "bacc8eaf0e6796eeb8d9f8f6dbc52387197e5997\t2026-08-08T17:59:54+08:00\t2026-08-08T17:59:54+08:00\tfix(plan): snapshot team rules for planning tools"
+  },
+  {
+    "query": "fe5e05c6",
+    "exit": 0,
+    "git_metadata": "fe5e05c64ee7dd9332007d0a23ef5faf9c9cbeb4\t2026-08-09T01:13:10+08:00\t2026-08-09T01:13:10+08:00\tfeat: implement controlled team memory proposals"
+  },
+  {
+    "query": "61cebc7b",
+    "exit": 0,
+    "git_metadata": "61cebc7b2e1799aa577cdf9fd1c135c17f1d5483\t2026-08-09T12:42:04+08:00\t2026-08-09T12:42:04+08:00\tfix(team-memory): unify service contracts"
+  },
+  {
+    "query": "4f0e990c",
+    "exit": 0,
+    "git_metadata": "4f0e990cad3d35cd911826b8376128cd72982809\t2026-08-13T23:54:02+08:00\t2026-08-13T23:54:02+08:00\tImplement commit-bound team rule registry"
+  },
+  {
+    "query": "38172447",
+    "exit": 0,
+    "git_metadata": "38172447b0445c28cc35f20ae49faf5d4f84d2ca\t2026-08-14T00:23:53+08:00\t2026-08-14T00:23:53+08:00\tfix(runtime): keep team rule bodies on demand"
+  }
+]

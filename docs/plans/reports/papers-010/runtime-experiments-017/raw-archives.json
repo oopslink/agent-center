@@ -1,0 +1,28 @@
+[
+  {
+    "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/archives/raw-v1.tar.gz",
+    "sha256": "f3ec1e8c8457659700aa4845da2a7fd1cf4ae9aca0df94c541344ca15c08ff7d",
+    "bytes": 1681550,
+    "contains": [
+      "episodes-v1"
+    ]
+  },
+  {
+    "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/archives/raw-v2.tar.gz",
+    "sha256": "cba93e8ee3f94e3839f90f571e26276c170e5e48da285cf1fd62ebe3cda1bbd9",
+    "bytes": 2632953,
+    "contains": [
+      "episodes"
+    ]
+  },
+  {
+    "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/archives/raw-pilots.tar.gz",
+    "sha256": "97c2d967e38539a5570f3b4ffdc4c3651b264fe88aef046a3e25c2be98d5a7b9",
+    "bytes": 236173,
+    "contains": [
+      "pilot",
+      "pilot-v2",
+      "pilot-v3"
+    ]
+  }
+]

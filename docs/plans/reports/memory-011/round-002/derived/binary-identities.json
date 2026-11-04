@@ -1,0 +1,24 @@
+[
+  {
+    "side": "center",
+    "resolved_binary": "/Users/oopslink/.agent-center/versions/main-9e09f2a2/bin/agent-center",
+    "bytes": 83905266,
+    "sha256": "c228774036adbb02c4d0f8d9e414599c1f238a2f2a30a7f4447f0307e2185031",
+    "sha256_stable_after_build_info": true,
+    "build_info_path": "raw/center-binary-build-bound.txt",
+    "build_info_sha256": "8ddd3de2343d40ac45ca462679d35c68696403e473518a3010dc25d78997382d",
+    "observed_utc": "2026-11-04T06:30:14.902762+00:00",
+    "evidence_scope": "file on disk, not proof of active process or historical deployment"
+  },
+  {
+    "side": "worker",
+    "resolved_binary": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/versions/main-71cde362/bin/agent-center",
+    "bytes": 83921778,
+    "sha256": "087b987e13241bd48a689b90e8668b6038ea44c9c05c1e938f9f0ebdf17eeff5",
+    "sha256_stable_after_build_info": true,
+    "build_info_path": "raw/worker-binary-build-bound.txt",
+    "build_info_sha256": "8a2bbaefc19d535a47029ddb958375af110ee4586d5a43243f34755533e0fd95",
+    "observed_utc": "2026-11-04T06:30:15.002654+00:00",
+    "evidence_scope": "file on disk, not proof of active process or historical deployment"
+  }
+]

@@ -1,0 +1,162 @@
+--- before/docs/plans/reports/papers-010/p1-logical-agent-identity/paper.md
++++ after/docs/plans/reports/papers-010/p1-logical-agent-identity/paper.md
+@@ -8,13 +8,13 @@
+ 
+ ## 中文摘要
+ 
+-Agent Center将常驻Supervisor与临时executor封装为同一逻辑Agent，以支持并发执行、任务隔离与统一回写。本文考察这一封装能否维持执行失败后的交付责任，以及人工为何仍需反复纠正责任归属。研究采用单部署的回顾性案例比较，结合原生消息、任务动作、历史提示与两模型受控动作实验，区分执行失败、责任解释、恢复行动和交付结果。案例显示，Supervisor会将自身executor的失败解释为外部阻塞，或在拒绝不合格产物后把任务结束视为交付义务结束；直接提醒和提示修订之后，正确承责与后期再次纠偏仍同时存在。512次合成动作选择中，两模型在明确责任与合法恢复动作的干净条件下均64/64首步到达控制边界，身份表述的配对差为0。这支持明确协议下的动作遵循，却没有检验长期运行中的自主承责。研究结论是：统一的软件身份不足以建立稳定的责任连续性；执行隔离、质量审查与目标责任需要分别表示，并通过合法修复、补证或升级持续连接。人工反复重建这一连接是本部署的实际维护负担。现有证据尚未量化该负担，也未分离抽象、接口与训练先验各自的因果贡献；明显系统故障不计入架构效应。
++Agent Center将常驻Supervisor与临时executor封装为同一逻辑Agent，以支持并发、隔离与统一回写。本文研究这一封装为何未稳定延续失败后的交付责任。单部署案例比较显示，Supervisor会把内部执行失败外置，或把质量拒绝当作自身义务终止；多次人工提醒与提示修订后，正确承责和后期再纠偏仍并存。先前512次动作探针预先声明了恢复义务，不能检验自主承责。为补足这一缺口，新增真实文件执行、独立worker进程和终止后验收：24次身份×台账析因执行及6次单会话参照全部自主完成，身份与台账的完成配对差均为0；委派用8–9次总决策，单会话用3次。该反证表明，在干净接口、小任务和单次预置失败下，统一身份表述没有显示独立负效应；它不否定历史中反复人工重建责任的负担，也未覆盖长期多次失败。研究结论是软件归属不能替代持续责任管理，但当前证据尚不能把历史失效单独归因于身份抽象或训练先验。仪器缺陷影响的旧轮全量保留并排除，新增复验仍属探索性研究，尚未人工复核。
+ 
+ **关键词：**逻辑 Agent；Supervisor/executor；责任归属；执行生命周期；agent harness
+ 
+ ## Abstract
+ 
+-Agent Center combines a persistent Supervisor and temporary executors within one logical Agent to support concurrency, isolation, and unified writeback. This study asks whether that abstraction sustains delivery responsibility after execution failures and why repeated human correction remains necessary. A retrospective single-deployment case comparison combines native messages, task actions, historical prompts, and controlled action-selection experiments with two models. The analysis separates execution failure, responsibility attribution, recovery action, and delivery outcome. Supervisors sometimes treated failures of their own executors as external blockers or treated rejection of an inadequate candidate as the end of their delivery obligation. Human reminders and prompt revisions were followed by both appropriate ownership and later episodes requiring correction. Across 512 synthetic action selections, each model reached the control boundary in 64/64 clean-condition actions, with zero paired difference between identity framings. Because responsibility and authorized recovery were explicit in both conditions, these results establish protocol-following within the tested tasks, not sustained autonomous ownership. The central finding is that unified software identity did not reliably preserve responsibility continuity. Execution isolation and quality review must remain connected to authorized repair, evidence collection, or escalation. Repeated human reconstruction of that connection was an observed maintenance burden, although its magnitude and the separate causal roles of abstraction, interfaces, and training priors remain unmeasured. Evident system faults are excluded from architectural outcome attribution.
++Agent Center combines a persistent Supervisor and temporary executors within one logical Agent to support concurrency, isolation, and unified writeback. This study examines why that abstraction did not reliably sustain responsibility after execution failures. A retrospective single-deployment comparison identifies internal failures treated as external blockers and quality rejection treated as the end of delivery obligations. Human reminders and prompt revisions were followed by both appropriate ownership and later corrections. Earlier 512 action probes explicitly supplied recovery obligations and therefore did not test autonomous ownership. We add actual file execution, independent worker processes, and post-termination acceptance: all 24 identity-by-ledger episodes and six single-session references completed autonomously. Paired completion differences for identity and ledger were zero; delegation required 8–9 total model decisions versus three for the single-session references. Under clean interfaces, small tasks, and one seeded failure, identity wording showed no independent adverse effect. This counterevidence does not negate the historical maintenance burden or test sustained recovery across repeated failures. Unified software identity did not substitute for continuing responsibility management, but the separate causal roles of abstraction and training priors remain unidentified. All outcomes from an instrument-affected round were retained and excluded; the repaired rerun remains exploratory and has not been human-verified.
+ 
+ **Keywords:** logical agent; supervisor/executor; accountability; execution lifecycle; agent harness
+ 
+@@ -26,7 +26,7 @@
+ 
+ 这一问题在运行中有直接表现：Supervisor能够发现不合格产物，却以外部评审者自居；也能识别没有executor在工作，却把启动责任留给中心。用户反复提醒executor属于当前Agent，并推动身份与审查提示修订。后续出现正确承责，也再次需要纠偏。本文据此研究责任在哪个环节中断、人工补充了什么，以及明确责任之后模型是否仍会选错动作。（A02–A06、A10、A15、A21）
+ 
+-本研究将软件身份、行为责任和因果解释分开。已有多Agent失败分类讨论角色规范与协调错位，[1]<!--ref:R01--><!--anchor:section:4--> 本文进一步考察一个逻辑Agent内部的执行分离如何伴随责任外置。历史案例用于识别这一运行问题，短题实验用于检验给定协议下的表示敏感性。二者共同支持对当前封装的设计评价：软件归属没有替代持续的行为责任管理；它的独立因果作用仍未被识别。抽象、恢复接口与模型先验各自的贡献，则属于进一步的因果问题。
++本研究将软件身份、行为责任和因果解释分开。已有多Agent失败分类讨论角色规范与协调错位，[1]<!--ref:R01--><!--anchor:section:4--> 本文进一步考察一个逻辑Agent内部的执行分离如何伴随责任外置。历史案例用于识别运行问题，短题检验给定协议下的表示敏感性，新增执行对照观察一次实际失败交接。这些证据分别约束对当前封装的设计评价：软件归属没有替代持续的行为责任管理；它的独立因果作用仍未被识别。抽象、恢复接口与模型先验各自的贡献，则属于进一步的因果问题。
+ 
+ 本文不再以“分离执行角色可能出错”作为待发现的一般问题。可由本地材料回答的是：在已设计统一身份和监督职责的部署中，哪些失败恢复义务仍被外置，人工如何反复补回这一关系。它是一项有范围的运行机制研究，不声称首先提出持续修复责任。
+ 
+@@ -56,7 +56,7 @@
+ 
+ ### 3.1 研究设计与分析单位
+ 
+-研究采用回顾性案例比较与受控动作实验两种互补设计。案例分析解释实际运行中的责任中断及人工补偿；实验在固定状态与权限下检验工具说明、历史规则、身份表述和角色标签对动作选择的影响。历史部署与实验使用的模型、输入和运行条件不同，二者不合并计算发生率或交付效果。（A00、A18–A22）
++研究采用回顾性案例比较、受控动作探针及新增多轮执行对照。案例分析解释实际运行中的责任中断及人工补偿；实验在固定状态与权限下检验工具说明、历史规则、身份表述和角色标签对动作选择的影响。历史部署与实验使用的模型、输入和运行条件不同，二者不合并计算发生率或交付效果。（A00、A18–A22）
+ 
+ 案例的分析单位是一次**失败或交付拒绝后的责任延续片段**，而不是单条消息或一个failed状态。对每个片段，结合可得记录判断：未完成目标是什么，Supervisor如何解释executor的产出，由谁采取下一步，人工补充了什么，以及是否出现原生恢复动作或后续交付证据。参与者自述、原生状态变化和最终验收分别记录，避免将承认错误、宣布修复或新建任务都当成交付成功。
+ 
+@@ -98,6 +98,19 @@
+ 本文按软件工程案例研究区分情境解释与因果识别，[7]<!--ref:RV16_METHOD--> 案例为目的性选择，研究问题和分析框架经材料阅读后调整，未预注册，也未完成全库盲法编码。输入、评分和统计可复算，不等于题目具有充分内容效度；设计、答案与解释同由AI形成，现有分工审阅不能替代独立人工判定。模型响应是固定情境的交叉观测，不按独立生产任务计算置信区间或显著性。
+ 
+ 逐项构念定义、输入全量核查、排除理由、主张与反证以及未执行的判别研究见[效度审计](../research-validity-016/README.md)。正文图表分别承担结构描述、过程比较或局部行为检验，[图表—主张映射](../research-validity-016/figure-claim-map.md)列明其可支持的结论；图中计数不是机制的独立验证。
++
++### 3.6 多轮执行中的无提醒恢复对照
++
++为弥补短题预先给出恢复义务的限制，新增三类可执行函数任务：区间合并、整数配额分配与依赖排序。每个episode从同一脚本化executor生成的错误实现和实际失败检查开始；这一失败是研究者设置的恢复机会，不是自然LLM错误。随后模型可以委派新的临时executor、检查产物和报告结束，没有人工中途提醒。身份因素仅改变Supervisor与executor属于“同一逻辑Agent”还是“分离协作Agent”的表述，实际分离会话、权限和工具保持相同。因此它估计的是该结构内的身份表述效应，不是Supervisor–Executor架构相对其他拓扑的净效应。
++
++第二因素是持续客观状态台账开／关，台账提供当前文件哈希、worker状态及最后检查，不填下一动作或应由谁负责。它也主动刷新状态并节省查询回合，因此包含可观测性与读取成本的联合变化。2身份×2台账×3任务×2模型产生24次析因执行；另有6次单会话直接编辑参照，仅用于任务可解性与委派开销比较。P1控制者限12次决策、最多3次worker启动，每个worker限6次决策；单会话也限12次，但能力和通信结构不同，不作单因素架构归因。
++
++
++主要终点为预算内控制者报告完成且终止快照通过独立验收；产物合格与自主闭合另列，避免把预算内已写出正确代码但尚未完成交接算作同一种结果。每个任务前三个测试向量可在执行中运行，其余至少五个只在终止后检查，结果不反馈给模型。所有工件版本、工具事件与模型尝试保留；对同一任务、模型及另一因素水平作配对描述。每篇仅三个研究者构造的任务家族、每格一次，不作总体置信区间或显著性推断。
++
++实验使用隔离的JSON工具运行器：合法操作实际写文件、执行Python测试或启动独立worker进程，工具结果进入该角色后续输入。CLI safe-mode禁用本地旧上下文，每次调用重放同角色完整历史；这是真实执行而非动作答题，但不是Agent Center生产版本回放，也不是原生持久聊天会话。一次只运行一个worker，检验的是串行异步交接。模型固定为Sonnet 5.5与Haiku 5.5、low effort。研究者提示只给目标、合同、权限和工具语义，不含“executor失败必须由你修复”或“复杂流程有害”等待验证原则；模型自行产生的委派内容属于观察结果。
++
++正式v1轮发现测试器误拒绝合同允许的描述字段后，34次已执行结果与20个未启动项全部列账退出主分析。修复校验后保留原任务、条件、顺序与预算，54个条件全部使用新ID复验，v2代码再次冻结。此处报告v2，不将两轮拼成更优结果。由于已查看v1结果，这是仪器修复后的探索性复验，尚无新的未见任务确认。缺陷、原始正反结果、协议差分和复算脚本见[运行实验附录](../runtime-experiments-017/README.md)；仪器检查和AI审阅均不能代替人工内容效度复核。
+ 
+ ## 4 研究发现
+ 
+@@ -224,9 +237,36 @@
+ 
+ **图5。**精选日期上的责任表述、人工干预与后续响应，以及9月4日dev3片段的精确事件顺序。图示不是发生率趋势或学习曲线；新Task创建早于第二条身份提醒，且后续仍有交付失败。来源级别、时间与排除项见纵向附录。
+ 
++### 4.8 真实执行未出现身份表述的交付差异，委派仍有可测成本
++
++在不预先声明失败恢复义务的新实验中，24次Supervisor/executor析因执行与6次单会话参照均自主完成，并通过终止后的全部测试向量。统一身份与分离身份各12/12完成；每个模型、每个因素各6对比较的自主交付差均为0。两次JSON格式错误随后自行改正，未发生请求外援、错误完成宣告或阻断交付的责任外置。这个结果扩大了先前短题反证的范围：在本轮小任务、干净工具、单次固定失败及短历史下，统一身份表述没有显示独立负效应。（表10、图6）
++
++该结果不能解释为长期责任问题已经解决。每次只有一个脚本预置失败起点，后续模型实现未产生新的失败候选；因此没有充分触发反复拒绝、返工和上下文累积。它检验了实际执行中的一次无提醒承接，仍没有再现历史部署的持续恢复压力。
++
++**表10。P1多轮执行的全部条件汇总（每格3任务；两模型分列）**
++
++| 模型 | 条件 | 自主交付 | 实现／全工件通过 | 总决策均值［范围］ | 平均报告价（美元） |
++|---|---|---:|---:|---:|---:|
++| Sonnet | 分离，台账关 | 3/3 | 3/3；3/3 | 8.00［8–8］ | 0.08834 |
++| Sonnet | 分离，台账开 | 3/3 | 3/3；3/3 | 8.00［8–8］ | 0.09936 |
++| Sonnet | 单会话参照 | 3/3 | 3/3；3/3 | 3.00［3–3］ | 0.03181 |
++| Sonnet | 统一，台账关 | 3/3 | 3/3；3/3 | 8.00［8–8］ | 0.08870 |
++| Sonnet | 统一，台账开 | 3/3 | 3/3；3/3 | 8.00［8–8］ | 0.09872 |
++| Haiku | 分离，台账关 | 3/3 | 3/3；3/3 | 8.00［8–8］ | 0.00549 |
++| Haiku | 分离，台账开 | 3/3 | 3/3；3/3 | 8.33［8–9］ | 0.00643 |
++| Haiku | 单会话参照 | 3/3 | 3/3；3/3 | 3.00［3–3］ | 0.00208 |
++| Haiku | 统一，台账关 | 3/3 | 3/3；3/3 | 8.33［8–9］ | 0.00576 |
++| Haiku | 统一，台账开 | 3/3 | 3/3；3/3 | 8.00［8–8］ | 0.00632 |
++
++总决策为控制者与worker决策之和，含格式错误；报告价为CLI返回值，不是实际账单。单会话均用3次决策；分离执行用8–9次，没有观察到额外实现质量收益，但两者能力和拓扑一起变化，只作具体任务中的开销参照。台账的交付差和平均决策差均为0，Sonnet与Haiku报告价的配对均值分别增加0.01052与0.00075美元。这个小样本没有证明状态可观测性无用，只说明为简单任务持续重复状态在本次没有带来可测交付收益。
++
++![图6：P1全部多轮执行与配对决策开销](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/papers-010/p1-logical-agent-identity/figures/p1-fig6-runtime-identity.png)
++
++**图6。**上部保留全部30个任务—条件—模型单元，D表示自主交付，单元内为控制者／worker决策数；下部显示身份与台账因素各模型的全部6对总决策差，0差值同样展示。单会话参照不进入析因配对。三个任务家族、每格一次，不绘总体置信区间，不将配对数当独立生产样本。[完整底表与审计](../runtime-experiments-017/README.md)。
++
+ ## 5 机制分析与设计启示
+ 
+-“抽象模型问题”“架构问题”与“训练所得行为模式”作用于不同环节，可能共同导致同一错误。本文以行为记录约束解释：需要解释的是，模型为何把一个应由当前控制会话发起的动作归给中心，或者为何在拒绝自身产物后没有延续修复责任。以下六项机制是待区分的解释。历史材料记录了反复纠偏；受控短题检验的是责任已经显式给定时能否执行协议，未识别这些机制在长期运行中的独立贡献。
++“抽象模型问题”“架构问题”与“训练所得行为模式”作用于不同环节，可能共同导致同一错误。本文以行为记录约束解释：需要解释的是，模型为何把一个应由当前控制会话发起的动作归给中心，或者为何在拒绝自身产物后没有延续修复责任。以下六项机制是待区分的解释。历史材料记录了反复纠偏；短题检验明确协议遵循，新增执行对照检验一次固定失败后的无提醒承接。两者均未识别长期运行中各机制的独立贡献。
+ 
+ ### 5.1 抽象层：统一归属不等于统一行动者
+ 
+@@ -276,13 +316,13 @@
+ 
+ ### 5.5 竞争解释及当前证据强度
+ 
+-源码支持契约和接口变化，历史记录支持责任外推、人工纠正及后续再现；受控短题只说明明确协议下的单句表示可以被遵循。表8将这些证据分开。没有单独识别架构原因，不等于历史问题不存在；短题没有覆盖长期责任维持，也不能用于削弱早期部署中需要反复纠偏的观察。
++源码支持契约和接口变化，历史记录支持责任外推、人工纠正及后续再现；短题只说明明确协议下的表示遵循，新增执行对照也未显示身份表述的完成差。表8将这些证据分开。没有单独识别架构原因，不等于历史问题不存在；短题没有覆盖长期责任维持，也不能用于削弱早期部署中需要反复纠偏的观察。
+ 
+ **表8。候选机制与受控实验后的证据判断**
+ 
+ | 机制 | 历史支持或线索 | 本研究实验及反向证据 | 尚缺判别 |
+ |---|---|---|---|
+-| H1 身份关系混用 | 多名agent将内部失败外推，人工提醒及提示修订后重新承责；后期仍有片段 | 已完整给定责任的短题配对差为0；未测长期维持 | 实际多会话、异步结果与无提醒恢复；人工干预分组 |
++| H1 身份关系混用 | 多名agent将内部失败外推，人工提醒及提示修订后重新承责；后期仍有片段 | 短题配对差为0；新增24次析因执行均自主交付，未见身份完成差 | 连续失败、长历史和人工干预分组；本轮仅单次预置失败 |
+ | H2 状态与启动协议分离 | 无execution仍等待；恢复说明曾不一致 | 三例多做start，反馈后均fork；仅改reset文字未复现停摆 | 更贴近恢复路径的工具调用与确定性调度对照 |
+ | H3 审查子目标替代交付闭环 | 9月片段将不合格结果对应的Task结束误作需求终止 | S7直接提供恢复义务、合法修复及专用工具后均正确；未测自主延续 | 多轮失败后保留质量门槛并自主选择合法继续或交接 |
+ | H4 历史上下文残留 | 自动派发转显式fork；无实际会话快照 | Haiku一致说明下有1个配对差异；Sonnet无差异 | 更多任务与独立重复，区分干扰和采样变化 |
+@@ -293,7 +333,7 @@
+ 
+ ### 5.6 已执行对照与下一层因果识别
+ 
+-已执行对照固定任务归属、权限与交付责任，只改变表示或指定干扰条件。因此，表9中的结果适用于局部表述效应；真实多会话结构、长期责任维持和训练来源需要另外的干预设计。
++表9回顾先前动作探针及尚未执行的层次。新增§4.8已实现分离会话与真实工具，但只在同一拓扑内改变身份表述和状态供给；不同实际架构的净效应、长期责任维持及训练来源仍未识别。
+ 
+ **表9。已执行的比较与仍需研究的因果层次**
+ 
+@@ -307,7 +347,7 @@
+ | 模型调度／确定性状态协调器 | 未执行 | 比较真实交付、错误恢复、延迟和成本 |
+ | 同源模型的成对轨迹训练 | 未执行 | 固定基础模型与训练量，检验训练对特定责任映射的因果作用 |
+ 
+-下一步应在一致的工具与权限下，实际返回可修复的executor失败，观察Supervisor能否在多轮结果和上下文切换后自主延续交付。预先固定无提醒、一次身份提醒、完整恢复协议及程序维护责任状态的条件，分别记录无提醒恢复、人工纠正次数、合理升级、质量与成本。既要保留必要事实，也不能在所有条件直接给出正确下一动作，再宣称测到了自发恢复。对多次提醒后的变化，应区分会话持续、提示／记忆更新和部署变化；训练原因仍须同源受控干预。
++新增对照已覆盖一致工具下的一次实际失败交接。下一步需让新任务经历连续失败、拒绝和上下文切换，观察责任是否持续。预先固定无提醒、一次身份提醒、完整恢复协议及程序维护责任状态的条件，分别记录无提醒恢复、人工纠正次数、合理升级、质量与成本。既要保留必要事实，也不能在所有条件直接给出正确下一动作，再宣称测到了自发恢复。对多次提醒后的变化，应区分会话持续、提示／记忆更新和部署变化；训练原因仍须同源受控干预。
+ 
+ ### 5.7 设计启示：显式表达责任关系，保留有效监督
+ 
+@@ -323,21 +363,23 @@
+ 
+ 本研究恢复了指定Git版本的提示、派发入口与工具说明，仍未恢复当次部署版本、完整模型输入和执行控制轨迹。接口说明缺陷排除于架构负效应；历史协议变化也不能自动证明会话残留旧规则。模型—harness研究提供解释视角，不能替代本地缺失的因果证据。[4]<!--ref:R03--><!--anchor:section:I-->（A15–A17）
+ 
+-受控实验是八类规则清晰的合成短题，不包含真实代码交付、长上下文压力或完整进程拓扑。更直接的构念限制是：两组都已提供责任和恢复义务，S7还预先给定可执行修复；它没有检验真实研究对象中的自主责任维持。（A22）两呈现版本不是随机重复；干净条件100%的表现带来天花板限制。旧说明仅修改reset文字，旧协议又明确标为历史，未覆盖生产中各种隐蔽残留；中性标签保留了动作名中的executor。默认预期题提示不确定时回答未指定，也限制了对隐含倾向的测量。三个额外步骤集中于同一情境，事后续步不属于预定恢复检验，不能估计一般停摆或纠错率。
++早期动作实验是八类规则清晰的合成短题，不包含真实代码交付、长上下文压力或完整进程拓扑。更直接的构念限制是：两组都已提供责任和恢复义务，S7还预先给定可执行修复；它没有检验真实研究对象中的自主责任维持。（A22）两呈现版本不是随机重复；干净条件100%的表现带来天花板限制。旧说明仅修改reset文字，旧协议又明确标为历史，未覆盖生产中各种隐蔽残留；中性标签保留了动作名中的executor。默认预期题提示不确定时回答未指定，也限制了对隐含倾向的测量。三个额外步骤集中于同一情境，事后续步不属于预定恢复检验，不能估计一般停摆或纠错率。
++
++新增多轮实验每篇仅三个研究者构造的英文函数任务，每条件一次，且后续模型未产生新的错误候选，存在明显天花板。身份比较保留相同分离拓扑；台账还改变状态新鲜度和查询开销；单会话参照改变了能力和通信结构。v2在看到v1结果并修复H04之后重跑同一任务，不能替代新的未见任务确认。没有人工提醒或真实外部权限缺失组，不能估计纠偏次数、合理升级能力或长期故障率。
+ 
+ 模型版本来自当次返回，不代表未知历史模型。相同CLI减少了外部调用差异，仍不能审计服务全部固定提示或分离模型能力、训练和解码。没有同源训练干预，公开训练研究和本研究行为结果均不能逆推训练来源。实验首步推进率不是生产交付率，未检出差异不等于证明架构等价。
+ 
+-监督案例的源码核对只支持指定变化，没有重跑历史浏览器或生产验收。全部分析尚未人工复核，五篇论文复用同一部署与部分案例，不能视为独立重复验证。吞吐、成本、认知负荷及替代方案收益仍需在固定条件下测量。（A00、A11、A12）
++监督案例的源码核对只支持指定变化，没有重跑历史浏览器或生产验收。全部分析尚未人工复核，五篇论文复用同一部署与部分案例，不能视为独立重复验证。生产任务中的吞吐、人工成本、认知负荷及替代方案收益仍需测量；新增小任务决策和报告价比较不能替代这些指标。（A00、A11、A12）
+ 
+ ## 7 结论
+ 
+ **在Agent Center中，Supervisor与executor的统一逻辑身份没有可靠维持失败后的交付责任。** 执行隔离被解释为责任分离，或监督者在完成质量裁决后把交付义务一并终止，是案例中反复出现的失效形式。人工通过归属提醒、具体行动要求和提示修订重新建立这一连接；后续正确承责与再次纠偏并存，说明修复责任并未成为稳定的默认行为。（A02、A03、A06、A10、A15、A21）
+ 
+-受控短题表明，责任与恢复动作充分明确时，模型可以遵循协议。这与实际运行中的责任中断相容：已给出恢复义务后的正确选择，不能代替多轮执行后主动保留该义务。当前证据能够评价这一封装的运行缺陷，但尚未分别识别抽象、接口和训练先验的净因果效应，也未量化操作者所述的早期频繁与后期改善。
++新增实际执行对照表明，即使不预先声明恢复义务，模型在本轮一次固定失败后也能自主承接：24次析因执行及6次单会话参照全部完成，身份表述没有显示完成差。这约束了“统一身份本身足以解释历史失败”的强归因；同时，本轮没有覆盖历史中的长期反复纠偏与多次失败。当前可以确认部署中的责任中断及其人工维护负担，尚不能分别识别抽象、接口、上下文与训练先验的净贡献。
+ 
+ 设计上，软件归属的统一不能替代目标责任的持续表示。系统应把目标owner、当前执行单元、未满足要求与合法下一步分别保留；质量拒绝之后仍须连接修复、补证、交接或升级。对这种结构的评价，应以无提醒恢复和人工纠偏负担为核心，同时保留有效监督与合法停止条件。
+ 
+-**尚待执行的判别研究。**最小判别研究需固定合法恢复入口、任务事实与模型配置，让同一组未见任务经历多轮可修复的executor失败；分别操纵身份封装和恢复义务的表达／维护方式，预先安排身份提醒与具体行动提醒。主要结果是无提醒承接修复、合法升级和最终验收，辅以人工介入次数。若统一身份在此条件下不增加责任外置，当前案例便不足以支持身份封装的独立效应。
++**后续判别研究。**一次固定失败的实际承接已检验；仍需在新的未见任务中安排连续失败、拒绝和长历史，分别操纵身份表述、程序维护的责任状态及人工提醒。对照应保留合法停止与升级，记录最终质量和纠偏负担。现有零差不能证明架构等价，也不能用于否定历史失败。
+ 
+ ## 参考文献
+ 
+@@ -431,3 +473,5 @@
+ **同源与跨篇重合。** 本文与责任悬空、角色上下文、有向无环图（DAG）演化及记忆研究工作稿来自同一部署和冻结快照，复用部分 006–009 与 010 证据；尤其 I05 和监督案例也用于边界分析。复用记录保持原生标识，不累计为新增独立样本，不宣称五篇相互独立验证。
+ 
+ **016修订与复核范围。** 本稿补充了主题式文献比较、事后分析框架与实验构念检查，未新增模型调用或生产样本。原始正反结果及图表保留；[逐篇修改记录](REVISION-016.md)、[共同效度审计](../research-validity-016/README.md)和[可执行研究缺口](../research-validity-016/next-studies.md)说明已修正文稿与仍缺实证支持的部分。AI交叉审阅不属于人工复核，稿件尚未定稿。
++
++**017新增执行与披露。** [多轮执行报告与全部数据](../runtime-experiments-017/README.md)、[本篇修改记录](REVISION-017.md)保留仪器缺陷、被排除旧轮、复验全条件、格式错误与成功反例。独立进程、全量SHA及副本验收属于仪器与来源核对；不等于人工复核或独立研究重复。稿件尚未定稿，作者与无资助声明不变。

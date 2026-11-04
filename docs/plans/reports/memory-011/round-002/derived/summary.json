@@ -1,0 +1,122 @@
+{
+  "cutoff": "2026-11-02T06:41:08.656823Z",
+  "proposals": 30,
+  "proposal_status": {
+    "promoted": 15,
+    "pending": 3,
+    "rejected": 12
+  },
+  "operations": {
+    "add": 30
+  },
+  "reviewer_type": {
+    "user": 1,
+    "agent": 26
+  },
+  "self_reviewed": 16,
+  "review_minutes_all": {
+    "n": 27,
+    "min": 0.15209625000000002,
+    "median": 1041.8917369,
+    "max": 4077.308398816667
+  },
+  "review_minutes_by_team": {
+    "team-772532f5": {
+      "n": 1,
+      "min": 4.181765983333333,
+      "median": 4.181765983333333,
+      "max": 4.181765983333333
+    },
+    "team-f5a633d6": {
+      "n": 26,
+      "min": 0.15209625000000002,
+      "median": 1042.0893530583335,
+      "max": 4077.308398816667
+    }
+  },
+  "pending_days": [
+    {
+      "proposal_id": "tmprop-01M22DDE0KGCWD03ZFX4ERGMFN",
+      "pending_days_at_cutoff": 54.011680339745375
+    },
+    {
+      "proposal_id": "tmprop-01M31H4RR5ZE5H18BNPGNVZ8GH",
+      "pending_days_at_cutoff": 41.92721532017361
+    },
+    {
+      "proposal_id": "tmprop-01M31P3QD3Q83835RY1DZFR2MS",
+      "pending_days_at_cutoff": 41.86692904791666
+    }
+  ],
+  "canonical_rules": 10,
+  "canonical_entries": 5,
+  "events": 57,
+  "team_git_commits": 57,
+  "events_unique_commits": 57,
+  "event_commit_set_equals_git": true,
+  "event_status_matches": 57,
+  "read_receipts": 230,
+  "read_first": "2026-08-14T06:29:46.003865Z",
+  "read_last": "2026-09-21T07:32:28.752824Z",
+  "receipt_agents": 12,
+  "receipt_contexts": 67,
+  "supervisor_contexts": 63,
+  "execution_contexts": 4,
+  "receipts_by_context_type": {
+    "supervisor_runtime_generation": 211,
+    "execution": 19
+  },
+  "receipts_by_phase_first_only": {
+    "execute": 125,
+    "plan": 38,
+    "review": 40,
+    "recovery": 27
+  },
+  "rules_with_audit": 10,
+  "rules_read_by_multiple_agents": 9,
+  "audit_rule_resolves": 230,
+  "audit_rule_enabled": 230,
+  "audit_phase_allowed": 230,
+  "older_repo_commit_receipts": 0,
+  "same_rule_blob_as_latest_receipts": 230,
+  "private_files_by_scope": {
+    "agent_root": {
+      "files": 4,
+      "bytes": 1082
+    },
+    "issue": {
+      "files": 3,
+      "bytes": 6735
+    },
+    "legacy_root": {
+      "files": 2,
+      "bytes": 26349
+    },
+    "project": {
+      "files": 3,
+      "bytes": 45819
+    },
+    "task": {
+      "files": 15,
+      "bytes": 51035
+    }
+  },
+  "legacy_files_by_scope": {
+    "issue": {
+      "files": 3,
+      "bytes": 6735
+    },
+    "legacy_root": {
+      "files": 2,
+      "bytes": 26349
+    },
+    "project": {
+      "files": 3,
+      "bytes": 45819
+    },
+    "task": {
+      "files": 15,
+      "bytes": 51035
+    }
+  }
+}

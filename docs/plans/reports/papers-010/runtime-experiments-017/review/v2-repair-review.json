@@ -1,0 +1,23 @@
+{
+  "utc": "2026-11-04T09:20:22.812883+00:00",
+  "source_unchanged": {
+    "analyze.py": true,
+    "build_design.py": false,
+    "check_candidate.py": true,
+    "design.json": false,
+    "protocol.md": false,
+    "run_batch.py": true,
+    "runtime.py": false,
+    "tasks-private.json": true,
+    "tasks.py": true,
+    "test-plan.md": false,
+    "test_runtime.py": false,
+    "transport.py": true
+  },
+  "all_54_conditions_order_tasks_models_budgets_unchanged": true,
+  "v1_final_type_ambiguities": [],
+  "regression_tests": 14,
+  "regression_status": "passed",
+  "reviewer": "primary AI source and executable checks; prior separate AI adjudicated H04 before patch; no human review",
+  "scope": "H04 contract alignment; not complete instrument or scientific validity certification"
+}

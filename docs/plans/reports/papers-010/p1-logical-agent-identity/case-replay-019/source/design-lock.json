@@ -1,0 +1,11 @@
+{
+  "locked_utc": "2026-11-04T13:26:58.714915+00:00",
+  "files": {
+    "runtime.py": "0a50d7212e5c4915d5fecd28a5d7e77d391b90090cecbedb9af8099d75edbdf3",
+    "transport.py": "c379ffa389fcb441550d82587c81f80e7d9bc0680a2a978d1eb14f9f8bcbf5ad",
+    "protocol.md": "3a6606f061251d9834957f28090ca22e3236afe49871af771ce8d9477c0fbbef",
+    "design.json": "18d5dc5666e7cd3e03ffec5781ca5a0e211f4bb4b76ceb64dde147c2bd1d0096",
+    "sources.json": "9ca669f731d04bc0381512bb90de0b0575be2f83dccd3ec37d51545d57155cbe",
+    "test_instrument.py": "ddc32fe889de636711ac1754683c287ef39ee94fbc2940e7d0bcd8f8c1318789"
+  }
+}

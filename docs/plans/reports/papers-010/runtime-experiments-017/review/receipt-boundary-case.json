@@ -1,0 +1,85 @@
+{
+  "episode_id": "v2-P2-p2_expiry-haiku-long-distributed",
+  "source_result_sha256": "0b5ddd8d1156e7727836675921cb09543f0468be2ed1b016575ec765de27de9a",
+  "review_checks": [
+    {
+      "actor": "worker-03",
+      "review_version": "48cf593da966c695df262c6e9ea1bb1c4fa8e1df209b6a5520ce206a29e13905",
+      "review_write_utc": "2026-11-04T09:31:28.359007+00:00",
+      "matching_prior_receipt": "episodes/v2-P2-p2_expiry-haiku-long-distributed/receipts/1793784676870048000.json",
+      "receipt_sha256": "b1b6fcb0e70ce1ed86fc5f2dc585096f6d185a0bcced7d05c5a660c5f215b466",
+      "receipt_utc": "2026-11-04T09:31:16.870041+00:00",
+      "actual_receipt_cited_correctly": true,
+      "reviewer_initial_context_keys": [
+        "assignment",
+        "user_contract",
+        "allowed_files",
+        "artifact_contracts",
+        "current_files",
+        "decision_budget"
+      ]
+    },
+    {
+      "actor": "worker-04",
+      "review_version": "6b1e6d357a91a4704ca541d4c47ec8c6acad79bbd94735311dc4f0bc65ee8195",
+      "review_write_utc": "2026-11-04T09:31:59.790790+00:00",
+      "matching_prior_receipt": "episodes/v2-P2-p2_expiry-haiku-long-distributed/receipts/1793784712741806000.json",
+      "receipt_sha256": "e1da95ccd54156cf90698c3ef234325ce51707c4bbc6ae5084fcd2f6ff40e423",
+      "receipt_utc": "2026-11-04T09:31:52.741790+00:00",
+      "actual_receipt_cited_correctly": true,
+      "reviewer_initial_context_keys": [
+        "assignment",
+        "user_contract",
+        "allowed_files",
+        "artifact_contracts",
+        "current_files",
+        "decision_budget"
+      ]
+    },
+    {
+      "actor": "worker-05",
+      "review_version": "4fb5c664fe00978c22c94e4a633b2718a949dbe17cd6c2eec18da529ed59ab03",
+      "review_write_utc": "2026-11-04T09:32:37.237049+00:00",
+      "matching_prior_receipt": "episodes/v2-P2-p2_expiry-haiku-long-distributed/receipts/1793784749758621000.json",
+      "receipt_sha256": "2679234a62e183723a89eaeefb19d4a6c7ec21a217f9243c176d3aff335cb6be",
+      "receipt_utc": "2026-11-04T09:32:29.758604+00:00",
+      "actual_receipt_cited_correctly": true,
+      "reviewer_initial_context_keys": [
+        "assignment",
+        "user_contract",
+        "allowed_files",
+        "artifact_contracts",
+        "current_files",
+        "decision_budget"
+      ]
+    },
+    {
+      "actor": "worker-06",
+      "review_version": "b5148128439ee9ea284f77ae8c382e150feb2d0e606c987dd339e5c5840ddd69",
+      "review_write_utc": "2026-11-04T09:33:07.652048+00:00",
+      "matching_prior_receipt": "episodes/v2-P2-p2_expiry-haiku-long-distributed/receipts/1793784780789723000.json",
+      "receipt_sha256": "469dff3233198d7f4abc031a09a1d6917dd565ce79aee5927176d5ae1d5385b7",
+      "receipt_utc": "2026-11-04T09:33:00.789711+00:00",
+      "actual_receipt_cited_correctly": true,
+      "reviewer_initial_context_keys": [
+        "assignment",
+        "user_contract",
+        "allowed_files",
+        "artifact_contracts",
+        "current_files",
+        "decision_budget"
+      ]
+    }
+  ],
+  "implementation_independent_pass": true,
+  "final_errors": [
+    "manifest_missing_or_stale"
+  ],
+  "worker_starts": 6,
+  "controller_decisions": 16,
+  "integrator_starts": 0,
+  "interpretation_status": "Post-result AI process analysis, not blinded or human validated",
+  "runtime_contract": "Worker return carries report and files, not full tool history; initial worker receives assignment and files, not parent receipt registry. This is the specified information boundary, not observed event loss or a contradictory execution rule.",
+  "scope": "All cited receipts exist, bind unchanged module/tests and precede review. Extra controller-only citation restriction is absent from artifact contract. Mechanism is a candidate explanation for this episode, not isolated causal proof of role count or joined-view effectiveness.",
+  "interpretation_refinement": "The controller denied receipts not in its own tool history; reviewers explicitly allowed the possibility that controller receipts existed elsewhere, and refused unsupported citation without original tool records. Do not attribute the same global nonexistence claim to both sides."
+}

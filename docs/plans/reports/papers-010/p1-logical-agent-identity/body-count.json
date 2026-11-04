@@ -1,0 +1,20 @@
+{
+  "paper": "P1",
+  "revision": "022-standalone-prose",
+  "count_rule": "Han characters plus English lexical tokens; URLs, HTML comments and fenced diagrams excluded; abstracts, references, evidence appendix and declarations excluded. Prose excludes headings/tables/captions/images.",
+  "prose_count": 13327,
+  "text_including_tables_captions_headings": 16917,
+  "previous_target": 6000,
+  "previous_budget_status": "Author requested quantitative expansion; prior length target is historical, not re-certified.",
+  "figures": 7,
+  "tables": 11,
+  "supplement": "evidence-details.md",
+  "count_note": "Standalone statement of findings, mechanisms, design implications and limits; existing empirical results, not independently human-reviewed.",
+  "mechanism_supplement": "mechanism-analysis.md",
+  "experiment_supplement": "controlled-experiments.md",
+  "longitudinal_supplement": "longitudinal-analysis.md",
+  "method_supplement": "argument-methods-015.md",
+  "validity_supplement": "../research-validity-016/README.md",
+  "runtime_supplement": "../runtime-experiments-017/README.md",
+  "case_replay_supplement": "case-replay-019/README.md"
+}

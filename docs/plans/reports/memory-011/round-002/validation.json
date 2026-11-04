@@ -1,0 +1,18 @@
+{
+  "bundles_verified": [
+    "team-team-772532f5",
+    "team-team-f5a633d6",
+    "agent-01KTVB7S3GE1PRSDFX3BE81FCM",
+    "agent-01M4XEVP6VQRZ9SSBXC3YKK8JC"
+  ],
+  "source_locators_verified": 34,
+  "event_git_matches": 57,
+  "audit_rows_validated": 230,
+  "reference_source_paths_identical_across_three_commits": 9,
+  "figure_files_valid": 6,
+  "visual_review": "Both PNGs inspected; no clipping/overlap observed. SVG/PDF generated from the same figures.",
+  "local_links_checked": 38,
+  "git_diff_check": "passed; includes tracked document edits only",
+  "scope": "Research documentation/data only. No product tests required for this non-commit turn; no claim that product suites were run.",
+  "validated_utc": "2026-11-04T06:30:51.545137+00:00"
+}

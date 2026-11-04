@@ -1,0 +1,131 @@
+{
+  "revision": "ddaeb8879547238d512a1e83a0146820d1c78933",
+  "working_tree_conflicts_unrelated": true,
+  "files": [
+    {
+      "path": "internal/cognition/memory/path.go",
+      "exists": true,
+      "same_as_research_revision": true,
+      "sha256": "c69efa17f912e9b2b8e1954a99918e95dbc650f1f236f9fe43775339175cdcae"
+    },
+    {
+      "path": "internal/cognition/memory/runtime.go",
+      "exists": true,
+      "same_as_research_revision": true,
+      "sha256": "eda5321da361ac3b14543af43aee3b520a7b24db270732d4aabfde5ed991f728"
+    },
+    {
+      "path": "internal/cognition/memory/gitops.go",
+      "exists": true,
+      "same_as_research_revision": true,
+      "sha256": "cf93d440ebfdd4ef795c258876ca55ee74432e1de9cbf4c49bcdf2917a6100a5"
+    },
+    {
+      "path": "internal/cognition/memory/centergit/repo.go",
+      "exists": true,
+      "same_as_research_revision": true,
+      "sha256": "d2c33718cf9e95bb486cb204f24abd406417752adaedacdf3b8b21d3ea35f5df"
+    },
+    {
+      "path": "internal/cognition/memory/centergit/authz.go",
+      "exists": true,
+      "same_as_research_revision": true,
+      "sha256": "ca3e8f35c034d25c012bc90c7ed8078dd41cee89337f6bde431542714fe7dc58"
+    },
+    {
+      "path": "internal/cognition/memory/centergit/consumer.go",
+      "exists": true,
+      "same_as_research_revision": false,
+      "sha256": "66f23833cbbf195467297fc9ecee1665751ea8ba556621754455f31b45701775"
+    },
+    {
+      "path": "internal/cognition/memory/centergit/store.go",
+      "exists": true,
+      "same_as_research_revision": false,
+      "sha256": "4934449ffeacba6932e8981db7d754d7e3dff35d9b3007bd71e34c0dc67fe7a6"
+    },
+    {
+      "path": "internal/cognition/memory/centergit/team_memory_repository.go",
+      "exists": false,
+      "same_as_research_revision": false
+    },
+    {
+      "path": "internal/cognition/memory/teammemory/types.go",
+      "exists": false,
+      "same_as_research_revision": false
+    },
+    {
+      "path": "internal/cognition/memory/teammemory/team_policy_auth.go",
+      "exists": false,
+      "same_as_research_revision": false
+    },
+    {
+      "path": "internal/agentruntime/team_rules.go",
+      "exists": true,
+      "same_as_research_revision": false,
+      "sha256": "a9b1173b70356008b366de644c52b8852145bed6a1c18d5df45100dee7735b7a"
+    },
+    {
+      "path": "internal/agentruntime/memory_sync.go",
+      "exists": true,
+      "same_as_research_revision": false,
+      "sha256": "906e44a2e01fe5a704930a08a62586179595693792a016dd92c48040233ad02a"
+    },
+    {
+      "path": "internal/agentruntime/local_runtime.go",
+      "exists": true,
+      "same_as_research_revision": false,
+      "sha256": "88c88ca30627cd4f6db687ab87ff3fe79cf26647e90e11eddf2e77d713418617"
+    },
+    {
+      "path": "internal/agentruntime/orchestrator/writeback.go",
+      "exists": true,
+      "same_as_research_revision": false,
+      "sha256": "cf29454bb299476c80385863bb18e951be3a965b1521c5e95ba9a2e6fbe7a95d"
+    },
+    {
+      "path": "internal/team/memory_policy.go",
+      "exists": false,
+      "same_as_research_revision": false
+    },
+    {
+      "path": "internal/admin/api/agent_tools_team_memory.go",
+      "exists": false,
+      "same_as_research_revision": false
+    },
+    {
+      "path": "internal/admin/api/git_backend.go",
+      "exists": true,
+      "same_as_research_revision": true,
+      "sha256": "7352da1db3707928d56bc0c5de3a0deaf072e05d5e6cfb361a5d8e653ffb1a31"
+    },
+    {
+      "path": "internal/cli/webconsole_wiring.go",
+      "exists": true,
+      "same_as_research_revision": false,
+      "sha256": "3e0528a7c893025c14125a09840abbf912ad3e30b95ef39b55d15ba92ef7d310"
+    },
+    {
+      "path": "docs/design/architecture/tactical/cognition/02-memory.md",
+      "exists": true,
+      "same_as_research_revision": true,
+      "sha256": "04f98cee064e33d0688a4d2a3fa2ebde26a7059218b8002db865b3f18ec07185"
+    },
+    {
+      "path": "docs/design/features/2026-07-31-memory-progressive-disclosure.md",
+      "exists": true,
+      "same_as_research_revision": true,
+      "sha256": "73166c6c2aa2ba6f53296afcf4043df2cc91c26fac08ed84f8e20a6ca6862e8d"
+    },
+    {
+      "path": "docs/design/implementation/team-memory-write-protocol.md",
+      "exists": false,
+      "same_as_research_revision": false
+    },
+    {
+      "path": "docs/design/decisions/0057-controlled-team-memory-writes.md",
+      "exists": false,
+      "same_as_research_revision": false
+    }
+  ]
+}

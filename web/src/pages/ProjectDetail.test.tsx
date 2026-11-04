@@ -533,6 +533,63 @@ describe('ProjectDetail page', () => {
     expect(screen.getByTestId('project-plans-empty')).toHaveTextContent('No plans match the filter');
   });
 
+  it('Plans bulk archive selects only terminal plans, confirms, and archives each through the canonical endpoint', async () => {
+    const archived: string[] = [];
+    server.use(
+      http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),
+      http.get('/api/projects/:pid/issues', () => HttpResponse.json({ issues: [] })),
+      http.get('/api/projects/:pid/tasks', () => HttpResponse.json({ tasks: [] })),
+      http.get('/api/members', () => HttpResponse.json([])),
+      http.get('/api/projects/:pid/plans', () => HttpResponse.json({
+        plans: [
+          {
+            id: 'plan-done', project_id: 'proj-a', name: 'Done plan', description: '',
+            status: 'done', creator_ref: 'user:hayang', conversation_id: 'c-1',
+            org_ref: 'P7', has_failed: false, progress: { done: 2, total: 2 },
+            created_at: '2026-05-20T01:00:00Z',
+          },
+          {
+            id: 'plan-discarded', project_id: 'proj-a', name: 'Discarded plan', description: '',
+            status: 'discarded', creator_ref: 'user:hayang', conversation_id: 'c-2',
+            org_ref: 'P8', has_failed: false, progress: { done: 0, total: 1 },
+            created_at: '2026-05-21T01:00:00Z',
+          },
+          {
+            id: 'plan-running', project_id: 'proj-a', name: 'Running plan', description: '',
+            status: 'running', creator_ref: 'user:hayang', conversation_id: 'c-3',
+            org_ref: 'P9', has_failed: false, progress: { done: 1, total: 2 },
+            created_at: '2026-05-22T01:00:00Z',
+          },
+        ],
+        total: 3,
+      })),
+      http.post('/api/projects/:pid/plans/:planId/archive', ({ params }) => {
+        archived.push(String(params.planId));
+        return HttpResponse.json({ id: params.planId, status: 'done', archived_at: '2026-08-26T00:00:00Z' });
+      }),
+    );
+
+    wrap('/projects/proj-a');
+    await waitFor(() => expect(screen.getByTestId('project-work-tabs')).toBeInTheDocument());
+    fireEvent.click(screen.getByTestId('project-tab-plans'));
+    await waitFor(() => expect(screen.getAllByTestId('plan-row')).toHaveLength(3));
+
+    const rows = screen.getAllByTestId('plan-row');
+    const rowByPlan = (planId: string) => rows.find((row) => row.getAttribute('data-plan-id') === planId)!;
+    expect(within(rowByPlan('plan-running')).getByTestId('plan-select-checkbox')).toBeDisabled();
+    fireEvent.click(screen.getByTestId('plans-select-all'));
+    expect(within(rowByPlan('plan-done')).getByTestId('plan-select-checkbox')).toBeChecked();
+    expect(within(rowByPlan('plan-discarded')).getByTestId('plan-select-checkbox')).toBeChecked();
+    expect(screen.getByTestId('plans-bulk-archive')).toHaveTextContent('Archive selected (2)');
+
+    fireEvent.click(screen.getByTestId('plans-bulk-archive'));
+    expect(screen.getByRole('dialog', { name: 'Archive selected plans?' })).toHaveTextContent('Archive 2 terminal plans?');
+    fireEvent.click(screen.getByTestId('confirm-modal-confirm'));
+
+    await waitFor(() => expect(archived.sort()).toEqual(['plan-discarded', 'plan-done']));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+  });
+
   it('member name links to its detail page (agent → AgentDetail, human → user page)', async () => {
     server.use(
       http.get('/api/projects/:id', () => HttpResponse.json(projectAlpha)),

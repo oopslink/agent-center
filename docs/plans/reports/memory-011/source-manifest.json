@@ -1,0 +1,140 @@
+{
+  "observed_date": "2026-11-03",
+  "timezone": "America/Los_Angeles",
+  "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+  "deployment_version": "not_established",
+  "files": [
+    {
+      "path": "internal/cognition/memory/path.go",
+      "sha256": "c69efa17f912e9b2b8e1954a99918e95dbc650f1f236f9fe43775339175cdcae",
+      "lines": 175,
+      "main_worktree_same": true
+    },
+    {
+      "path": "internal/cognition/memory/runtime.go",
+      "sha256": "eda5321da361ac3b14543af43aee3b520a7b24db270732d4aabfde5ed991f728",
+      "lines": 580,
+      "main_worktree_same": true
+    },
+    {
+      "path": "internal/cognition/memory/gitops.go",
+      "sha256": "cf93d440ebfdd4ef795c258876ca55ee74432e1de9cbf4c49bcdf2917a6100a5",
+      "lines": 229,
+      "main_worktree_same": true
+    },
+    {
+      "path": "internal/cognition/memory/centergit/repo.go",
+      "sha256": "d2c33718cf9e95bb486cb204f24abd406417752adaedacdf3b8b21d3ea35f5df",
+      "lines": 133,
+      "main_worktree_same": true
+    },
+    {
+      "path": "internal/cognition/memory/centergit/authz.go",
+      "sha256": "ca3e8f35c034d25c012bc90c7ed8078dd41cee89337f6bde431542714fe7dc58",
+      "lines": 139,
+      "main_worktree_same": true
+    },
+    {
+      "path": "internal/cognition/memory/centergit/consumer.go",
+      "sha256": "75ed44e3252b6896adef49750dffe2c9023b23ecd39b92676ca5535561357912",
+      "lines": 391,
+      "main_worktree_same": false
+    },
+    {
+      "path": "internal/cognition/memory/centergit/store.go",
+      "sha256": "fe8e126a82869852e2c0f51ff3cbcc0b0e8697d18606e2f9fd783ab6727fbcb0",
+      "lines": 753,
+      "main_worktree_same": false
+    },
+    {
+      "path": "internal/cognition/memory/centergit/team_memory_repository.go",
+      "sha256": "a025a5b3a8a418db6f9bc17a376eeee08c148fc6b3d645133908018491b37d68",
+      "lines": 1237,
+      "main_worktree_same": false
+    },
+    {
+      "path": "internal/cognition/memory/teammemory/types.go",
+      "sha256": "05bc0a5c4141b4f7a90a94f852e012a129b8ba3502553e3001e29fcd3bb40c5b",
+      "lines": 422,
+      "main_worktree_same": false
+    },
+    {
+      "path": "internal/cognition/memory/teammemory/team_policy_auth.go",
+      "sha256": "55de104f1a51f60bfe96b520e1f5c38b778f78695b71deac5ffc564777135c59",
+      "lines": 186,
+      "main_worktree_same": false
+    },
+    {
+      "path": "internal/agentruntime/team_rules.go",
+      "sha256": "3aacc3773b0da4daa9f73245c257572ab0c8a6744079d2220786e6e7979205ee",
+      "lines": 115,
+      "main_worktree_same": false
+    },
+    {
+      "path": "internal/agentruntime/memory_sync.go",
+      "sha256": "a0d443a6fa5ec65487db59fb6bebfe8001011f5b34f60c8a050835d3ebc4238b",
+      "lines": 43,
+      "main_worktree_same": false
+    },
+    {
+      "path": "internal/agentruntime/local_runtime.go",
+      "sha256": "9b003642238665d762f3cc716af777c158c9a238d2e6afc409dd85499b3ea1d3",
+      "lines": 1691,
+      "main_worktree_same": false
+    },
+    {
+      "path": "internal/agentruntime/orchestrator/writeback.go",
+      "sha256": "021aa5dae99c4815ced911d17b3bed1bb625ede865b266a045d511ea5626f849",
+      "lines": 615,
+      "main_worktree_same": false
+    },
+    {
+      "path": "internal/team/memory_policy.go",
+      "sha256": "717e2e4c6f37687b120ede11150fa62561002c59fbafaed35cbdc4e90a464e13",
+      "lines": 114,
+      "main_worktree_same": false
+    },
+    {
+      "path": "internal/admin/api/agent_tools_team_memory.go",
+      "sha256": "84f719c19ac85130d9b947ca97bcddaecf8a712a790f33afb6631cb72497eb6e",
+      "lines": 320,
+      "main_worktree_same": false
+    },
+    {
+      "path": "internal/admin/api/git_backend.go",
+      "sha256": "7352da1db3707928d56bc0c5de3a0deaf072e05d5e6cfb361a5d8e653ffb1a31",
+      "lines": 154,
+      "main_worktree_same": true
+    },
+    {
+      "path": "internal/cli/webconsole_wiring.go",
+      "sha256": "21f507d1192f72fd7dd4050610c2eda615cc51ce6f40e92463bb6e3e8d8cbd10",
+      "lines": 963,
+      "main_worktree_same": false
+    },
+    {
+      "path": "docs/design/architecture/tactical/cognition/02-memory.md",
+      "sha256": "04f98cee064e33d0688a4d2a3fa2ebde26a7059218b8002db865b3f18ec07185",
+      "lines": 146,
+      "main_worktree_same": true
+    },
+    {
+      "path": "docs/design/features/2026-07-31-memory-progressive-disclosure.md",
+      "sha256": "73166c6c2aa2ba6f53296afcf4043df2cc91c26fac08ed84f8e20a6ca6862e8d",
+      "lines": 146,
+      "main_worktree_same": true
+    },
+    {
+      "path": "docs/design/implementation/team-memory-write-protocol.md",
+      "sha256": "b7a5aeeff3b774a06a72cf2d01df39a7909420d4f4c29aaae78f5a35cd390a10",
+      "lines": 166,
+      "main_worktree_same": false
+    },
+    {
+      "path": "docs/design/decisions/0057-controlled-team-memory-writes.md",
+      "sha256": "5959d828b21dc909cef608d851b9854fb123fac196df45252db4894e9d4ea1d4",
+      "lines": 61,
+      "main_worktree_same": false
+    }
+  ]
+}

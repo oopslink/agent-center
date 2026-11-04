@@ -1,0 +1,56 @@
+{
+  "schema": "prospective-protocol-review-v1",
+  "reviewed_at_utc": "2026-11-04T08:14:58.639791+00:00",
+  "reviewer": "methods_validity_audit_016",
+  "state": "development_protocol_reviewed_waiting_for_code",
+  "bound_files": [
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/protocol.md",
+      "sha256": "54b822fe91b3f02b059264209ab26afc997e3d81db30a34dff838d939a1a5186"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/test-plan.md",
+      "sha256": "259d3f8d05341577e9aa49152ba6c536492cba0fc69d2cd531c5203abb6f63af"
+    }
+  ],
+  "model_outputs_seen": false,
+  "criteria_binding": "unavailable",
+  "calibration_status": "NOT_CALIBRATED",
+  "resolved_in_prose": [
+    "D01 fixed common failed candidate before model",
+    "D02 preseeded application defect explicitly external",
+    "D04 factual ledger without computed next action",
+    "D07 P2 identical four deliverables with merged versus separated role duties",
+    "D10 retain invalid block and version rerun",
+    "D11 no IID-response claims; family/model matched episodes",
+    "D12 controlled runtime study, not original deployment replay"
+  ],
+  "pending_checks": [
+    {
+      "id": "P01",
+      "issue": "Six P2 worker launches leave different recovery slack after required short/long stages.",
+      "remedy": "Retain as fixed resource envelope but report remaining launches/rounds at first failure; do not attribute resource exhaustion to confusion. Optionally prespecify separate diagnosis with equal additional recovery opportunities, not overwrite primary."
+    },
+    {
+      "id": "P02",
+      "issue": "Protocol says model sees no scores but later returns real acceptance failures.",
+      "remedy": "Clarify hidden research/aggregate scores versus visible actual acceptance feedback and assert all conditions receive same feedback."
+    },
+    {
+      "id": "P03",
+      "issue": "Six worker decisions may limit reading, writing, testing and recovery before mechanisms can occur.",
+      "remedy": "Use development-family pilot to show at least one real failed check and authorized retry fit; freeze budget before held-out outputs."
+    },
+    {
+      "id": "P04",
+      "issue": "Permissions/stop/immutability/receipt matching still unverified in code.",
+      "remedy": "Inspect tools and no-model tests before formal lock. Explicit finish rejection and voluntary stop must remain distinct."
+    }
+  ],
+  "not_certified": [
+    "implementation correctness",
+    "independent human content validity",
+    "formal experiment readiness",
+    "result validity"
+  ]
+}

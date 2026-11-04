@@ -1,0 +1,143 @@
+--- before/docs/plans/reports/papers-010/p2-workflow-responsibility/paper.md
++++ after/docs/plans/reports/papers-010/p2-workflow-responsibility/paper.md
+@@ -1,6 +1,6 @@
+-# 多智能体工作流中的协调失效与责任分配
+-
+-*Coordination Failures and Responsibility Allocation in Multi-Agent Workflows*
++# 多智能体软件工作流中的行动绑定与协调失效
++
++*Action Binding and Coordination Failures in Multi-Agent Software Workflows*
+ 
+ **作者：** oopslink
+ 
+@@ -8,13 +8,13 @@
+ 
+ ## 中文摘要
+ 
+-多智能体工作流通过角色分工、依赖和验收门槛组织交付，但这些规则为何仍不能让团队自主确定下一步？本文以Agent Center中的工作项推进片段为分析单位，比较行动要求、责任解释、人工补充及后续状态，并以结构统计和合成动作实验检验解释边界。案例显示，协调失效集中在职责到具体行动的转换：分配前提没有落实为协调者自己的动作，相同合并职责指向不同分支，局部验收完成也不能代表剩余交付义务消失。两个完整案例区间的28条消息中，12条来自用户，其中5条直接补充或质询责任、对象及操作顺序。独立验收、下游事实核查和合格NO-GO报告则提供了有用的质量边界。256次合成响应中，两道题存在状态矛盾或合同缺失；排除其全部条件后，事后字段诊断中两模型均96/96正确，严格格式得分分别为91/96和96/96。因此，已观察的问题是行动关系需要人工补足，现有实验没有支持“表示越复杂就越容易发生语义错误”。本文主张以可执行工作项和剩余义务交接组织流程，保留增加证据的检查，并以无提醒推进和交付质量评价简化效果。研究为单部署探索，尚未人工复核。
++多智能体工作流通过角色分工、依赖和验收门槛组织交付，但这些规则为何仍不能让团队自主确定下一步？本文以Agent Center中的工作项推进片段为分析单位，比较行动要求、责任解释、人工补充及后续状态，并以结构统计和合成动作实验检验解释边界。案例显示，协调失效集中在职责到具体行动的转换：分配前提没有落实为协调者自己的动作，相同合并职责指向不同分支，局部验收完成也不能代表剩余交付义务消失。两个完整案例区间的28条消息中，12条来自用户，其中5条直接补充或质询责任、对象及操作顺序。独立验收、下游事实核查和合格NO-GO报告则提供了有用的质量边界。256次合成响应中，两道题存在状态矛盾或合同缺失；排除其全部条件后，事后字段诊断中两模型均96/96正确，严格格式得分分别为91/96和96/96。全部输入已明示自主准备与门槛解释规则，因此这些结果只说明协议给定后的短题表现，不能独立验证长期流程机制。部署中可见的缺口仍是行动关系需要人工补足。本文主张以可执行工作项和剩余义务交接组织流程，保留增加证据的检查，并以无提醒推进和交付质量评价简化效果。研究为单部署探索，尚未人工复核。
+ 
+ **关键词：**多 Agent 协作；责任闭合；工作流；独立验收；agent harness
+ 
+ ## Abstract
+ 
+-Multi-agent workflows organize delivery through roles, dependencies, and acceptance gates, yet these rules may leave the next action unresolved. This study asks why a team with defined responsibilities still requires human direction and which coordination boundaries remain useful. We analyze work-item transitions in Agent Center, comparing required actions, responsibility interpretations, human contributions, and subsequent records. Descriptive workflow measures and synthetic action-selection experiments examine the scope of the proposed explanation. The cases locate coordination failures at the transition from general duties to situated action: assignment requirements were not treated as the coordinator's own next step, shared merge duties referred to different branches, and local acceptance did not settle remaining delivery obligations. Two complete case windows contained 28 messages, including 12 human messages; five supplied or questioned responsibility, objects, or operation order. Independent testing, downstream fact checking, and valid NO-GO reports provided useful quality boundaries. Of 256 synthetic responses, two scenarios had contradictory states or missing contracts. After excluding all their conditions, a post-hoc field diagnostic found correct semantic choices in 96/96 responses per model, while strict-format scores were 91/96 and 96/96. The observed deployment problem is the need to complete action relations through human intervention; the experiment does not establish semantic harm from more elaborate representations. Workflow design should make actionable ownership and remaining obligations explicit, retain evidence-producing checks, and evaluate simplification by unprompted progress and delivery quality. This single-deployment study has not been human-verified.
++Multi-agent workflows organize delivery through roles, dependencies, and acceptance gates, yet these rules may leave the next action unresolved. This study asks why a team with defined responsibilities still requires human direction and which coordination boundaries remain useful. We analyze work-item transitions in Agent Center, comparing required actions, responsibility interpretations, human contributions, and subsequent records. Descriptive workflow measures and synthetic action-selection experiments examine the scope of the proposed explanation. The cases locate coordination failures at the transition from general duties to situated action: assignment requirements were not treated as the coordinator's own next step, shared merge duties referred to different branches, and local acceptance did not settle remaining delivery obligations. Two complete case windows contained 28 messages, including 12 human messages; five supplied or questioned responsibility, objects, or operation order. Independent testing, downstream fact checking, and valid NO-GO reports provided useful quality boundaries. Of 256 synthetic responses, two scenarios had contradictory states or missing contracts. After excluding all their conditions, a post-hoc field diagnostic found correct semantic choices in 96/96 responses per model, while strict-format scores were 91/96 and 96/96. All inputs explicitly prescribed autonomous preparation and gate interpretation. These results therefore concern compliance with a supplied protocol, not a test of long-running workflow mechanisms. The deployment cases still show action relations completed through human intervention. Workflow design should make actionable ownership and remaining obligations explicit, retain evidence-producing checks, and evaluate simplification by unprompted progress and delivery quality. This single-deployment study has not been human-verified.
+ 
+ **Keywords:** multi-agent collaboration; accountability; workflow; independent review; agent harness
+ 
+@@ -28,19 +28,25 @@
+ 
+ 已有研究覆盖角色规范违背、重复步骤和协调错位。[1]<!--ref:R01--><!--anchor:section:4--> 本文的分析进一步区分“职责已经规定”与“当前行动关系已经闭合”：前者说明某角色通常做什么，后者还要说明此时由谁对哪个对象、依据何种合同采取什么动作。案例、反例与实验共同支持的结论是，**该部署需要人工补足的关键内容是具体行动关系，而独立检查仍有价值；现有证据不支持通过一概削减角色或门槛解决问题。**（B01–B09）
+ 
+-## 2 相关研究与概念
+-
+-职责、能力、权限、验收权和目标责任需要分开。职责描述应做哪类工作；能力说明是否具备工具和环境；权限决定是否被允许执行；验收权决定谁能判断候选符合某个合同；目标责任则要求追踪尚未满足的交付目标。本文把流程复杂度描述为需要协调的角色、对象、阶段和判定边界，而不以消息数或节点数替代成本测量。W01 涉及分配职责，W02 涉及分支对象与发布阶段，Graph 涉及验收范围。（B01–B05）
+-
+-MAST（多 Agent 系统失败分类）已区分角色规范违背、重复步骤、协调错位和验证不完整，并报告改善角色规范及高层验收的正向干预。它支持分析行为发生在哪个边界，却不支持预先把多角色当成故障。本文不移植其分类频率，也不把生产案例作为其基准的复现。[1]<!--ref:R01--><!--anchor:section:4--> 从过程分析出发，面向命令行接口（CLI）编码 Agent 轨迹的 Failure as a Process 强调区分错误起点、演进与恢复，同样的表面错误可能有不同机制，重复尝试未必无效。本文相应保留纠正前后，而不只读取最终状态。[2]<!--ref:R05--><!--anchor:section:II-->
+-
+-模型—harness 边界研究提示，某些故障只有结合模型行为与运行机制才能解释；其问题报告也可能缺少上下文。因此，本文不把已排除的调度或 lease 故障用作流程复杂度的证据，外部 bug 不能填补本地机制缺口。[3]<!--ref:R03--><!--anchor:section:I--> 生产部署调查中，受约束的结构化流程、人类评估与可控自治是常见选择，可靠性仍是挑战；这构成“一切流程都有害”的实践反证，而非复杂度因果试验。[4]<!--ref:R04--><!--anchor:section:5.4, 7.1-->
+-
+-AgentConductor 则在竞赛代码场景中按执行反馈更新分层有向无环图，并随任务难度调节图密度。其结果说明结构应按任务设计，图更稀疏或更复杂都不是固定目标；基准的准确率和 token 指标不能直接换算成本系统的消息或 generation 收益。[5]<!--ref:R29--><!--anchor:section:2.1.2, 3.2.2--> 本文因此只提出边界表示的改进，不由个别协调失误推出删去全部流程。
+-
+-本文所说的责任闭合，因此不是要求每个角色都接受全部工作，而是要求一个尚未完成的事项能追溯到下一动作及有权采取该动作的主体。拒绝一个不合格候选仍可符合这一要求，前提是拒绝之后的未满足事项没有在交接中消失。（B07、B09）
+-
+-上下文呈现可能构成另一种竞争解释。Lost in the Middle在所研究的问答和检索任务中观察到位置敏感性，同时部分模型在简单检索上接近全对。该反例提示，简单题的天花板不能回答复杂流程中的信息使用问题；本研究没有据此诊断部署模型的注意力机制或认知过载。[6]<!--ref:R32--><!--anchor:section:2.3, 3.2-->
++本文的研究价值在于定位已有角色流程在哪些具体关系上没有闭合，并区分人工补偿与有效检查；不是重复证明多Agent会协调失败，也不是预设复杂流程必然更差。跨角色真实推进与短题表示敏感性分开评价。
++
++## 2 相关研究与分析框架
++
++### 2.1 结构化协作的收益与失效边界
++
++结构化流程的合理性不能只从失败案例评价。MetaGPT把角色、标准作业过程、结构化产物和消息订阅联合设计；[2]<!--ref:RV16_METAGPT--> ChatDev把分工与阶段通信、具体澄清结合，其角色消融同时移除了职责与任务提示。[3]<!--ref:RV16_CHATDEV--> 两者说明有效协作需要具体通信和工作约束，不能把结果归于角色名，也不能反向推导“流程越少越好”。生产调查同样显示可靠性与可控自治是实际关注点，但其观察数据不是复杂度效应试验。[4]<!--ref:R04-->
++
++MAST将角色规范、协调错位和验证问题区分，Failure as a Process强调错误起点与恢复过程，模型—harness研究则提醒运行机制也会改变可见行为。[1]<!--ref:R01-->[5]<!--ref:R05-->[6]<!--ref:R03--> 本文沿用这种分辨要求，将动作关系没有闭合与合法等待、有价值的独立验收分开。局部贡献是指出角色规定之后仍需由人工补充的主体、对象和合同关系；不是重新发现多Agent系统会失败。
++
++AgentConductor在特定代码任务中按反馈调整图结构，说明流程形态应与任务共同评价。[7]<!--ref:R29--> Lost in the Middle研究的是信息位置对检索／问答的影响，[8]<!--ref:R32--> 不能单独证明本部署发生认知过载。本文的结构盘点、实际交接案例和表示短题因而分别承担描述、过程解释和局部行为检验。
++
++### 2.2 行动关系与流程推进的分析框架
++
++本文区分角色职责、行动绑定与目标闭合。角色职责规定通常由谁做哪类工作；行动绑定还需确定当前动作、对象、合同、授权及前提；目标闭合要求尚未满足的义务在交接后仍有承接者。工作流结构复杂度、单步表示复杂度和语义关系缺失是不同变量，不能互相充当指标。
++
++解释命题是：**如果流程只规定角色与门槛，却未绑定当下行动关系，参与者可以遵守局部规则而无法共同推进。** W01用于检查前提与承担者是否脱节，W02检查同一动作是否指向不同对象，验收案例检查局部结论是否保留剩余义务。相反，缺外部批准、有效NO-GO报告和新增事实核查是合法停止或有益协调，不属于该命题预测的失效。
++
++命题用于解释目的性片段，没有完成全库编码或证明复杂度的剂量效应。若只展开同一条门槛的文字而不增加真实依赖或交接，得到的差异只能评价呈现方式；§4.7的实验须按这一层次解释。
+ 
+ ## 3 材料与方法
+ 
+@@ -73,6 +79,14 @@
+ 固定Sonnet 5.5与Haiku 5.5，每模型8情境×8条件×2顺序版本，共128次，两模型合计256次。每次使用隔离进程，不携带项目记忆或真实工具；顺序版本是固定呈现检查，不是独立随机重复。合格响应须同时选对动作、主体、对象与合同并满足输出格式，语义字段与格式分别统计；合法等待和升级属于正确处置。比较在相同情境及顺序版本内配对，报告固定题集的描述性差异，不推断生产发生率。
+ 
+ 协议、输入及评分在正式响应前冻结，输出后另行检查题目状态是否一致、唯一答案是否由可见事实支持。发现问题的情境按全部条件排除负面归因，原评分仍保留；随后64次材料修复响应作为事后诊断单列，不并入主分母。一次字段反馈也只测量改答，不解释为工作流恢复。详细调用配置、材料缺陷及评分审计见[实验附录](controlled-experiments.md)。
++
++### 3.5 构念检查与可复现范围
++
++全部256个主输入直接要求不要把已授权的准备工作交给人，并说明gate是谓词而非必经工具调用。因而本实验不是对真实工作流长度或人工依赖的操纵，不能据语义全对证明已解决协调停摆。W2/W8的有效性问题涉及2/8情境，其全部64个条件输出按原记录保留；材料修复后的结果缺独立新情境检验，不能回写成无缺陷的确认性实验。
++
++本文按软件工程案例研究区分情境解释与因果识别，[9]<!--ref:RV16_METHOD--> 案例为目的性选择，研究问题和分析框架经材料阅读后调整，未预注册，也未完成全库盲法编码。输入、评分和统计可复算，不等于题目具有充分内容效度；设计、答案与解释同由AI形成，现有分工审阅不能替代独立人工判定。模型响应是固定情境的交叉观测，不按独立生产任务计算置信区间或显著性。
++
++逐项构念定义、输入全量核查、排除理由、主张与反证以及未执行的判别研究见[效度审计](../research-validity-016/README.md)。正文图表分别承担结构描述、过程比较或局部行为检验，[图表—主张映射](../research-validity-016/figure-claim-map.md)列明其可支持的结论；图中计数不是机制的独立验证。
+ 
+ ## 4 研究发现
+ 
+@@ -234,7 +248,7 @@
+ 
+ 根据这些案例，可执行工作项至少需要清楚表达目标、下一动作、主体、对象、合同、授权与前提。对尚未完成且没有明确外部等待的义务，应能够定位合法的继续路径。该要求提供一种设计检查条件，但不保证流程活性：循环依赖、资源不可用、无人调度或持续无效动作仍可能阻止完成。完整协议的端到端收益尚需验证。
+ 
+-W01纠正后仍保留四个不同负责人的分工，W02的下游角色仍提供事实核查。因此，当前材料支持的简化目标是减少模型临场补全控制关系的需要，而不是根据角色数量决定好坏。生产研究和动态拓扑研究也将结构选择置于具体任务条件下，不能由此推断统一的最优角色数。[4]<!--ref:R04--><!--anchor:section:5.4, 7.1-->[5]<!--ref:R29--><!--anchor:section:2.1.2, 3.2.2-->（B02、B03.6）
++W01纠正后仍保留四个不同负责人的分工，W02的下游角色仍提供事实核查。因此，当前材料支持的简化目标是减少模型临场补全控制关系的需要，而不是根据角色数量决定好坏。生产研究和动态拓扑研究也将结构选择置于具体任务条件下，不能由此推断统一的最优角色数。[4]<!--ref:R04--><!--anchor:section:5.4, 7.1-->[7]<!--ref:R29--><!--anchor:section:2.1.2, 3.2.2-->（B02、B03.6）
+ 
+ ### 5.4 用人工补偿内容和交付质量评价改进
+ 
+@@ -257,7 +271,7 @@
+ 
+ 本研究是单部署、目的性选例的探索。历史提示、授权与全部执行输入未恢复，用户后续要求也可能改变当时条件。因此，案例能够支持具体责任解释与人工补充的存在，不能估计其总体发生率、无人介入时的持续时间，或认定所有不推进都来自同一机制。W02早于后来的内部Supervisor/executor设计，只用于跨角色协作；Graph检查部分依赖历史报告，未重跑生产验收。（B00–B05）
+ 
+-结构统计使用累计快照，未校准为认知负荷、沟通成本或实际并发量，也没有进行复杂度—失败因果比较。消息回应与修复成功是不同结果，多个用户消息可以共用同一次回复。跨论文复用的记录不是独立重复；全部分析尚未人工复核。过程研究只提供分析视角，不替代本系统的效果测量。[2]<!--ref:R05--><!--anchor:section:II-->
++结构统计使用累计快照，未校准为认知负荷、沟通成本或实际并发量，也没有进行复杂度—失败因果比较。消息回应与修复成功是不同结果，多个用户消息可以共用同一次回复。跨论文复用的记录不是独立重复；全部分析尚未人工复核。过程研究只提供分析视角，不替代本系统的效果测量。[5]<!--ref:R05--><!--anchor:section:II-->
+ 
+ 实验仅有八类固定英语短情境，两种呈现版本不构成独立随机重复。两模型、明确规范及部分直接提示动作的目标带来较强天花板；gate展开没有增加真实工作量，联表和分表长度也不同。实验没有测量长程交接、真实团队规模或训练机制。无缺陷情境中的语义正确不能证明一般流程可靠，格式失败也不能反推内部认知失效。
+ 
+@@ -271,19 +285,27 @@
+ 
+ **现有对照只支持对“表示复杂度致错”保持克制，不否定真实协调缺口。** 在事实与合同有效的短题中，两模型语义字段均96/96正确；原主要评分不匹配来自材料矛盾或缺信息，其余差异属于格式。下一阶段的关键检验是完整工作项能否在真实多步交接中减少人工补充、持续承接未完成义务，并保持最终验收质量，而不是进一步提高已接近天花板的单步答题准确率。
+ 
++**尚待执行的判别研究。**最小判别研究应增加真实异步交接和依赖步骤，而非仅把一个谓词拆成八个标签；在相同目标、信息、权限和质量门槛下，比较隐式交接与明确行动绑定。预先固定未见任务、恢复机会和停止标准，测无人工提示的推进与验收。若绑定关系后仍同样停摆，应转查执行能力、运行机制或任务本身，而非继续归责于职责措辞。
++
+ ## 参考文献
+ 
+ [1] M. Cemri et al., “Why Do Multi-Agent LLM Systems Fail?,” arXiv:2503.13657v3, 2025. doi: [10.48550/arXiv.2503.13657](https://doi.org/10.48550/arXiv.2503.13657). [已核版本](https://arxiv.org/abs/2503.13657v3).
+ 
+-[2] X. Zhao, H. Li, S. Li, T. Zhao, E. T. Barr, F. Sarro, and H. Ye, “Failure as a Process: An Anatomy of CLI Coding Agent Trajectories,” arXiv:2607.09510v1, 2026. doi: [10.48550/arXiv.2607.09510](https://doi.org/10.48550/arXiv.2607.09510). [已核版本](https://arxiv.org/abs/2607.09510v1).
+-
+-[3] J. Chen, S. Chen, H. Zhu, J. Cao, J. Shen, and S.-C. Cheung, “Understanding Agent-Reactive Bugs at the Model-Harness Boundary: An Empirical Study of LLM Agent Issue Reports,” arXiv:2607.15684v1, 2026. doi: [10.48550/arXiv.2607.15684](https://doi.org/10.48550/arXiv.2607.15684). [已核版本](https://arxiv.org/abs/2607.15684v1).
+-
+-[4] M. Z. Pan et al., “Measuring Agents in Production,” arXiv:2512.04123v4, 2025. doi: [10.48550/arXiv.2512.04123](https://doi.org/10.48550/arXiv.2512.04123). [已核版本](https://arxiv.org/abs/2512.04123v4).
+-
+-[5] S. Wang et al., “AgentConductor: Topology Evolution for Multi-Agent Competition-Level Code Generation,” arXiv:2602.17100v1, 2026. doi: [10.48550/arXiv.2602.17100](https://doi.org/10.48550/arXiv.2602.17100). [已核版本](https://arxiv.org/abs/2602.17100v1).
+-
+-[6] N. F. Liu et al., “Lost in the Middle: How Language Models Use Long Contexts,” *Transactions of the Association for Computational Linguistics*, vol. 12, pp. 157–173, 2024. DOI: [10.1162/tacl_a_00638](https://doi.org/10.1162/tacl_a_00638). [出版记录](https://aclanthology.org/2024.tacl-1.9/).
++[2] S. Hong et al., “MetaGPT: Meta Programming for A Multi-Agent Collaborative Framework,” arXiv:2308.00352v7, 2023, revised Nov. 1, 2024. doi: [10.48550/arXiv.2308.00352](https://doi.org/10.48550/arXiv.2308.00352). [所引预印本版本](https://arxiv.org/abs/2308.00352v7).
++
++[3] C. Qian et al., “ChatDev: Communicative Agents for Software Development,” in *Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)*, 2024, pp. 15174–15186. doi: [10.18653/v1/2024.acl-long.810](https://doi.org/10.18653/v1/2024.acl-long.810).
++
++[4] M. Z. Pan et al., “Measuring Agents in Production,” in *Proceedings of the 43rd International Conference on Machine Learning*, Proceedings of Machine Learning Research, vol. 306, 2026, pp. 95649–95695. [正式论文](https://proceedings.mlr.press/v306/pan26a.html).
++
++[5] X. Zhao, H. Li, S. Li, T. Zhao, E. T. Barr, F. Sarro, and H. Ye, “Failure as a Process: An Anatomy of CLI Coding Agent Trajectories,” arXiv:2607.09510v1, 2026. doi: [10.48550/arXiv.2607.09510](https://doi.org/10.48550/arXiv.2607.09510). [已核版本](https://arxiv.org/abs/2607.09510v1).
++
++[6] J. Chen, S. Chen, H. Zhu, J. Cao, J. Shen, and S.-C. Cheung, “Understanding Agent-Reactive Bugs at the Model-Harness Boundary: An Empirical Study of LLM Agent Issue Reports,” arXiv:2607.15684v1, 2026. doi: [10.48550/arXiv.2607.15684](https://doi.org/10.48550/arXiv.2607.15684). [已核版本](https://arxiv.org/abs/2607.15684v1).
++
++[7] S. Wang et al., “AgentConductor: Topology Evolution for Multi-Agent Competition-Level Code Generation,” arXiv:2602.17100v1, 2026. doi: [10.48550/arXiv.2602.17100](https://doi.org/10.48550/arXiv.2602.17100). [已核版本](https://arxiv.org/abs/2602.17100v1).
++
++[8] N. F. Liu et al., “Lost in the Middle: How Language Models Use Long Contexts,” *Transactions of the Association for Computational Linguistics*, vol. 12, pp. 157–173, 2024. DOI: [10.1162/tacl_a_00638](https://doi.org/10.1162/tacl_a_00638). [出版记录](https://aclanthology.org/2024.tacl-1.9/).
++
++[9] P. Runeson and M. Höst, “Guidelines for conducting and reporting case study research in software engineering,” *Empirical Software Engineering*, vol. 14, pp. 131–164, 2009. doi: [10.1007/s10664-008-9102-8](https://doi.org/10.1007/s10664-008-9102-8).
+ 
+ ## 证据附录
+ 
+@@ -348,3 +370,5 @@
+ **AI使用。**001—009原研究及010写作阶段的AI参与记录保留；011实验由同一AI完成实现、分析、写作和有界自查，当时未新增独立评阅。015由分工AI诊断、重组论证并复核证据范围，未新增模型实验，不构成人工复核或独立研究重复。实验调用固定claude-sonnet-5-5和claude-haiku-5-5、low effort，版本标识与原始响应保存；历史部署模型和参数未知处仍不补造。模型输出不作为内部推理或训练来源真值。原研究与本次修订均尚未人工复核；未重跑历史产品验收。
+ 
+ **同源与跨篇重合。** 五篇工作稿基于同一部署和冻结快照，存在目的性选例重合。本文的 Graph、Spark 与 I05 边界材料亦供其它篇目分析，但问题分别是责任闭合、监督或产物继承；同一消息保持原生标识，不累计为不同实验，不把跨篇一致性当独立重复验证。
++
++**016修订与复核范围。** 本稿补充了主题式文献比较、事后分析框架与实验构念检查，未新增模型调用或生产样本。原始正反结果及图表保留；[逐篇修改记录](REVISION-016.md)、[共同效度审计](../research-validity-016/README.md)和[可执行研究缺口](../research-validity-016/next-studies.md)说明已修正文稿与仍缺实证支持的部分。AI交叉审阅不属于人工复核，稿件尚未定稿。

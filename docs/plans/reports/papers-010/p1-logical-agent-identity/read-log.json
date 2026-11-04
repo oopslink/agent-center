@@ -1,0 +1,330 @@
+{
+  "paper": "P1",
+  "read_completed_utc": "2026-11-02T15:32:27.798207+00:00",
+  "scope_note": "Only entries listed here were used; literature claims taken from frozen allowed corpus; no claim of reading every lexical hit or re-running historical tests. Read log hashes record bytes, not an independent execution verification.",
+  "entries": [
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/findings.md",
+      "scope": "Full text",
+      "sha256": "6a2924e05d86ea6829baef58d2d2d28df8436ab5f864a1a7f96a5b4a97616722"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/division-006/sources/agent-supervisor-executor-identity-contract.md",
+      "scope": "Full text",
+      "sha256": "a15d4d573d6d35087c3f26e34013f48d7e1d54741b06cd2a1dff855897534971"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY4B5KS3272X3AMXDXHQMEC0.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "708ac600e5409460d70c3910346369397bdc4784d8f223405c266d848ed5fb74"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY4B74V6XGRFG85EV29RS1RT.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "4862831982266d7e170fdf1704312e3ca5892b8cc242b6714671580ef44cc45e"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY4B7K5QXK434NNHY9K1FKEF.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "e8f3ef8e28a825fc3a206c0d6bed6da3a178b3c94ea0a940edf1e01ea540f748"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5BMKX9ZM03BTJTENTQSKDB.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "e7d1b7ca73c354b305690f9853fd143f6becb2b25d5d770d7ff228e4ca8386ee"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5BYKS2T49YEXAGRPQQ9XWN.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "acdc8ec03bcd8f2158289fcaf4d592880f878e4fadb5503af7f9e9ac632b97b9"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5BZ3804ZA0ETH34RA1XEH1.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "adb4cd3bf03dda010577303b176503fd344dcca5f61f3037cd89d16cc1687ce4"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5C4XXCTE2AGYB373M42A9Y.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "ad451f0bed9246ef886dac85d57ef353acc6512214d1edbb2b5c86f198576b40"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5C5HW683A4YZG91P23RC7G.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "b1fa96feda58bbc82bfc3afa5122475602ed8a8a3eec422e6c0dd693985ca794"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABVT594GFNYTWZ7AZRHF30.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "3b141113e9a02232f63cd784031408f3a57f82cabcb7a4ab14108174899cc09e"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABY7HSVA1FF42EH7XYX7GX.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "9089842a3bcbef03f63ab7c757d0ee427979295526e134cfeb33a0fbd8ac1ebc"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZAC08EKE041V1XB1C2XWE5V.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "6bd12e62f6c342e9cf0579169d544516d9d3a7dd94907eca7a5cd306491fd150"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZACFHV3BFM5CP04CR07Q79W.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "748e348b3455182d04224b9e8474477f4c2183f8f5c178e77d721dfc4aafce43"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZACYJWJHHWTFHEWE7EHAVH8.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "fd2e36c8db116856a1a1275d8250cfb9e63877d1a8a435f25e0e9a1a9f82065e"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY68C1K5SHCFA4SFNZSS7C4C.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "91fe592d18da0a72cf65ee82ed61b4c7e55afb85cc841640a85a4fbe0f66699d"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY68TD24Y07FCY5CZY56JEDZ.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "3f87ec3e8655aa8dea94ac2cb102190d1b3c65a338c3294aeea0fdf1f2f4bbf0"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY699NV8C4KRZ8DNXC4858KM.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "890111b29728b24f64488fe0c7e24bffa5a2ee50ef8e66ffd3444f47657a73f6"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY69AW978C5TVS6GBM5TXK6N.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "50f176928fa2ff57fccd9bb8775e0c6f6a6e5bf7d43e15d312408391076d3280"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDJ41E4XMR6RSRDW2342DCE.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "9ada862b772ed1508c077bda01dc25c8022bf5c77911cdcc791d27871e4f5dfd"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDKN7K7XRNZ0DPE7G9V0GQA.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "cefd9d147c3be95ae8bb04ccfcdeac701a35b5486aa578cb83560161666baf5d"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDKS2M645VTZJ9GR8SW0MDJ.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "44bb1e15ff0d32f18102327ad07a253de110cde5b870dbe76a8566e098bb34aa"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json",
+      "scope": "Filtered task-e12e4fb9: all nine action records, full fields; other task rows not analyzed",
+      "sha256": "dc6aba1befb5a2440acc26c19a9db161fb7218c0cff399f09b3b0c94d60c3a60"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/worker_control_events-selected.json",
+      "scope": "Full text",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/agent_execution_mirrors-selected.json",
+      "scope": "Full text",
+      "sha256": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S01-03.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "7ca8d1defe98b39788b43c84b19a356cb6161b9a6b847e1f18e9e7ef96ce6552"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S01-05.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "9dff13be2cc4edd0518187e66ed07b7d6f6457e8d11b88f9d19cc38d12e0e73f"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S02-02.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "b1aaef4b8cfa65333f53030cc2bf8af7b46675c6794fa809a4cbe8724580dc02"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/evidence/S02-04.json",
+      "scope": "Full native record, including full content, sender, timestamp and conversation ID",
+      "sha256": "9fd5df37c3a993ddd2b633a0d277cb9c10414aa699847d1db5d17fe86a07803b"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/sources/access-before/access-ram-roles.html",
+      "scope": "Lines 55–96, full selected lines",
+      "sha256": "56fbd1b46b5759c6776b753ca4f0874a17f07d2940790313e329d2626be1bb61"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/sources/access-after/access-ram-roles.html",
+      "scope": "Lines 67–69 and 80–113",
+      "sha256": "295468fd3e7a8ae24a2f88564722ef5cff0327dc688e29d8ad8d8bea951452c4"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/sources/access-after/verify.mjs",
+      "scope": "Lines 45–59",
+      "sha256": "c763f4a7e46f6cc84248de033e5172b24e398f7548a4a6bd1b50a26101ea99af"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/sources/spark-before/App.test.ts",
+      "scope": "Lines 20–33",
+      "sha256": "6b22a8ce6364b5052d2c260a83046313f55900b79867daf5a6ced30343c547f1"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/sources/spark-after/App.test.ts",
+      "scope": "Lines 20–45",
+      "sha256": "54c6a8856bc4b89eb61b24e03924e59553a3681aba6ef05ebd2103ba8f518be4"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/synthesis-009/reports/exact/agent-harness-review-increment-cases-009.md",
+      "scope": "Full text",
+      "sha256": "0dea1e6e98e6e9335a1d5b848ac383d4ae38959cc719554be3a29cb465df43f0"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/skill-support/shared/contracts/writer/full.json",
+      "scope": "Full frozen JSON",
+      "sha256": "ee29da7a0efaf17b7f90059e5a158ba55f4dd3d210062e4d3855da6d03f3f4a3"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase4_writer/P1/precommitment.md",
+      "scope": "Full own paper-blind precommitment",
+      "sha256": "fe351e718b314032857bc742c55a4e8d4eafc766633c6e4d1b0249cdb088bc4e"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/intake/paper-configs.json",
+      "scope": "Full configuration",
+      "sha256": "9be82f0c2c6f57ad3c05b9673e9d1975e9d4c6453b48b84ae266aa60bb01e188"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase2_structure/four-paper-outlines.md",
+      "scope": "Full outlines; P1 followed",
+      "sha256": "8fd64390a593f710ea541089bc6f113d767272b9aa407fb55e9111d954f8a650"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase3_arguments/P1-blueprint.md",
+      "scope": "Full P1 blueprint",
+      "sha256": "06e62f87cbb53b414e15114e29373557fd5bfa4b7a297350daf93464f72d80e7"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_literature/corpus.json",
+      "scope": "Selected complete records R01/R03/R14; initial all-record output truncated, targeted re-read used",
+      "sha256": "dfecb61e9cfa64ae9001f6891bf185dc98b7703ee9f2c20b55241881f379d367"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_literature/references.bib",
+      "scope": "Bibliographic metadata; relevant entries cross-read against selected corpus records",
+      "sha256": "79a583f68dcf9aa21ffeb69169e78ddc279e67897968d99a2f9dc4df25e865f0"
+    },
+    {
+      "path": "/Users/oopslink/.codex/skills/academic-paper/agents/draft_writer_agent.md",
+      "scope": "Phase 4a and Phase 4b protocols only, including emission requirements",
+      "sha256": "50b78a42cce703385e2991cd42e6c9b32144f4605a316d2920c83dd65d8035bc"
+    }
+  ],
+  "revision_002": {
+    "utc": "2026-11-02T16:02:18.470696+00:00",
+    "new_reading": {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/002-p1-design-origin/sources/agent-concurrent-execution-first.md",
+      "scope": "Complete first-committed design, used as design-intent source only",
+      "sha256": "a02ac38b90c34212df07743b38fa0e5d825fc9360671117de6b560f22abae06a"
+    },
+    "other_reads": "Current P1 and its diff; local identity contract; original case/literature evidence is inherited, not re-audited in this revision."
+  },
+  "revision_003": {
+    "utc": "2026-11-02T16:14:35.552611+00:00",
+    "data": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/003-data-figures/data/P1P2/data.json",
+    "provenance": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/003-data-figures/data/P1P2/source-provenance.json",
+    "reading_scope": "Delegated analysts extracted fixed native exports and recorded source-field/row coverage; root read data, tables, source definitions and revised text. No claim of rereading all historical corpus or rerunning models."
+  },
+  "quantitative_revision": {
+    "revision": "005-quantitative-analysis",
+    "utc": "2026-11-03T02:08:17.718647+00:00",
+    "input_provenance": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/005-quantitative-analysis/source-provenance.json",
+    "record": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/005-quantitative-analysis/self-review.md",
+    "entries": [
+      {
+        "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/005-quantitative-analysis/data/P1-screening.json",
+        "sha256": "dc868fa1fe8cf8c972ca92854242e9a433c2112493ac4768401ee5314c7b72ae",
+        "scope": "Derived records and summaries checked against native inputs; P2 bounded message contents read; no whole-database semantic reread."
+      },
+      {
+        "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/005-quantitative-analysis/data/snapshot-audit.json",
+        "sha256": "2015c3e2706ba51c5e421cb66ae781560a9363693eda1dcbf14acedc306a524f",
+        "scope": "Derived records and summaries checked against native inputs; P2 bounded message contents read; no whole-database semantic reread."
+      }
+    ]
+  },
+  "dense_evidence_revision": {
+    "revision": "006-dense-evidence",
+    "utc": "2026-11-03T02:56:49.422893+00:00",
+    "scope": "Structured field analysis and native metadata verification; no semantic reading of every action note or historical task description. Existing case coding retained.",
+    "source_provenance": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/source-provenance.json",
+    "summary_sha256": "bb932cf9dd46e2047c5c01ade2fcd7d5079e636668d39837fcfd31d1f1551c97",
+    "record": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/self-review.md"
+  },
+  "findings_led_prose_revision": {
+    "revision": "007-findings-led-prose",
+    "utc": "2026-11-03T09:51:08.275226+00:00",
+    "scope": "Read existing manuscript bodies and preserved analytical results; reorganized prose and source pointers. No new raw-data query, full-source reread, or citation/retraction re-verification.",
+    "base_sha256": "3088cc7e5e051e4ff0bb9ffa25ec4ec6f6b81d10fde5d49a55ca6ffecaa2ae2a",
+    "final_sha256": "c67ca8e6c0b9a0ca1a0bb4d6906e1e1ced2c452d9afd4e9b7947987f7810d9d7",
+    "review": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/007-findings-led-prose/claim-review.md",
+    "independent_review": false,
+    "human_review": "not_completed",
+    "targeted_source_rereads": []
+  },
+  "title_revision_008": {
+    "utc": "2026-11-03T11:41:54.523967+00:00",
+    "base_sha256": "c67ca8e6c0b9a0ca1a0bb4d6906e1e1ced2c452d9afd4e9b7947987f7810d9d7",
+    "final_sha256": "47df19375b5e56db9865d86ca2c950fb5503d663f8402a6ea3ce90e60066ac08",
+    "scope": "Title and existing abstract/introduction inspected for alignment; no source-data or literature rereview.",
+    "record": "revisions/008-p1-academic-title/README.md"
+  },
+  "mechanism_revision_009": {
+    "utc": "2026-11-03T11:52:10.225491+00:00",
+    "base_sha256": "47df19375b5e56db9865d86ca2c950fb5503d663f8402a6ea3ce90e60066ac08",
+    "final_sha256": "52585a418f4e696429f762c41eb2d7e6536cc327e662916707a76f12cfd130e5",
+    "source_provenance": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/source-provenance.json",
+    "literature_reading": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/009-p1-causal-mechanisms/literature/citation-checks.json",
+    "source_scope": "Targeted historical prompt, dispatch and recovery-description diffs and listed source passages; not every line of archived code.",
+    "reread_evidence": [
+      "A01",
+      "A04a",
+      "A04c",
+      "A04d",
+      "A14"
+    ],
+    "no_new_model_experiment": true,
+    "independent_review": false,
+    "human_review": "not_completed"
+  },
+  "controlled_experiment_revision_010": {
+    "utc": "2026-11-03T13:05:42.027205+00:00",
+    "base_sha256": "52585a418f4e696429f762c41eb2d7e6536cc327e662916707a76f12cfd130e5",
+    "final_sha256": "431f08b4ecfe22508b926ee0cbbef1174c3caad5a2b59cd8e3de15ca490970a8",
+    "source_provenance": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/010-p1-controlled-experiments/experiment-provenance.json",
+    "scope": "All 544 primary outputs structurally scored; semantic reading of all 32 probes, all 3 nonprogress responses, 16 rule-selected positives and all 3 continuations. No claim of semantic rereading all historical messages or all 512 action explanations.",
+    "experiment_total_calls": 547,
+    "excluded_connectivity": 2,
+    "independent_review": false,
+    "human_review": "not_completed"
+  },
+  "title_revision_012": {
+    "utc": "2026-11-03T13:44:45.132017+00:00",
+    "base_sha256": "431f08b4ecfe22508b926ee0cbbef1174c3caad5a2b59cd8e3de15ca490970a8",
+    "final_sha256": "bf919679adcaf04157f1d7f21f696d68853a32105cd42b13d526228e90049baa",
+    "scope": "Current title, abstract and introduction inspected for title alignment; no evidence or reference rereview.",
+    "abstracts_regenerated": false,
+    "record": "revisions/012-academic-titles/README.md"
+  },
+  "author_metadata_revision_013": {
+    "utc": "2026-11-03T13:46:31.735229+00:00",
+    "base_sha256": "bf919679adcaf04157f1d7f21f696d68853a32105cd42b13d526228e90049baa",
+    "final_sha256": "c41f80af86e101ed813bf7b86148725cf9de0b33fc75f836d92c2a13759fd55a",
+    "author": {
+      "name": "oopslink",
+      "url": "https://github.com/oopslink"
+    },
+    "scope": "Author metadata and stale placeholders only; no new research or source review.",
+    "abstracts_regenerated": false,
+    "record": "revisions/013-author-metadata/README.md"
+  }
+}

@@ -1,0 +1,143 @@
+{
+  "sources": [
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/raw/agents.json",
+      "relative_path": "raw/agents.json",
+      "sha256": "b5d959b8db96b44b4e55796588a6187e581412c8e557170c0996bbfae8f2377c",
+      "bytes": 12263,
+      "row_count": 16,
+      "used_fields": [
+        "id",
+        "name",
+        "identity_member_id"
+      ],
+      "reading": "Full JSON parsed"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/raw/identities.json",
+      "relative_path": "raw/identities.json",
+      "sha256": "01ec2be3a0399caa1fb9cb55a998e694dce563ec2e5b2ff7a561bd0e4e7d5f4e",
+      "bytes": 7595,
+      "row_count": 29,
+      "used_fields": [
+        "id",
+        "display_name"
+      ],
+      "reading": "Full JSON parsed"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/raw/team_members.json",
+      "relative_path": "raw/team_members.json",
+      "sha256": "b12b52939e610ea4f1677428868f5823515116565812e7edb7fddaf07cae4b9a",
+      "bytes": 3043,
+      "row_count": 17,
+      "used_fields": [
+        "team_id",
+        "member_ref",
+        "member_kind",
+        "role"
+      ],
+      "reading": "Full JSON parsed"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/raw/team_roles.json",
+      "relative_path": "raw/team_roles.json",
+      "sha256": "78972874d28a257e96b4eab00ca5eb44c7e7cdbd855805c9aea48ee70600d351",
+      "bytes": 4480,
+      "row_count": 7,
+      "used_fields": [
+        "team_id",
+        "role"
+      ],
+      "reading": "Full JSON parsed"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/raw/teams.json",
+      "relative_path": "raw/teams.json",
+      "sha256": "0f7966bdfbb73d49287bbde5ca8004e6400e0c1bd7c4962c78d1dcc9cd6e93d6",
+      "bytes": 998,
+      "row_count": 4,
+      "used_fields": [
+        "id",
+        "name"
+      ],
+      "reading": "Full JSON parsed"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/raw/rule-load-all.json",
+      "relative_path": "raw/rule-load-all.json",
+      "sha256": "79d59ba7fabf6cf0df5a5f18d4e2e80d5679de9eca251d0242840f1fb44ce8d2",
+      "bytes": 90106,
+      "row_count": 230,
+      "used_fields": [
+        "execution_id",
+        "planning_session_id",
+        "team_id",
+        "team_memory_commit",
+        "rule_slug",
+        "phase",
+        "agent_id",
+        "loaded_at"
+      ],
+      "reading": "Full JSON parsed"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/raw/developer-reflection.json",
+      "relative_path": "raw/developer-reflection.json",
+      "sha256": "ac4b4c66f78fe5a97f0ef5e868114ec214dcd6c083b8caa4312436c357223846",
+      "bytes": 1091,
+      "row_count": null,
+      "used_fields": [
+        "id",
+        "answer_verbatim",
+        "type",
+        "limits"
+      ],
+      "reading": "Full JSON parsed"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/metrics.json",
+      "relative_path": "derived/metrics.json",
+      "sha256": "c7c46b050db35a659e6f68c5bad9998fe0f7949729856c9d10e9ab6aae6402cb",
+      "bytes": 1523,
+      "row_count": null,
+      "used_fields": null,
+      "reading": "Full JSON parsed"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json",
+      "relative_path": "derived/identity-role-map.json",
+      "sha256": "79475056cd4dca37df1910ef2805ac3db3a968bc9db92edbcfd33552f57e85be",
+      "bytes": 5934,
+      "row_count": 16,
+      "used_fields": null,
+      "reading": "Full JSON parsed"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/sources/internal/cognition/ruleregistry/audit.go",
+      "relative_path": "sources/internal/cognition/ruleregistry/audit.go",
+      "sha256": "9818ed1c7bcaa890b91ee42947197ae020e63a8c610efc4c15ac7aa3515397f5",
+      "bytes": 1513,
+      "reading": "Audit type contract lines 9–27 or AppendLoaded lines 27–53; no claim of all source execution",
+      "used_fields": null
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/sources/internal/cognition/ruleregistry/sqlite/audit_repo.go",
+      "relative_path": "sources/internal/cognition/ruleregistry/sqlite/audit_repo.go",
+      "sha256": "554387faad38a6bd59d3ff50ab417562cba8f1df568dee47255e0c51742c4368",
+      "bytes": 5091,
+      "reading": "Audit type contract lines 9–27 or AppendLoaded lines 27–53; no claim of all source execution",
+      "used_fields": null
+    }
+  ],
+  "source_mutation": false,
+  "production_access": false,
+  "recomputed_from": "Frozen JSON exports, without re-querying production or rerunning models",
+  "checks": [
+    "Original 007 aggregate metrics match",
+    "All 230 loads map to a frozen Agent and team",
+    "Phase and commit matrices each sum to 230",
+    "Versioned-rule groups sum to 230",
+    "All per-agent load rows match original identity-role-map"
+  ]
+}

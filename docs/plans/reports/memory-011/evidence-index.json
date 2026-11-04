@@ -1,0 +1,146 @@
+[
+  {
+    "id": "M01",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/runtime.go",
+    "line": 34,
+    "symbol_or_anchor": "type Engine struct",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/cognition/memory/runtime.go#L34"
+  },
+  {
+    "id": "M01",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/path.go",
+    "line": 61,
+    "symbol_or_anchor": "func ScopeToFSPath",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/cognition/memory/path.go#L61"
+  },
+  {
+    "id": "M01",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/centergit/repo.go",
+    "line": 10,
+    "symbol_or_anchor": "type RepoKind",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/cognition/memory/centergit/repo.go#L10"
+  },
+  {
+    "id": "M02",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/runtime.go",
+    "line": 82,
+    "symbol_or_anchor": "func AncestorScopes",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/cognition/memory/runtime.go#L82"
+  },
+  {
+    "id": "M02",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/path.go",
+    "line": 22,
+    "symbol_or_anchor": "MemScopeGlobal ",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/cognition/memory/path.go#L22"
+  },
+  {
+    "id": "M03",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/runtime.go",
+    "line": 15,
+    "symbol_or_anchor": "defaultHarnessMemoryBudgetBytes =",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/cognition/memory/runtime.go#L15"
+  },
+  {
+    "id": "M03",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/runtime.go",
+    "line": 252,
+    "symbol_or_anchor": "func (e *Engine) AssembleHarnessContextDetailed",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/cognition/memory/runtime.go#L252"
+  },
+  {
+    "id": "M03",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/agentruntime/local_runtime.go",
+    "line": 1477,
+    "symbol_or_anchor": "func (r *LocalRuntime) codexExtraSystemPrompt",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/agentruntime/local_runtime.go#L1477"
+  },
+  {
+    "id": "M04",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/agentruntime/memory_sync.go",
+    "line": 14,
+    "symbol_or_anchor": "func (r *LocalRuntime) commitDirtyMemory",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/agentruntime/memory_sync.go#L14"
+  },
+  {
+    "id": "M05",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/centergit/store.go",
+    "line": 56,
+    "symbol_or_anchor": "type Entry struct",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/cognition/memory/centergit/store.go#L56"
+  },
+  {
+    "id": "M05",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/centergit/consumer.go",
+    "line": 192,
+    "symbol_or_anchor": "func (c *TeamMemoryConsumer) ReadTeamRuleIndex",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/cognition/memory/centergit/consumer.go#L192"
+  },
+  {
+    "id": "M05",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/centergit/consumer.go",
+    "line": 229,
+    "symbol_or_anchor": "func (c *TeamMemoryConsumer) ReadTeamRule(",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/cognition/memory/centergit/consumer.go#L229"
+  },
+  {
+    "id": "M06",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/team/memory_policy.go",
+    "line": 26,
+    "symbol_or_anchor": "func DefaultTeamMemoryPolicy",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/team/memory_policy.go#L26"
+  },
+  {
+    "id": "M06",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/admin/api/agent_tools_team_memory.go",
+    "line": 184,
+    "symbol_or_anchor": "func (s *Server) requireTeamMemoryAgent",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/admin/api/agent_tools_team_memory.go#L184"
+  },
+  {
+    "id": "M06",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/centergit/team_memory_repository.go",
+    "line": 284,
+    "symbol_or_anchor": "func (r *TeamMemoryRepository) Review",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/cognition/memory/centergit/team_memory_repository.go#L284"
+  },
+  {
+    "id": "M07",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/centergit/consumer.go",
+    "line": 38,
+    "symbol_or_anchor": "const RuleRefreshSemantics",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/cognition/memory/centergit/consumer.go#L38"
+  },
+  {
+    "id": "M07",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/agentruntime/team_rules.go",
+    "line": 36,
+    "symbol_or_anchor": "func (r *LocalRuntime) loadTeamRules",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/agentruntime/team_rules.go#L36"
+  },
+  {
+    "id": "M08",
+    "source_revision": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/agentruntime/orchestrator/writeback.go",
+    "line": 160,
+    "symbol_or_anchor": "func (w *CenterWriteback) WithMemoryWriter",
+    "url": "https://github.com/oopslink/agent-center/blob/48892d61efdf17c69e8c317b64c5bda2c5b18fc2/internal/agentruntime/orchestrator/writeback.go#L160"
+  }
+]

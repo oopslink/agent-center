@@ -1,0 +1,233 @@
+{
+  "scope": "Frozen source files used by deterministic extraction; primary message content inspected for the selected episodes. Current identity map is a naming aid, not historical roles.",
+  "files": [
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json",
+      "sha256": "dc6aba1befb5a2440acc26c19a9db161fb7218c0cff399f09b3b0c94d60c3a60",
+      "bytes": 16322,
+      "scope": "Filter task-e12e4fb9; all nine native task actions retained, other tasks not analyzed"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABVT594GFNYTWZ7AZRHF30.json",
+      "sha256": "3b141113e9a02232f63cd784031408f3a57f82cabcb7a4ab14108174899cc09e",
+      "bytes": 886,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABY7HSVA1FF42EH7XYX7GX.json",
+      "sha256": "9089842a3bcbef03f63ab7c757d0ee427979295526e134cfeb33a0fbd8ac1ebc",
+      "bytes": 750,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZAC08EKE041V1XB1C2XWE5V.json",
+      "sha256": "6bd12e62f6c342e9cf0579169d544516d9d3a7dd94907eca7a5cd306491fd150",
+      "bytes": 1491,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZACFHV3BFM5CP04CR07Q79W.json",
+      "sha256": "748e348b3455182d04224b9e8474477f4c2183f8f5c178e77d721dfc4aafce43",
+      "bytes": 1939,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZACYJWJHHWTFHEWE7EHAVH8.json",
+      "sha256": "fd2e36c8db116856a1a1275d8250cfb9e63877d1a8a435f25e0e9a1a9f82065e",
+      "bytes": 800,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY4B5KS3272X3AMXDXHQMEC0.json",
+      "sha256": "708ac600e5409460d70c3910346369397bdc4784d8f223405c266d848ed5fb74",
+      "bytes": 784,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY4B74V6XGRFG85EV29RS1RT.json",
+      "sha256": "4862831982266d7e170fdf1704312e3ca5892b8cc242b6714671580ef44cc45e",
+      "bytes": 591,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY4B7K5QXK434NNHY9K1FKEF.json",
+      "sha256": "e8f3ef8e28a825fc3a206c0d6bed6da3a178b3c94ea0a940edf1e01ea540f748",
+      "bytes": 924,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5BMKX9ZM03BTJTENTQSKDB.json",
+      "sha256": "e7d1b7ca73c354b305690f9853fd143f6becb2b25d5d770d7ff228e4ca8386ee",
+      "bytes": 1033,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5BYKS2T49YEXAGRPQQ9XWN.json",
+      "sha256": "acdc8ec03bcd8f2158289fcaf4d592880f878e4fadb5503af7f9e9ac632b97b9",
+      "bytes": 600,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5BZ3804ZA0ETH34RA1XEH1.json",
+      "sha256": "adb4cd3bf03dda010577303b176503fd344dcca5f61f3037cd89d16cc1687ce4",
+      "bytes": 800,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5C4XXCTE2AGYB373M42A9Y.json",
+      "sha256": "ad451f0bed9246ef886dac85d57ef353acc6512214d1edbb2b5c86f198576b40",
+      "bytes": 2245,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5C5HW683A4YZG91P23RC7G.json",
+      "sha256": "b1fa96feda58bbc82bfc3afa5122475602ed8a8a3eec422e6c0dd693985ca794",
+      "bytes": 870,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDJ41E4XMR6RSRDW2342DCE.json",
+      "sha256": "9ada862b772ed1508c077bda01dc25c8022bf5c77911cdcc791d27871e4f5dfd",
+      "bytes": 821,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDKN7K7XRNZ0DPE7G9V0GQA.json",
+      "sha256": "cefd9d147c3be95ae8bb04ccfcdeac701a35b5486aa578cb83560161666baf5d",
+      "bytes": 1339,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDKR5FXC4E2CGQ239PAG2AA.json",
+      "sha256": "38e4f1c54343ca9fc0493dd336654ab81109940c64e8c3df950db8b9e706751b",
+      "bytes": 599,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDKS2M645VTZJ9GR8SW0MDJ.json",
+      "sha256": "44bb1e15ff0d32f18102327ad07a253de110cde5b870dbe76a8566e098bb34aa",
+      "bytes": 1032,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDKSNW8PQCM7PSZ071GNB6R.json",
+      "sha256": "0bc69e65f6613759e49dd847a49be1d46252293a2c20000b460de3d087bb6c75",
+      "bytes": 970,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+      "sha256": "67f3fecfdfd9c3d678a8af24071e27e1f683743845dfe8418b3b1df67a2a496a",
+      "bytes": 44294,
+      "scope": "Select complete generation-709baba8 and decode its snapshot_json; other generations not analyzed"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14JPXVK1Z8CKDYMTD3TSPAX.json",
+      "sha256": "98de3fdc6aa5a4b5ec561cf07cd294d0ca253af35499f2ade57e729d4b5d5a6a",
+      "bytes": 538,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14K5QQTGJF62VANSQC5WW38.json",
+      "sha256": "3ae7f8a361534c058da68e6c4593072fc2ed36a223cc349075a8687f405e7912",
+      "bytes": 538,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14K6T665DY5ZSR50T9ACMW4.json",
+      "sha256": "84ae9c3fb4ef8a0276ca536991369e725c3b448df19af9ffcf37c37adc36e8e7",
+      "bytes": 985,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KC5XZJD4PGDV4614XEWSV.json",
+      "sha256": "70d26461d6f07fa25fc153fb042f58449cf95b644c2e08f9078297ee4d400dc1",
+      "bytes": 636,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KD520A5X362XVHJ64EKC7.json",
+      "sha256": "62a55e59d375cc132faa16fa00e9921bd0aaeae8a676bd3a601ba04cba15a86d",
+      "bytes": 632,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KDD3C9JDTE6PYV3Y01MB1.json",
+      "sha256": "0216944a7228e37937f8b345fb5b06069ccf9fbb1d3294d2dd57b6e865e8ae7e",
+      "bytes": 1012,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json",
+      "sha256": "79475056cd4dca37df1910ef2805ac3db3a968bc9db92edbcfd33552f57e85be",
+      "bytes": 5934,
+      "scope": "Frozen identity-to-display mapping for four W01 assignees; not a historical role configuration"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E01.json",
+      "sha256": "e141fd12532406fee45980f873857dedfdeb20c598cbaf66215d44c8e685add8",
+      "bytes": 971,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KV71C7NM79RDSTBBVEM5K6BY.json",
+      "sha256": "808972afb5cd417a15e41c2fd078671792eae773f5bfc3e3f3b786f9f3fcbb3d",
+      "bytes": 1435,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E02.json",
+      "sha256": "fbf977d08ae47bbee4de35d639f6caac6c5935fdab2acbdf7acef28b624c0007",
+      "bytes": 1831,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E03.json",
+      "sha256": "720eb8297c5f6581f4c6fe2a1a817dcb601b81ae5ae90016611fb7c09f07d649",
+      "bytes": 861,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E04.json",
+      "sha256": "42bd7b5bf8cf2a13f395854b462df6e6f9065c643d4fad2dea6e516eb6c08795",
+      "bytes": 2232,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E05.json",
+      "sha256": "44cc333aac3891dfde7eadff84d2e6446f98166ffafabfcb54bf2c4ad49a5b6b",
+      "bytes": 815,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E06.json",
+      "sha256": "76ced68a9ea4c5a4f79ed32022c7006e3054b5951972b779e06c3c6c60d029c1",
+      "bytes": 2273,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E07.json",
+      "sha256": "c7565f51dccfafee84ae3f967124b1d0e29782a212d7758d02ae948af7268f54",
+      "bytes": 860,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E08.json",
+      "sha256": "069658799b5c04cf66432113ddea7998929605e23d4e995d73536f373b04bd7c",
+      "bytes": 1408,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E09.json",
+      "sha256": "f3fdcadc5669ca3666f641f73683d9918c7525874d04b4c73902adce2746c183",
+      "bytes": 1967,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E10.json",
+      "sha256": "ae95039133c9aa992473128fc7c75d0a9bc7d2c64a6e0d16799080c097f67986",
+      "bytes": 1233,
+      "scope": "Complete selected native message, including sender, content and timestamp"
+    }
+  ]
+}

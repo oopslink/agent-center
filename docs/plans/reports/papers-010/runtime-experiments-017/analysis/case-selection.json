@@ -1,0 +1,24 @@
+{
+  "rule": "All valid unsuccessful episodes; first successful ID per paper/model/condition; invalid runs separately retained. Selection was coded before main output collection.",
+  "ids": [
+    "v2-P1-p1_allocate-haiku-separate-off",
+    "v2-P1-p1_allocate-haiku-separate-on",
+    "v2-P1-p1_allocate-haiku-single",
+    "v2-P1-p1_allocate-haiku-unified-off",
+    "v2-P1-p1_allocate-haiku-unified-on",
+    "v2-P1-p1_allocate-sonnet-separate-off",
+    "v2-P1-p1_allocate-sonnet-separate-on",
+    "v2-P1-p1_allocate-sonnet-single",
+    "v2-P1-p1_allocate-sonnet-unified-off",
+    "v2-P1-p1_allocate-sonnet-unified-on",
+    "v2-P2-p2_expiry-haiku-long-distributed",
+    "v2-P2-p2_expiry-haiku-long-joined",
+    "v2-P2-p2_expiry-haiku-short-distributed",
+    "v2-P2-p2_expiry-haiku-short-joined",
+    "v2-P2-p2_expiry-sonnet-long-distributed",
+    "v2-P2-p2_expiry-sonnet-long-joined",
+    "v2-P2-p2_expiry-sonnet-short-distributed",
+    "v2-P2-p2_expiry-sonnet-short-joined",
+    "v2-P2-p2_rank-haiku-long-distributed"
+  ]
+}

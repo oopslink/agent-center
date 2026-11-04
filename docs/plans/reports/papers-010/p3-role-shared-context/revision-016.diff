@@ -1,0 +1,161 @@
+--- before/docs/plans/reports/papers-010/p3-role-shared-context/paper.md
++++ after/docs/plans/reports/papers-010/p3-role-shared-context/paper.md
+@@ -1,6 +1,6 @@
+-# 多智能体系统中的命名、角色与上下文共享
+-
+-*Naming, Roles, and Context Sharing in Multi-Agent Systems*
++# 多智能体协作中的显示身份与信息边界
++
++*Display Identity and Information Boundaries in Multi-Agent Collaboration*
+ 
+ **作者：** oopslink
+ 
+@@ -10,13 +10,13 @@
+ 
+ ## 中文摘要
+ 
+-多智能体系统常把可读名字、稳定身份和私人记忆绑定为一个长期成员，但这些功能是否应共同决定协作的信息边界？本文以Agent Center为案例，研究自动处置所需的信息应按什么边界共享，以及显示名在其中承担什么功能。研究结合配置与规则读取分析、机制案例、一位开发者的回顾性自述，以及保持稳定ID、职责和权限不变的256次合成处置响应。230条正文读取记录中，30/34条版本化规则被多个Agent读取，说明命名成员并不天然构成知识孤岛。实验中，人名与不透明标签没有改变直接处置；个人历史和同生产者角色过滤却分别只保留3/8和2/8情境所需的充分信息，全部获准记录与当前范围过滤均覆盖8/8。两模型的直接解决均达到这些材料上限。本文据此主张：显示名可以保留为指代和团队体验选项，自动执行与共享应依赖稳定身份、独立授权及当前履责所需的跨角色事实；同角色材料分区并不是充分的共享方案。该结论不等于所有命名效果为零，也未证明角色视图优于任务视图。研究尚未人工复核。
++多智能体系统常把可读名字、稳定身份和私人记忆绑定为一个长期成员，但这些功能是否应共同决定协作的信息边界？本文以Agent Center为案例，比较稳定ID、职责和权限不变时两套显示标签的处置差异，以及个人历史和生产者角色分区遗漏的必要事实。研究结合配置与规则读取分析、机制案例、一位开发者的回顾性自述，以及保持稳定ID、职责和权限不变的256次合成处置响应。230条正文读取记录中，30/34条版本化规则被多个Agent读取，说明命名成员并不天然构成知识孤岛。实验中，人名与不透明标签没有改变直接处置；个人历史和同生产者角色过滤却分别只保留3/8和2/8情境所需的充分信息，全部获准记录与当前范围过滤均覆盖8/8。两模型的直接解决均达到这些材料上限。本文据此主张：显示名可以保留为指代和团队体验选项，自动执行与共享应依赖稳定身份、独立授权及当前履责所需的跨角色事实；同角色材料分区并不是充分的共享方案。实验没有无显示名条件，材料由确定性选择器提供，因而既不能判定命名必要性，也未测量真实角色检索收益。研究尚未人工复核。
+ 
+ **关键词：**Agent harness；角色上下文；身份分离；共享记忆；开发者体验
+ 
+ ## Abstract
+ 
+-Multi-agent systems often bind a readable name, a stable identity, and private memory to one persistent member. This study asks which boundaries should govern the information needed for automated decisions and what function a display name serves within them. Using Agent Center, we combine configuration and rule-access analysis, mechanism-oriented cases, one developer's retrospective account, and 256 synthetic responses that hold stable IDs, responsibilities, and permissions fixed. Across 230 rule-body access records, 30 of 34 versioned rules were accessed by multiple agents: named membership did not itself isolate knowledge. In the experiment, human names versus opaque labels did not change direct resolution. Personal-history and same-producer-role filters retained sufficient information for only 3/8 and 2/8 scenarios, whereas all-authorized and current-scope views covered 8/8. Both models reached these information-imposed ceilings. The findings support separating optional names for human reference and team experience from stable identity, authorization, and task-relevant access to cross-role facts. Filtering knowledge by its producer's role is not a sufficient sharing policy. These results neither establish universal naming equivalence nor demonstrate that role-oriented retrieval outperforms task-oriented retrieval. Human verification remains outstanding.
++Multi-agent systems often bind a readable name, a stable identity, and private memory to one persistent member. This study compares two display-label sets while holding stable IDs, duties, and permissions constant, and examines which necessary facts are omitted by personal-history and producer-role partitions. Using Agent Center, we combine configuration and rule-access analysis, mechanism-oriented cases, one developer's retrospective account, and 256 synthetic responses that hold stable IDs, responsibilities, and permissions fixed. Across 230 rule-body access records, 30 of 34 versioned rules were accessed by multiple agents: named membership did not itself isolate knowledge. In the experiment, human names versus opaque labels did not change direct resolution. Personal-history and same-producer-role filters retained sufficient information for only 3/8 and 2/8 scenarios, whereas all-authorized and current-scope views covered 8/8. Both models reached these information-imposed ceilings. The findings support separating optional names for human reference and team experience from stable identity, authorization, and task-relevant access to cross-role facts. Filtering knowledge by its producer's role is not a sufficient sharing policy. There was no condition without a display label, and deterministic selectors supplied the records. The experiment therefore establishes neither the necessity of naming nor the effectiveness of a deployed role-based retriever. Human verification remains outstanding.
+ 
+ **Keywords:** agent harness; role-oriented context; identity separation; shared memory; developer experience
+ 
+@@ -25,19 +25,27 @@
+ 
+ 为每个Agent配置名字，能够使开发界面呈现为由不同成员组成的团队。在Agent Center中，开发者确实要求名称可读、可点击、可提及，同时要求底层保持稳定标识。这种交互安排容易与另一项设计选择混在一起：是否把每个命名成员的个人历史作为其主要知识边界。前者解决人如何辨认对象，后者决定执行时能取得哪些事实，二者不应被同一个“身份”概念替代。[N01-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E01.json)、[N01-E04](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E04.json)
+ 
+-本文的核心问题是：**自动处置所需的信息应按什么边界共享，Agent的显示名在其中承担什么功能？** “需要名字”在这里不是指界面是否好看，而是指显示名是否承担稳定引用、授权或取得必要知识所不可替代的功能。“按角色共享”也须进一步区分：按材料生产者的角色分区，与按当前执行者的履责需要选择跨角色证据，是不同策略。本文以能否取得并正确使用当前候选、合同和授权事实作为自动处置的判据；开发者的团队感单独评价。
++本文的核心问题是：**在稳定ID、职责和权限不变时，更换显示标签是否改变本组处置；个人历史或生产者角色分区会遗漏哪些必要事实？** “需要名字”在这里不是指界面是否好看，而是指显示名是否承担稳定引用、授权或取得必要知识所不可替代的功能。“按角色共享”也须进一步区分：按材料生产者的角色分区，与按当前执行者的履责需要选择跨角色证据，是不同策略。本文以能否取得并正确使用当前候选、合同和授权事实作为自动处置的判据；开发者的团队感单独评价。
+ 
+ 研究将这个问题分成两项可比较的关系。历史配置与读取记录用于辨认名字、身份和知识边界是否实际耦合；合成实验则保持稳定ID、角色和权限不变，分别改变显示标签与材料选择。单人体验自述用于说明命名团队的产品用途，不用于推断模型交付效果。这样可以将“信息没有到达”“信息已到达但被误用”和“人偏好一个有名字的团队”分开。
+ 
+ 本文得到的答案是：**显示名不是充分共享的组织单位，决定可处置性的首先是当前义务所需的获授权事实是否到达。** 命名成员已跨身份和角色读取共同知识；同生产者角色过滤反而会遗漏必要的跨角色证据。设计上应保留稳定身份和权限边界，让名字成为可选呈现，并围绕当前目标组织共享。角色可以描述信息需求，但其作为检索层的净收益仍须与任务视图比较。
+ 
+-## 2 相关研究与概念
+-
+-既有 persona 研究不能直接回答显示名是否必要。Zheng 等在四个开源模型家族与大规模多任务语言理解（MMLU）事实问答上考察 persona 提示，未发现稳定普遍收益；特定 persona 与问题组合的差异仍存在。这一结果涉及系统提示中的身份描述，不等同于可读标签、专用工具、真实权限或共享记忆的效果。[1]<!--ref:R15--><!--anchor:section:4--> Banks 等在情景式道德判断研究的 Study 2 中比较人名、机器式名称与无名条件，未观察到所测判断的命名主效应或交互；该零结果同样不能否定开发者的团队感或长期使用体验。[2]<!--ref:R17--><!--anchor:section:3.1.2, 3.2.2-->
+-
+-角色分离则提供另一种必要对照。CodeDelegator 把长期规划者与短期 Coder 分开，通过结构化输入、返回和执行状态隔离控制上下文污染，并在其基准中报告收益。这是角色、通信和状态管理的联合干预，支持隔离可以有用，却不证明角色共享这一单变量有效。[3]<!--ref:R14--><!--anchor:section:4.1, 5.2, 5.3--> 私有状态下的 Agent-to-Agent 研究进一步把不对称权限与不同委托主体作为边界条件，说明最终产物评分可能遗漏协作问题；其设置也提醒本文，共享并不是消除一切私有状态。[4]<!--ref:R08--><!--anchor:section:2.1, 4-->
+-
+-为避免概念替换，本文采用表1的操作区分。它是分析框架，机制依据来自固定源码与配置，不能由字段存在推定每次历史执行都使用了该字段。[S01—S11](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md)
++本文把问题收窄为显示身份、实际权限与信息选择的功能分离。已有persona结果不能代替名字实验，单次标签对照也不能解决命名必要性；本地材料提供的是界面需求、跨角色事实流和受限视图的可判定性。
++
++## 2 相关研究与分析框架
++
++### 2.1 名称、角色与信息流不是同一种干预
++
++命名、persona和角色机制的证据需要分开。Zheng等研究persona提示在事实问答中的效果，未发现稳定的普遍增益；[1]<!--ref:R15--> Banks等在Study 2的受控作诗互动中操纵人名、机器式名称和无名条件，在道德性质与行为道德性评分上未检出命名主效应或交互。[2]<!--ref:R17--> 前者改变身份描述，后者的结果变量也不是自动软件交付或开发者团队感。它们都不能直接回答本系统是否应该显示名字。
++
++角色有效性的证据通常来自联合机制。CodeDelegator同时改变角色、结构化通信和执行隔离；[3]<!--ref:R14--> ChatDev的角色消融还改变了职责和任务提示。[4]<!--ref:RV16_CHATDEV--> 因而它们支持考察职责与信息组织，但不能当作可读标签本身的效果。本文将名称字串作为保持ID、权限与事实不变的因素，将信息选择另作比较。
++
++私有状态下的Agent-to-Agent研究把不对称授权作为协作边界；[5]<!--ref:R08--> Lost in the Middle将可见信息与信息使用效果区分。[6]<!--ref:R32--> 本文据此检查共享是否覆盖当前职责所需的获授权事实，而不以广播所有上下文为目标。现有生产者角色过滤反例只说明该边界不总充分，不能认定角色共享无用或任务视图普遍最优。
++
++### 2.2 概念的操作区分
++
++以下概念按功能分别判断，表1和图1连接已有系统机制与待验证的信息流建议。配置字段存在不能证明每次历史执行都实际取得相应输入。
+ 
+ | 表1：概念 | 本文所问的问题 | 不能替代的判断 |
+ |---|---|---|
+@@ -48,17 +56,17 @@
+ | 持久记忆 | 信息保存在哪里、归谁治理 | 已进入模型输入 |
+ | 本次上下文 | 这一执行实际取得什么版本的信息 | 已理解、已遵守 |
+ 
+-这些区分把文献中的 persona、角色分离与本系统的知识加载放在可比较的位置，也为后续观察规定了推断上限。
+-
+-文献在本文中作为比较坐标使用，不构成这些生产记录的历史原因。尤其需要区分三个可能干预：改变名称字符串、改变角色说明、改变实际的信息流和权限。若同时更换模型提示与知识读取方式，即使观察到差异，也不能把它单独归因于名字。本文据此只讨论材料真正记录的功能及边界，不借其它任务的结果替代本系统的对照。
+-
+-图1将六类概念及本文建议的信息流分开：上部为已有机制的概念区分，下部虚线才是待检验的角色视图方案。
+-
+ ![图1：身份、授权与上下文结构](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/papers-010/p3-role-shared-context/figures/p3-fig1-context-structure.png)
+ 
+ **图1。**身份、授权与上下文结构。显示名用于指代，稳定身份关联审计，角色表述职责；正文加载仍受权限、阶段和版本限制。下部虚线为设计建议，不能与已观察的共享读取混为部署效果。
+ 
+-信息是否可见还不同于模型是否能正确使用。Lost in the Middle在特定问答和检索设置中报告位置差异，也保留简单检索接近全对的模型结果。因此，材料覆盖与使用正确性需要分开测量；该研究既不检验本系统的角色共享，也不能确定本轮模型的内部原因。[5]<!--ref:R32--><!--anchor:section:2.3, 3.2-->
++### 2.3 显示身份与信息充分性的分析框架
++
++显示名影响可读指代，稳定ID支撑机器引用，角色描述职责，权限决定可达范围；这些变量与本次上下文的事实覆盖分别分析。一次处置的信息充分性要求当前可见材料足以区分合法的候选、合同和动作。若两种真实状态在所选视图中完全相同，却要求不同处置，该视图便不足以决定动作。
++
++由此得到两个不同命题：改变显示标签，在稳定身份、权限与事实相同时未必改变处置；按信息生产者的角色过滤，可能遗漏消费者履行职责所需的跨角色事实。前者由局部标签配对检验，后者由信息覆盖与同视图反例检验。§4.1–4.3考察名称、授权与实际共享，§4.5–4.8分别检查读取结构、信息覆盖和模型处置。开发者的团队体验是第三类结果，不能由处置分数推断。
++
++本研究没有把“按角色共享”设为已证最优方案。角色只有在能表达当前信息需要时才可能是有效索引；按任务、候选、合同及版本组织的视图是另一种设计。现有名字对照仍使用两套标签，没有无显示名条件，因此不能单凭该实验判定名字的必要性。
+ 
+ ## 3 材料与方法
+ 
+@@ -100,6 +108,14 @@
+ 
+ 只有数据单位与判据相符时才比较结论：读取交叠回答知识是否跨边界到达，合成处置回答给定视图是否支持决策，体验自述回答产品呈现的主观用途。严格接口评分、核心字段与事后格式提取分开保留；引用用途歧义不自动编码为错误使用旧证据。案例、定量底表及所有反例均保留，全部分析尚未人工复核。具体筛查、版本、运行差异和评分审计见[方法与取证附录](argument-methods-015.md)及[实验附录](controlled-experiments.md)。
+ 
++### 3.5 构念检查与可复现范围
++
++全部256个主输入明确声明显示名不改变稳定ID或权限，并给出当前候选的处置规则。Nora/Luca与Q104/Q207两条件均有显示标签，没有无显示名对照。personal、role、all与bounded的充分性3/8、2/8、8/8、8/8由固定材料选择器决定；bounded按目标字段筛选，不是实现并验证过的检索器，也没有使用角色分类。因此其优势是受控信息供给下的可判定性，不能外推为实际检索或角色共享收益。
++
++本文按软件工程案例研究区分情境解释与因果识别，[7]<!--ref:RV16_METHOD--> 案例为目的性选择，研究问题和分析框架经材料阅读后调整，未预注册，也未完成全库盲法编码。输入、评分和统计可复算，不等于题目具有充分内容效度；设计、答案与解释同由AI形成，现有分工审阅不能替代独立人工判定。模型响应是固定情境的交叉观测，不按独立生产任务计算置信区间或显著性。
++
++逐项构念定义、输入全量核查、排除理由、主张与反证以及未执行的判别研究见[效度审计](../research-validity-016/README.md)。正文图表分别承担结构描述、过程比较或局部行为检验，[图表—主张映射](../research-validity-016/figure-claim-map.md)列明其可支持的结论；图中计数不是机制的独立验证。
++
+ ## 4 研究发现
+ 
+ ### 4.1 可读名称与稳定身份服务于不同需求
+@@ -198,7 +214,7 @@
+ 
+ 因此，角色标签适合作为待检验的上下文筛选维度，不能直接充当共享收益的来源。共同事实、任务阶段与权限仍需同时参与组织信息。
+ 
+-### 4.8 名字未改变直接处置，信息分区决定了哪些情境可以判定
++### 4.8 两套显示标签未改变直接处置，固定信息分区限制了可判定性
+ 
+ 两模型在个人历史、同生产者角色、全部获准和当前范围视图下的直接解决均为12/32、8/32、32/32、32/32，恰好达到各策略提供充分信息的上限（表7）。个人视图足以处置3/8情境，同生产者角色视图为2/8，后两者为8/8。个人策略有一题仅凭当前失败即可拒绝，所以其充分处置3/8不同于两项事实齐全2/8。此比较定位了信息选择造成的限制：模型无法使用被筛选规则排除在外的跨角色事实。
+ 
+@@ -246,7 +262,7 @@
+ 
+ 共享也可以传播错误解释：Rule Registry的集成报告纠正了上游候选串行继承的说法，指出它们实际为兄弟分支。多次转述只增加可见性，不增加独立证据。[N05-E06](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E06.json) 因此应依次判断材料是否到达、是否适用、是否被正确使用；发生问题时再区分检索遗漏、关系错配与接口格式，而非统一归为“没有记住”。
+ 
+-独立检查和权限边界同样应保留。开发与测试可以共享同一候选和合同，但不必取得彼此的全部临时推理或敏感记录。既有角色分离和私有状态研究为无差别广播提供了边界依据。[3]<!--ref:R14--><!--anchor:section:4.1, 5.2, 5.3-->[4]<!--ref:R08--><!--anchor:section:2.1, 4--> 当前全部与精确视图同样正确，说明短题没有检出精确过滤的正确率优势；真实选择器仍需同时评价召回、元数据质量、权限与维护成本。
++独立检查和权限边界同样应保留。开发与测试可以共享同一候选和合同，但不必取得彼此的全部临时推理或敏感记录。既有角色分离和私有状态研究为无差别广播提供了边界依据。[3]<!--ref:R14--><!--anchor:section:4.1, 5.2, 5.3-->[5]<!--ref:R08--><!--anchor:section:2.1, 4--> 当前全部与精确视图同样正确，说明短题没有检出精确过滤的正确率优势；真实选择器仍需同时评价召回、元数据质量、权限与维护成本。
+ 
+ ### 5.4 将处置效果与团队体验分别评价
+ 
+@@ -273,12 +289,14 @@
+ 
+ ## 7 结论
+ 
+-**Agent的显示名应作为可选的人机交互标签，而不应承担稳定引用、权限授予或知识分区的必要功能。** Agent Center中的命名成员已经跨身份读取共同规则；保持稳定ID、职责和权限不变的标签对照也未改变直接处置。名字可以保留可读指代及团队体验用途，但现有材料没有提供它改善自动交付的证据。
++**Agent的显示名应作为可选的人机交互标签，而不应承担稳定引用、权限授予或知识分区的必要功能。** Agent Center中的命名成员已经跨身份读取共同规则；保持稳定ID、职责和权限不变的两套标签也未改变直接处置，但没有无名条件，故不能据此证明名字不必要。名字可以保留可读指代及团队体验用途，但现有材料没有提供它改善自动交付的证据。
+ 
+ **上下文共享应覆盖当前履责所需的获授权事实，不能以材料持有人或生产者角色作为唯一边界。** 在本组情境中，这两种分区分别只让3/8和2/8情境具备充分信息，而全部获准与当前范围视图均覆盖8/8；模型的直接解决恰好达到这些上限。角色的有用位置是描述消费者需要什么，而不是禁止其读取其它角色产生的必要证据。稳定身份、版本、任务范围与权限因此应独立维护。
+ 
+ 这一结论明确区分了设计建议与效果估计：本研究支持名字与信息机制解耦，否定同生产者角色过滤的充分性；尚未比较长期人格、完整职责检索器或真实交付成本。全部与当前范围视图在短题中同样正确，一位开发者的团队掌控体验也不能替代用户对照。自动处置和人类体验应分别评价。
+ 
++**尚待执行的判别研究。**命名研究需比较无显示名、人名和角色标签，同时保留稳定机器ID与权限，并跨多个词汇集合和未见任务重复；上下文研究需另外实现检索器，在同预算和事实真值下比较角色视图、任务视图与二者结合。直接处置、缺信息请求和越权分开评分。团队感需另有自愿参与者与经过检验的体验量表，现有一人自述不能承担该估计。
++
+ <!-- BODY_END -->
+ 
+ ## 参考文献
+@@ -289,9 +307,13 @@
+ 
+ [3] T. Fei, C. Chen, Y. Pan, M. Zheng, and M. Song, “CodeDelegator: Mitigating Context Pollution via Role Separation in Code-as-Action Agents,” arXiv:2601.14914v1, 2026. DOI: [10.48550/arXiv.2601.14914](https://doi.org/10.48550/arXiv.2601.14914). [核定版本](https://arxiv.org/abs/2601.14914v1).
+ 
+-[4] S. Shekkizhar et al., “Why Do Agent Teams Fail Across Boundaries? A Failure Taxonomy for Agent-to-Agent Systems with Private States,” arXiv:2610.19342v2, 2026. DOI: [10.48550/arXiv.2610.19342](https://doi.org/10.48550/arXiv.2610.19342). [核定版本](https://arxiv.org/abs/2610.19342v2).
+-
+-[5] N. F. Liu et al., “Lost in the Middle: How Language Models Use Long Contexts,” *Transactions of the Association for Computational Linguistics*, vol. 12, pp. 157–173, 2024. DOI: [10.1162/tacl_a_00638](https://doi.org/10.1162/tacl_a_00638). [出版记录](https://aclanthology.org/2024.tacl-1.9/).
++[4] C. Qian et al., “ChatDev: Communicative Agents for Software Development,” in *Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)*, 2024, pp. 15174–15186. doi: [10.18653/v1/2024.acl-long.810](https://doi.org/10.18653/v1/2024.acl-long.810).
++
++[5] S. Shekkizhar et al., “Why Do Agent Teams Fail Across Boundaries? A Failure Taxonomy for Agent-to-Agent Systems with Private States,” arXiv:2610.19342v2, 2026. DOI: [10.48550/arXiv.2610.19342](https://doi.org/10.48550/arXiv.2610.19342). [核定版本](https://arxiv.org/abs/2610.19342v2).
++
++[6] N. F. Liu et al., “Lost in the Middle: How Language Models Use Long Contexts,” *Transactions of the Association for Computational Linguistics*, vol. 12, pp. 157–173, 2024. DOI: [10.1162/tacl_a_00638](https://doi.org/10.1162/tacl_a_00638). [出版记录](https://aclanthology.org/2024.tacl-1.9/).
++
++[7] P. Runeson and M. Höst, “Guidelines for conducting and reporting case study research in software engineering,” *Empirical Software Engineering*, vol. 14, pp. 131–164, 2009. doi: [10.1007/s10664-008-9102-8](https://doi.org/10.1007/s10664-008-9102-8).
+ 
+ ## 研究声明
+ 
+@@ -327,3 +349,5 @@
+ | M1、M2、M3 | [阅读覆盖](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/coverage.md)、[聚合](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/metrics.json)、[配置映射](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json) | 分母与单位边界 |
+ | S01—S11、S15—S16 | [带commit、行范围与哈希的固定源码摘录](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md) | 机制解释，不证明历史部署 |
+ | X | [007排除台账](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/agent-harness-identity-cases-007.md) | bug与未定根因不承担设计负效应 |
++
++**016修订与复核范围。** 本稿补充了主题式文献比较、事后分析框架与实验构念检查，未新增模型调用或生产样本。原始正反结果及图表保留；[逐篇修改记录](REVISION-016.md)、[共同效度审计](../research-validity-016/README.md)和[可执行研究缺口](../research-validity-016/next-studies.md)说明已修正文稿与仍缺实证支持的部分。AI交叉审阅不属于人工复核，稿件尚未定稿。

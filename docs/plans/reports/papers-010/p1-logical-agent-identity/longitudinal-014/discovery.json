@@ -1,0 +1,10 @@
+{
+  "sql": "SELECT id,conversation_id,sender_identity_id,content,created_at,context_refs FROM messages ORDER BY created_at,id",
+  "terms": "executor|supervisor|执行器|执行体|监督者|监工|身份认知|身份混淆",
+  "ownership_terms": "自己|自身|你的|你是|你来|你负责|你的一部分|你调度|不是你|同一个|外部|身份|负责|修复|处理|confus",
+  "all_messages": 26961,
+  "role_term_candidates": 8866,
+  "user_role_messages": 149,
+  "user_ownership_candidates": 32,
+  "selection": "Lexical discovery only; missing paraphrases possible; not independent errors or all human interventions."
+}

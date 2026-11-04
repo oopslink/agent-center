@@ -1,0 +1,269 @@
+--- P3/006-draft.md
++++ P3/007-draft.md
+@@ -17,13 +17,11 @@
+ <!-- BODY_START -->
+ ## 1 引言
+ 
+-“Agent 不需要名字”容易把两个问题压成一个判断：系统能否完成工作，以及人是否愿意把它当作一支团队。本研究采用更窄的立场：自动交付不应要求每个执行单元拥有长期人格化名字，但可读标签与团队体验可以保留为产品价值。这不是关于名称无效的实验结论。现有资料同时出现了明确的命名偏好与消息底层使用标识符的要求，两者并不冲突。[N01-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E01.json)、[N01-E04](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E04.json)
+-
+-真正需要解释的是，名称为何经常与职责、权限和记忆被一起讨论。在固定机制中，个人目录按稳定身份定位，团队记忆另有共享作用域，运行时又按阶段与版本加载规则。因此，保留或删除一个显示字符串都不足以决定知识能否被另一个执行器使用。[S04、S06、S09](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md) 若把身份的可读性直接当成上下文组织原则，就会忽略这些实际边界；若把知识共享简单理解为所有人读取全部历史，又会取消必要的选择和隔离。
+-
+-本文据此提出三个问题：可读名称在本案例中承担哪些可观察用途；命名身份与共享知识能否并存；如何把履责需要转化为上下文选择原则。贡献是将六类概念分开，并从具体证据导出一个受约束的角色共享方案，而非提出新算法或估计命名的效应量。角色在此表示当前职责及检查视角，既不是人格描述，也不自带权限。后文先限定相关研究能够回答的问题，再说明材料与分析方法，以案例中的偏好、授权、治理和加载证据支撑设计讨论。
+-
+-这一立场也明确了标题中的“需要”所指的规范目标：承担相同职责的执行者应有获得相关共享事实的途径，并不要求所有同角色执行都得到相同输入。研究关心的是知识能否跨执行连续使用，以及这种连续性由什么规则保证。只有先把这一目标与名字的体验功能分开，才可能设计有解释力的比较。
++Agent 的名字同时出现在交互、责任和记忆讨论中，但这些用途需要分别设计。开发者要求名称易读、可点击和可提及，也明确要求底层保留稳定标识。系统则通过身份、权限、共享作用域和版本控制信息访问。删除显示名不会自动改变这些机制，保留名称也不必把知识限定在个人历史中。[N01-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E01.json)、[N01-E04](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E04.json)、[S04、S06、S09](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md)
++
++本文考察三个问题：名称承担哪些可观察用途，命名身份与共享知识如何并存，以及职责如何参与上下文选择。材料来自配置、规则加载、治理过程和一位开发者的回顾性自述。核心发现是，命名成员已经共享大量事实与规则，而角色标签仍不能替代授权、版本和任务相关性判断。
++
++本文提出的设计立场是，自动交付不应以每个执行单元拥有长期人格化名字为必要条件；可读标签和团队体验仍可保留。角色共享表示按履责需要从共同事实中选择信息，并受项目、任务、阶段、版本和权限约束。它不要求同角色执行获得完全相同的输入，也不是已验证优于其它组织方式的方案。
+ 
+ ## 2 相关研究与概念
+ 
+@@ -54,15 +52,11 @@
+ 
+ ## 3 材料与方法
+ 
+-本研究复用007身份专项的冻结 SQLite 提取物、证据副本、配置映射和固定源码。原专项对26961条消息执行三组正则，得到835条去重候选；33条用户命中逐条筛选后，23条归入偏好或设计输入。研究者目的性选择19个锚点，抽取90条去重邻接消息，最终形成42个证据用途、41项不同源记录。重复使用的消息不计为新的观测，本稿也不把候选量解释为故障量。[M1](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/coverage.md)
+-
+-分析单位是一个有明确用途的证据片段：用户偏好用于解释交互目标，原生记录用于核实配置或加载事实，参与者报告用于恢复当时的判断，源码用于解释给定版本可实现的机制。对正文涉及的原记录副本进行重读，并保留读取清单。配置覆盖16个 Agent，加载聚合覆盖230行；它们分别是对象快照和事件记录，不是用户样本或独立试验。[M2](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/metrics.json)
+-
+-明显的身份键错配、描述未接入提示以及运行版本不明的路由故障，不承担名字或角色方案的负效应推断。此排除原则在原研究部分检索之后修订，不能称为事前注册。[X](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/agent-harness-identity-cases-007.md) 全部分析与本稿仍未人工复核；没有随机改名、匿名对照、完整模型输入或生产率测量。本文采用反证检查：凡能由权限、作用域或版本解释的观察，均不改写为名称造成的效果，并保留命名成员成功共享的证据。
+-
+-解释过程先把每个片段归入偏好、配置、报告或机制，再询问它最多支持哪一步推断。例如，授权行可以确认记录存在，却不能还原每次权限检查；加载行可以确认特定正文被读取，却不能判断它是否改变了答案。同一消息在N02与N04承担授权结果和治理结果两种用途，只计一次源记录。这一规则使论证能够复用证据而不扩大样本，并把“观察到什么”与“建议如何设计”分开。[M1](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/coverage.md)
+-
+-本次从冻结JSON重算配置映射和全部规则加载行，结果见表2。版本化规则按`(team_id, commit, rule_slug)`去重；同一规则的不同版本分开计数。这里的“14”是有团队角色的Agent数，配置实际有7种团队角色定义。[制图底表与原生定位](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/003-data-figures/data/P3/data.json) · [源文件、字段与哈希](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/003-data-figures/data/P3/source-provenance.json)
++本研究复用身份专项的冻结提取物、配置映射、证据副本与固定源码。该专项对26,961条消息进行词法筛查，目的性编码最终形成42个证据用途、41项不同源记录。本文以具有明确用途的证据片段为分析单位：偏好用于解释交互需求，原生配置与加载行用于核实记录事实，参与者报告用于重建判断，源码用于说明指定版本的机制。完整筛查流程见[补充附录](evidence-details.md)。[M1](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/coverage.md)
++
++定量分析覆盖16个Agent配置与全部230条规则加载审计（表2）。版本化规则按团队、commit与rule_slug去重；同一团队和版本内，比较不同Agent实际读取的规则集合，使用Jaccard重合度描述共享范围。角色来自冻结配置，未重建每次读取时的历史角色。重复配对和共享成员不作为独立实验，具体口径、敏感性计算与复算入口均保留在补充附录。[M2](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/metrics.json)
++
++明显身份键错配、描述未进入提示及运行版本不明的路由故障不承担名字或角色设计的负效应；这一筛选在原检索后收紧，不属于事前注册。全部分析尚未人工复核，没有匿名对照、完整模型输入或生产率测量。对每项结论保留其证据层次，尤其区分取得材料、理解材料与按材料行动。[X](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/agent-harness-identity-cases-007.md)
+ 
+ **表2。配置、共享读取和体验证据的单位**
+ 
+@@ -76,43 +70,31 @@
+ | Agent—版本化规则关联 | 129对 | 去重后的关联，不是129次有效遵守 |
+ | 开发者回顾性体验自述 | 1人 | 未收集匿名对照、量表或命名效果估计 |
+ 
+-主团队贡献228行、11个Agent及6个commit；另一团队贡献2行、1个Agent及2个commit。跨团队不合并同名规则为同一版本，观察范围为2026-08-14至2026-09-21的已保存加载行。
+-
+-## 4 案例与结果
+-
+-### 4.1 可读名称与稳定引用可以同时满足
+-
+-用户对名称的要求具有具体交互对象。6月15日要求名称可点击并打开 Agent 详情，6月29日要求页面优先显示名字，8月21日又要求提及时使用名字。这些记录支持辨认、导航与指代偏好，不支持名称提高交付质量或降低操作时间。[N01-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E01.json)、[N01-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E02.json)、[N01-E03](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E03.json)
+-
+-更有辨别力的证据是7月3日的要求：消息使用稳定标识符（ID），展示时再转成名称；名称式提及和 ID 式提及应具有相同功能。随后实现报告称名称可以打开活动侧栏，原 ID 留在悬停信息中。由此可见，人机交互中的可读性与机器记录的稳定性是两个可分别实现的目标。[N01-E04](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E04.json)、[N01-E05](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E05.json)、[N01-E06](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E06.json) 删除显示名将直接违背已知偏好，却不会自动改变目录、权限或记忆组织，因而不是本文建议的起点。
+-
+-固定实现也支持这一拆分：Profile的名称可更新，Identity重命名不改稳定ID，运行目录则由worker和Agent ID定位。[S01—S04](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md) 因此，给一个临时执行分配易读标签，并不必然赋予其长期记忆；让一个长期身份改变显示名，也不必然失去过去记录。这是可实现的分离关系，不是改名后质量保持不变的实测结论。
+-
+-### 4.2 角色称呼并不授予治理权
+-
+-8月13日03:09协调世界时（UTC），原记录的协调角色标签PD对应成员报告晋升规则时收到 `not_memory_curator`，并说明当前可以读取和提案，不能晋升或拒绝。快照中同一身份的 Curator 记录创建于04:10；06:42，该身份报告完成提案处理。记录时序与权限独立于称呼的解释一致，但创建时间不能替代完整授权历史。[N02-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N02-E01.json)、[N02-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N02-E02.json)、[N02-E03](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N02-E03.json)
+-
+-这里的拒绝具有明确保护作用：没有治理权的身份停止改变规则，而非依靠“PD”这一名称绕过边界。配置还显示16个对象的 Profile.name 与 Identity.display_name 全部对应，14个有团队角色，同一身份可以兼任 PD 与 PM，同一 Dev 或 Tester 角色也可以对应多个名字。[M3](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json) 因而角色共享应围绕职责组织可见信息，授权仍须独立判断；不能把同角色当成可以读取相同项目秘密的充分条件。
+-
+-### 4.3 命名成员已经共享可行动的事实
+-
+-v2.14记录提供了名称与共享并存的直接例子。开发成员指出规格与实际数据库的差异，包括真实表名、SQLite 类型约束和空值索引问题。后续 finding 明确报告使用 NULL-aware 谓词修正单活索引，说明共享内容具有具体下游消费者。[N03-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N03-E01.json)、[N03-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N03-E02.json) 这里可追踪的价值在于新事实和针对性修正；没有证据把这一价值分配给名称字符串。
+-
+-同一源包还有向下游注入19条 finding 的系统消息，包含事实、约束和补丁摘要。[N03-E03](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N03-E03.json) 传递存在不等于所有内容均被使用，但已经足以否定“命名必然阻止共享”的强命题。反过来，这条记录也不证明共享全部历史最优：若要判断哪条信息影响了哪个动作，仍需保留内容版本和使用证据。
+-
+-共享记录还保留了一个重要的分析区别：原始差异报告含有具体数据库事实，系统注入消息则是这些事实和其它约束的聚合视图。前者适合追溯某项修改的理由，后者适合证明下游有机会取得材料。只有把两类记录联系起来，才能研究信息传播；如果只计算广播条数，就会把无消费者的消息和被具体修正引用的事实混为一谈。本文没有完整消费轨迹，因此只将已经出现具体修正的链作为有限正例。[N03-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N03-E01.json)、[N03-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N03-E02.json)
+-
+-### 4.4 共享知识需要治理，加载证据需要分层
+-
+-规则治理案例把“共同拥有知识”细化为可以检查的步骤。PD 报告20条待处理提案存在重叠，建议建立规范条目并记录替代关系；后来报告8条晋升、12条拒绝以及待处理清零。它们是参与者对治理过程与结果的叙述，研究没有独立取得完整记忆仓库正文。[N04-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N04-E02.json)、[N04-E03](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N04-E03.json) 数量说明需要选择和整理，不能直接解释为浪费或名称造成的负担。
+-
+-用户随后追问规则如何进入成员上下文，并担忧膨胀；又否决在每个任务节点硬编码 work_type 的方案。修订后的设计采用短索引和按需读取正文，记录已读规则，并将不可违反的权限继续交给代码约束。[N04-E04](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N04-E04.json)、[N04-E06](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N04-E06.json)、[N05-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E01.json)、[N05-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E02.json) 这段取舍表明，角色相关性可以作为检索视角，但不必变成所有节点的固定分类。
+-
+-机制报告还区分仅修改记忆内容与新增读取接口、加载审计。验收报告称，在100条、每条32KiB的合成正文条件下，execute 索引为25条且序列化小于16KiB；集成报告称相关成果进入主线。[N05-E03](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E03.json)、[N05-E07](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E07.json)、[N05-E08](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E08.json) 这是历史机制验收，不是本研究重跑的模型效果或生产 token 收益。
+-
+-原生聚合中的230条加载记录覆盖12个命名 Agent、两个团队和8个规则 commit。固定源码将其定义为特定执行或规划会话读取某一版本正文的持久事实，重复键不重复插入。[M2](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/metrics.json)、[S15—S16](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md) 因此，存储存在、具有读取权、获得索引、读取正文、模型使用是五层不同证据；最后一层不能由前四层自动推出。
+-
+-这些层级还解释了为何加载数不宜成为共享质量指标。一次持久记录可以对应重复读取后的去重结果，一个执行也可以读取多条规则；用行数除以任务数不会得到遵守率。要检验遵守，必须再定义规则的适用动作与可观察结果，并对具体执行作核对。[S15—S16](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md)
++## 4 研究发现
++
++### 4.1 可读名称与稳定身份服务于不同需求
++
++名称偏好集中在辨认、导航与指代。用户要求界面优先显示名字、点击名称打开详情、提及时使用可读名称；同时要求消息底层使用稳定标识，展示时再转换为名称。实现报告也将可点击名称与保留原始ID的悬停信息并置。由此可以把人的可读交互与机器的稳定引用分别实现。[N01-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E01.json)、[N01-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E02.json)、[N01-E03](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E03.json)、[N01-E04](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E04.json)、[N01-E05](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E05.json)、[N01-E06](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E06.json)
++
++固定实现允许更新名称而不改变稳定ID，运行目录也按身份标识定位。临时执行单元可以获得易读标签，长期身份可以改名并保留记录；名称本身不决定持久记忆归属。因此，保留显示名符合已知偏好，但没有证据将这一偏好解释为交付质量提升。[S01—S04](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md)
++
++### 4.2 角色标签不能替代治理授权
++
++规则治理案例中，被称为PD的成员报告收到`not_memory_curator`，说明自己可以读取和提案，却不能晋升或拒绝规则。后续出现该身份的Curator记录与提案处理报告。记录与“治理权需要独立授权”的解释相容，精确时序和授权历史限制见补充附录。该拒绝保留了权限边界，不能作为角色分工失败的证据。[N02-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N02-E01.json)、[N02-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N02-E02.json)、[N02-E03](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N02-E03.json)
++
++配置还显示，同一身份可以兼任PD与PM，同一Dev或Tester角色也对应多个身份。角色、名称与权限并非一一对应。按职责组织信息时，仍需逐项检查实际访问权，不能因角色相同就默认共享项目秘密或治理能力。[M3](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json)
++
++### 4.3 命名成员已经传播并使用具体事实
++
++命名身份并未阻止可行动信息的共享。v2.14记录中，开发成员指出规格与实际数据库之间的差异，后续finding报告针对空值语义修正单活索引。另一条系统消息向下游注入19条finding，涵盖事实、约束和补丁摘要。前者提供了具体修正的报告链，后者记录了信息传递，两者分别支持内容用途与可获得性。[N03-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N03-E01.json)、[N03-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N03-E02.json)、[N03-E03](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N03-E03.json)
++
++该案例反驳了“命名必然妨碍共享”的强命题，但尚未恢复全部消费轨迹。可追踪的价值来自事实、来源与针对性动作的联系，不能分配给名称字符串，也不能据广播条数推定所有内容都被使用。
++
++### 4.4 共享知识需要筛选、版本与读取机制
++
++规则治理记录呈现了将重叠提案整理为规范条目、保留替代关系的需求。用户进一步追问规则如何进入执行上下文，并担忧内容膨胀；后续设计采用短索引、按需读取正文及加载审计，硬性权限继续由代码约束。这里的设计问题是如何选择和维护可用知识，而非简单地增加共享内容。治理数量和历史机制验收明细见补充附录。[N04-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N04-E02.json)、[N04-E03](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N04-E03.json)、[N04-E04](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N04-E04.json)、[N04-E06](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N04-E06.json)、[N05-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E01.json)、[N05-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E02.json)
++
++原生审计为共享提供了直接结构证据：230条加载行覆盖12个Agent、34条版本化规则，其中30条被至少两个Agent读取。图2展示完整读取矩阵，表3保留早期规则与图中索引的对应。共同知识已跨越命名成员边界，不能将个人名称视为知识天然封闭的原因。
+ 
+ ![图2：命名成员的实际共享读取](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/papers-010/p3-role-shared-context/figures/p3-fig2-shared-reads.png)
+ 
+@@ -127,13 +109,11 @@
+ | R22 | `origin-main-required-before-completion` |
+ | R23 | `verify-world-state-after-actions` |
+ 
+-图2提供了比总加载量更直接的结构证据：多个有名字的成员确实读取了同一团队、同一commit下的同一规则。因此名称并未在这些记录中构成共享读取的必要障碍。各规则覆盖的成员不同，但缺少任务适用性与完整输入，不能把未出现的格子判为失忆或不遵守；也不能把较多加载行判为更好交付。[制图底表与原生定位](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/003-data-figures/data/P3/data.json) · [源文件、字段与哈希](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/003-data-figures/data/P3/source-provenance.json)
+-
+-### 4.5 同角色与跨角色的共享重合度
+-
+-为检验共享是否只发生在同角色内部，本文将230条加载行按`(team, commit, agent)`去重为规则集合R，再对同team、同commit且有读取记录的Agent对计算Jaccard重合度：`J(a,b)=交集规则数／并集规则数`。同角色定义为冻结配置中两者角色集合有交集；跨角色要求双方角色已知且无交集。这里使用的是快照角色标签，未重建每次加载时的历史角色，也不测完整上下文或规则遵守。
+-
+-8个team–commit分层中，2个只有一个Agent，无法配对；其余产生78个“Agent对×commit”观测，但只涉及46个不同Agent对。同角色28个观测的J中位数为0.875 [0.650, 1.000]，跨角色50个为0.750 [0.606, 0.972]；方括号为四分位区间。配对重复和成员共享意味着78不能作为78次独立实验。
++审计记录的含义限于特定会话读取某版本正文。存储、授权、获得索引、读取正文和模型使用是不同层次；持久记录还经过重复键去重。因此，加载量不能直接转换为规则遵守率或交付收益。[S15—S16](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md)
++
++### 4.5 规则共享跨越角色边界，同角色差异对口径敏感
++
++同团队、同commit的规则集合产生78个“Agent对×commit”观测，涉及46个不同Agent对。同角色28个观测的Jaccard中位数为0.875，四分位区间（IQR）为0.650–1.000；跨角色50个的中位数为0.750，IQR为0.606–0.972。跨角色共享也相当广泛，共同事实并未按角色分割为互不相交的知识库。
+ 
+ **表4。重合度对阶段分层和权重的敏感性**
+ 
+@@ -144,21 +124,23 @@
+ | 同commit及phase，所有配对等权 | 0.901 | 0.760 | 0.142 | 同角色27、跨角色41个对×commit×phase |
+ | 同commit及phase，共同分层等权 | 0.777 | 0.744 | 0.033 | 4个共同分层 |
+ 
+-分层等权先在每层内分别求两类配对的平均J，再只对同时存在两类的层等权平均。因此它既改变权重，也限制共同支持范围，不能把0.142到0.033的差异全部解释为纯粹的权重效果。阶段条件下19个分层共68个配对观测，只有4层可作两类共同比较。图3展示观测分布、共同层差异与删层敏感性；它们不是随机处理效应或显著性检验。
++同commit下配对等权的平均差为0.074；限定phase后，配对等权差为0.142，而只在两类配对均存在的共同分层中等权汇总时为0.033（表4）。后者同时改变了共同支持范围和权重，不能将差异缩小全部归于权重。图3保留全部配对和层内差异，重复成员与配对不作为独立试验。
+ 
+ ![图3：角色共享重合度与汇总敏感性](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/papers-010/p3-role-shared-context/figures/p3-fig3-role-overlap.png)
+ 
+ **图3。**（a–b）同commit以及再限定phase后的全部配对J分布，点存在共享成员／重复，黑线为描述性中位数；（c–d）双方均有观测的共同层，同角色减跨角色的均值差为实心点，逐一删除该层后的其余层等权均值差为空心菱形。S编号及同／跨角色配对数写在纵轴；横线连接0与层内差，不是置信区间。
+ 
+-跨角色配对的重合度并不低，且同角色优势对阶段、共同支持和权重敏感。另将版本折叠为`(team, rule_slug)`后，10条规则中9条被多个Agent读取；与30/34条版本化规则共享的结论方向一致，但该敏感性口径不再证明读取同一版本。数据因此支持共同事实并未被命名身份封闭，也不支持将角色等同彼此隔离的知识库。更合适的设计解释是共同事实之上的职责相关筛选；“按角色共享优于其它组织方式”仍需对照验证，不能由读取重合度推出。[逐对底表与公式](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/005-quantitative-analysis/data/P3-pairs.json) · [阶段条件分析](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/005-quantitative-analysis/data/P3-phase-pairs.json) · [全部结果](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/005-quantitative-analysis/summary.json)
+-
+-### 4.6 团队体验并非交付指标的附属品
+-
+-开发者在研究中的回顾性回答是：“就是好像给了一个团队，可以扮演团队 leader， 有掌控感，上瘾”。[N06-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N06-E01.json) 该回答直接支持团队感、领导角色与主观吸引力，没有提供具体日期事件、量表或使用频率。“上瘾”按自述词记录，不作临床判断。名称、角色呈现和指令反馈可能共同承载这种体验，现有资料无法隔离其贡献。保留体验价值，同时拒绝用它替代交付质量，是本文设计取舍的最后一条依据。
+-
+-### 4.7 共享范围、读取context与稳健性
+-
+-全量矩阵将图2从单commit示例扩展为12个读取者×34条版本规则，覆盖230条加载行。28/34条规则被至少两种角色配置读取（82.4%），并非只在同角色内部共享。这里角色配置以冻结角色集合为单位，PD/PM合为一个配置，避免将同一成员重复计算为两个读者；这与前节“角色集合相交”的配对定义不同。
++将版本折叠后，10条规则中9条被多个Agent读取，与版本化口径的共享方向一致，但不再证明读取同一版本。数据更适合支持“共同事实加职责相关选择”的设计解释，尚不足以证明同角色共享具有更高交付收益。
++
++### 4.6 团队领导与掌控感构成独立的体验价值
++
++开发者的回顾性回答是：“就是好像给了一个团队，可以扮演团队 leader， 有掌控感，上瘾”。这一自述支持团队感、领导角色和主观吸引力。名称、角色呈现及指令反馈可能共同承载体验，现有材料无法分离各自作用。它来自一人且没有量表、频率或具体事件，“上瘾”保留为日常自述用词，不作临床判断。[N06-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N06-E01.json)
++
++这一材料为保留可读队友呈现提供了产品动机，但不能充当自动交付效果的证据。体验价值与产物正确性需要分别评价。
++
++### 4.7 审计上下文显示跨职责复用，但角色优势不稳固
++
++34条版本规则中，28条被至少两种角色配置读取，占82.4%。这里角色配置按完整角色集合计数，兼任PD/PM的成员只形成一个配置；它与上一节“角色集合相交”的配对定义不同。表5描述各配置的读取范围，规则集合之间存在交叠。
+ 
+ **表5。角色配置与原生读取context**
+ 
+@@ -169,13 +151,13 @@
+ | Tester | 3 | 11 | 47 | 24 | 4 [3, 4] |
+ | analyst | 1 | 2 | 2 | 2 | 1 [1, 1] |
+ 
+-230条审计对应67个`(agent, team, context-kind, context-id)`组合，优先采用execution_id，否则采用planning_session_id：其中4个execution、63个planning。每context读取不同版本规则的中位数为3，IQR 3–4，范围1–8。context标识不是LLM turn，不能以230/67估算模型调用成本；各配置的规则数有交叠，不能相加作为全库规则总数。
++230条加载行对应67个唯一审计context，其中63个关联规划会话、4个关联执行标识。每context读取不同版本规则的中位数为3，四分位区间3–4，范围1–8（图4）。这些标识不是LLM调用次数，不能据其计算推理成本。
+ 
+ ![图4：角色配置、读取context和共享范围](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/papers-010/p3-role-shared-context/figures/p3-fig4-context-coverage.png)
+ 
+ **图4。**（a）各角色配置的唯一审计context；（b）所有67个context的规则数，黑线为中位数；（c）phase字段对应的加载行，不是执行context类型，不能把execute phase等同execution_id；（d）每条版本规则被多少种角色配置读取。角色为冻结配置，未重建历史角色。
+ 
+-进一步逐一删除共同分层后重算等权均值差，检查结果是否由个别层驱动（图3c–d）。同commit条件下，删层后的差值保持正但接近0；同commit及phase条件下，差值可以转负。它们是有限数据敏感性范围，不是置信区间。
++逐一删除共同分层后，同commit条件下的平均差仍为正，但可接近0；再限定phase后，差值范围跨过0（表6）。这表明有限观测中的同角色重合优势对分层构成敏感。删层范围是描述性敏感性结果，不是置信区间。
+ 
+ **表6。同角色减跨角色平均J的删层敏感性**
+ 
+@@ -184,15 +166,15 @@
+ | 同commit | 5 | 0.0627 | 0.0034至0.0956 |
+ | 同commit及phase | 4 | 0.0335 | −0.0443至0.0798 |
+ 
+-该结果进一步限制“同角色更应共享”的实证强度：观察到的差值并不稳定，不能把角色标签本身当作共享收益来源。共同事实、任务和阶段相关的选择仍应分开设计；名字的体验价值也不能由这些加载数字代替。[context及全矩阵](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/data/P3-contexts.json) · [完整规则／commit映射](/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/006-dense-evidence/supplement.md)
+-
+-## 5 讨论与设计含义
+-
+-### 5.1 从人格容器转向履责视图
+-
+-以上证据支持一个有限而实用的设计命题：把角色看成共享知识的视图，而非永久拥有全部上下文的个体。名称负责可读交互，稳定身份负责归属和审计，角色说明当前所需的判断材料，权限限制可访问内容。这个方案并不要求销毁连续身份；它要求每次把信息加入上下文时，都能说明该信息与当前职责的关系。案例中同一角色可对应多人、同一身份可承担多角色，正好说明这种对应不应僵化为一人一库。[M3](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json)
+-
+-表7把建议拆成四类信息，以免“角色共享”退化为把旧的个人记忆复制到新的角色目录。每行都是待验证方案，并非本系统已经部署或完成消融的功能。
++因此，角色标签适合作为待检验的上下文筛选维度，不能直接充当共享收益的来源。共同事实、任务阶段与权限仍需同时参与组织信息。
++
++## 5 机制分析与设计启示
++
++### 5.1 用职责组织共享视图，保留独立的身份与授权
++
++名称、稳定身份、职责和权限分别回答如何辨认、记录归谁、当前做什么及允许访问什么。配置中的多身份同角色与同身份多角色，以及跨角色规则共享，说明信息组织不宜固定为“一名Agent拥有一个不可复用的知识容器”。本文建议将角色用作共同知识之上的职责视图，而不是永久知识所有者。[M3](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json)
++
++表7给出待验证的信息分层。项目事实可以跨角色复用，任务增量关联具体目标和合同，职责视图选择当前所需材料，私有执行记录保留敏感信息与独立尝试。该方案允许执行单元替换或角色变化时重新选择信息，而不必重新建立全部事实。
+ 
+ | 表7：建议共享层 | 放入的材料 | 必须携带的边界 | 证据状态 |
+ |---|---|---|---|
+@@ -201,40 +183,35 @@
+ | 任务增量 | 目标、输入、验收合同及新发现 | 任务、责任人、时间和替代关系 | 建议，未消融验证 |
+ | 私有执行记录 | 临时尝试、原始工具输出、敏感细节 | 执行身份、授权和保留期限 | 建议，未消融验证 |
+ 
+-这个分层允许共享事实而保留独立检查。测试者可以获得候选版本、合同和已知约束，同时保留自己的验证过程；开发者也可以读取同一事实，却不因此获得测试者的所有私有状态。CodeDelegator 的隔离收益与私有状态研究的权限边界构成具体反证：若把所有历史等量广播，便不再是本文所说的有选择共享。[3]<!--ref:R14--><!--anchor:section:4.1, 5.2, 5.3-->[4]<!--ref:R08--><!--anchor:section:2.1, 4-->
+-
+-### 5.2 版本和阶段比“大家记得”更可核查
+-
+-角色视图还需要回答信息何时刷新。现有机制将规则绑定到 commit 与阶段，在途执行保留快照，新执行取得新快照；运行报告也明确描述了恢复沿用索引的合同。[S09—S11](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md)、[N05-E05](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E05.json) 在这样的语义下，两个同角色成员暂时看到不同版本，并不自动构成失忆或共享失败。应先判断其任务是否允许继续使用旧前提，以及改变前提是否要求重新验证。
+-
+-本文建议为每次共享保留来源、适用范围、版本和替代关系。若新事实推翻旧约束，视图应展示冲突和失效理由；若只是补充一个局部任务的细节，则不必升格为团队永久规则。治理案例中的规范化和替代关系为这种建议提供了现实动机，却没有测量该流程的净成本。[N04-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N04-E02.json) 因而评价重点宜放在错误材料是否被纠正、所需材料是否及时可得，而不是规则总数越少越好。
+-
+-### 5.3 共享还需要事实核验与可失败的评价
+-
+-共享内容也可能包含错误解释。Rule Registry 集成报告指出两个上游候选实际上是兄弟分支，纠正了此前关于串行继承的说法。[N05-E06](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E06.json) 这使角色视图必须区分参与者声称与可核验事实，不能只因多名成员重复了一段叙述就把它升级为知识。重复转发增加的是可见性，不是独立证据。
+-
+-后续评价可以在保留显示名的条件下，比较个人历史、任务事实和角色视图等组织方式，固定任务、模型、工具与权限，并分别考察所需事实到达、过期信息引用、权限拒绝、交付正确性及主观体验。若角色视图引入额外分类工作却没有减少信息缺失，便应缩小或放弃它；若任务视图已足够，也没有理由强加角色目录。这样的可失败条件是设计主张的一部分，避免以“共享更好”预先替代实验。
+-
+-团队体验则应另行询问。名称可以作为可选呈现，临时执行单元可以使用自动生成标签；用户仍能追踪责任与成果。由单人自述提出这个产品方向是合理的，但是否适用于其它开发者，需要新的体验研究，而不能从230条加载记录中间接推出。[N06-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N06-E01.json)
+-
+-角色视图的维护也应有明确退出条件。例如，若同一任务由开发转入验收，系统可重新选择适用检查材料，而不要求为角色迁移重建全部事实；若项目授权不允许某条内容被共享，就应给出可审计的缺失状态而非悄悄用另一角色的权限补齐。这样的设计把信息不足暴露为可以处理的条件。它仍需要实现后检验，尤其要比较维护视图和核对来源的成本是否抵消信息复用收益。
++共享仍须保留权限与独立检查。开发者和测试者可以读取相同候选、合同和约束，但不必共享全部推理或私有状态。角色分离研究的隔离收益与私有状态研究的权限边界，为无差别广播全部历史提供了反证。[3]<!--ref:R14--><!--anchor:section:4.1, 5.2, 5.3-->[4]<!--ref:R08--><!--anchor:section:2.1, 4-->
++
++### 5.2 用版本与适用范围维护知识连续性
++
++固定机制将规则绑定到版本和阶段，在途执行保留快照，新执行取得新快照。两个同角色成员暂时读取不同版本，可能符合各自任务的恢复合同；是否需要刷新，应取决于旧前提是否仍有效以及变化是否要求重新验证。[S09—S11](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md)、[N05-E05](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E05.json)
++
++共享视图应保留来源、适用范围、版本与替代关系。新的事实推翻旧约束时，应显式呈现冲突；局部任务细节则不必自动成为永久规则。规则治理案例为这一要求提供动机，但没有测量其维护成本与复用收益。[N04-E02](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N04-E02.json)
++
++### 5.3 让共享方案可以被事实和效果检验否定
++
++共享内容也会传播错误解释。Rule Registry的集成报告纠正了上游候选串行继承的说法，指出它们实际为兄弟分支。多次转述增加可见性，并不增加独立证据；职责视图因此需要区分参与者报告与已核事实。[N05-E06](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N05-E06.json)
++
++后续评价可保留相同显示名，固定任务、模型、工具和权限，比较个人历史、任务事实与角色视图的组织方式，测量事实到达、过期信息引用、权限拒绝与交付正确性。如果角色分类增加维护工作，却没有减少信息缺失，就应缩小或放弃这一层；若任务视图已足够，也不必强加角色目录。
++
++名称和团队体验则需要单独的用户研究。可读名称可以作为呈现选项，执行机制仍使用可替换、可追责的工作单元。现有自述支持保留这一选择的动机，尚不能说明其对其它开发者的吸引力或自动交付效果。[N06-E01](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N06-E01.json)
+ 
+ ## 6 局限
+ 
+-本研究是单系统、目的性取样的回顾性分析。词法命中受检索词约束，邻接抽取不能还原全部会话，已编码证据也不是独立任务样本。部分排除标准在检索后收紧，可能改变留下的案例构成，因此本文不报告总体故障率或以正反例数量比较净收益。[M1](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/coverage.md)
+-
+-配置是冻结时点的快照，固定源码只支持特定版本的机制解释。历史验收与提案处理主要依赖参与者报告，没有独立重跑界面、加载及交付流程；缺少完整模型输入，也无法把读取正文等同于理解规则。[S](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md) 数据中的名字多为项目或角色标签，不构成人格化人名与匿名执行器的严格比较。
+-
+-体验材料来自一位开发者，缺少具体事件和量表，不能推断普遍吸引力、依赖风险或临床成瘾。外部 persona 与命名研究涉及不同任务，提供概念对照而非效果迁移。[1]<!--ref:R15--><!--anchor:section:4-->[2]<!--ref:R17--><!--anchor:section:3.1.2, 3.2.2--> 六维区分与角色视图是分析和设计工具，尚未证明它们优于现有组织方式。AI分析与写作仍待人工核查，独立AI评阅不构成人工复核。
+-
+-另一个构念风险在于“按角色共享”的方案尚未被完整实现为单一干预。表7同时包含信息分层、版本绑定和权限过滤；未来若直接整体部署并比较前后表现，仍可能分不清哪一部分产生变化。因此应先定义最小可比较单位，避免把多项改动后的整体改善重新归给角色一词。本文的设计表用于提出这种检验要求，不能作为实现完成或效果已知的证据。
++这是单系统、目的性取样的回顾性研究。词法检索、邻接窗口和检索后收紧的故障排除会影响案例构成，证据用途与配对观测也不是独立任务样本。配置只代表冻结时点，固定源码不等于每次历史执行的实际输入。全部分析尚未人工复核。[M1](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/coverage.md)
++
++治理与历史验收部分依赖参与者报告，没有重跑完整交付流程。加载审计不能证明理解或遵守；数据中的名称多为项目或角色标签，不构成人格化人名与匿名执行器的严格比较。现有材料既未估计命名效果，也未确定角色共享优于任务共享。[S](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/reading/source-evidence.md)
++
++体验材料只有一位开发者，不能推断普遍吸引力或临床成瘾。外部persona与命名研究涉及不同任务，只提供概念对照。[1]<!--ref:R15--><!--anchor:section:4-->[2]<!--ref:R17--><!--anchor:section:3.1.2, 3.2.2--> 表7还同时涉及分层、版本和权限过滤，未来比较需要分开控制这些因素，避免将整体变化归于“角色”一词。
+ 
+ ## 7 结论
+ 
+-本文将“不需要名字”限定为自动交付不应依赖每个执行单元拥有长期人格化身份的设计立场。可读名称已有明确用户偏好，命名成员也已有共享事实和规则的记录；这些证据共同否定了通过简单删名解决上下文问题的推论。[N01-E04](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N01-E04.json)、[N03-E03](/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/evidence/N03-E03.json)
+-
+-更可操作的方向是分开显示、归属、职责、授权、持久知识和本次输入，再围绕履责需要构建受项目、任务、阶段与版本约束的共享视图。事实可以复用，执行过程可以隔离，规则加载仍须与实际使用区分。该方案留下清楚的验证问题：它是否减少信息缺失与过期前提，而不增加无益分类工作或越权暴露。名称与团队体验可继续存在，其价值应以体验证据评价；自动交付则须以产物和验收证据评价，两者不互相充当证明。
+-这一结论允许两类产品选择并存：面向使用者保留易辨认的队友呈现，面向执行机制提供可替换且有明确责任的工作单元。设计取舍的关键不是名称是否像人，而是上下文与责任能否在替换、恢复和换角色时保持可追溯。现有材料足以提出该要求，但尚不足以宣告某种共享架构已经胜出。
++本案例中的名称承担可读交互与团队呈现功能，稳定身份承担引用与归属，角色和权限分别约束职责与访问。命名成员已经共享事实和规则，跨角色重合也广泛存在，而同角色优势对分层口径敏感。上下文组织问题因此不能通过简单删名解决。
++
++本文主张，自动交付不应依赖每个执行单元的长期人格化名字；共同事实可按职责、任务、阶段与版本形成受权限约束的上下文视图。该立场保留了名称的体验价值，也为执行替换与信息连续性提供设计方向。角色视图是否减少信息缺失并改善交付，仍须通过对照检验。
+ <!-- BODY_END -->
+ 
+ ## 参考文献

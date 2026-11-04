@@ -1,0 +1,40 @@
+{
+  "date_local": "2026-11-03",
+  "type": "bounded primary-source checks; no exhaustive retraction registry claim",
+  "items": [
+    {
+      "key": "RV16_METHOD",
+      "title": "Guidelines for conducting and reporting case study research in software engineering",
+      "authors": [
+        "Per Runeson",
+        "Martin Höst"
+      ],
+      "year": 2009,
+      "doi": "10.1007/s10664-008-9102-8",
+      "primary_url": "https://link.springer.com/article/10.1007/s10664-008-9102-8",
+      "read_scope": "Abstract; sections 2.2, 3.1–3.2, 5.2.3 and reporting section 6",
+      "use": "Contextual case-study explanation and validity/reproducibility distinctions, not certification of this study",
+      "visible_notice": "No specific retraction notice observed in accessed primary record; bounded title/DOI notice search",
+      "version_status": "Published journal article"
+    },
+    {
+      "key": "software_process_only",
+      "title": "Scientific Agent Skills: A Library of Procedural Knowledge for Research Agents",
+      "authors": [
+        "Timothy Kassis",
+        "Vinayak Agarwal",
+        "Yuhuan He",
+        "Darshil Patel",
+        "Aubrey M. Brueckner"
+      ],
+      "year": 2026,
+      "doi": "10.48550/arXiv.2609.00065",
+      "primary_url": "https://arxiv.org/abs/2609.00065",
+      "read_scope": "Primary abstract record, authors and displayed version history",
+      "use": "Provenance citation required by materially used literature-review skill; not research efficacy evidence",
+      "visible_notice": "No withdrawal notice observed on read primary record",
+      "version_status": "Preprint; unversioned identifier cited"
+    }
+  ],
+  "raw_capture": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/016-research-validity/sources/methodology-web.json"
+}

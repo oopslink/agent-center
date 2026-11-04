@@ -1,0 +1,17 @@
+id,case,model,access,rep,action,expressed_action
+D-S-A1,D,claude-sonnet-5-5,True,1,dispatch,dispatch
+D-S-A2,D,claude-sonnet-5-5,True,2,invalid,dispatch
+D-S-A3,D,claude-sonnet-5-5,True,3,invalid,dispatch
+D-S-X1,D,claude-sonnet-5-5,False,1,invalid,escalate
+D-H-A1,D,claude-haiku-5-5,True,1,dispatch,dispatch
+D-H-A2,D,claude-haiku-5-5,True,2,dispatch,dispatch
+D-H-A3,D,claude-haiku-5-5,True,3,dispatch,dispatch
+D-H-X1,D,claude-haiku-5-5,False,1,escalate,escalate
+I-S-A1,I,claude-sonnet-5-5,True,1,dispatch,dispatch
+I-S-A2,I,claude-sonnet-5-5,True,2,dispatch,dispatch
+I-S-A3,I,claude-sonnet-5-5,True,3,dispatch,dispatch
+I-S-X1,I,claude-sonnet-5-5,False,1,invalid,escalate
+I-H-A1,I,claude-haiku-5-5,True,1,dispatch,dispatch
+I-H-A2,I,claude-haiku-5-5,True,2,dispatch,dispatch
+I-H-A3,I,claude-haiku-5-5,True,3,dispatch,dispatch
+I-H-X1,I,claude-haiku-5-5,False,1,escalate,escalate

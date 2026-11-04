@@ -1,0 +1,101 @@
+[
+  {
+    "case": "L01",
+    "boundary": "线程故障排除；只保留内部失败被当外部责任的表述与纠正，不证明合法恢复全部可行。",
+    "anchors": [
+      {
+        "id": "01KY4B5KS3272X3AMXDXHQMEC0",
+        "sha256": "708ac600e5409460d70c3910346369397bdc4784d8f223405c266d848ed5fb74",
+        "utc": "2026-07-22T07:20:47.651234Z"
+      },
+      {
+        "id": "01KY4B74V6XGRFG85EV29RS1RT",
+        "sha256": "4862831982266d7e170fdf1704312e3ca5892b8cc242b6714671580ef44cc45e",
+        "utc": "2026-07-22T07:21:37.894896Z"
+      },
+      {
+        "id": "01KY4B7K5QXK434NNHY9K1FKEF",
+        "sha256": "e8f3ef8e28a825fc3a206c0d6bed6da3a178b3c94ea0a940edf1e01ea540f748",
+        "utc": "2026-07-22T07:21:52.567652Z"
+      }
+    ]
+  },
+  {
+    "case": "L02",
+    "boundary": "空workspace/materializer混杂；不把仓库缺失或整个阻塞结果归于身份封装。",
+    "anchors": [
+      {
+        "id": "01KY5BMKX9ZM03BTJTENTQSKDB",
+        "sha256": "e7d1b7ca73c354b305690f9853fd143f6becb2b25d5d770d7ff228e4ca8386ee",
+        "utc": "2026-07-22T16:48:13.737573Z"
+      },
+      {
+        "id": "01KY5BYKS2T49YEXAGRPQQ9XWN",
+        "sha256": "acdc8ec03bcd8f2158289fcaf4d592880f878e4fadb5503af7f9e9ac632b97b9",
+        "utc": "2026-07-22T16:53:41.282145Z"
+      },
+      {
+        "id": "01KY5BZ3804ZA0ETH34RA1XEH1",
+        "sha256": "adb4cd3bf03dda010577303b176503fd344dcca5f61f3037cd89d16cc1687ce4",
+        "utc": "2026-07-22T16:53:57.120322Z"
+      },
+      {
+        "id": "01KY5C4XXCTE2AGYB373M42A9Y",
+        "sha256": "ad451f0bed9246ef886dac85d57ef353acc6512214d1edbb2b5c86f198576b40",
+        "utc": "2026-07-22T16:57:08.268484Z"
+      },
+      {
+        "id": "01KY5C5HW683A4YZG91P23RC7G",
+        "sha256": "b1fa96feda58bbc82bfc3afa5122475602ed8a8a3eec422e6c0dd693985ca794",
+        "utc": "2026-07-22T16:57:28.71098Z"
+      }
+    ]
+  },
+  {
+    "case": "L03",
+    "boundary": "所有agent是操作者当时观察，不是全体逐例标注；源码改动不证明当日已部署。",
+    "anchors": [
+      {
+        "id": "01KY68C1K5SHCFA4SFNZSS7C4C",
+        "sha256": "91fe592d18da0a72cf65ee82ed61b4c7e55afb85cc841640a85a4fbe0f66699d",
+        "utc": "2026-07-23T01:10:21.541167Z"
+      },
+      {
+        "id": "01KY68TD24Y07FCY5CZY56JEDZ",
+        "sha256": "3f87ec3e8655aa8dea94ac2cb102190d1b3c65a338c3294aeea0fdf1f2f4bbf0",
+        "utc": "2026-07-23T01:18:12.036841Z"
+      },
+      {
+        "id": "01KY699NV8C4KRZ8DNXC4858KM",
+        "sha256": "890111b29728b24f64488fe0c7e24bffa5a2ee50ef8e66ffd3444f47657a73f6",
+        "utc": "2026-07-23T01:26:32.552729Z"
+      },
+      {
+        "id": "01KY69AW978C5TVS6GBM5TXK6N",
+        "sha256": "50f176928fa2ff57fccd9bb8775e0c6f6a6e5bf7d43e15d312408391076d3280",
+        "utc": "2026-07-23T01:27:11.911017Z"
+      }
+    ]
+  },
+  {
+    "case": "L05",
+    "boundary": "正确承责可见；不是无人工干预基线，不能否定早期困难或证明团队永久改善。",
+    "anchors": [
+      {
+        "id": "01KZDJ41E4XMR6RSRDW2342DCE",
+        "sha256": "9ada862b772ed1508c077bda01dc25c8022bf5c77911cdcc791d27871e4f5dfd",
+        "utc": "2026-08-07T07:31:07.844252Z"
+      },
+      {
+        "id": "01KZDKN7K7XRNZ0DPE7G9V0GQA",
+        "sha256": "cefd9d147c3be95ae8bb04ccfcdeac701a35b5486aa578cb83560161666baf5d",
+        "utc": "2026-08-07T07:57:59.783637Z"
+      },
+      {
+        "id": "01KZDKS2M645VTZJ9GR8SW0MDJ",
+        "sha256": "44bb1e15ff0d32f18102327ad07a253de110cde5b870dbe76a8566e098bb34aa",
+        "utc": "2026-08-07T08:00:05.766163Z"
+      }
+    ]
+  }
+]

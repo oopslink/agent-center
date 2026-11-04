@@ -1,0 +1,1484 @@
+{
+  "scope": "Algebraic summaries after collection of frozen per-episode endpoints; descriptive only, no new outcomes or exclusions. No population inference.",
+  "conditions": [
+    {
+      "paper": "P1",
+      "model": "claude-haiku-5-5",
+      "condition": "separate:off",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 5,
+        "median": 5,
+        "min": 5,
+        "max": 5,
+        "total": 15
+      },
+      "worker_decisions": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "total_decisions": {
+        "mean": 8,
+        "median": 8,
+        "min": 8,
+        "max": 8,
+        "total": 24
+      },
+      "worker_starts": {
+        "mean": 1,
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "total": 3
+      },
+      "model_attempts": {
+        "mean": 8,
+        "median": 8,
+        "min": 8,
+        "max": 8,
+        "total": 24
+      },
+      "cost_usd_reported": {
+        "mean": 0.005493433333333334,
+        "median": 0.0058774000000000005,
+        "min": 0.0046394,
+        "max": 0.0059635,
+        "total": 0.0164803
+      }
+    },
+    {
+      "paper": "P1",
+      "model": "claude-haiku-5-5",
+      "condition": "separate:on",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 5.333333333333333,
+        "median": 5,
+        "min": 5,
+        "max": 6,
+        "total": 16
+      },
+      "worker_decisions": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "total_decisions": {
+        "mean": 8.333333333333334,
+        "median": 8,
+        "min": 8,
+        "max": 9,
+        "total": 25
+      },
+      "worker_starts": {
+        "mean": 1,
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "total": 3
+      },
+      "model_attempts": {
+        "mean": 8.333333333333334,
+        "median": 8,
+        "min": 8,
+        "max": 9,
+        "total": 25
+      },
+      "cost_usd_reported": {
+        "mean": 0.006428866666666667,
+        "median": 0.0061326,
+        "min": 0.0052072,
+        "max": 0.0079468,
+        "total": 0.0192866
+      }
+    },
+    {
+      "paper": "P1",
+      "model": "claude-haiku-5-5",
+      "condition": "single:off",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "worker_decisions": {
+        "mean": 0,
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "total": 0
+      },
+      "total_decisions": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "worker_starts": {
+        "mean": 0,
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "total": 0
+      },
+      "model_attempts": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "cost_usd_reported": {
+        "mean": 0.002083866666666667,
+        "median": 0.0022431,
+        "min": 0.0017619000000000003,
+        "max": 0.0022466,
+        "total": 0.0062516
+      }
+    },
+    {
+      "paper": "P1",
+      "model": "claude-haiku-5-5",
+      "condition": "unified:off",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 5,
+        "median": 5,
+        "min": 5,
+        "max": 5,
+        "total": 15
+      },
+      "worker_decisions": {
+        "mean": 3.3333333333333335,
+        "median": 3,
+        "min": 3,
+        "max": 4,
+        "total": 10
+      },
+      "total_decisions": {
+        "mean": 8.333333333333334,
+        "median": 8,
+        "min": 8,
+        "max": 9,
+        "total": 25
+      },
+      "worker_starts": {
+        "mean": 1,
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "total": 3
+      },
+      "model_attempts": {
+        "mean": 8.333333333333334,
+        "median": 8,
+        "min": 8,
+        "max": 9,
+        "total": 25
+      },
+      "cost_usd_reported": {
+        "mean": 0.005758533333333334,
+        "median": 0.0057432,
+        "min": 0.0057176,
+        "max": 0.0058148,
+        "total": 0.017275600000000002
+      }
+    },
+    {
+      "paper": "P1",
+      "model": "claude-haiku-5-5",
+      "condition": "unified:on",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 5,
+        "median": 5,
+        "min": 5,
+        "max": 5,
+        "total": 15
+      },
+      "worker_decisions": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "total_decisions": {
+        "mean": 8,
+        "median": 8,
+        "min": 8,
+        "max": 8,
+        "total": 24
+      },
+      "worker_starts": {
+        "mean": 1,
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "total": 3
+      },
+      "model_attempts": {
+        "mean": 8,
+        "median": 8,
+        "min": 8,
+        "max": 8,
+        "total": 24
+      },
+      "cost_usd_reported": {
+        "mean": 0.006323466666666667,
+        "median": 0.006249800000000001,
+        "min": 0.0056718,
+        "max": 0.0070488,
+        "total": 0.018970400000000002
+      }
+    },
+    {
+      "paper": "P1",
+      "model": "claude-sonnet-5-5",
+      "condition": "separate:off",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 5,
+        "median": 5,
+        "min": 5,
+        "max": 5,
+        "total": 15
+      },
+      "worker_decisions": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "total_decisions": {
+        "mean": 8,
+        "median": 8,
+        "min": 8,
+        "max": 8,
+        "total": 24
+      },
+      "worker_starts": {
+        "mean": 1,
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "total": 3
+      },
+      "model_attempts": {
+        "mean": 8,
+        "median": 8,
+        "min": 8,
+        "max": 8,
+        "total": 24
+      },
+      "cost_usd_reported": {
+        "mean": 0.08833666666666667,
+        "median": 0.09112,
+        "min": 0.07981,
+        "max": 0.09408,
+        "total": 0.26501
+      }
+    },
+    {
+      "paper": "P1",
+      "model": "claude-sonnet-5-5",
+      "condition": "separate:on",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 5,
+        "median": 5,
+        "min": 5,
+        "max": 5,
+        "total": 15
+      },
+      "worker_decisions": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "total_decisions": {
+        "mean": 8,
+        "median": 8,
+        "min": 8,
+        "max": 8,
+        "total": 24
+      },
+      "worker_starts": {
+        "mean": 1,
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "total": 3
+      },
+      "model_attempts": {
+        "mean": 8,
+        "median": 8,
+        "min": 8,
+        "max": 8,
+        "total": 24
+      },
+      "cost_usd_reported": {
+        "mean": 0.09935866666666666,
+        "median": 0.10365200000000001,
+        "min": 0.090766,
+        "max": 0.103658,
+        "total": 0.298076
+      }
+    },
+    {
+      "paper": "P1",
+      "model": "claude-sonnet-5-5",
+      "condition": "single:off",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "worker_decisions": {
+        "mean": 0,
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "total": 0
+      },
+      "total_decisions": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "worker_starts": {
+        "mean": 0,
+        "median": 0,
+        "min": 0,
+        "max": 0,
+        "total": 0
+      },
+      "model_attempts": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "cost_usd_reported": {
+        "mean": 0.031812,
+        "median": 0.031904,
+        "min": 0.028082000000000003,
+        "max": 0.03545,
+        "total": 0.095436
+      }
+    },
+    {
+      "paper": "P1",
+      "model": "claude-sonnet-5-5",
+      "condition": "unified:off",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 5,
+        "median": 5,
+        "min": 5,
+        "max": 5,
+        "total": 15
+      },
+      "worker_decisions": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "total_decisions": {
+        "mean": 8,
+        "median": 8,
+        "min": 8,
+        "max": 8,
+        "total": 24
+      },
+      "worker_starts": {
+        "mean": 1,
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "total": 3
+      },
+      "model_attempts": {
+        "mean": 8,
+        "median": 8,
+        "min": 8,
+        "max": 8,
+        "total": 24
+      },
+      "cost_usd_reported": {
+        "mean": 0.08869733333333334,
+        "median": 0.090332,
+        "min": 0.081152,
+        "max": 0.094608,
+        "total": 0.266092
+      }
+    },
+    {
+      "paper": "P1",
+      "model": "claude-sonnet-5-5",
+      "condition": "unified:on",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 5,
+        "median": 5,
+        "min": 5,
+        "max": 5,
+        "total": 15
+      },
+      "worker_decisions": {
+        "mean": 3,
+        "median": 3,
+        "min": 3,
+        "max": 3,
+        "total": 9
+      },
+      "total_decisions": {
+        "mean": 8,
+        "median": 8,
+        "min": 8,
+        "max": 8,
+        "total": 24
+      },
+      "worker_starts": {
+        "mean": 1,
+        "median": 1,
+        "min": 1,
+        "max": 1,
+        "total": 3
+      },
+      "model_attempts": {
+        "mean": 8,
+        "median": 8,
+        "min": 8,
+        "max": 8,
+        "total": 24
+      },
+      "cost_usd_reported": {
+        "mean": 0.098722,
+        "median": 0.101452,
+        "min": 0.090298,
+        "max": 0.10441600000000001,
+        "total": 0.29616600000000004
+      }
+    },
+    {
+      "paper": "P2",
+      "model": "claude-haiku-5-5",
+      "condition": "long:distributed",
+      "n": 3,
+      "autonomous_delivery": 2,
+      "independent_pass": 2,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 13.333333333333334,
+        "median": 12,
+        "min": 12,
+        "max": 16,
+        "total": 40
+      },
+      "worker_decisions": {
+        "mean": 14.333333333333334,
+        "median": 13,
+        "min": 12,
+        "max": 18,
+        "total": 43
+      },
+      "total_decisions": {
+        "mean": 27.666666666666668,
+        "median": 25,
+        "min": 24,
+        "max": 34,
+        "total": 83
+      },
+      "worker_starts": {
+        "mean": 4.666666666666667,
+        "median": 4,
+        "min": 4,
+        "max": 6,
+        "total": 14
+      },
+      "model_attempts": {
+        "mean": 27.666666666666668,
+        "median": 25,
+        "min": 24,
+        "max": 34,
+        "total": 83
+      },
+      "cost_usd_reported": {
+        "mean": 0.0368685,
+        "median": 0.0318519,
+        "min": 0.026893700000000003,
+        "max": 0.0518599,
+        "total": 0.11060550000000001
+      }
+    },
+    {
+      "paper": "P2",
+      "model": "claude-haiku-5-5",
+      "condition": "long:joined",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 12,
+        "median": 12,
+        "min": 11,
+        "max": 13,
+        "total": 36
+      },
+      "worker_decisions": {
+        "mean": 11.666666666666666,
+        "median": 12,
+        "min": 11,
+        "max": 12,
+        "total": 35
+      },
+      "total_decisions": {
+        "mean": 23.666666666666668,
+        "median": 24,
+        "min": 23,
+        "max": 24,
+        "total": 71
+      },
+      "worker_starts": {
+        "mean": 4,
+        "median": 4,
+        "min": 4,
+        "max": 4,
+        "total": 12
+      },
+      "model_attempts": {
+        "mean": 23.666666666666668,
+        "median": 24,
+        "min": 23,
+        "max": 24,
+        "total": 71
+      },
+      "cost_usd_reported": {
+        "mean": 0.027843233333333335,
+        "median": 0.028435600000000002,
+        "min": 0.0265674,
+        "max": 0.028526700000000002,
+        "total": 0.08352970000000001
+      }
+    },
+    {
+      "paper": "P2",
+      "model": "claude-haiku-5-5",
+      "condition": "short:distributed",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 7,
+        "median": 7,
+        "min": 7,
+        "max": 7,
+        "total": 21
+      },
+      "worker_decisions": {
+        "mean": 9,
+        "median": 9,
+        "min": 8,
+        "max": 10,
+        "total": 27
+      },
+      "total_decisions": {
+        "mean": 16,
+        "median": 16,
+        "min": 15,
+        "max": 17,
+        "total": 48
+      },
+      "worker_starts": {
+        "mean": 2,
+        "median": 2,
+        "min": 2,
+        "max": 2,
+        "total": 6
+      },
+      "model_attempts": {
+        "mean": 16,
+        "median": 16,
+        "min": 15,
+        "max": 17,
+        "total": 48
+      },
+      "cost_usd_reported": {
+        "mean": 0.0181023,
+        "median": 0.0175352,
+        "min": 0.0172384,
+        "max": 0.0195333,
+        "total": 0.054306900000000005
+      }
+    },
+    {
+      "paper": "P2",
+      "model": "claude-haiku-5-5",
+      "condition": "short:joined",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 9,
+        "median": 9,
+        "min": 8,
+        "max": 10,
+        "total": 27
+      },
+      "worker_decisions": {
+        "mean": 9.333333333333334,
+        "median": 9,
+        "min": 8,
+        "max": 11,
+        "total": 28
+      },
+      "total_decisions": {
+        "mean": 18.333333333333332,
+        "median": 19,
+        "min": 16,
+        "max": 20,
+        "total": 55
+      },
+      "worker_starts": {
+        "mean": 2.3333333333333335,
+        "median": 2,
+        "min": 2,
+        "max": 3,
+        "total": 7
+      },
+      "model_attempts": {
+        "mean": 18.333333333333332,
+        "median": 19,
+        "min": 16,
+        "max": 20,
+        "total": 55
+      },
+      "cost_usd_reported": {
+        "mean": 0.022576500000000003,
+        "median": 0.023320300000000002,
+        "min": 0.0185355,
+        "max": 0.025873700000000003,
+        "total": 0.0677295
+      }
+    },
+    {
+      "paper": "P2",
+      "model": "claude-sonnet-5-5",
+      "condition": "long:distributed",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 11,
+        "median": 11,
+        "min": 11,
+        "max": 11,
+        "total": 33
+      },
+      "worker_decisions": {
+        "mean": 11.333333333333334,
+        "median": 11,
+        "min": 11,
+        "max": 12,
+        "total": 34
+      },
+      "total_decisions": {
+        "mean": 22.333333333333332,
+        "median": 22,
+        "min": 22,
+        "max": 23,
+        "total": 67
+      },
+      "worker_starts": {
+        "mean": 4,
+        "median": 4,
+        "min": 4,
+        "max": 4,
+        "total": 12
+      },
+      "model_attempts": {
+        "mean": 22.333333333333332,
+        "median": 22,
+        "min": 22,
+        "max": 23,
+        "total": 67
+      },
+      "cost_usd_reported": {
+        "mean": 0.4981144,
+        "median": 0.49202,
+        "min": 0.456286,
+        "max": 0.5460372,
+        "total": 1.4943432
+      }
+    },
+    {
+      "paper": "P2",
+      "model": "claude-sonnet-5-5",
+      "condition": "long:joined",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 11,
+        "median": 11,
+        "min": 11,
+        "max": 11,
+        "total": 33
+      },
+      "worker_decisions": {
+        "mean": 11,
+        "median": 11,
+        "min": 11,
+        "max": 11,
+        "total": 33
+      },
+      "total_decisions": {
+        "mean": 22,
+        "median": 22,
+        "min": 22,
+        "max": 22,
+        "total": 66
+      },
+      "worker_starts": {
+        "mean": 4,
+        "median": 4,
+        "min": 4,
+        "max": 4,
+        "total": 12
+      },
+      "model_attempts": {
+        "mean": 22.333333333333332,
+        "median": 22,
+        "min": 22,
+        "max": 23,
+        "total": 67
+      },
+      "cost_usd_reported": {
+        "mean": 0.4562715,
+        "median": 0.45013800000000004,
+        "min": 0.418442,
+        "max": 0.5002345,
+        "total": 1.3688145
+      }
+    },
+    {
+      "paper": "P2",
+      "model": "claude-sonnet-5-5",
+      "condition": "short:distributed",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 7,
+        "median": 7,
+        "min": 7,
+        "max": 7,
+        "total": 21
+      },
+      "worker_decisions": {
+        "mean": 8.333333333333334,
+        "median": 8,
+        "min": 8,
+        "max": 9,
+        "total": 25
+      },
+      "total_decisions": {
+        "mean": 15.333333333333334,
+        "median": 15,
+        "min": 15,
+        "max": 16,
+        "total": 46
+      },
+      "worker_starts": {
+        "mean": 2,
+        "median": 2,
+        "min": 2,
+        "max": 2,
+        "total": 6
+      },
+      "model_attempts": {
+        "mean": 15.333333333333334,
+        "median": 15,
+        "min": 15,
+        "max": 16,
+        "total": 46
+      },
+      "cost_usd_reported": {
+        "mean": 0.294738,
+        "median": 0.29295,
+        "min": 0.276636,
+        "max": 0.314628,
+        "total": 0.884214
+      }
+    },
+    {
+      "paper": "P2",
+      "model": "claude-sonnet-5-5",
+      "condition": "short:joined",
+      "n": 3,
+      "autonomous_delivery": 3,
+      "independent_pass": 3,
+      "implementation_pass": 3,
+      "requested_external": 0,
+      "premature_completion": 0,
+      "controller_turns": {
+        "mean": 7,
+        "median": 7,
+        "min": 7,
+        "max": 7,
+        "total": 21
+      },
+      "worker_decisions": {
+        "mean": 8.666666666666666,
+        "median": 9,
+        "min": 8,
+        "max": 9,
+        "total": 26
+      },
+      "total_decisions": {
+        "mean": 15.666666666666666,
+        "median": 16,
+        "min": 15,
+        "max": 16,
+        "total": 47
+      },
+      "worker_starts": {
+        "mean": 2,
+        "median": 2,
+        "min": 2,
+        "max": 2,
+        "total": 6
+      },
+      "model_attempts": {
+        "mean": 15.666666666666666,
+        "median": 16,
+        "min": 15,
+        "max": 16,
+        "total": 47
+      },
+      "cost_usd_reported": {
+        "mean": 0.317042,
+        "median": 0.32305,
+        "min": 0.300224,
+        "max": 0.327852,
+        "total": 0.9511259999999999
+      }
+    }
+  ],
+  "paired_summaries": [
+    {
+      "paper": "P1",
+      "factor": "identity",
+      "model": "claude-haiku-5-5",
+      "n": 6,
+      "direction": "unified minus separate",
+      "autonomous_delivery_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "controller_turns_difference": {
+        "mean": -0.16666666666666666,
+        "median": 0.0,
+        "min": -1.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 5,
+        "negative": 1
+      },
+      "worker_decisions_difference": {
+        "mean": 0.16666666666666666,
+        "median": 0.0,
+        "min": 0,
+        "max": 1,
+        "positive": 1,
+        "zero": 5,
+        "negative": 0
+      },
+      "total_decisions_difference": {
+        "mean": 0,
+        "median": 0.0,
+        "min": -1,
+        "max": 1,
+        "positive": 1,
+        "zero": 4,
+        "negative": 1
+      },
+      "model_attempts_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": -1.0,
+        "max": 1.0,
+        "positive": 1,
+        "zero": 4,
+        "negative": 1
+      },
+      "cost_usd_reported_difference": {
+        "mean": 7.984999999999995e-05,
+        "median": 0.0001651999999999999,
+        "min": -0.0016969999999999997,
+        "max": 0.0011754,
+        "positive": 3,
+        "zero": 0,
+        "negative": 3
+      }
+    },
+    {
+      "paper": "P1",
+      "factor": "identity",
+      "model": "claude-sonnet-5-5",
+      "n": 6,
+      "direction": "unified minus separate",
+      "autonomous_delivery_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "controller_turns_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "worker_decisions_difference": {
+        "mean": 0,
+        "median": 0.0,
+        "min": 0,
+        "max": 0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "total_decisions_difference": {
+        "mean": 0,
+        "median": 0.0,
+        "min": 0,
+        "max": 0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "model_attempts_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "cost_usd_reported_difference": {
+        "mean": -0.00013800000000000154,
+        "median": 0.00014500000000000624,
+        "min": -0.0037480000000000013,
+        "max": 0.003487999999999991,
+        "positive": 3,
+        "zero": 0,
+        "negative": 3
+      }
+    },
+    {
+      "paper": "P1",
+      "factor": "ledger",
+      "model": "claude-haiku-5-5",
+      "n": 6,
+      "direction": "on minus off",
+      "autonomous_delivery_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "controller_turns_difference": {
+        "mean": 0.16666666666666666,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 1.0,
+        "positive": 1,
+        "zero": 5,
+        "negative": 0
+      },
+      "worker_decisions_difference": {
+        "mean": -0.16666666666666666,
+        "median": 0.0,
+        "min": -1,
+        "max": 0,
+        "positive": 0,
+        "zero": 5,
+        "negative": 1
+      },
+      "total_decisions_difference": {
+        "mean": 0,
+        "median": 0.0,
+        "min": -1,
+        "max": 1,
+        "positive": 1,
+        "zero": 4,
+        "negative": 1
+      },
+      "model_attempts_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": -1.0,
+        "max": 1.0,
+        "positive": 1,
+        "zero": 4,
+        "negative": 1
+      },
+      "cost_usd_reported_difference": {
+        "mean": 0.0007501833333333335,
+        "median": 0.0005500000000000006,
+        "min": -0.0001429999999999999,
+        "max": 0.0019833000000000003,
+        "positive": 5,
+        "zero": 0,
+        "negative": 1
+      }
+    },
+    {
+      "paper": "P1",
+      "factor": "ledger",
+      "model": "claude-sonnet-5-5",
+      "n": 6,
+      "direction": "on minus off",
+      "autonomous_delivery_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "controller_turns_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "worker_decisions_difference": {
+        "mean": 0,
+        "median": 0.0,
+        "min": 0,
+        "max": 0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "total_decisions_difference": {
+        "mean": 0,
+        "median": 0.0,
+        "min": 0,
+        "max": 0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "model_attempts_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "cost_usd_reported_difference": {
+        "mean": 0.010523333333333336,
+        "median": 0.010382000000000002,
+        "min": 0.009146000000000001,
+        "max": 0.012537999999999994,
+        "positive": 6,
+        "zero": 0,
+        "negative": 0
+      }
+    },
+    {
+      "paper": "P2",
+      "factor": "binding",
+      "model": "claude-haiku-5-5",
+      "n": 6,
+      "direction": "joined minus distributed",
+      "autonomous_delivery_difference": {
+        "mean": 0.16666666666666666,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 1.0,
+        "positive": 1,
+        "zero": 5,
+        "negative": 0
+      },
+      "controller_turns_difference": {
+        "mean": 0.3333333333333333,
+        "median": 0.5,
+        "min": -3.0,
+        "max": 3.0,
+        "positive": 3,
+        "zero": 1,
+        "negative": 2
+      },
+      "worker_decisions_difference": {
+        "mean": -1.1666666666666667,
+        "median": -0.5,
+        "min": -7,
+        "max": 2,
+        "positive": 1,
+        "zero": 2,
+        "negative": 3
+      },
+      "total_decisions_difference": {
+        "mean": -0.8333333333333334,
+        "median": 0.5,
+        "min": -10,
+        "max": 4,
+        "positive": 3,
+        "zero": 1,
+        "negative": 2
+      },
+      "model_attempts_difference": {
+        "mean": -0.8333333333333334,
+        "median": 0.5,
+        "min": -10.0,
+        "max": 4.0,
+        "positive": 3,
+        "zero": 1,
+        "negative": 2
+      },
+      "cost_usd_reported_difference": {
+        "mean": -0.002275533333333333,
+        "median": 0.0004853999999999987,
+        "min": -0.0234243,
+        "max": 0.006340400000000003,
+        "positive": 3,
+        "zero": 0,
+        "negative": 3
+      }
+    },
+    {
+      "paper": "P2",
+      "factor": "binding",
+      "model": "claude-sonnet-5-5",
+      "n": 6,
+      "direction": "joined minus distributed",
+      "autonomous_delivery_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "controller_turns_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "worker_decisions_difference": {
+        "mean": 0,
+        "median": 0.0,
+        "min": -1,
+        "max": 1,
+        "positive": 1,
+        "zero": 4,
+        "negative": 1
+      },
+      "total_decisions_difference": {
+        "mean": 0,
+        "median": 0.0,
+        "min": -1,
+        "max": 1,
+        "positive": 1,
+        "zero": 4,
+        "negative": 1
+      },
+      "model_attempts_difference": {
+        "mean": 0.16666666666666666,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 1.0,
+        "positive": 1,
+        "zero": 5,
+        "negative": 0
+      },
+      "cost_usd_reported_difference": {
+        "mean": -0.009769450000000004,
+        "median": -0.010276000000000007,
+        "min": -0.07357800000000003,
+        "max": 0.051215999999999984,
+        "positive": 2,
+        "zero": 0,
+        "negative": 4
+      }
+    },
+    {
+      "paper": "P2",
+      "factor": "organization",
+      "model": "claude-haiku-5-5",
+      "n": 6,
+      "direction": "long minus short",
+      "autonomous_delivery_difference": {
+        "mean": -0.16666666666666666,
+        "median": 0.0,
+        "min": -1.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 5,
+        "negative": 1
+      },
+      "controller_turns_difference": {
+        "mean": 4.666666666666667,
+        "median": 5.0,
+        "min": 1.0,
+        "max": 9.0,
+        "positive": 6,
+        "zero": 0,
+        "negative": 0
+      },
+      "worker_decisions_difference": {
+        "mean": 3.8333333333333335,
+        "median": 3.0,
+        "min": 1,
+        "max": 10,
+        "positive": 6,
+        "zero": 0,
+        "negative": 0
+      },
+      "total_decisions_difference": {
+        "mean": 8.5,
+        "median": 8.0,
+        "min": 4,
+        "max": 19,
+        "positive": 6,
+        "zero": 0,
+        "negative": 0
+      },
+      "model_attempts_difference": {
+        "mean": 8.5,
+        "median": 8.0,
+        "min": 4.0,
+        "max": 19.0,
+        "positive": 6,
+        "zero": 0,
+        "negative": 0
+      },
+      "cost_usd_reported_difference": {
+        "mean": 0.012016466666666668,
+        "median": 0.009629300000000002,
+        "min": 0.002652999999999999,
+        "max": 0.0346215,
+        "positive": 6,
+        "zero": 0,
+        "negative": 0
+      }
+    },
+    {
+      "paper": "P2",
+      "factor": "organization",
+      "model": "claude-sonnet-5-5",
+      "n": 6,
+      "direction": "long minus short",
+      "autonomous_delivery_difference": {
+        "mean": 0.0,
+        "median": 0.0,
+        "min": 0.0,
+        "max": 0.0,
+        "positive": 0,
+        "zero": 6,
+        "negative": 0
+      },
+      "controller_turns_difference": {
+        "mean": 4.0,
+        "median": 4.0,
+        "min": 4.0,
+        "max": 4.0,
+        "positive": 6,
+        "zero": 0,
+        "negative": 0
+      },
+      "worker_decisions_difference": {
+        "mean": 2.6666666666666665,
+        "median": 2.5,
+        "min": 2,
+        "max": 4,
+        "positive": 6,
+        "zero": 0,
+        "negative": 0
+      },
+      "total_decisions_difference": {
+        "mean": 6.666666666666667,
+        "median": 6.5,
+        "min": 6,
+        "max": 8,
+        "positive": 6,
+        "zero": 0,
+        "negative": 0
+      },
+      "model_attempts_difference": {
+        "mean": 6.833333333333333,
+        "median": 6.5,
+        "min": 6.0,
+        "max": 8.0,
+        "positive": 6,
+        "zero": 0,
+        "negative": 0
+      },
+      "cost_usd_reported_difference": {
+        "mean": 0.17130295,
+        "median": 0.18936000000000003,
+        "min": 0.09539199999999998,
+        "max": 0.23140919999999998,
+        "positive": 6,
+        "zero": 0,
+        "negative": 0
+      }
+    }
+  ],
+  "paper_totals": [
+    {
+      "paper": "P1",
+      "n": 30,
+      "statuses": {
+        "reported_complete": 30
+      },
+      "controller_turns": 139,
+      "worker_decisions": 73,
+      "total_decisions": 212,
+      "worker_starts": 24,
+      "model_attempts": 212,
+      "format_errors": 2,
+      "tool_error_count": 2,
+      "worker_failed_versions": 0,
+      "cost_usd_reported": 1.2990445
+    },
+    {
+      "paper": "P2",
+      "n": 24,
+      "statuses": {
+        "reported_complete": 23,
+        "reported_blocked": 1
+      },
+      "controller_turns": 232,
+      "worker_decisions": 251,
+      "total_decisions": 483,
+      "worker_starts": 75,
+      "model_attempts": 484,
+      "format_errors": 7,
+      "tool_error_count": 7,
+      "worker_failed_versions": 0,
+      "cost_usd_reported": 5.0146693
+    }
+  ]
+}

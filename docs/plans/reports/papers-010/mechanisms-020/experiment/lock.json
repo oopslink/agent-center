@@ -1,0 +1,9 @@
+{
+  "utc": "2026-11-04T13:53:47.210384+00:00",
+  "files": {
+    "study.py": "cb101255bf1eae254ebbd1aa5c6937fcd8909a07c95d267d99bbc13a2632c7cb",
+    "transport.py": "c379ffa389fcb441550d82587c81f80e7d9bc0680a2a978d1eb14f9f8bcbf5ad",
+    "protocol.md": "19fcb05d7985ae0d43611a1c8156b31b8fcddaf80bd4a3a259aede7ca1d9ea53",
+    "design.json": "f42ba3675cc301b43936b1b4246374b1409be246e674db1ac86ea38b4a9dad9d"
+  }
+}

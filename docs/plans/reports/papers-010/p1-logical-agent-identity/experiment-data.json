@@ -1,0 +1,6288 @@
+{
+  "experiment": "p1-identity-001",
+  "summary": {
+    "utc": "2026-11-03T12:58:36.048844+00:00",
+    "planned": 544,
+    "observed": 544,
+    "eligible": 544,
+    "models": {
+      "claude-sonnet-5-5": {
+        "all": {
+          "planned": 256,
+          "observed": 256,
+          "eligible": 256,
+          "format_valid": 256,
+          "legal": 256,
+          "progress": 256,
+          "errors": {
+            "none": 256
+          },
+          "rate": 1.0
+        },
+        "clean": {
+          "planned": 64,
+          "observed": 64,
+          "eligible": 64,
+          "format_valid": 64,
+          "legal": 64,
+          "progress": 64,
+          "errors": {
+            "none": 64
+          },
+          "rate": 1.0
+        },
+        "by_condition": {
+          "C01": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C02": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C03": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C04": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C05": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C06": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C07": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C08": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C09": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C10": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C11": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C12": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C13": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C14": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C15": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C16": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          }
+        },
+        "by_interference": {
+          "consistent_clean": {
+            "planned": 64,
+            "observed": 64,
+            "eligible": 64,
+            "format_valid": 64,
+            "legal": 64,
+            "progress": 64,
+            "errors": {
+              "none": 64
+            },
+            "rate": 1.0
+          },
+          "consistent_legacy": {
+            "planned": 64,
+            "observed": 64,
+            "eligible": 64,
+            "format_valid": 64,
+            "legal": 64,
+            "progress": 64,
+            "errors": {
+              "none": 64
+            },
+            "rate": 1.0
+          },
+          "stale_clean": {
+            "planned": 64,
+            "observed": 64,
+            "eligible": 64,
+            "format_valid": 64,
+            "legal": 64,
+            "progress": 64,
+            "errors": {
+              "none": 64
+            },
+            "rate": 1.0
+          },
+          "stale_legacy": {
+            "planned": 64,
+            "observed": 64,
+            "eligible": 64,
+            "format_valid": 64,
+            "legal": 64,
+            "progress": 64,
+            "errors": {
+              "none": 64
+            },
+            "rate": 1.0
+          }
+        },
+        "clean_by_case": {
+          "S1": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S2": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S3": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S4": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S5": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S6": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S7": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S8": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          }
+        },
+        "diagnostics": [
+          {
+            "case": "D1",
+            "identity": "unified",
+            "labels": "standard",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D1",
+            "identity": "unified",
+            "labels": "neutral",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D1",
+            "identity": "components",
+            "labels": "standard",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D1",
+            "identity": "components",
+            "labels": "neutral",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D2",
+            "identity": "unified",
+            "labels": "standard",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D2",
+            "identity": "unified",
+            "labels": "neutral",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D2",
+            "identity": "components",
+            "labels": "standard",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D2",
+            "identity": "components",
+            "labels": "neutral",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          }
+        ]
+      },
+      "claude-haiku-5-5": {
+        "all": {
+          "planned": 256,
+          "observed": 256,
+          "eligible": 256,
+          "format_valid": 256,
+          "legal": 256,
+          "progress": 253,
+          "errors": {
+            "none": 253,
+            "legal_nonprogress": 3
+          },
+          "rate": 0.98828125
+        },
+        "clean": {
+          "planned": 64,
+          "observed": 64,
+          "eligible": 64,
+          "format_valid": 64,
+          "legal": 64,
+          "progress": 64,
+          "errors": {
+            "none": 64
+          },
+          "rate": 1.0
+        },
+        "by_condition": {
+          "C01": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C02": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C03": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C04": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C05": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C06": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C07": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C08": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 15,
+            "errors": {
+              "legal_nonprogress": 1,
+              "none": 15
+            },
+            "rate": 0.9375
+          },
+          "C09": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C10": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C11": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C12": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C13": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C14": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 16,
+            "errors": {
+              "none": 16
+            },
+            "rate": 1.0
+          },
+          "C15": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 15,
+            "errors": {
+              "none": 15,
+              "legal_nonprogress": 1
+            },
+            "rate": 0.9375
+          },
+          "C16": {
+            "planned": 16,
+            "observed": 16,
+            "eligible": 16,
+            "format_valid": 16,
+            "legal": 16,
+            "progress": 15,
+            "errors": {
+              "none": 15,
+              "legal_nonprogress": 1
+            },
+            "rate": 0.9375
+          }
+        },
+        "by_interference": {
+          "consistent_clean": {
+            "planned": 64,
+            "observed": 64,
+            "eligible": 64,
+            "format_valid": 64,
+            "legal": 64,
+            "progress": 64,
+            "errors": {
+              "none": 64
+            },
+            "rate": 1.0
+          },
+          "consistent_legacy": {
+            "planned": 64,
+            "observed": 64,
+            "eligible": 64,
+            "format_valid": 64,
+            "legal": 64,
+            "progress": 63,
+            "errors": {
+              "legal_nonprogress": 1,
+              "none": 63
+            },
+            "rate": 0.984375
+          },
+          "stale_clean": {
+            "planned": 64,
+            "observed": 64,
+            "eligible": 64,
+            "format_valid": 64,
+            "legal": 64,
+            "progress": 64,
+            "errors": {
+              "none": 64
+            },
+            "rate": 1.0
+          },
+          "stale_legacy": {
+            "planned": 64,
+            "observed": 64,
+            "eligible": 64,
+            "format_valid": 64,
+            "legal": 64,
+            "progress": 62,
+            "errors": {
+              "none": 62,
+              "legal_nonprogress": 2
+            },
+            "rate": 0.96875
+          }
+        },
+        "clean_by_case": {
+          "S1": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S2": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S3": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S4": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S5": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S6": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S7": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          },
+          "S8": {
+            "planned": 8,
+            "observed": 8,
+            "eligible": 8,
+            "format_valid": 8,
+            "legal": 8,
+            "progress": 8,
+            "errors": {
+              "none": 8
+            },
+            "rate": 1.0
+          }
+        },
+        "diagnostics": [
+          {
+            "case": "D1",
+            "identity": "unified",
+            "labels": "standard",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D1",
+            "identity": "unified",
+            "labels": "neutral",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D1",
+            "identity": "components",
+            "labels": "standard",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D1",
+            "identity": "components",
+            "labels": "neutral",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D2",
+            "identity": "unified",
+            "labels": "standard",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D2",
+            "identity": "unified",
+            "labels": "neutral",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D2",
+            "identity": "components",
+            "labels": "standard",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          },
+          {
+            "case": "D2",
+            "identity": "components",
+            "labels": "neutral",
+            "n": 2,
+            "choices": {
+              "unspecified": 2
+            }
+          }
+        ]
+      }
+    },
+    "limits": "Descriptive finite synthetic fixtures; not independent production samples or training-causal identification."
+  },
+  "figure_data": {
+    "matrix": [
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S1",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S2",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S3",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S4",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S5",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S6",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S7",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S8",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S1",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S2",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S3",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S4",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S5",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S6",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S7",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S8",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S1",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S2",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S3",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S4",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S5",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S6",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S7",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S8",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S1",
+        "progress": 7,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S2",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S3",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S4",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S5",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S6",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S7",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "consistent",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S8",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S1",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S2",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S3",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S4",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S5",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S6",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S7",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-sonnet-5-5",
+        "case": "S8",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S1",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S2",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S3",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S4",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S5",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S6",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S7",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "clean",
+        "model": "claude-haiku-5-5",
+        "case": "S8",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S1",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S2",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S3",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S4",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S5",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S6",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S7",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-sonnet-5-5",
+        "case": "S8",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S1",
+        "progress": 6,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S2",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S3",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S4",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S5",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S6",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S7",
+        "progress": 8,
+        "n": 8
+      },
+      {
+        "tools": "stale",
+        "history": "legacy",
+        "model": "claude-haiku-5-5",
+        "case": "S8",
+        "progress": 8,
+        "n": 8
+      }
+    ],
+    "paired_contrasts": [
+      {
+        "model": "claude-sonnet-5-5",
+        "factor": "identity",
+        "paired_units": 32,
+        "rate_difference": 0,
+        "a_only": 0,
+        "b_only": 0,
+        "both_progress": 32,
+        "neither_progress": 0
+      },
+      {
+        "model": "claude-sonnet-5-5",
+        "factor": "labels",
+        "paired_units": 32,
+        "rate_difference": 0,
+        "a_only": 0,
+        "b_only": 0,
+        "both_progress": 32,
+        "neither_progress": 0
+      },
+      {
+        "model": "claude-sonnet-5-5",
+        "factor": "history",
+        "paired_units": 64,
+        "rate_difference": 0,
+        "a_only": 0,
+        "b_only": 0,
+        "both_progress": 64,
+        "neither_progress": 0
+      },
+      {
+        "model": "claude-sonnet-5-5",
+        "factor": "tools",
+        "paired_units": 64,
+        "rate_difference": 0,
+        "a_only": 0,
+        "b_only": 0,
+        "both_progress": 64,
+        "neither_progress": 0
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "factor": "identity",
+        "paired_units": 32,
+        "rate_difference": 0,
+        "a_only": 0,
+        "b_only": 0,
+        "both_progress": 32,
+        "neither_progress": 0
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "factor": "labels",
+        "paired_units": 32,
+        "rate_difference": 0,
+        "a_only": 0,
+        "b_only": 0,
+        "both_progress": 32,
+        "neither_progress": 0
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "factor": "history",
+        "paired_units": 64,
+        "rate_difference": -0.015625,
+        "a_only": 0,
+        "b_only": 1,
+        "both_progress": 63,
+        "neither_progress": 0
+      },
+      {
+        "model": "claude-haiku-5-5",
+        "factor": "tools",
+        "paired_units": 64,
+        "rate_difference": 0,
+        "a_only": 0,
+        "b_only": 0,
+        "both_progress": 64,
+        "neither_progress": 0
+      }
+    ],
+    "diagnostic_labels": [
+      "D1 Sonnet 5.5",
+      "D1 Haiku 5.5",
+      "D2 Sonnet 5.5",
+      "D2 Haiku 5.5"
+    ],
+    "diagnostic_actors": [
+      "controller",
+      "worker",
+      "runtime",
+      "unspecified"
+    ],
+    "diagnostic_counts": [
+      [
+        0,
+        0,
+        0,
+        8
+      ],
+      [
+        0,
+        0,
+        0,
+        8
+      ],
+      [
+        0,
+        0,
+        0,
+        8
+      ],
+      [
+        0,
+        0,
+        0,
+        8
+      ]
+    ]
+  },
+  "paired_effects": [
+    {
+      "factor": "identity",
+      "a": "unified",
+      "b": "components",
+      "filters": {
+        "tools": "consistent",
+        "history": "clean"
+      },
+      "paired_units": 32,
+      "rate_difference": 0,
+      "a_only": 0,
+      "b_only": 0,
+      "both_progress": 32,
+      "neither_progress": 0,
+      "pairs": [
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-sonnet-C01-S7-v0",
+          "b": "A-sonnet-C03-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-sonnet-C02-S7-v0",
+          "b": "A-sonnet-C04-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-sonnet-C02-S1-v0",
+          "b": "A-sonnet-C04-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-sonnet-C01-S8-v1",
+          "b": "A-sonnet-C03-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-sonnet-C01-S2-v1",
+          "b": "A-sonnet-C03-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-sonnet-C01-S5-v1",
+          "b": "A-sonnet-C03-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-sonnet-C01-S4-v1",
+          "b": "A-sonnet-C03-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-sonnet-C01-S1-v1",
+          "b": "A-sonnet-C03-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-sonnet-C01-S5-v0",
+          "b": "A-sonnet-C03-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-sonnet-C01-S4-v0",
+          "b": "A-sonnet-C03-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-sonnet-C02-S2-v1",
+          "b": "A-sonnet-C04-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-sonnet-C02-S4-v1",
+          "b": "A-sonnet-C04-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-sonnet-C01-S2-v0",
+          "b": "A-sonnet-C03-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-sonnet-C02-S4-v0",
+          "b": "A-sonnet-C04-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-sonnet-C01-S3-v0",
+          "b": "A-sonnet-C03-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-sonnet-C02-S3-v0",
+          "b": "A-sonnet-C04-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-sonnet-C01-S3-v1",
+          "b": "A-sonnet-C03-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-sonnet-C02-S8-v1",
+          "b": "A-sonnet-C04-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-sonnet-C02-S5-v1",
+          "b": "A-sonnet-C04-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-sonnet-C01-S8-v0",
+          "b": "A-sonnet-C03-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-sonnet-C02-S5-v0",
+          "b": "A-sonnet-C04-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-sonnet-C02-S1-v1",
+          "b": "A-sonnet-C04-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-sonnet-C01-S6-v1",
+          "b": "A-sonnet-C03-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-sonnet-C02-S7-v1",
+          "b": "A-sonnet-C04-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-sonnet-C01-S1-v0",
+          "b": "A-sonnet-C03-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-sonnet-C01-S7-v1",
+          "b": "A-sonnet-C03-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-sonnet-C02-S6-v0",
+          "b": "A-sonnet-C04-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-sonnet-C01-S6-v0",
+          "b": "A-sonnet-C03-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-sonnet-C02-S6-v1",
+          "b": "A-sonnet-C04-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-sonnet-C02-S3-v1",
+          "b": "A-sonnet-C04-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-sonnet-C02-S2-v0",
+          "b": "A-sonnet-C04-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-sonnet-C02-S8-v0",
+          "b": "A-sonnet-C04-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        }
+      ],
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "factor": "labels",
+      "a": "standard",
+      "b": "neutral",
+      "filters": {
+        "tools": "consistent",
+        "history": "clean"
+      },
+      "paired_units": 32,
+      "rate_difference": 0,
+      "a_only": 0,
+      "b_only": 0,
+      "both_progress": 32,
+      "neither_progress": 0,
+      "pairs": [
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-sonnet-C01-S7-v0",
+          "b": "A-sonnet-C02-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-sonnet-C03-S7-v0",
+          "b": "A-sonnet-C04-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-sonnet-C01-S1-v0",
+          "b": "A-sonnet-C02-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-sonnet-C03-S8-v1",
+          "b": "A-sonnet-C04-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-sonnet-C01-S2-v1",
+          "b": "A-sonnet-C02-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-sonnet-C03-S5-v1",
+          "b": "A-sonnet-C04-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-sonnet-C03-S2-v1",
+          "b": "A-sonnet-C04-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-sonnet-C03-S4-v1",
+          "b": "A-sonnet-C04-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-sonnet-C03-S1-v0",
+          "b": "A-sonnet-C04-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-sonnet-C01-S1-v1",
+          "b": "A-sonnet-C02-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-sonnet-C03-S5-v0",
+          "b": "A-sonnet-C04-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-sonnet-C01-S4-v0",
+          "b": "A-sonnet-C02-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-sonnet-C01-S4-v1",
+          "b": "A-sonnet-C02-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-sonnet-C01-S2-v0",
+          "b": "A-sonnet-C02-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-sonnet-C03-S4-v0",
+          "b": "A-sonnet-C04-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-sonnet-C03-S3-v0",
+          "b": "A-sonnet-C04-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-sonnet-C01-S3-v0",
+          "b": "A-sonnet-C02-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-sonnet-C03-S3-v1",
+          "b": "A-sonnet-C04-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-sonnet-C01-S8-v1",
+          "b": "A-sonnet-C02-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-sonnet-C01-S5-v1",
+          "b": "A-sonnet-C02-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-sonnet-C01-S3-v1",
+          "b": "A-sonnet-C02-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-sonnet-C03-S8-v0",
+          "b": "A-sonnet-C04-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-sonnet-C03-S1-v1",
+          "b": "A-sonnet-C04-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-sonnet-C01-S5-v0",
+          "b": "A-sonnet-C02-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-sonnet-C03-S6-v1",
+          "b": "A-sonnet-C04-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-sonnet-C03-S7-v1",
+          "b": "A-sonnet-C04-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-sonnet-C01-S7-v1",
+          "b": "A-sonnet-C02-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-sonnet-C01-S8-v0",
+          "b": "A-sonnet-C02-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-sonnet-C01-S6-v0",
+          "b": "A-sonnet-C02-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-sonnet-C03-S2-v0",
+          "b": "A-sonnet-C04-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-sonnet-C03-S6-v0",
+          "b": "A-sonnet-C04-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-sonnet-C01-S6-v1",
+          "b": "A-sonnet-C02-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        }
+      ],
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "factor": "history",
+      "a": "legacy",
+      "b": "clean",
+      "filters": {
+        "tools": "consistent"
+      },
+      "paired_units": 64,
+      "rate_difference": 0,
+      "a_only": 0,
+      "b_only": 0,
+      "both_progress": 64,
+      "neither_progress": 0,
+      "pairs": [
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-sonnet-C05-S7-v0",
+          "b": "A-sonnet-C01-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-sonnet-C08-S7-v0",
+          "b": "A-sonnet-C04-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-sonnet-C06-S1-v0",
+          "b": "A-sonnet-C02-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-sonnet-C07-S8-v1",
+          "b": "A-sonnet-C03-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-sonnet-C08-S1-v0",
+          "b": "A-sonnet-C04-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-sonnet-C05-S2-v1",
+          "b": "A-sonnet-C01-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-sonnet-C07-S5-v1",
+          "b": "A-sonnet-C03-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-sonnet-C07-S2-v0",
+          "b": "A-sonnet-C03-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-sonnet-C05-S2-v0",
+          "b": "A-sonnet-C01-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-sonnet-C07-S2-v1",
+          "b": "A-sonnet-C03-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-sonnet-C08-S7-v1",
+          "b": "A-sonnet-C04-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-sonnet-C07-S4-v0",
+          "b": "A-sonnet-C03-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-sonnet-C08-S8-v1",
+          "b": "A-sonnet-C04-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-sonnet-C05-S6-v1",
+          "b": "A-sonnet-C01-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-sonnet-C08-S3-v1",
+          "b": "A-sonnet-C04-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-sonnet-C07-S7-v0",
+          "b": "A-sonnet-C03-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-sonnet-C08-S5-v1",
+          "b": "A-sonnet-C04-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-sonnet-C07-S4-v1",
+          "b": "A-sonnet-C03-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-sonnet-C05-S6-v0",
+          "b": "A-sonnet-C01-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-sonnet-C05-S1-v1",
+          "b": "A-sonnet-C01-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-sonnet-C07-S5-v0",
+          "b": "A-sonnet-C03-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-sonnet-C05-S4-v0",
+          "b": "A-sonnet-C01-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-sonnet-C06-S7-v0",
+          "b": "A-sonnet-C02-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-sonnet-C08-S4-v0",
+          "b": "A-sonnet-C04-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-sonnet-C08-S1-v1",
+          "b": "A-sonnet-C04-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-sonnet-C05-S7-v1",
+          "b": "A-sonnet-C01-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-sonnet-C06-S2-v1",
+          "b": "A-sonnet-C02-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-sonnet-C06-S8-v1",
+          "b": "A-sonnet-C02-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-sonnet-C06-S4-v1",
+          "b": "A-sonnet-C02-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-sonnet-C06-S1-v1",
+          "b": "A-sonnet-C02-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-sonnet-C07-S3-v0",
+          "b": "A-sonnet-C03-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-sonnet-C07-S8-v0",
+          "b": "A-sonnet-C03-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-sonnet-C06-S3-v0",
+          "b": "A-sonnet-C02-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-sonnet-C07-S3-v1",
+          "b": "A-sonnet-C03-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-sonnet-C05-S8-v1",
+          "b": "A-sonnet-C01-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-sonnet-C05-S4-v1",
+          "b": "A-sonnet-C01-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-sonnet-C05-S3-v1",
+          "b": "A-sonnet-C01-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-sonnet-C08-S4-v1",
+          "b": "A-sonnet-C04-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-sonnet-C07-S6-v1",
+          "b": "A-sonnet-C03-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-sonnet-C06-S5-v1",
+          "b": "A-sonnet-C02-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-sonnet-C08-S2-v1",
+          "b": "A-sonnet-C04-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-sonnet-C05-S5-v1",
+          "b": "A-sonnet-C01-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-sonnet-C05-S8-v0",
+          "b": "A-sonnet-C01-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-sonnet-C07-S1-v1",
+          "b": "A-sonnet-C03-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-sonnet-C06-S4-v0",
+          "b": "A-sonnet-C02-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-sonnet-C08-S5-v0",
+          "b": "A-sonnet-C04-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-sonnet-C05-S5-v0",
+          "b": "A-sonnet-C01-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-sonnet-C06-S5-v0",
+          "b": "A-sonnet-C02-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-sonnet-C05-S1-v0",
+          "b": "A-sonnet-C01-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-sonnet-C06-S3-v1",
+          "b": "A-sonnet-C02-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-sonnet-C06-S8-v0",
+          "b": "A-sonnet-C02-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-sonnet-C07-S6-v0",
+          "b": "A-sonnet-C03-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-sonnet-C08-S2-v0",
+          "b": "A-sonnet-C04-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-sonnet-C06-S6-v0",
+          "b": "A-sonnet-C02-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-sonnet-C07-S7-v1",
+          "b": "A-sonnet-C03-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-sonnet-C07-S1-v0",
+          "b": "A-sonnet-C03-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-sonnet-C08-S8-v0",
+          "b": "A-sonnet-C04-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-sonnet-C05-S3-v0",
+          "b": "A-sonnet-C01-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-sonnet-C08-S6-v0",
+          "b": "A-sonnet-C04-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-sonnet-C08-S6-v1",
+          "b": "A-sonnet-C04-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-sonnet-C06-S7-v1",
+          "b": "A-sonnet-C02-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-sonnet-C06-S2-v0",
+          "b": "A-sonnet-C02-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-sonnet-C08-S3-v0",
+          "b": "A-sonnet-C04-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-sonnet-C06-S6-v1",
+          "b": "A-sonnet-C02-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        }
+      ],
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "factor": "tools",
+      "a": "stale",
+      "b": "consistent",
+      "filters": {
+        "history": "clean"
+      },
+      "paired_units": 64,
+      "rate_difference": 0,
+      "a_only": 0,
+      "b_only": 0,
+      "both_progress": 64,
+      "neither_progress": 0,
+      "pairs": [
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-sonnet-C09-S7-v0",
+          "b": "A-sonnet-C01-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-sonnet-C12-S7-v0",
+          "b": "A-sonnet-C04-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-sonnet-C10-S1-v0",
+          "b": "A-sonnet-C02-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-sonnet-C11-S8-v1",
+          "b": "A-sonnet-C03-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-sonnet-C12-S5-v0",
+          "b": "A-sonnet-C04-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-sonnet-C12-S4-v0",
+          "b": "A-sonnet-C04-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-sonnet-C09-S2-v1",
+          "b": "A-sonnet-C01-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-sonnet-C11-S5-v1",
+          "b": "A-sonnet-C03-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-sonnet-C12-S3-v1",
+          "b": "A-sonnet-C04-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-sonnet-C11-S6-v1",
+          "b": "A-sonnet-C03-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-sonnet-C11-S2-v1",
+          "b": "A-sonnet-C03-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-sonnet-C11-S3-v0",
+          "b": "A-sonnet-C03-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-sonnet-C09-S3-v0",
+          "b": "A-sonnet-C01-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-sonnet-C12-S8-v1",
+          "b": "A-sonnet-C04-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-sonnet-C11-S4-v1",
+          "b": "A-sonnet-C03-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-sonnet-C12-S1-v0",
+          "b": "A-sonnet-C04-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-sonnet-C09-S1-v1",
+          "b": "A-sonnet-C01-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-sonnet-C11-S5-v0",
+          "b": "A-sonnet-C03-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-sonnet-C09-S4-v0",
+          "b": "A-sonnet-C01-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-sonnet-C10-S7-v0",
+          "b": "A-sonnet-C02-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-sonnet-C09-S1-v0",
+          "b": "A-sonnet-C01-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-sonnet-C12-S1-v1",
+          "b": "A-sonnet-C04-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-sonnet-C10-S7-v1",
+          "b": "A-sonnet-C02-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-sonnet-C10-S2-v1",
+          "b": "A-sonnet-C02-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-sonnet-C10-S4-v1",
+          "b": "A-sonnet-C02-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-sonnet-C09-S2-v0",
+          "b": "A-sonnet-C01-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-sonnet-C09-S7-v1",
+          "b": "A-sonnet-C01-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-sonnet-C10-S8-v1",
+          "b": "A-sonnet-C02-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-sonnet-C11-S4-v0",
+          "b": "A-sonnet-C03-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-sonnet-C10-S6-v1",
+          "b": "A-sonnet-C02-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-sonnet-C10-S3-v1",
+          "b": "A-sonnet-C02-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-sonnet-C09-S6-v1",
+          "b": "A-sonnet-C01-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-sonnet-C09-S6-v0",
+          "b": "A-sonnet-C01-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-sonnet-C10-S3-v0",
+          "b": "A-sonnet-C02-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-sonnet-C11-S3-v1",
+          "b": "A-sonnet-C03-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-sonnet-C09-S8-v1",
+          "b": "A-sonnet-C01-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-sonnet-C12-S4-v1",
+          "b": "A-sonnet-C04-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-sonnet-C10-S8-v0",
+          "b": "A-sonnet-C02-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-sonnet-C11-S7-v1",
+          "b": "A-sonnet-C03-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-sonnet-C11-S6-v0",
+          "b": "A-sonnet-C03-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-sonnet-C10-S5-v1",
+          "b": "A-sonnet-C02-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-sonnet-C12-S2-v1",
+          "b": "A-sonnet-C04-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-sonnet-C10-S5-v0",
+          "b": "A-sonnet-C02-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-sonnet-C09-S5-v1",
+          "b": "A-sonnet-C01-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-sonnet-C12-S5-v1",
+          "b": "A-sonnet-C04-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-sonnet-C09-S3-v1",
+          "b": "A-sonnet-C01-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-sonnet-C11-S8-v0",
+          "b": "A-sonnet-C03-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-sonnet-C10-S4-v0",
+          "b": "A-sonnet-C02-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-sonnet-C10-S2-v0",
+          "b": "A-sonnet-C02-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-sonnet-C09-S5-v0",
+          "b": "A-sonnet-C01-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-sonnet-C11-S7-v0",
+          "b": "A-sonnet-C03-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-sonnet-C12-S7-v1",
+          "b": "A-sonnet-C04-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-sonnet-C09-S8-v0",
+          "b": "A-sonnet-C01-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-sonnet-C11-S2-v0",
+          "b": "A-sonnet-C03-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-sonnet-C12-S6-v0",
+          "b": "A-sonnet-C04-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-sonnet-C12-S2-v0",
+          "b": "A-sonnet-C04-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-sonnet-C10-S1-v1",
+          "b": "A-sonnet-C02-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-sonnet-C11-S1-v1",
+          "b": "A-sonnet-C03-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-sonnet-C12-S8-v0",
+          "b": "A-sonnet-C04-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-sonnet-C11-S1-v0",
+          "b": "A-sonnet-C03-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-sonnet-C10-S6-v0",
+          "b": "A-sonnet-C02-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-sonnet-C12-S3-v0",
+          "b": "A-sonnet-C04-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-sonnet-C12-S6-v1",
+          "b": "A-sonnet-C04-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-sonnet-C09-S4-v1",
+          "b": "A-sonnet-C01-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        }
+      ],
+      "model": "claude-sonnet-5-5"
+    },
+    {
+      "factor": "identity",
+      "a": "unified",
+      "b": "components",
+      "filters": {
+        "tools": "consistent",
+        "history": "clean"
+      },
+      "paired_units": 32,
+      "rate_difference": 0,
+      "a_only": 0,
+      "b_only": 0,
+      "both_progress": 32,
+      "neither_progress": 0,
+      "pairs": [
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-haiku-C01-S7-v0",
+          "b": "A-haiku-C03-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-haiku-C02-S7-v0",
+          "b": "A-haiku-C04-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-haiku-C02-S1-v0",
+          "b": "A-haiku-C04-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-haiku-C01-S8-v1",
+          "b": "A-haiku-C03-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-haiku-C01-S2-v1",
+          "b": "A-haiku-C03-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-haiku-C01-S5-v1",
+          "b": "A-haiku-C03-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-haiku-C01-S4-v1",
+          "b": "A-haiku-C03-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-haiku-C01-S1-v1",
+          "b": "A-haiku-C03-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-haiku-C01-S5-v0",
+          "b": "A-haiku-C03-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-haiku-C01-S4-v0",
+          "b": "A-haiku-C03-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-haiku-C02-S2-v1",
+          "b": "A-haiku-C04-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-haiku-C02-S4-v1",
+          "b": "A-haiku-C04-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-haiku-C01-S2-v0",
+          "b": "A-haiku-C03-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-haiku-C02-S4-v0",
+          "b": "A-haiku-C04-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-haiku-C01-S3-v0",
+          "b": "A-haiku-C03-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-haiku-C02-S3-v0",
+          "b": "A-haiku-C04-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-haiku-C01-S3-v1",
+          "b": "A-haiku-C03-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-haiku-C02-S8-v1",
+          "b": "A-haiku-C04-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-haiku-C02-S5-v1",
+          "b": "A-haiku-C04-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-haiku-C01-S8-v0",
+          "b": "A-haiku-C03-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-haiku-C02-S5-v0",
+          "b": "A-haiku-C04-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-haiku-C02-S1-v1",
+          "b": "A-haiku-C04-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-haiku-C01-S6-v1",
+          "b": "A-haiku-C03-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-haiku-C02-S7-v1",
+          "b": "A-haiku-C04-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-haiku-C01-S1-v0",
+          "b": "A-haiku-C03-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-haiku-C01-S7-v1",
+          "b": "A-haiku-C03-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-haiku-C02-S6-v0",
+          "b": "A-haiku-C04-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-haiku-C01-S6-v0",
+          "b": "A-haiku-C03-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-haiku-C02-S6-v1",
+          "b": "A-haiku-C04-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-haiku-C02-S3-v1",
+          "b": "A-haiku-C04-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-haiku-C02-S2-v0",
+          "b": "A-haiku-C04-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-haiku-C02-S8-v0",
+          "b": "A-haiku-C04-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        }
+      ],
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "factor": "labels",
+      "a": "standard",
+      "b": "neutral",
+      "filters": {
+        "tools": "consistent",
+        "history": "clean"
+      },
+      "paired_units": 32,
+      "rate_difference": 0,
+      "a_only": 0,
+      "b_only": 0,
+      "both_progress": 32,
+      "neither_progress": 0,
+      "pairs": [
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-haiku-C01-S7-v0",
+          "b": "A-haiku-C02-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-haiku-C03-S7-v0",
+          "b": "A-haiku-C04-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-haiku-C01-S1-v0",
+          "b": "A-haiku-C02-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-haiku-C03-S8-v1",
+          "b": "A-haiku-C04-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-haiku-C01-S2-v1",
+          "b": "A-haiku-C02-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-haiku-C03-S5-v1",
+          "b": "A-haiku-C04-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-haiku-C03-S2-v1",
+          "b": "A-haiku-C04-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-haiku-C03-S4-v1",
+          "b": "A-haiku-C04-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-haiku-C03-S1-v0",
+          "b": "A-haiku-C04-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-haiku-C01-S1-v1",
+          "b": "A-haiku-C02-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-haiku-C03-S5-v0",
+          "b": "A-haiku-C04-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-haiku-C01-S4-v0",
+          "b": "A-haiku-C02-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-haiku-C01-S4-v1",
+          "b": "A-haiku-C02-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-haiku-C01-S2-v0",
+          "b": "A-haiku-C02-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-haiku-C03-S4-v0",
+          "b": "A-haiku-C04-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-haiku-C03-S3-v0",
+          "b": "A-haiku-C04-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-haiku-C01-S3-v0",
+          "b": "A-haiku-C02-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-haiku-C03-S3-v1",
+          "b": "A-haiku-C04-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-haiku-C01-S8-v1",
+          "b": "A-haiku-C02-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-haiku-C01-S5-v1",
+          "b": "A-haiku-C02-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-haiku-C01-S3-v1",
+          "b": "A-haiku-C02-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-haiku-C03-S8-v0",
+          "b": "A-haiku-C04-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-haiku-C03-S1-v1",
+          "b": "A-haiku-C04-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-haiku-C01-S5-v0",
+          "b": "A-haiku-C02-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-haiku-C03-S6-v1",
+          "b": "A-haiku-C04-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-haiku-C03-S7-v1",
+          "b": "A-haiku-C04-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-haiku-C01-S7-v1",
+          "b": "A-haiku-C02-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-haiku-C01-S8-v0",
+          "b": "A-haiku-C02-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-haiku-C01-S6-v0",
+          "b": "A-haiku-C02-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-haiku-C03-S2-v0",
+          "b": "A-haiku-C04-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-haiku-C03-S6-v0",
+          "b": "A-haiku-C04-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-haiku-C01-S6-v1",
+          "b": "A-haiku-C02-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        }
+      ],
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "factor": "history",
+      "a": "legacy",
+      "b": "clean",
+      "filters": {
+        "tools": "consistent"
+      },
+      "paired_units": 64,
+      "rate_difference": -0.015625,
+      "a_only": 0,
+      "b_only": 1,
+      "both_progress": 63,
+      "neither_progress": 0,
+      "pairs": [
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-haiku-C05-S7-v0",
+          "b": "A-haiku-C01-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-haiku-C08-S7-v0",
+          "b": "A-haiku-C04-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-haiku-C06-S1-v0",
+          "b": "A-haiku-C02-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-haiku-C07-S8-v1",
+          "b": "A-haiku-C03-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-haiku-C08-S1-v0",
+          "b": "A-haiku-C04-S1-v0",
+          "a_progress": false,
+          "b_progress": true,
+          "difference": -1
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-haiku-C05-S2-v1",
+          "b": "A-haiku-C01-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-haiku-C07-S5-v1",
+          "b": "A-haiku-C03-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-haiku-C07-S2-v0",
+          "b": "A-haiku-C03-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-haiku-C05-S2-v0",
+          "b": "A-haiku-C01-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-haiku-C07-S2-v1",
+          "b": "A-haiku-C03-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-haiku-C08-S7-v1",
+          "b": "A-haiku-C04-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-haiku-C07-S4-v0",
+          "b": "A-haiku-C03-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-haiku-C08-S8-v1",
+          "b": "A-haiku-C04-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-haiku-C05-S6-v1",
+          "b": "A-haiku-C01-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-haiku-C08-S3-v1",
+          "b": "A-haiku-C04-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-haiku-C07-S7-v0",
+          "b": "A-haiku-C03-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-haiku-C08-S5-v1",
+          "b": "A-haiku-C04-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-haiku-C07-S4-v1",
+          "b": "A-haiku-C03-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-haiku-C05-S6-v0",
+          "b": "A-haiku-C01-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-haiku-C05-S1-v1",
+          "b": "A-haiku-C01-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-haiku-C07-S5-v0",
+          "b": "A-haiku-C03-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-haiku-C05-S4-v0",
+          "b": "A-haiku-C01-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-haiku-C06-S7-v0",
+          "b": "A-haiku-C02-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-haiku-C08-S4-v0",
+          "b": "A-haiku-C04-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-haiku-C08-S1-v1",
+          "b": "A-haiku-C04-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-haiku-C05-S7-v1",
+          "b": "A-haiku-C01-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-haiku-C06-S2-v1",
+          "b": "A-haiku-C02-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-haiku-C06-S8-v1",
+          "b": "A-haiku-C02-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-haiku-C06-S4-v1",
+          "b": "A-haiku-C02-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-haiku-C06-S1-v1",
+          "b": "A-haiku-C02-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-haiku-C07-S3-v0",
+          "b": "A-haiku-C03-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-haiku-C07-S8-v0",
+          "b": "A-haiku-C03-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-haiku-C06-S3-v0",
+          "b": "A-haiku-C02-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-haiku-C07-S3-v1",
+          "b": "A-haiku-C03-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-haiku-C05-S8-v1",
+          "b": "A-haiku-C01-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-haiku-C05-S4-v1",
+          "b": "A-haiku-C01-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-haiku-C05-S3-v1",
+          "b": "A-haiku-C01-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-haiku-C08-S4-v1",
+          "b": "A-haiku-C04-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-haiku-C07-S6-v1",
+          "b": "A-haiku-C03-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-haiku-C06-S5-v1",
+          "b": "A-haiku-C02-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-haiku-C08-S2-v1",
+          "b": "A-haiku-C04-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-haiku-C05-S5-v1",
+          "b": "A-haiku-C01-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-haiku-C05-S8-v0",
+          "b": "A-haiku-C01-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-haiku-C07-S1-v1",
+          "b": "A-haiku-C03-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-haiku-C06-S4-v0",
+          "b": "A-haiku-C02-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-haiku-C08-S5-v0",
+          "b": "A-haiku-C04-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-haiku-C05-S5-v0",
+          "b": "A-haiku-C01-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-haiku-C06-S5-v0",
+          "b": "A-haiku-C02-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-haiku-C05-S1-v0",
+          "b": "A-haiku-C01-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-haiku-C06-S3-v1",
+          "b": "A-haiku-C02-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-haiku-C06-S8-v0",
+          "b": "A-haiku-C02-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-haiku-C07-S6-v0",
+          "b": "A-haiku-C03-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-haiku-C08-S2-v0",
+          "b": "A-haiku-C04-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-haiku-C06-S6-v0",
+          "b": "A-haiku-C02-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-haiku-C07-S7-v1",
+          "b": "A-haiku-C03-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-haiku-C07-S1-v0",
+          "b": "A-haiku-C03-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-haiku-C08-S8-v0",
+          "b": "A-haiku-C04-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-haiku-C05-S3-v0",
+          "b": "A-haiku-C01-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-haiku-C08-S6-v0",
+          "b": "A-haiku-C04-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-haiku-C08-S6-v1",
+          "b": "A-haiku-C04-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-haiku-C06-S7-v1",
+          "b": "A-haiku-C02-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-haiku-C06-S2-v0",
+          "b": "A-haiku-C02-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-haiku-C08-S3-v0",
+          "b": "A-haiku-C04-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-haiku-C06-S6-v1",
+          "b": "A-haiku-C02-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        }
+      ],
+      "model": "claude-haiku-5-5"
+    },
+    {
+      "factor": "tools",
+      "a": "stale",
+      "b": "consistent",
+      "filters": {
+        "history": "clean"
+      },
+      "paired_units": 64,
+      "rate_difference": 0,
+      "a_only": 0,
+      "b_only": 0,
+      "both_progress": 64,
+      "neither_progress": 0,
+      "pairs": [
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-haiku-C09-S7-v0",
+          "b": "A-haiku-C01-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-haiku-C12-S7-v0",
+          "b": "A-haiku-C04-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-haiku-C10-S1-v0",
+          "b": "A-haiku-C02-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-haiku-C11-S8-v1",
+          "b": "A-haiku-C03-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-haiku-C12-S5-v0",
+          "b": "A-haiku-C04-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-haiku-C12-S4-v0",
+          "b": "A-haiku-C04-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-haiku-C09-S2-v1",
+          "b": "A-haiku-C01-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-haiku-C11-S5-v1",
+          "b": "A-haiku-C03-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-haiku-C12-S3-v1",
+          "b": "A-haiku-C04-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-haiku-C11-S6-v1",
+          "b": "A-haiku-C03-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-haiku-C11-S2-v1",
+          "b": "A-haiku-C03-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-haiku-C11-S3-v0",
+          "b": "A-haiku-C03-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-haiku-C09-S3-v0",
+          "b": "A-haiku-C01-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-haiku-C12-S8-v1",
+          "b": "A-haiku-C04-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-haiku-C11-S4-v1",
+          "b": "A-haiku-C03-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-haiku-C12-S1-v0",
+          "b": "A-haiku-C04-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-haiku-C09-S1-v1",
+          "b": "A-haiku-C01-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-haiku-C11-S5-v0",
+          "b": "A-haiku-C03-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-haiku-C09-S4-v0",
+          "b": "A-haiku-C01-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-haiku-C10-S7-v0",
+          "b": "A-haiku-C02-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-haiku-C09-S1-v0",
+          "b": "A-haiku-C01-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-haiku-C12-S1-v1",
+          "b": "A-haiku-C04-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-haiku-C10-S7-v1",
+          "b": "A-haiku-C02-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-haiku-C10-S2-v1",
+          "b": "A-haiku-C02-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-haiku-C10-S4-v1",
+          "b": "A-haiku-C02-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-haiku-C09-S2-v0",
+          "b": "A-haiku-C01-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-haiku-C09-S7-v1",
+          "b": "A-haiku-C01-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-haiku-C10-S8-v1",
+          "b": "A-haiku-C02-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-haiku-C11-S4-v0",
+          "b": "A-haiku-C03-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-haiku-C10-S6-v1",
+          "b": "A-haiku-C02-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-haiku-C10-S3-v1",
+          "b": "A-haiku-C02-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-haiku-C09-S6-v1",
+          "b": "A-haiku-C01-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-haiku-C09-S6-v0",
+          "b": "A-haiku-C01-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-haiku-C10-S3-v0",
+          "b": "A-haiku-C02-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-haiku-C11-S3-v1",
+          "b": "A-haiku-C03-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 1,
+          "a": "A-haiku-C09-S8-v1",
+          "b": "A-haiku-C01-S8-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-haiku-C12-S4-v1",
+          "b": "A-haiku-C04-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-haiku-C10-S8-v0",
+          "b": "A-haiku-C02-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-haiku-C11-S7-v1",
+          "b": "A-haiku-C03-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-haiku-C11-S6-v0",
+          "b": "A-haiku-C03-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-haiku-C10-S5-v1",
+          "b": "A-haiku-C02-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 1,
+          "a": "A-haiku-C12-S2-v1",
+          "b": "A-haiku-C04-S2-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-haiku-C10-S5-v0",
+          "b": "A-haiku-C02-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-haiku-C09-S5-v1",
+          "b": "A-haiku-C01-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 1,
+          "a": "A-haiku-C12-S5-v1",
+          "b": "A-haiku-C04-S5-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 1,
+          "a": "A-haiku-C09-S3-v1",
+          "b": "A-haiku-C01-S3-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-haiku-C11-S8-v0",
+          "b": "A-haiku-C03-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 0,
+          "a": "A-haiku-C10-S4-v0",
+          "b": "A-haiku-C02-S4-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-haiku-C10-S2-v0",
+          "b": "A-haiku-C02-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S5",
+          "variant": 0,
+          "a": "A-haiku-C09-S5-v0",
+          "b": "A-haiku-C01-S5-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 0,
+          "a": "A-haiku-C11-S7-v0",
+          "b": "A-haiku-C03-S7-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S7",
+          "variant": 1,
+          "a": "A-haiku-C12-S7-v1",
+          "b": "A-haiku-C04-S7-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-haiku-C09-S8-v0",
+          "b": "A-haiku-C01-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-haiku-C11-S2-v0",
+          "b": "A-haiku-C03-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-haiku-C12-S6-v0",
+          "b": "A-haiku-C04-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S2",
+          "variant": 0,
+          "a": "A-haiku-C12-S2-v0",
+          "b": "A-haiku-C04-S2-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-haiku-C10-S1-v1",
+          "b": "A-haiku-C02-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 1,
+          "a": "A-haiku-C11-S1-v1",
+          "b": "A-haiku-C03-S1-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S8",
+          "variant": 0,
+          "a": "A-haiku-C12-S8-v0",
+          "b": "A-haiku-C04-S8-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S1",
+          "variant": 0,
+          "a": "A-haiku-C11-S1-v0",
+          "b": "A-haiku-C03-S1-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 0,
+          "a": "A-haiku-C10-S6-v0",
+          "b": "A-haiku-C02-S6-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S3",
+          "variant": 0,
+          "a": "A-haiku-C12-S3-v0",
+          "b": "A-haiku-C04-S3-v0",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S6",
+          "variant": 1,
+          "a": "A-haiku-C12-S6-v1",
+          "b": "A-haiku-C04-S6-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        },
+        {
+          "case": "S4",
+          "variant": 1,
+          "a": "A-haiku-C09-S4-v1",
+          "b": "A-haiku-C01-S4-v1",
+          "a_progress": true,
+          "b_progress": true,
+          "difference": 0
+        }
+      ],
+      "model": "claude-haiku-5-5"
+    }
+  ],
+  "prespecified_recovery": {
+    "episodes": [
+      {
+        "base_id": "A-sonnet-C01-S7-v0",
+        "model": "claude-sonnet-5-5",
+        "case": "S7",
+        "identity": "unified",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-sonnet-C01-S7-v0",
+            "verdict": {
+              "action": "queue_repair",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Authorized repair enqueued under the original owner; rejection remains recorded.",
+              "state_before": {
+                "task_status": "blocked",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "expired",
+                "acceptance": "failed",
+                "rejected": true,
+                "repair_authorized": true,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "failed",
+                "rejected": true,
+                "repair_authorized": true,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"queue_repair\",\"reason\":\"Candidate is already rejected with an authorized precise repair, and there is no live worker or pending request, so the controller should enqueue the repair under the same task owner, preserving the rejection record.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-haiku-C01-S7-v0",
+        "model": "claude-haiku-5-5",
+        "case": "S7",
+        "identity": "unified",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-haiku-C01-S7-v0",
+            "verdict": {
+              "action": "queue_repair",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Authorized repair enqueued under the original owner; rejection remains recorded.",
+              "state_before": {
+                "task_status": "blocked",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "expired",
+                "acceptance": "failed",
+                "rejected": true,
+                "repair_authorized": true,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "failed",
+                "rejected": true,
+                "repair_authorized": true,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"queue_repair\",\"reason\":\"The candidate is rejected, a precise repair is authorized, and no live worker or pending request exists. queue_repair preserves the rejection record and enqueues the repair under the same owner.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-sonnet-C01-S2-v0",
+        "model": "claude-sonnet-5-5",
+        "case": "S2",
+        "identity": "unified",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-sonnet-C01-S2-v0",
+            "verdict": {
+              "action": "fork_executor",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Fork request accepted and enqueued. No separate start_task is required.",
+              "state_before": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"fork_executor\",\"reason\":\"Task is assigned, authorized, and running with no worker and no pending request; implementation is still required, so the controller must enqueue an isolated worker (fork_executor tolerates an already-running task). start_task, reset_task, and wait would not create a worker.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-haiku-C01-S2-v0",
+        "model": "claude-haiku-5-5",
+        "case": "S2",
+        "identity": "unified",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-haiku-C01-S2-v0",
+            "verdict": {
+              "action": "fork_executor",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Fork request accepted and enqueued. No separate start_task is required.",
+              "state_before": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"fork_executor\",\"reason\":\"T-S2-0 is running with an active lease, authorization is present, no worker is live, and no request is pending. The task still needs its implementation, so the controller should enqueue one isolated worker.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-sonnet-C03-S7-v0",
+        "model": "claude-sonnet-5-5",
+        "case": "S7",
+        "identity": "components",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-sonnet-C03-S7-v0",
+            "verdict": {
+              "action": "queue_repair",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Authorized repair enqueued under the original owner; rejection remains recorded.",
+              "state_before": {
+                "task_status": "blocked",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "expired",
+                "acceptance": "failed",
+                "rejected": true,
+                "repair_authorized": true,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "failed",
+                "rejected": true,
+                "repair_authorized": true,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"queue_repair\",\"reason\":\"Candidate was rejected and the task is blocked, with an authorized precise repair and no live worker or pending request. queue_repair is the designated route for this case and preserves the rejection record.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-haiku-C03-S7-v0",
+        "model": "claude-haiku-5-5",
+        "case": "S7",
+        "identity": "components",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-haiku-C03-S7-v0",
+            "verdict": {
+              "action": "queue_repair",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Authorized repair enqueued under the original owner; rejection remains recorded.",
+              "state_before": {
+                "task_status": "blocked",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "expired",
+                "acceptance": "failed",
+                "rejected": true,
+                "repair_authorized": true,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "failed",
+                "rejected": true,
+                "repair_authorized": true,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"queue_repair\",\"reason\":\"The candidate was rejected and recorded, the repair is authorized, and there is no live worker or pending request, so enqueueing the specified repair under owner A continues delivery.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-sonnet-C01-S1-v0",
+        "model": "claude-sonnet-5-5",
+        "case": "S1",
+        "identity": "unified",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-sonnet-C01-S1-v0",
+            "verdict": {
+              "action": "fork_executor",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Fork request accepted and enqueued. No separate start_task is required.",
+              "state_before": {
+                "task_status": "open",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "expired",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"fork_executor\",\"reason\":\"Task is assigned, authorized, open, with no worker or pending request; fork_executor enqueues the isolated worker to start actual execution. start_task would only set status without creating a worker.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-haiku-C01-S1-v0",
+        "model": "claude-haiku-5-5",
+        "case": "S1",
+        "identity": "unified",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-haiku-C01-S1-v0",
+            "verdict": {
+              "action": "fork_executor",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Fork request accepted and enqueued. No separate start_task is required.",
+              "state_before": {
+                "task_status": "open",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "expired",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"fork_executor\",\"reason\":\"T-S1-0 is open and assigned, authorization is present, and there is no live worker or pending request, so the controller can enqueue an isolated worker to begin execution.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-sonnet-C03-S1-v0",
+        "model": "claude-sonnet-5-5",
+        "case": "S1",
+        "identity": "components",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-sonnet-C03-S1-v0",
+            "verdict": {
+              "action": "fork_executor",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Fork request accepted and enqueued. No separate start_task is required.",
+              "state_before": {
+                "task_status": "open",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "expired",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"fork_executor\",\"reason\":\"Task is assigned, authorized, and open with no worker, no pending request, and no rejection, so the controller should enqueue an isolated worker to begin actual execution. start_task would not create a worker, and the expired lease is irrelevant for an open task with no worker.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-haiku-C03-S1-v0",
+        "model": "claude-haiku-5-5",
+        "case": "S1",
+        "identity": "components",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-haiku-C03-S1-v0",
+            "verdict": {
+              "action": "fork_executor",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Fork request accepted and enqueued. No separate start_task is required.",
+              "state_before": {
+                "task_status": "open",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "expired",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"fork_executor\",\"reason\":\"T-S1-0 is open, assigned, authorized, has no live worker or pending request, and its lease has expired, so the controller can enqueue an isolated worker to begin execution.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-sonnet-C03-S2-v0",
+        "model": "claude-sonnet-5-5",
+        "case": "S2",
+        "identity": "components",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-sonnet-C03-S2-v0",
+            "verdict": {
+              "action": "fork_executor",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Fork request accepted and enqueued. No separate start_task is required.",
+              "state_before": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"fork_executor\",\"reason\":\"Task is assigned, authorized, and running with an active lease, but there is no worker and no pending request, and implementation is still required. fork_executor enqueues the worker and tolerates the already-running task, whereas start_task, reset_task, and wait would not create a worker.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-haiku-C03-S2-v0",
+        "model": "claude-haiku-5-5",
+        "case": "S2",
+        "identity": "components",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-haiku-C03-S2-v0",
+            "verdict": {
+              "action": "fork_executor",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Fork request accepted and enqueued. No separate start_task is required.",
+              "state_before": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"fork_executor\",\"reason\":\"Task T-S2-0 is running with an active lease, is assigned and authorized, has no live worker and no pending request, and its implementation is still required, so an isolated worker should be enqueued.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-sonnet-C03-S6-v0",
+        "model": "claude-sonnet-5-5",
+        "case": "S6",
+        "identity": "components",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-sonnet-C03-S6-v0",
+            "verdict": {
+              "action": "report_to_controller",
+              "actor": "worker",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Result and required center update returned to the controller through the return channel.",
+              "state_before": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "worker",
+                "worker_status": "healthy",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": true
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "worker",
+                "worker_status": "healthy",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": true
+              }
+            },
+            "text": "{\"actor\":\"worker\",\"action\":\"report_to_controller\",\"reason\":\"Local implementation is finished, but the worker has no center tools or credentials. The center task update must go to the controller through the return channel, and the controller keeps the acceptance decision.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-haiku-C03-S6-v0",
+        "model": "claude-haiku-5-5",
+        "case": "S6",
+        "identity": "components",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-haiku-C03-S6-v0",
+            "verdict": {
+              "action": "report_to_controller",
+              "actor": "worker",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Result and required center update returned to the controller through the return channel.",
+              "state_before": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "worker",
+                "worker_status": "healthy",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": true
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "worker",
+                "worker_status": "healthy",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": true
+              }
+            },
+            "text": "{\"actor\":\"worker\",\"action\":\"report_to_controller\",\"reason\":\"Local implementation is complete and a center task update is needed, but this worker session has no center tools or credentials. Reporting the result and the missing center action to the controller is the only permitted step.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-sonnet-C01-S6-v0",
+        "model": "claude-sonnet-5-5",
+        "case": "S6",
+        "identity": "unified",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-sonnet-C01-S6-v0",
+            "verdict": {
+              "action": "report_to_controller",
+              "actor": "worker",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Result and required center update returned to the controller through the return channel.",
+              "state_before": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "worker",
+                "worker_status": "healthy",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": true
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "worker",
+                "worker_status": "healthy",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": true
+              }
+            },
+            "text": "{\"actor\":\"worker\",\"action\":\"report_to_controller\",\"reason\":\"Local implementation is done and a center task update is needed, but the worker has no center tools or credentials. The worker can only return its result to the controller, which owns the task decision and center actions.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      },
+      {
+        "base_id": "A-haiku-C01-S6-v0",
+        "model": "claude-haiku-5-5",
+        "case": "S6",
+        "identity": "unified",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-haiku-C01-S6-v0",
+            "verdict": {
+              "action": "report_to_controller",
+              "actor": "worker",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Result and required center update returned to the controller through the return channel.",
+              "state_before": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "worker",
+                "worker_status": "healthy",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": true
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "worker",
+                "worker_status": "healthy",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": true
+              }
+            },
+            "text": "{\"actor\":\"worker\",\"action\":\"report_to_controller\",\"reason\":\"Local implementation for T-S6-0 is finished and a center task update is needed, but this worker session has no center tools or credentials. Returning the result to the controller, which owns the task decision and status update.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 0,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery."
+      }
+    ],
+    "n": 16,
+    "reached_boundary": 16,
+    "extra_calls": 0,
+    "prespecified_selection": true
+  },
+  "posthoc_recovery": {
+    "prespecified_before_primary_results": false,
+    "n": 3,
+    "episodes": [
+      {
+        "base_id": "A-haiku-C08-S1-v0",
+        "model": "claude-haiku-5-5",
+        "case": "S1",
+        "identity": "components",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-haiku-C08-S1-v0",
+            "verdict": {
+              "action": "start_task",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": false,
+              "error": "legal_nonprogress",
+              "feedback": "Task state is running. There is still no new worker request from this operation.",
+              "state_before": {
+                "task_status": "open",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "expired",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"start_task\",\"reason\":\"The task is open, assigned, and authorized with no live worker or pending request, and its lease is expired. start_task acquires the lease and sets the task to running before a worker is enqueued.\"}"
+          },
+          {
+            "step": 1,
+            "request_id": "C-A-haiku-C08-S1-v0-step1",
+            "verdict": {
+              "action": "fork_executor",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Fork request accepted and enqueued. No separate start_task is required.",
+              "state_before": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"fork_executor\",\"reason\":\"The task is running with an active lease, assigned and authorized, with no live worker or pending request. fork_executor enqueues the isolated worker for the code task, which tolerates an already-running task.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 1,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery.",
+        "selection": "posthoc_all_primary_nonprogress"
+      },
+      {
+        "base_id": "A-haiku-C16-S1-v0",
+        "model": "claude-haiku-5-5",
+        "case": "S1",
+        "identity": "components",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-haiku-C16-S1-v0",
+            "verdict": {
+              "action": "start_task",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": false,
+              "error": "legal_nonprogress",
+              "feedback": "Task state is running. There is still no new worker request from this operation.",
+              "state_before": {
+                "task_status": "open",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "expired",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"start_task\",\"reason\":\"Task T-S1-0 is open, assigned, and authorized, with no worker or pending request. The lease is expired, so start_task must set it to running and acquire a new lease before any worker is enqueued.\"}"
+          },
+          {
+            "step": 1,
+            "request_id": "C-A-haiku-C16-S1-v0-step1",
+            "verdict": {
+              "action": "fork_executor",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Fork request accepted and enqueued. No separate start_task is required.",
+              "state_before": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"fork_executor\",\"reason\":\"Task T-S1-0 is now running with an active lease, assigned and authorized, with no live worker or pending request. fork_executor enqueues the isolated worker needed to begin the local code work.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 1,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery.",
+        "selection": "posthoc_all_primary_nonprogress"
+      },
+      {
+        "base_id": "A-haiku-C15-S1-v0",
+        "model": "claude-haiku-5-5",
+        "case": "S1",
+        "identity": "components",
+        "steps": [
+          {
+            "step": 0,
+            "request_id": "A-haiku-C15-S1-v0",
+            "verdict": {
+              "action": "start_task",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": false,
+              "error": "legal_nonprogress",
+              "feedback": "Task state is running. There is still no new worker request from this operation.",
+              "state_before": {
+                "task_status": "open",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "expired",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"start_task\",\"reason\":\"T-S1-0 is open with an expired lease, no worker, and no pending request. Acquiring the lease with start_task is the prerequisite step before fork_executor can dispatch a worker.\"}"
+          },
+          {
+            "step": 1,
+            "request_id": "C-A-haiku-C15-S1-v0-step1",
+            "verdict": {
+              "action": "fork_executor",
+              "actor": "controller",
+              "format_valid": true,
+              "legal": true,
+              "progress": true,
+              "error": null,
+              "feedback": "Fork request accepted and enqueued. No separate start_task is required.",
+              "state_before": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": false,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              },
+              "state_after": {
+                "task_status": "running",
+                "assigned": true,
+                "actor": "controller",
+                "worker_status": "none",
+                "pending": true,
+                "authorized": true,
+                "lease": "active",
+                "acceptance": "not_evaluated",
+                "rejected": false,
+                "repair_authorized": false,
+                "external_requested": false,
+                "local_work_done": false
+              }
+            },
+            "text": "{\"actor\":\"controller\",\"action\":\"fork_executor\",\"reason\":\"T-S1-0 is now running with an active lease, assigned and authorized, with no live worker and no pending request. Enqueuing one isolated worker is the next step to start execution.\"}"
+          }
+        ],
+        "reached_boundary": true,
+        "boundary_step": 1,
+        "limits": "Synthetic state continuation, not production recovery or full task delivery.",
+        "selection": "posthoc_all_primary_nonprogress"
+      }
+    ],
+    "extra_calls": 3,
+    "reached_boundary": 3
+  }
+}

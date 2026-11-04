@@ -1,0 +1,1671 @@
+{
+  "schema": "paper-figures-primary-data/1.0",
+  "papers": [
+    "P1",
+    "P2"
+  ],
+  "created_by": "AI exploratory extraction; not human-reviewed",
+  "sampling": {
+    "unit": "Purposively selected episode, native message, task action, or generation snapshot; these units are not interchangeable",
+    "source_study_scope": "010 searched 26961 messages; 429 distinct lexical hits; 11 anchors, 67 unique window messages; inherited C07 reviewed separately. This extraction reuses selected records, not a new prevalence sample.",
+    "not_valid_denominators": [
+      "429 lexical hits as failures",
+      "message count as independent tasks",
+      "selected positive/negative cases as net-benefit sample"
+    ]
+  },
+  "p1": {
+    "i04": {
+      "task_id": "task-e12e4fb9",
+      "timeline": [
+        {
+          "id": "01KZABTH2T53KGBM29XXJZTX0Z",
+          "timestamp_utc": "2026-08-06T01:43:21.433874Z",
+          "actor_ref": "system",
+          "lane": "task_action",
+          "label": "Task reset",
+          "action": "reset",
+          "evidence_level": "native_task_action",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json",
+            "record_id": "01KZABTH2T53KGBM29XXJZTX0Z",
+            "record_type": "task_action",
+            "fields": [
+              "id",
+              "task_id",
+              "occurred_at",
+              "action",
+              "actor_ref",
+              "note"
+            ],
+            "quote": null
+          },
+          "note_report": "tier-3 recovery: reset to pool (executor confirmed dead)",
+          "seconds_from_first_selected_event": 0.0,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KZABTY199NCZQG05NWKXC3NX",
+          "timestamp_utc": "2026-08-06T01:43:34.694818Z",
+          "actor_ref": "agent:agent-20d5e05c",
+          "lane": "task_action",
+          "label": "Task agent_started（非执行进程启动证明）",
+          "action": "agent_started",
+          "evidence_level": "native_task_action",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json",
+            "record_id": "01KZABTY199NCZQG05NWKXC3NX",
+            "record_type": "task_action",
+            "fields": [
+              "id",
+              "task_id",
+              "occurred_at",
+              "action",
+              "actor_ref",
+              "note"
+            ],
+            "quote": null
+          },
+          "note_report": "",
+          "seconds_from_first_selected_event": 13.260944,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KZABVT594GFNYTWZ7AZRHF30",
+          "timestamp_utc": "2026-08-06T01:44:03.497609Z",
+          "actor_ref": "agent:agent-20d5e05c",
+          "lane": "agent_report",
+          "label": "报告无新执行，等待中心修复",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABVT594GFNYTWZ7AZRHF30.json",
+            "record_id": "01KZABVT594GFNYTWZ7AZRHF30",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "需中心运行时修复 dispatch 后再次 reset/start。"
+          },
+          "seconds_from_first_selected_event": 42.063735,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KZABVT5A8ZQK8JZE7ZPEE524",
+          "timestamp_utc": "2026-08-06T01:44:03.497908Z",
+          "actor_ref": "agent:agent-20d5e05c",
+          "lane": "task_action",
+          "label": "Task blocked",
+          "action": "blocked",
+          "evidence_level": "native_task_action",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json",
+            "record_id": "01KZABVT5A8ZQK8JZE7ZPEE524",
+            "record_type": "task_action",
+            "fields": [
+              "id",
+              "task_id",
+              "occurred_at",
+              "action",
+              "actor_ref",
+              "note"
+            ],
+            "quote": null
+          },
+          "note_report": "[obstacle] 中心 dispatch/executor 恢复仍异常：2026-08-06 已确认任务此前 running 约 8 小时但 execution 审计只有旧 exec-a9ae5c15；执行 reset_task 后任务回到 open，再 start_task 成功返回 running，但复查仍未创建任何新 execution。当前没有可工作的 executor/worktree，不能伪报处理中；需中心运行时修复 dispatch 后再次 reset/start。",
+          "seconds_from_first_selected_event": 42.064034,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KZABY7HSVA1FF42EH7XYX7GX",
+          "timestamp_utc": "2026-08-06T01:45:22.745154Z",
+          "actor_ref": "user:user-04982846",
+          "lane": "user_message",
+          "label": "用户纠正：由 Supervisor 创建",
+          "evidence_level": "native_message",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABY7HSVA1FF42EH7XYX7GX.json",
+            "record_id": "01KZABY7HSVA1FF42EH7XYX7GX",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "executor 不应该是 supervisor 创建的吗 你在等谁创建呀"
+          },
+          "seconds_from_first_selected_event": 121.31128,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KZABZ4G4PRHBPYRZBSQXB5SR",
+          "timestamp_utc": "2026-08-06T01:45:52.384647Z",
+          "actor_ref": "agent:agent-20d5e05c",
+          "lane": "task_action",
+          "label": "Task unblocked",
+          "action": "unblocked",
+          "evidence_level": "native_task_action",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json",
+            "record_id": "01KZABZ4G4PRHBPYRZBSQXB5SR",
+            "record_type": "task_action",
+            "fields": [
+              "id",
+              "task_id",
+              "occurred_at",
+              "action",
+              "actor_ref",
+              "note"
+            ],
+            "quote": null
+          },
+          "note_report": "",
+          "seconds_from_first_selected_event": 150.950773,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KZAC08EKE041V1XB1C2XWE5V",
+          "timestamp_utc": "2026-08-06T01:46:29.203159Z",
+          "actor_ref": "agent:agent-20d5e05c",
+          "lane": "agent_report",
+          "label": "承认责任误归属；报告已显式 fork",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZAC08EKE041V1XB1C2XWE5V.json",
+            "record_id": "01KZAC08EKE041V1XB1C2XWE5V",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "我已纠正：解除刚才的误 block，并显式执行 `fork_executor`。"
+          },
+          "seconds_from_first_selected_event": 187.769285,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KZACFHV3BFM5CP04CR07Q79W",
+          "timestamp_utc": "2026-08-06T01:54:50.339993Z",
+          "actor_ref": "agent:agent-20d5e05c",
+          "lane": "agent_report",
+          "label": "事后解释：状态机与执行生命周期混淆",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZACFHV3BFM5CP04CR07Q79W.json",
+            "record_id": "01KZACFHV3BFM5CP04CR07Q79W",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "更根本的原因是我把“任务状态机操作”和“executor 生命周期操作”混成了一件事"
+          },
+          "seconds_from_first_selected_event": 688.906119,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KZACYJWJHHWTFHEWE7EHAVH8",
+          "timestamp_utc": "2026-08-06T02:03:02.930448Z",
+          "actor_ref": "agent:agent-20d5e05c",
+          "lane": "agent_report",
+          "label": "报告分支与 SHA 交付",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZACYJWJHHWTFHEWE7EHAVH8.json",
+            "record_id": "01KZACYJWJHHWTFHEWE7EHAVH8",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "Reported delivery branch:"
+          },
+          "seconds_from_first_selected_event": 1181.496574,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KZAD3AABJJ32SB0CSHQSZJ6Y",
+          "timestamp_utc": "2026-08-06T02:05:37.994988Z",
+          "actor_ref": "agent:agent-20d5e05c",
+          "lane": "task_action",
+          "label": "再次 blocked：合同缺口",
+          "action": "blocked",
+          "evidence_level": "native_task_action",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json",
+            "record_id": "01KZAD3AABJJ32SB0CSHQSZJ6Y",
+            "record_type": "task_action",
+            "fields": [
+              "id",
+              "task_id",
+              "occurred_at",
+              "action",
+              "actor_ref",
+              "note"
+            ],
+            "quote": null
+          },
+          "note_report": "[obstacle] 交付已 push 且基线/现有测试通过，但未满足范围 2 的 current 指向一致性断言，禁止 complete。核验 SHA 6fb7ec014282876f4293ea8822ae214545d95bd2：origin 分支存在，merge-base=当前 origin/main 373b95c78ca722d5c22c9c52dadb9e5c97bf0b88，ahead 1；定向 Go 测试、helper 2 tests、deployed smoke stream ON/OFF 均通过。然而 tests/e2e/v2/tests/v22-deployed-pipeline.spec.ts:210 调用 readArtifactExpectation(SERVER_BIN) 时未传 currentLink，实际 expected.currentLink/currentTarget 均为空；仓库内该 helper 的 currentLink 能力仅在 synthetic unit fixture 出现，deployed smoke 没有解析/断言部署 current symlink 与活进程 executable 的真实目标一致。因此即使 current 指向旧 artifact，此 smoke 仍可绿，与任务明确要求“断言 current 指向与活进程实际版本一致”冲突。需在同一 hotfix 分支补 deployed-binary current 解析/一致性校验及能咬住错指向的回归，再 push 新 SHA；同时保留现有 ON/OFF、adopt skew 诊断覆盖。",
+          "seconds_from_first_selected_event": 1336.561114,
+          "time_unit": "seconds"
+        }
+      ],
+      "recommended_six_event_ids": [
+        "01KZABTH2T53KGBM29XXJZTX0Z",
+        "01KZABVT594GFNYTWZ7AZRHF30",
+        "01KZABY7HSVA1FF42EH7XYX7GX",
+        "01KZABZ4G4PRHBPYRZBSQXB5SR",
+        "01KZAC08EKE041V1XB1C2XWE5V",
+        "01KZAD3AABJJ32SB0CSHQSZJ6Y"
+      ],
+      "all_nine_native_actions": [
+        {
+          "id": "01KZ8WKNMFVY3YXBYYZ5R7CJC7",
+          "task_id": "task-e12e4fb9",
+          "occurred_at": "2026-08-05T11:58:13.645778Z",
+          "action": "agent_started",
+          "actor_ref": "agent:agent-20d5e05c",
+          "agent_ref": "agent:agent-20d5e05c",
+          "note": ""
+        },
+        {
+          "id": "01KZ8XR3C69NRCX6KDFWCQJ0WX",
+          "task_id": "task-e12e4fb9",
+          "occurred_at": "2026-08-05T12:18:07.366266Z",
+          "action": "blocked",
+          "actor_ref": "agent:agent-20d5e05c",
+          "agent_ref": "agent:agent-20d5e05c",
+          "note": "[obstacle] 执行 exec-a9ae5c15 已于 2026-08-05T12:17:46Z 终止（process outcome=succeeded），但未产生可验证的 durable git delivery：没有独立 origin 分支/ref、没有 pushed HEAD SHA，也没有可据此核验的提交与测试交付证据。任务交付契约明确要求 commit + push，因此机械分类为 non_delivery，当前禁止 complete。需重新执行并补齐可验证的 pushed delivery 后再验收。"
+        },
+        {
+          "id": "01KZ966KGSZCPSZF17W4AZBMQ4",
+          "task_id": "task-e12e4fb9",
+          "occurred_at": "2026-08-05T14:45:51.255316Z",
+          "action": "unblocked",
+          "actor_ref": "agent:agent-20d5e05c",
+          "agent_ref": "agent:agent-20d5e05c",
+          "note": ""
+        },
+        {
+          "id": "01KZABTH2T53KGBM29XXJZTX0Z",
+          "task_id": "task-e12e4fb9",
+          "occurred_at": "2026-08-06T01:43:21.433874Z",
+          "action": "reset",
+          "actor_ref": "system",
+          "agent_ref": "agent:agent-20d5e05c",
+          "note": "tier-3 recovery: reset to pool (executor confirmed dead)"
+        },
+        {
+          "id": "01KZABTY199NCZQG05NWKXC3NX",
+          "task_id": "task-e12e4fb9",
+          "occurred_at": "2026-08-06T01:43:34.694818Z",
+          "action": "agent_started",
+          "actor_ref": "agent:agent-20d5e05c",
+          "agent_ref": "agent:agent-20d5e05c",
+          "note": ""
+        },
+        {
+          "id": "01KZABVT5A8ZQK8JZE7ZPEE524",
+          "task_id": "task-e12e4fb9",
+          "occurred_at": "2026-08-06T01:44:03.497908Z",
+          "action": "blocked",
+          "actor_ref": "agent:agent-20d5e05c",
+          "agent_ref": "agent:agent-20d5e05c",
+          "note": "[obstacle] 中心 dispatch/executor 恢复仍异常：2026-08-06 已确认任务此前 running 约 8 小时但 execution 审计只有旧 exec-a9ae5c15；执行 reset_task 后任务回到 open，再 start_task 成功返回 running，但复查仍未创建任何新 execution。当前没有可工作的 executor/worktree，不能伪报处理中；需中心运行时修复 dispatch 后再次 reset/start。"
+        },
+        {
+          "id": "01KZABZ4G4PRHBPYRZBSQXB5SR",
+          "task_id": "task-e12e4fb9",
+          "occurred_at": "2026-08-06T01:45:52.384647Z",
+          "action": "unblocked",
+          "actor_ref": "agent:agent-20d5e05c",
+          "agent_ref": "agent:agent-20d5e05c",
+          "note": ""
+        },
+        {
+          "id": "01KZAD3AABJJ32SB0CSHQSZJ6Y",
+          "task_id": "task-e12e4fb9",
+          "occurred_at": "2026-08-06T02:05:37.994988Z",
+          "action": "blocked",
+          "actor_ref": "agent:agent-20d5e05c",
+          "agent_ref": "agent:agent-20d5e05c",
+          "note": "[obstacle] 交付已 push 且基线/现有测试通过，但未满足范围 2 的 current 指向一致性断言，禁止 complete。核验 SHA 6fb7ec014282876f4293ea8822ae214545d95bd2：origin 分支存在，merge-base=当前 origin/main 373b95c78ca722d5c22c9c52dadb9e5c97bf0b88，ahead 1；定向 Go 测试、helper 2 tests、deployed smoke stream ON/OFF 均通过。然而 tests/e2e/v2/tests/v22-deployed-pipeline.spec.ts:210 调用 readArtifactExpectation(SERVER_BIN) 时未传 currentLink，实际 expected.currentLink/currentTarget 均为空；仓库内该 helper 的 currentLink 能力仅在 synthetic unit fixture 出现，deployed smoke 没有解析/断言部署 current symlink 与活进程 executable 的真实目标一致。因此即使 current 指向旧 artifact，此 smoke 仍可绿，与任务明确要求“断言 current 指向与活进程实际版本一致”冲突。需在同一 hotfix 分支补 deployed-binary current 解析/一致性校验及能咬住错指向的回归，再 push 新 SHA；同时保留现有 ON/OFF、adopt skew 诊断覆盖。"
+        },
+        {
+          "id": "01KZAM0BDXPP3YVCZP2CN3SEHT",
+          "task_id": "task-e12e4fb9",
+          "occurred_at": "2026-08-06T04:06:20.857687Z",
+          "action": "unblocked",
+          "actor_ref": "agent:agent-20d5e05c",
+          "agent_ref": "agent:agent-20d5e05c",
+          "note": ""
+        }
+      ],
+      "all_nine_native_actions_source": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json",
+      "intervals": [
+        {
+          "label": "错误归属报告至用户纠正",
+          "from_id": "01KZABVT594GFNYTWZ7AZRHF30",
+          "to_id": "01KZABY7HSVA1FF42EH7XYX7GX",
+          "value": 79.247545,
+          "unit": "seconds between recorded timestamps",
+          "sources": [
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABVT594GFNYTWZ7AZRHF30.json",
+              "record_id": "01KZABVT594GFNYTWZ7AZRHF30",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "需中心运行时修复 dispatch 后再次 reset/start。"
+            },
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABY7HSVA1FF42EH7XYX7GX.json",
+              "record_id": "01KZABY7HSVA1FF42EH7XYX7GX",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "executor 不应该是 supervisor 创建的吗 你在等谁创建呀"
+            }
+          ],
+          "not_measured": "Agent inference latency, repair duration, architecture-induced stall or time saved"
+        },
+        {
+          "label": "用户纠正至原生unblocked",
+          "from_id": "01KZABY7HSVA1FF42EH7XYX7GX",
+          "to_id": "01KZABZ4G4PRHBPYRZBSQXB5SR",
+          "value": 29.639493,
+          "unit": "seconds between recorded timestamps",
+          "sources": [
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABY7HSVA1FF42EH7XYX7GX.json",
+              "record_id": "01KZABY7HSVA1FF42EH7XYX7GX",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "executor 不应该是 supervisor 创建的吗 你在等谁创建呀"
+            },
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json",
+              "record_id": "01KZABZ4G4PRHBPYRZBSQXB5SR",
+              "record_type": "task_action",
+              "fields": [
+                "id",
+                "task_id",
+                "occurred_at",
+                "action",
+                "actor_ref",
+                "note"
+              ],
+              "quote": null
+            }
+          ],
+          "not_measured": "Agent inference latency, repair duration, architecture-induced stall or time saved"
+        },
+        {
+          "label": "用户纠正至报告显式fork",
+          "from_id": "01KZABY7HSVA1FF42EH7XYX7GX",
+          "to_id": "01KZAC08EKE041V1XB1C2XWE5V",
+          "value": 66.458005,
+          "unit": "seconds between recorded timestamps",
+          "sources": [
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABY7HSVA1FF42EH7XYX7GX.json",
+              "record_id": "01KZABY7HSVA1FF42EH7XYX7GX",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "executor 不应该是 supervisor 创建的吗 你在等谁创建呀"
+            },
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZAC08EKE041V1XB1C2XWE5V.json",
+              "record_id": "01KZAC08EKE041V1XB1C2XWE5V",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "我已纠正：解除刚才的误 block，并显式执行 `fork_executor`。"
+            }
+          ],
+          "not_measured": "Agent inference latency, repair duration, architecture-induced stall or time saved"
+        },
+        {
+          "label": "Task reset至交付报告",
+          "from_id": "01KZABTH2T53KGBM29XXJZTX0Z",
+          "to_id": "01KZACYJWJHHWTFHEWE7EHAVH8",
+          "value": 1181.496574,
+          "unit": "seconds between recorded timestamps",
+          "sources": [
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json",
+              "record_id": "01KZABTH2T53KGBM29XXJZTX0Z",
+              "record_type": "task_action",
+              "fields": [
+                "id",
+                "task_id",
+                "occurred_at",
+                "action",
+                "actor_ref",
+                "note"
+              ],
+              "quote": null
+            },
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZACYJWJHHWTFHEWE7EHAVH8.json",
+              "record_id": "01KZACYJWJHHWTFHEWE7EHAVH8",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "Reported delivery branch:"
+            }
+          ],
+          "not_measured": "Agent inference latency, repair duration, architecture-induced stall or time saved"
+        }
+      ],
+      "limits": [
+        "Task agent_started is not executor creation.",
+        "Fork accepted/new execution is a participant report; original control event and execution mirror were not recovered.",
+        "The later native blocked action prevents reading this sequence as final task success.",
+        "Intervals are differences between stored timestamps, not measured architecture delay or saved time."
+      ]
+    },
+    "case_matrix": [
+      {
+        "case": "I01",
+        "date": "2026-07-22",
+        "task_id": "task-1ae4bedd",
+        "observation": "将内部执行恢复外推给平台；用户指出同一Agent责任后更正",
+        "human_addition": "执行归属与继续实现责任",
+        "positive_or_counterevidence": "后续给出自行继续实现的计划；不是独立完成核验",
+        "excluded_or_unresolved": "thread损坏/no rollout found的交付后果排除；无完整执行控制轨迹",
+        "evidence_class": "责任表述负例（剥离运行故障）",
+        "evidence": [
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY4B5KS3272X3AMXDXHQMEC0.json",
+            "record_id": "01KY4B5KS3272X3AMXDXHQMEC0",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "需要平台侧 reset execution/thread"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY4B74V6XGRFG85EV29RS1RT.json",
+            "record_id": "01KY4B74V6XGRFG85EV29RS1RT",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "executor 是有你调度起来的 是你的一部分"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY4B7K5QXK434NNHY9K1FKEF.json",
+            "record_id": "01KY4B7K5QXK434NNHY9K1FKEF",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "我把 executor 的恢复失败误判成需要外部介入"
+          }
+        ]
+      },
+      {
+        "case": "I02",
+        "date": "2026-07-22",
+        "task_id": "task-56d82feb",
+        "observation": "将自身未完成任务描述为验收交付；用户纠正完成者定位",
+        "human_addition": "交付责任而非只作验收",
+        "positive_or_counterevidence": "PD指出配置未改时重fork仍无仓库；承责不能补齐环境",
+        "excluded_or_unresolved": "空工作区/worktree配置及成功误分类排除；配置诊断仍是PD报告",
+        "evidence_class": "责任表述负例＋环境反证",
+        "evidence": [
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5BMKX9ZM03BTJTENTQSKDB.json",
+            "record_id": "01KY5BMKX9ZM03BTJTENTQSKDB",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "交付未产生，无法通过验收"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5BYKS2T49YEXAGRPQQ9XWN.json",
+            "record_id": "01KY5BYKS2T49YEXAGRPQQ9XWN",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "这个任务你负责完成，不是你来验收"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5BZ3804ZA0ETH34RA1XEH1.json",
+            "record_id": "01KY5BZ3804ZA0ETH34RA1XEH1",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "把 executor 的失败错误地当成了外部阻塞"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5C4XXCTE2AGYB373M42A9Y.json",
+            "record_id": "01KY5C4XXCTE2AGYB373M42A9Y",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "integration-dev 配置没变，再 fork 还是空目录。"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KY5C5HW683A4YZG91P23RC7G.json",
+            "record_id": "01KY5C5HW683A4YZG91P23RC7G",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "当前 S0 不应继续盲重试"
+          }
+        ]
+      },
+      {
+        "case": "I04",
+        "date": "2026-08-06",
+        "task_id": "task-e12e4fb9",
+        "observation": "将Task状态恢复外推为中心创建executor；纠正后报告显式fork",
+        "human_addition": "谁负责创建执行体",
+        "positive_or_counterevidence": "Task reset/start/block/unblock可核；更正后有交付报告，但稍后仍因合同缺口block",
+        "excluded_or_unresolved": "完整prompt、历史版本与原生fork命令缺失；工具措辞是替代解释",
+        "evidence_class": "主案例：表述＋状态时序",
+        "evidence": [
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABVT594GFNYTWZ7AZRHF30.json",
+            "record_id": "01KZABVT594GFNYTWZ7AZRHF30",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "需中心运行时修复 dispatch 后再次 reset/start。"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZABY7HSVA1FF42EH7XYX7GX.json",
+            "record_id": "01KZABY7HSVA1FF42EH7XYX7GX",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "executor 不应该是 supervisor 创建的吗 你在等谁创建呀"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZAC08EKE041V1XB1C2XWE5V.json",
+            "record_id": "01KZAC08EKE041V1XB1C2XWE5V",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "我已纠正：解除刚才的误 block，并显式执行 `fork_executor`。"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_task_action_logs-selected.json",
+            "record_id": "01KZAD3AABJJ32SB0CSHQSZJ6Y",
+            "record_type": "task_action",
+            "fields": [
+              "id",
+              "task_id",
+              "occurred_at",
+              "action",
+              "actor_ref",
+              "note"
+            ],
+            "quote": null
+          }
+        ]
+      },
+      {
+        "case": "I05",
+        "date": "2026-08-07",
+        "task_id": "task-c937fd2f",
+        "observation": "明确同Agent责任，仍拒绝缺生产证据的自有候选",
+        "human_addition": "继续补证或回撤，不等同授权伪造生产证据",
+        "positive_or_counterevidence": "身份明确与有价值审查可以并存",
+        "excluded_or_unresolved": "后续PD接管/权限变化和用户误提及等混杂不编码为身份失效",
+        "evidence_class": "正面反例（仍有后续修复责任）",
+        "evidence": [
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDJ41E4XMR6RSRDW2342DCE.json",
+            "record_id": "01KZDJ41E4XMR6RSRDW2342DCE",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "最终裁决责任也在我，不是外部 agent。"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDKN7K7XRNZ0DPE7G9V0GQA.json",
+            "record_id": "01KZDKN7K7XRNZ0DPE7G9V0GQA",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "不能因为代码也是我产出的就自我放行。"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDKR5FXC4E2CGQ239PAG2AA.json",
+            "record_id": "01KZDKR5FXC4E2CGQ239PAG2AA",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "不满足交付合同，就解决问题，直到满足为止嘛"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDKS2M645VTZJ9GR8SW0MDJ.json",
+            "record_id": "01KZDKS2M645VTZJ9GR8SW0MDJ",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "若当前权限仍拿不到完整生产窗口证据，就回撤未获授权的破坏性删除"
+          },
+          {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KZDKSNW8PQCM7PSZ071GNB6R.json",
+            "record_id": "01KZDKSNW8PQCM7PSZ071GNB6R",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "当前任务是 running，已不在 `agent-center-dev4` 的任务列表"
+          }
+        ]
+      }
+    ]
+  },
+  "p2": {
+    "w01": {
+      "plan_id": "plan-2a8bc24c",
+      "generation_id": "generation-709baba8",
+      "timeline": [
+        {
+          "id": "01M14JPXVK1Z8CKDYMTD3TSPAX",
+          "timestamp_utc": "2026-08-28T16:19:40.531485Z",
+          "actor_ref": "user:user-04982846",
+          "lane": "user_message",
+          "label": "用户要求开始（第一次）",
+          "evidence_level": "native_message",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14JPXVK1Z8CKDYMTD3TSPAX.json",
+            "record_id": "01M14JPXVK1Z8CKDYMTD3TSPAX",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "这个plan 可以开始了啊"
+          },
+          "seconds_from_first_selected_event": 0.0,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01M14K5QQTGJF62VANSQC5WW38",
+          "timestamp_utc": "2026-08-28T16:27:45.786608Z",
+          "actor_ref": "user:user-04982846",
+          "lane": "user_message",
+          "label": "用户再次要求开始",
+          "evidence_level": "native_message",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14K5QQTGJF62VANSQC5WW38.json",
+            "record_id": "01M14K5QQTGJF62VANSQC5WW38",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "这个plan 可以开始了啊"
+          },
+          "seconds_from_first_selected_event": 485.255123,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01M14K6T665DY5ZSR50T9ACMW4",
+          "timestamp_utc": "2026-08-28T16:28:21.062508Z",
+          "actor_ref": "agent:agent-b5036ea8",
+          "lane": "agent_report",
+          "label": "PD报告无assignee，等待确定负责人",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14K6T665DY5ZSR50T9ACMW4.json",
+            "record_id": "01M14K6T665DY5ZSR50T9ACMW4",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "需要先确定这 5 个节点分别由谁负责"
+          },
+          "seconds_from_first_selected_event": 520.531023,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01M14KC5XZJD4PGDV4614XEWSV",
+          "timestamp_utc": "2026-08-28T16:31:16.927437Z",
+          "actor_ref": "user:user-04982846",
+          "lane": "user_message",
+          "label": "用户要求PD自行分配",
+          "evidence_level": "native_message",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KC5XZJD4PGDV4614XEWSV.json",
+            "record_id": "01M14KC5XZJD4PGDV4614XEWSV",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "你分配下呀"
+          },
+          "seconds_from_first_selected_event": 696.395952,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "generation-709baba8",
+          "timestamp_utc": "2026-08-28T16:31:48.222683Z",
+          "actor_ref": "agent:agent-b5036ea8",
+          "lane": "generation",
+          "label": "原生初始generation：5节点已分派",
+          "evidence_level": "native_generation_snapshot",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+            "record_id": "generation-709baba8",
+            "record_type": "plan_generation",
+            "fields": [
+              "id",
+              "plan_id",
+              "created_at",
+              "snapshot_json"
+            ],
+            "quote": null
+          },
+          "seconds_from_first_selected_event": 727.691198,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01M14KD520A5X362XVHJ64EKC7",
+          "timestamp_utc": "2026-08-28T16:31:48.800276Z",
+          "actor_ref": "system",
+          "lane": "system_message",
+          "label": "系统通知首Task ready",
+          "evidence_level": "native_message",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KD520A5X362XVHJ64EKC7.json",
+            "record_id": "01M14KD520A5X362XVHJ64EKC7",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "is ready — all upstream dependencies are done."
+          },
+          "seconds_from_first_selected_event": 728.268791,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01M14KDD3C9JDTE6PYV3Y01MB1",
+          "timestamp_utc": "2026-08-28T16:31:57.036572Z",
+          "actor_ref": "agent:agent-b5036ea8",
+          "lane": "agent_report",
+          "label": "PD报告已分配并启动",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KDD3C9JDTE6PYV3Y01MB1.json",
+            "record_id": "01M14KDD3C9JDTE6PYV3Y01MB1",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "现在已分配并成功启动"
+          },
+          "seconds_from_first_selected_event": 736.505087,
+          "time_unit": "seconds"
+        }
+      ],
+      "recommended_five_event_ids": [
+        "01M14K6T665DY5ZSR50T9ACMW4",
+        "01M14KC5XZJD4PGDV4614XEWSV",
+        "generation-709baba8",
+        "01M14KD520A5X362XVHJ64EKC7",
+        "01M14KDD3C9JDTE6PYV3Y01MB1"
+      ],
+      "nodes": [
+        {
+          "task_id": "task-a1e1746e",
+          "node_id": "01M14KD4FZ1D885ZPPH0WS24G6",
+          "label": "实现状态机",
+          "title": "实现 Plan 终态单一状态机与空 frontier 确定性收口",
+          "assignee_ref": "agent:agent-6cdfa49f",
+          "assignee_label": "dev1",
+          "display_name_at_frozen_snapshot": "agent-center-dev1",
+          "functional_lane": "实现",
+          "current_team_role_enums": [
+            "Dev"
+          ],
+          "topological_order": 1,
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+            "record_id": "generation-709baba8",
+            "record_type": "plan_generation",
+            "fields": [
+              "snapshot_json.tasks[1].task_id",
+              "snapshot_json.tasks[1].node_id",
+              "snapshot_json.tasks[1].title",
+              "snapshot_json.tasks[1].assignee_ref",
+              "snapshot_json.tasks[1].description"
+            ],
+            "quote": null
+          },
+          "label_source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KDD3C9JDTE6PYV3Y01MB1.json",
+            "record_id": "01M14KDD3C9JDTE6PYV3Y01MB1",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "现在已分配并成功启动"
+          },
+          "mapping_source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json",
+            "record_id": "01KTVBAC4VM65H9ZFZBM1Q6P3F",
+            "record_type": "derived_frozen_config",
+            "fields": [
+              "identity_id",
+              "display_name",
+              "roles"
+            ],
+            "scope": "Frozen current config, not 2026-08-28 configuration"
+          }
+        },
+        {
+          "task_id": "task-b9ff74f6",
+          "node_id": "01M14KD4FZ1D885ZPPH11YVESF",
+          "label": "历史迁移",
+          "title": "迁移历史 orphan condition 并提供幂等 dry-run",
+          "assignee_ref": "agent:agent-6cdfa49f",
+          "assignee_label": "dev1",
+          "display_name_at_frozen_snapshot": "agent-center-dev1",
+          "functional_lane": "实现",
+          "current_team_role_enums": [
+            "Dev"
+          ],
+          "topological_order": 2,
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+            "record_id": "generation-709baba8",
+            "record_type": "plan_generation",
+            "fields": [
+              "snapshot_json.tasks[3].task_id",
+              "snapshot_json.tasks[3].node_id",
+              "snapshot_json.tasks[3].title",
+              "snapshot_json.tasks[3].assignee_ref",
+              "snapshot_json.tasks[3].description"
+            ],
+            "quote": null
+          },
+          "label_source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KDD3C9JDTE6PYV3Y01MB1.json",
+            "record_id": "01M14KDD3C9JDTE6PYV3Y01MB1",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "现在已分配并成功启动"
+          },
+          "mapping_source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json",
+            "record_id": "01KTVBAC4VM65H9ZFZBM1Q6P3F",
+            "record_type": "derived_frozen_config",
+            "fields": [
+              "identity_id",
+              "display_name",
+              "roles"
+            ],
+            "scope": "Frozen current config, not 2026-08-28 configuration"
+          }
+        },
+        {
+          "task_id": "task-effb5a81",
+          "node_id": "01M14KD4G0RJYF3H6DGP08451M",
+          "label": "独立验收",
+          "title": "独立验收终态候选与历史迁移闭环",
+          "assignee_ref": "agent:agent-9909846f",
+          "assignee_label": "tester1",
+          "display_name_at_frozen_snapshot": "agent-center-tester1",
+          "functional_lane": "独立验收",
+          "current_team_role_enums": [
+            "Tester"
+          ],
+          "topological_order": 3,
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+            "record_id": "generation-709baba8",
+            "record_type": "plan_generation",
+            "fields": [
+              "snapshot_json.tasks[4].task_id",
+              "snapshot_json.tasks[4].node_id",
+              "snapshot_json.tasks[4].title",
+              "snapshot_json.tasks[4].assignee_ref",
+              "snapshot_json.tasks[4].description"
+            ],
+            "quote": null
+          },
+          "label_source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KDD3C9JDTE6PYV3Y01MB1.json",
+            "record_id": "01M14KDD3C9JDTE6PYV3Y01MB1",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "现在已分配并成功启动"
+          },
+          "mapping_source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json",
+            "record_id": "01KTVBEVSYN2AP660X9W09YQ3D",
+            "record_type": "derived_frozen_config",
+            "fields": [
+              "identity_id",
+              "display_name",
+              "roles"
+            ],
+            "scope": "Frozen current config, not 2026-08-28 configuration"
+          }
+        },
+        {
+          "task_id": "task-84279343",
+          "node_id": "01M14KD4G0RJYF3H6DGP10P2Z7",
+          "label": "合并 main",
+          "title": "合并已验终态候选并推送 origin/main",
+          "assignee_ref": "agent:agent-ba6bc42a",
+          "assignee_label": "integration",
+          "display_name_at_frozen_snapshot": "agent-center-integration-dev",
+          "functional_lane": "集成合并",
+          "current_team_role_enums": [
+            "Dev"
+          ],
+          "topological_order": 4,
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+            "record_id": "generation-709baba8",
+            "record_type": "plan_generation",
+            "fields": [
+              "snapshot_json.tasks[0].task_id",
+              "snapshot_json.tasks[0].node_id",
+              "snapshot_json.tasks[0].title",
+              "snapshot_json.tasks[0].assignee_ref",
+              "snapshot_json.tasks[0].description"
+            ],
+            "quote": null
+          },
+          "label_source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KDD3C9JDTE6PYV3Y01MB1.json",
+            "record_id": "01M14KDD3C9JDTE6PYV3Y01MB1",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "现在已分配并成功启动"
+          },
+          "mapping_source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json",
+            "record_id": "01KTVBGWSP1JWR8FM7K4E19VFA",
+            "record_type": "derived_frozen_config",
+            "fields": [
+              "identity_id",
+              "display_name",
+              "roles"
+            ],
+            "scope": "Frozen current config, not 2026-08-28 configuration"
+          }
+        },
+        {
+          "task_id": "task-b38e6bee",
+          "node_id": "01M14KD4G0RJYF3H6DGRGN3Q00",
+          "label": "runtime 验收",
+          "title": "部署真实 runtime 并验收终态收口 SLO",
+          "assignee_ref": "agent:agent-d819c80f",
+          "assignee_label": "tester2",
+          "display_name_at_frozen_snapshot": "agent-center-tester2",
+          "functional_lane": "运行验收",
+          "current_team_role_enums": [
+            "Tester"
+          ],
+          "topological_order": 5,
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+            "record_id": "generation-709baba8",
+            "record_type": "plan_generation",
+            "fields": [
+              "snapshot_json.tasks[2].task_id",
+              "snapshot_json.tasks[2].node_id",
+              "snapshot_json.tasks[2].title",
+              "snapshot_json.tasks[2].assignee_ref",
+              "snapshot_json.tasks[2].description"
+            ],
+            "quote": null
+          },
+          "label_source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KDD3C9JDTE6PYV3Y01MB1.json",
+            "record_id": "01M14KDD3C9JDTE6PYV3Y01MB1",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "现在已分配并成功启动"
+          },
+          "mapping_source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/identity-007/derived/identity-role-map.json",
+            "record_id": "01KTVBJCXN6XV8MXK3B9S5VS2S",
+            "record_type": "derived_frozen_config",
+            "fields": [
+              "identity_id",
+              "display_name",
+              "roles"
+            ],
+            "scope": "Frozen current config, not 2026-08-28 configuration"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "prerequisite": "task-effb5a81",
+          "dependent": "task-84279343",
+          "kind": "seq",
+          "native_from_task_id": "task-84279343",
+          "native_to_task_id": "task-effb5a81",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+            "record_id": "generation-709baba8",
+            "record_type": "plan_generation",
+            "fields": [
+              "snapshot_json.edges[0].from_task_id",
+              "snapshot_json.edges[0].to_task_id",
+              "snapshot_json.edges[0].kind"
+            ],
+            "quote": null
+          }
+        },
+        {
+          "prerequisite": "task-84279343",
+          "dependent": "task-b38e6bee",
+          "kind": "seq",
+          "native_from_task_id": "task-b38e6bee",
+          "native_to_task_id": "task-84279343",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+            "record_id": "generation-709baba8",
+            "record_type": "plan_generation",
+            "fields": [
+              "snapshot_json.edges[1].from_task_id",
+              "snapshot_json.edges[1].to_task_id",
+              "snapshot_json.edges[1].kind"
+            ],
+            "quote": null
+          }
+        },
+        {
+          "prerequisite": "task-a1e1746e",
+          "dependent": "task-b9ff74f6",
+          "kind": "seq",
+          "native_from_task_id": "task-b9ff74f6",
+          "native_to_task_id": "task-a1e1746e",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+            "record_id": "generation-709baba8",
+            "record_type": "plan_generation",
+            "fields": [
+              "snapshot_json.edges[2].from_task_id",
+              "snapshot_json.edges[2].to_task_id",
+              "snapshot_json.edges[2].kind"
+            ],
+            "quote": null
+          }
+        },
+        {
+          "prerequisite": "task-b9ff74f6",
+          "dependent": "task-effb5a81",
+          "kind": "seq",
+          "native_from_task_id": "task-effb5a81",
+          "native_to_task_id": "task-b9ff74f6",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+            "record_id": "generation-709baba8",
+            "record_type": "plan_generation",
+            "fields": [
+              "snapshot_json.edges[3].from_task_id",
+              "snapshot_json.edges[3].to_task_id",
+              "snapshot_json.edges[3].kind"
+            ],
+            "quote": null
+          }
+        }
+      ],
+      "edge_semantics": "Original from_task_id depends on to_task_id. Plot arrows from prerequisite=to to dependent=from.",
+      "counts": {
+        "tasks": 5,
+        "dependency_edges": 4,
+        "distinct_assignee_refs": 4,
+        "functional_labels": 4,
+        "longest_dependency_path_nodes": 5
+      },
+      "count_unit": "One native generation snapshot; not number of independent trials or failures",
+      "count_source": {
+        "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+        "record_id": "generation-709baba8",
+        "record_type": "plan_generation",
+        "fields": [
+          "id",
+          "plan_id",
+          "created_at",
+          "snapshot_json"
+        ],
+        "quote": null
+      },
+      "intervals": [
+        {
+          "label": "PD前提报告至用户纠正",
+          "from_id": "01M14K6T665DY5ZSR50T9ACMW4",
+          "to_id": "01M14KC5XZJD4PGDV4614XEWSV",
+          "value": 175.864929,
+          "unit": "seconds between recorded timestamps",
+          "sources": [
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14K6T665DY5ZSR50T9ACMW4.json",
+              "record_id": "01M14K6T665DY5ZSR50T9ACMW4",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "需要先确定这 5 个节点分别由谁负责"
+            },
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KC5XZJD4PGDV4614XEWSV.json",
+              "record_id": "01M14KC5XZJD4PGDV4614XEWSV",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "你分配下呀"
+            }
+          ],
+          "not_measured": "Agent inference latency, repair duration, architecture-induced stall or time saved"
+        },
+        {
+          "label": "用户纠正至原生generation",
+          "from_id": "01M14KC5XZJD4PGDV4614XEWSV",
+          "to_id": "generation-709baba8",
+          "value": 31.295246,
+          "unit": "seconds between recorded timestamps",
+          "sources": [
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KC5XZJD4PGDV4614XEWSV.json",
+              "record_id": "01M14KC5XZJD4PGDV4614XEWSV",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "你分配下呀"
+            },
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/raw/pm_plan_generations-plan-2a8bc24c.json",
+              "record_id": "generation-709baba8",
+              "record_type": "plan_generation",
+              "fields": [
+                "id",
+                "plan_id",
+                "created_at",
+                "snapshot_json"
+              ],
+              "quote": null
+            }
+          ],
+          "not_measured": "Agent inference latency, repair duration, architecture-induced stall or time saved"
+        },
+        {
+          "label": "用户纠正至ready消息",
+          "from_id": "01M14KC5XZJD4PGDV4614XEWSV",
+          "to_id": "01M14KD520A5X362XVHJ64EKC7",
+          "value": 31.872839,
+          "unit": "seconds between recorded timestamps",
+          "sources": [
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KC5XZJD4PGDV4614XEWSV.json",
+              "record_id": "01M14KC5XZJD4PGDV4614XEWSV",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "你分配下呀"
+            },
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KD520A5X362XVHJ64EKC7.json",
+              "record_id": "01M14KD520A5X362XVHJ64EKC7",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "is ready — all upstream dependencies are done."
+            }
+          ],
+          "not_measured": "Agent inference latency, repair duration, architecture-induced stall or time saved"
+        },
+        {
+          "label": "用户纠正至PD启动报告",
+          "from_id": "01M14KC5XZJD4PGDV4614XEWSV",
+          "to_id": "01M14KDD3C9JDTE6PYV3Y01MB1",
+          "value": 40.109135,
+          "unit": "seconds between recorded timestamps",
+          "sources": [
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KC5XZJD4PGDV4614XEWSV.json",
+              "record_id": "01M14KC5XZJD4PGDV4614XEWSV",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "你分配下呀"
+            },
+            {
+              "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01M14KDD3C9JDTE6PYV3Y01MB1.json",
+              "record_id": "01M14KDD3C9JDTE6PYV3Y01MB1",
+              "record_type": "message",
+              "fields": [
+                "posted_at",
+                "sender_identity_id",
+                "content"
+              ],
+              "quote": "现在已分配并成功启动"
+            }
+          ],
+          "not_measured": "Agent inference latency, repair duration, architecture-induced stall or time saved"
+        }
+      ],
+      "limits": [
+        "Five empty assignees and initial API rejection are PD reports, not recovered pre-state or API response.",
+        "The snapshot proves later assignments; system ready message is not execution completion.",
+        "Four distinct assignees/function labels are not four unique persistent role enums. Frozen config maps dev1 and integration to Dev, tester1 and tester2 to Tester, and is not historical configuration.",
+        "A five-node serial dependency chain is structural description, not latency or cognitive-complexity measurement."
+      ]
+    },
+    "w02": {
+      "plan_id": "plan-f7f98cfe",
+      "timeline": [
+        {
+          "id": "01KV71B56MYTKFX58W48VARSTA",
+          "timestamp_utc": "2026-06-16T01:39:41.396427Z",
+          "actor_ref": "user:user-04982846",
+          "lane": "user_message",
+          "label": "用户限定开发期合并职责",
+          "evidence_level": "native_message",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E01.json",
+            "record_id": "01KV71B56MYTKFX58W48VARSTA",
+            "record_type": "message",
+            "fields": [
+              "record.posted_at",
+              "record.sender_identity_id",
+              "record.content"
+            ],
+            "quote": "integration-dev 只在开发期间，将各个开发分支合并到迭代主干分支里，其他都不参与。"
+          },
+          "seconds_from_first_selected_event": 0.0,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KV71C7NM79RDSTBBVEM5K6BY",
+          "timestamp_utc": "2026-06-16T01:40:16.692144Z",
+          "actor_ref": "agent:agent-ba6bc42a",
+          "lane": "agent_report",
+          "label": "integration保留开发期合并；ship交PD",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/records/01KV71C7NM79RDSTBBVEM5K6BY.json",
+            "record_id": "01KV71C7NM79RDSTBBVEM5K6BY",
+            "record_type": "message",
+            "fields": [
+              "posted_at",
+              "sender_identity_id",
+              "content"
+            ],
+            "quote": "不 ship 到 main/打 tag、不驱动计划。"
+          },
+          "seconds_from_first_selected_event": 35.295717,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KV71F5Q1DGQ5MP1Q29XMQ2H4",
+          "timestamp_utc": "2026-06-16T01:41:52.993389Z",
+          "actor_ref": "agent:agent-b5036ea8",
+          "lane": "agent_report",
+          "label": "PD把迭代主干写成main并错误交接",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E02.json",
+            "record_id": "01KV71F5Q1DGQ5MP1Q29XMQ2H4",
+            "record_type": "message",
+            "fields": [
+              "record.posted_at",
+              "record.sender_identity_id",
+              "record.content"
+            ],
+            "quote": "把各开发分支合并进迭代主干（main）"
+          },
+          "seconds_from_first_selected_event": 131.596962,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KV71PF2XKD4YY5ERFD4ACJNV",
+          "timestamp_utc": "2026-06-16T01:45:51.965601Z",
+          "actor_ref": "user:user-04982846",
+          "lane": "user_message",
+          "label": "用户澄清三层分支与ship责任",
+          "evidence_level": "native_message",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E03.json",
+            "record_id": "01KV71PF2XKD4YY5ERFD4ACJNV",
+            "record_type": "message",
+            "fields": [
+              "record.posted_at",
+              "record.sender_identity_id",
+              "record.content"
+            ],
+            "quote": "合并到main 是ship操作，只有你来操作。"
+          },
+          "seconds_from_first_selected_event": 370.569174,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KV71VRQBZC147BD2RTTQ0KYE",
+          "timestamp_utc": "2026-06-16T01:48:45.675353Z",
+          "actor_ref": "agent:agent-b5036ea8",
+          "lane": "agent_report",
+          "label": "PD报告迭代主干缺失，要求重建",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E04.json",
+            "record_id": "01KV71VRQBZC147BD2RTTQ0KYE",
+            "record_type": "message",
+            "fields": [
+              "record.posted_at",
+              "record.sender_identity_id",
+              "record.content"
+            ],
+            "quote": "本周期没建迭代主干 `v2.10.3`"
+          },
+          "seconds_from_first_selected_event": 544.278926,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KV71XZ0F9CXTWEMS6YEAP4DK",
+          "timestamp_utc": "2026-06-16T01:49:57.64719Z",
+          "actor_ref": "user:user-04982846",
+          "lane": "user_message",
+          "label": "用户转贴重建指令",
+          "evidence_level": "native_message",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E05.json",
+            "record_id": "01KV71XZ0F9CXTWEMS6YEAP4DK",
+            "record_type": "message",
+            "fields": [
+              "record.posted_at",
+              "record.sender_identity_id",
+              "record.content"
+            ],
+            "quote": "建迭代主干 v2.10.3（off main）"
+          },
+          "seconds_from_first_selected_event": 616.250763,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KV724CC96MF8A8SKPZACE06C",
+          "timestamp_utc": "2026-06-16T01:53:27.945879Z",
+          "actor_ref": "agent:agent-ba6bc42a",
+          "lane": "agent_report",
+          "label": "integration核事实：报告主干已存在，保留证据",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E06.json",
+            "record_id": "01KV724CC96MF8A8SKPZACE06C",
+            "record_type": "message",
+            "fields": [
+              "record.posted_at",
+              "record.sender_identity_id",
+              "record.content"
+            ],
+            "quote": "迭代主干 v2.10.3 已经存在并且已满足这个请求"
+          },
+          "seconds_from_first_selected_event": 826.549452,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KV72HHZQN6EXSGA9DCWZ7ZS7",
+          "timestamp_utc": "2026-06-16T02:00:39.671089Z",
+          "actor_ref": "user:user-04982846",
+          "lane": "user_message",
+          "label": "用户纠正发布操作顺序",
+          "evidence_level": "native_message",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E07.json",
+            "record_id": "01KV72HHZQN6EXSGA9DCWZ7ZS7",
+            "record_type": "message",
+            "fields": [
+              "record.posted_at",
+              "record.sender_identity_id",
+              "record.content"
+            ],
+            "quote": "执行顺序 是不是不对"
+          },
+          "seconds_from_first_selected_event": 1258.274662,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KV72MY58X8TTJ7PCJ3P7DXA9",
+          "timestamp_utc": "2026-06-16T02:02:30.440646Z",
+          "actor_ref": "agent:agent-b5036ea8",
+          "lane": "agent_report",
+          "label": "PD报告接受次序纠正",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E08.json",
+            "record_id": "01KV72MY58X8TTJ7PCJ3P7DXA9",
+            "record_type": "message",
+            "fields": [
+              "record.posted_at",
+              "record.sender_identity_id",
+              "record.content"
+            ],
+            "quote": "不该先合 main"
+          },
+          "seconds_from_first_selected_event": 1369.044219,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KV730J1MXKES7PXRRD3WJXNJ",
+          "timestamp_utc": "2026-06-16T02:08:51.252117Z",
+          "actor_ref": "agent:agent-b5036ea8",
+          "lane": "agent_report",
+          "label": "PD报告发布",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E09.json",
+            "record_id": "01KV730J1MXKES7PXRRD3WJXNJ",
+            "record_type": "message",
+            "fields": [
+              "record.posted_at",
+              "record.sender_identity_id",
+              "record.content"
+            ],
+            "quote": "v2.10.3 已发布"
+          },
+          "seconds_from_first_selected_event": 1749.85569,
+          "time_unit": "seconds"
+        },
+        {
+          "id": "01KV736EDS5M1P398Y28DJXKPF",
+          "timestamp_utc": "2026-06-16T02:12:04.153627Z",
+          "actor_ref": "agent:agent-b5036ea8",
+          "lane": "agent_report",
+          "label": "同一PD补充合并报告",
+          "evidence_level": "message_report",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E10.json",
+            "record_id": "01KV736EDS5M1P398Y28DJXKPF",
+            "record_type": "message",
+            "fields": [
+              "record.posted_at",
+              "record.sender_identity_id",
+              "record.content"
+            ],
+            "quote": "origin/main"
+          },
+          "seconds_from_first_selected_event": 1942.7572,
+          "time_unit": "seconds"
+        }
+      ],
+      "branch_relationships": [
+        {
+          "source_branch": "dev/*",
+          "target_branch": "v2.10.3",
+          "actor": "integration",
+          "phase": "开发期合并",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E03.json",
+            "record_id": "01KV71PF2XKD4YY5ERFD4ACJNV",
+            "record_type": "message",
+            "fields": [
+              "record.posted_at",
+              "record.sender_identity_id",
+              "record.content"
+            ],
+            "quote": "合并到main 是ship操作，只有你来操作。"
+          }
+        },
+        {
+          "source_branch": "v2.10.3",
+          "target_branch": "main",
+          "actor": "PD",
+          "phase": "ship",
+          "source": {
+            "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E03.json",
+            "record_id": "01KV71PF2XKD4YY5ERFD4ACJNV",
+            "record_type": "message",
+            "fields": [
+              "record.posted_at",
+              "record.sender_identity_id",
+              "record.content"
+            ],
+            "quote": "合并到main 是ship操作，只有你来操作。"
+          }
+        }
+      ],
+      "mistaken_mapping": {
+        "source_branch": "dev/*",
+        "target_branch": "main",
+        "actor": "integration",
+        "status": "PD proposed erroneous interpretation; not proof of executed merge",
+        "source": {
+          "path": "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/phase1_evidence/inherited/C07-E02.json",
+          "record_id": "01KV71F5Q1DGQ5MP1Q29XMQ2H4",
+          "record_type": "message",
+          "fields": [
+            "record.posted_at",
+            "record.sender_identity_id",
+            "record.content"
+          ],
+          "quote": "把各开发分支合并进迭代主干（main）"
+        }
+      },
+      "limits": [
+        "All branch/Git facts here remain participant reports; no new Git verification.",
+        "User forwarding the rebuild request is not an independent factual validation.",
+        "C07-E07 concerns release order, not premature Task done.",
+        "C07-E09 and E10 are both PD, not two independent reviewers.",
+        "June 16 predates the June 28 internal Supervisor/executor design, so it is cross-agent evidence only."
+      ]
+    }
+  }
+}

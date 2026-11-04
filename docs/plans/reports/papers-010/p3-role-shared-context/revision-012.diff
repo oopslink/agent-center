@@ -1,0 +1,10 @@
+--- P3/before/draft.md
++++ P3/after/draft.md
+@@ -1,4 +1,6 @@
+-# Agent 命名与上下文组织的作用边界：案例研究与受控实验
++# 多智能体系统中的命名、角色与上下文共享
++
++*Naming, Roles, and Context Sharing in Multi-Agent Systems*
+ 
+ **论文类型：**案例研究与受控行为实验工作稿；作者、单位及通讯信息待补。**状态：**人工智能（AI）辅助分析与写作，尚未人工复核。
+ 

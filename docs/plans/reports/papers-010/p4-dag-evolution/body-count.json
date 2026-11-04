@@ -1,0 +1,17 @@
+{
+  "paper": "P4",
+  "revision": "022-standalone-prose",
+  "count_rule": "Han characters plus English lexical tokens; URLs, HTML comments and fenced diagrams excluded; abstracts, references, evidence appendix and declarations excluded. Prose excludes headings/tables/captions/images.",
+  "prose_count": 8090,
+  "text_including_tables_captions_headings": 10338,
+  "previous_target": 6000,
+  "previous_budget_status": "Author requested quantitative expansion; prior length target is historical, not re-certified.",
+  "figures": 6,
+  "tables": 10,
+  "supplement": "evidence-details.md",
+  "count_note": "Standalone statement of findings, mechanisms, design implications and limits; existing empirical results, not independently human-reviewed.",
+  "experiment_supplement": "controlled-experiments.md",
+  "method_supplement": "argument-methods-015.md",
+  "validity_supplement": "../research-validity-016/README.md",
+  "mechanism_revision": "../mechanisms-020/README.md"
+}

@@ -1,0 +1,104 @@
+{
+  "schema": "H04-instrument-adjudication-v1",
+  "created_at_utc": "2026-11-04T08:43:27.898458+00:00",
+  "reviewer": "methods_validity_audit_016",
+  "episode_id": "P2-p2_expiry-haiku-short-distributed",
+  "episode_path_at_review": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/episodes/P2-p2_expiry-haiku-short-distributed",
+  "bug": "Undocumented closed test-case schema rejects valid metadata such as name",
+  "classification": "harness_contract_mismatch",
+  "evidence_scope": "Only designated H04 episode input artifact and relevant failure/escalation events; no cross-condition result analysis",
+  "record_count": 5,
+  "distinct_inputs": 5,
+  "case_checks": [
+    {
+      "index": 0,
+      "metadata_keys": [
+        "name"
+      ],
+      "original_exact_key_check": false,
+      "original_whole_noninput_matches": false,
+      "core_output_or_error_matches_frozen_reference": true,
+      "has_input": true,
+      "exclusive_output_or_error": true
+    },
+    {
+      "index": 1,
+      "metadata_keys": [
+        "name"
+      ],
+      "original_exact_key_check": false,
+      "original_whole_noninput_matches": false,
+      "core_output_or_error_matches_frozen_reference": true,
+      "has_input": true,
+      "exclusive_output_or_error": true
+    },
+    {
+      "index": 2,
+      "metadata_keys": [
+        "name"
+      ],
+      "original_exact_key_check": false,
+      "original_whole_noninput_matches": false,
+      "core_output_or_error_matches_frozen_reference": true,
+      "has_input": true,
+      "exclusive_output_or_error": true
+    },
+    {
+      "index": 3,
+      "metadata_keys": [
+        "name"
+      ],
+      "original_exact_key_check": false,
+      "original_whole_noninput_matches": false,
+      "core_output_or_error_matches_frozen_reference": true,
+      "has_input": true,
+      "exclusive_output_or_error": true
+    },
+    {
+      "index": 4,
+      "metadata_keys": [
+        "name"
+      ],
+      "original_exact_key_check": false,
+      "original_whole_noninput_matches": false,
+      "core_output_or_error_matches_frozen_reference": true,
+      "has_input": true,
+      "exclusive_output_or_error": true
+    }
+  ],
+  "source_files": [
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/setup/main-frozen-source/runtime.py",
+      "sha256": "2aa33a25c1cf8f1670d863b4cfd70d42afacf9606e07b73a746af38b404cbbcb"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/setup/main-frozen-source/tasks.py",
+      "sha256": "bc8446f01c1115ea36cfa278945ce29efc006c7ad39284ef0c013bcb8d1cfb38"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/episodes/P2-p2_expiry-haiku-short-distributed/work/test_cases.json",
+      "sha256": "bc55828e763ab22faf3ddec43fd3d7b61482ce3957f8dcbc3cdf1f9fe85ac996"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/episodes/P2-p2_expiry-haiku-short-distributed/work/module.py",
+      "sha256": "499812d5d6a3cc61e1f9f811930c689e93691fbad3c8ae45d67350932161ca53"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/episodes/P2-p2_expiry-haiku-short-distributed/events/worker-01.jsonl",
+      "sha256": "dfcfccc3a7ab2cd1f0d149be4052a3a4d31ad864904029f3f4befa1870c9b752"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/episodes/P2-p2_expiry-haiku-short-distributed/events/controller.jsonl",
+      "sha256": "80cab9a77b10d9018f75aa2ddbd0ddd2b9823fb3250c8da0a02e8327119c2fd6"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/design-lock.json",
+      "sha256": "e7c61e898bfdbae14dd3b0993f84ff32723e15dae45d3f54770c2d1431c69cc5"
+    }
+  ],
+  "finding": "All five core expectations match frozen task reference; all five are rejected by original key-set and whole-noninput-dict checks because of name metadata, which the artifact contract did not forbid.",
+  "inferential_limit": "The observed controller request_external follows unexplained instrument rejection and is not a clean architecture-failure outcome. Its narrative also calls visible user tests hidden; do not certify every explanatory clause as accurate.",
+  "versioning_requirement": "Preserve all v1 runs, failures and successes; rerun full 54-row design as v2 under new lock. v2 is an instrument repair after v1 outcomes, not a new unseen holdout confirmation.",
+  "model_calls": 0,
+  "method": "Read-only deterministic comparison with frozen reference; no original artifacts modified."
+}

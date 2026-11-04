@@ -250,7 +250,9 @@ describe('formatDayLabel / localDayKey', () => {
   });
 
   it('two instants on the same local day share a key (group together)', () => {
-    expect(localDayKey('2026-06-30T01:00:00Z')).toBe(localDayKey('2026-06-30T09:00:00Z'));
+    const morning = new Date(2026, 5, 30, 9).toISOString();
+    const afternoon = new Date(2026, 5, 30, 15).toISOString();
+    expect(localDayKey(morning)).toBe(localDayKey(afternoon));
   });
 
   it('fail-safe on bad input', () => {

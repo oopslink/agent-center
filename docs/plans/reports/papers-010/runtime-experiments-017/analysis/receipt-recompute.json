@@ -1,0 +1,30 @@
+{
+  "scope": "Post-result mechanical receipt audit, not a counterfactual model intervention or independent human review",
+  "episode": "v2-P2-p2_expiry-haiku-long-distributed",
+  "receipt_count": 7,
+  "review_checks": [
+    {
+      "actor": "worker-03",
+      "valid_prior_receipt": true,
+      "source_sha256": "b1b6fcb0e70ce1ed86fc5f2dc585096f6d185a0bcced7d05c5a660c5f215b466"
+    },
+    {
+      "actor": "worker-04",
+      "valid_prior_receipt": true,
+      "source_sha256": "e1da95ccd54156cf90698c3ef234325ce51707c4bbc6ae5084fcd2f6ff40e423"
+    },
+    {
+      "actor": "worker-05",
+      "valid_prior_receipt": true,
+      "source_sha256": "2679234a62e183723a89eaeefb19d4a6c7ec21a217f9243c176d3aff335cb6be"
+    },
+    {
+      "actor": "worker-06",
+      "valid_prior_receipt": true,
+      "source_sha256": "469dff3233198d7f4abc031a09a1d6917dd565ce79aee5927176d5ae1d5385b7"
+    }
+  ],
+  "final_errors": [
+    "manifest_missing_or_stale"
+  ]
+}

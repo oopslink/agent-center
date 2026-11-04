@@ -1,0 +1,12 @@
+--- P1/before/draft.md
++++ P1/after/draft.md
+@@ -1,6 +1,6 @@
+-# Supervisor–Executor 架构中的责任归属：案例研究与受控行为实验
+-
+-*Responsibility Attribution in Supervisor–Executor Architectures: A Case Study and Controlled Behavioral Experiments*
++# Supervisor–Executor 架构中的身份抽象与责任归属
++
++*Identity Abstraction and Responsibility Attribution in Supervisor–Executor Architectures*
+ 
+ ## 中文摘要
+ 

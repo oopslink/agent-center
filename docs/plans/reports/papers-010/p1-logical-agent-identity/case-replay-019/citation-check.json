@@ -1,0 +1,69 @@
+{
+  "crossref": {
+    "url": "https://api.crossref.org/works/10.1016/0004-3702%2890%2990055-5",
+    "checked_utc": "2026-11-04T13:27:57.918840+00:00",
+    "fields": {
+      "DOI": "10.1016/0004-3702(90)90055-5",
+      "title": [
+        "Intention is choice with commitment"
+      ],
+      "author": [
+        {
+          "given": "Philip R.",
+          "family": "Cohen",
+          "sequence": "first",
+          "affiliation": [],
+          "role": [
+            {
+              "vocabulary": "crossref",
+              "role": "author"
+            }
+          ]
+        },
+        {
+          "given": "Hector J.",
+          "family": "Levesque",
+          "sequence": "additional",
+          "affiliation": [],
+          "role": [
+            {
+              "vocabulary": "crossref",
+              "role": "author"
+            }
+          ]
+        }
+      ],
+      "volume": "42",
+      "issue": "2-3",
+      "page": "213-261",
+      "published": {
+        "date-parts": [
+          [
+            1990,
+            3
+          ]
+        ]
+      },
+      "update-to": null,
+      "updated-by": null,
+      "relation": {}
+    }
+  },
+  "openalex": {
+    "url": "https://api.openalex.org/works/https://doi.org/10.1016/0004-3702%2890%2990055-5",
+    "checked_utc": "2026-11-04T13:27:58.865520+00:00",
+    "fields": {
+      "id": "https://openalex.org/W2431139695",
+      "doi": "https://doi.org/10.1016/0004-3702(90)90055-5",
+      "display_name": "Intention is choice with commitment",
+      "is_retracted": false
+    }
+  },
+  "original": {
+    "publisher": "https://www.sciencedirect.com/science/article/pii/0004370290900555",
+    "full_text": "https://ai.stanford.edu/~epacuit/classes/lori-spr09/cohenlevesque-intention-aij90.pdf",
+    "location": "section 4, page 236, definition 4.1",
+    "use": "distinguish conditions for dropping the persistent goal from termination of an attempted action; conceptual comparison only",
+    "publication_status": "Publisher identifies a published article; Crossref metadata show no update/retraction relation; OpenAlex is_retracted=false at check. Not a guarantee against future notices."
+  }
+}

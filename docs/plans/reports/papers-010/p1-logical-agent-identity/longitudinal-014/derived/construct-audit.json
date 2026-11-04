@@ -1,0 +1,12 @@
+{
+  "design_sha256": "a7b90d4049b14ec87d0959acf02ca758d7d0476c844c3aef4950210cec91688c",
+  "stage_A": 512,
+  "all_have_explicit_followup_responsibility": 512,
+  "S7": 64,
+  "S7_all_have_explicit_precise_authorized_repair": 64,
+  "identities": {
+    "unified": 256,
+    "components": 256
+  },
+  "scope": "Post hoc construct audit, no rescoring or new model calls. This examines explicit-responsibility short-form decisions, not unassisted longitudinal ownership."
+}

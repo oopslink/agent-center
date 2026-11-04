@@ -1,0 +1,582 @@
+[
+  {
+    "side": "center",
+    "directory": "versions/HEAD-441de8bb",
+    "commit": "441de8bb",
+    "version": "HEAD-441de8bb",
+    "commit_file_mtime_utc": "2026-07-13T09:15:21.543396+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "441de8bb89efa1f2914c71681f1085eb360de7d5",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/HEAD-48616aa6",
+    "commit": "48616aa6",
+    "version": "HEAD-48616aa6",
+    "commit_file_mtime_utc": "2026-07-13T03:18:17.865888+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "48616aa620650093c7492f954925b388d71c4fda",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/HEAD-7e373cc1",
+    "commit": "7e373cc1",
+    "version": "HEAD-7e373cc1",
+    "commit_file_mtime_utc": "2026-07-16T13:44:17.728735+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "7e373cc105de8bbe8f94c87cde606351f75d657e",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/HEAD-88efae07",
+    "commit": "88efae07",
+    "version": "HEAD-88efae07",
+    "commit_file_mtime_utc": "2026-07-13T10:17:57.923175+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "88efae07fc24f898077aba23112251961ccf33cb",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/ac-exec/task-0acd92ce/exec-949c3245-5a18901e",
+    "commit": "5a18901e",
+    "version": "ac-exec/task-0acd92ce/exec-949c3245-5a18901e",
+    "commit_file_mtime_utc": "2026-08-29T07:14:36.562790+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "5a18901eaea33c48247e2e8847a29f1d66038d40",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/fix/file-upload-new-scope-b3866d78",
+    "commit": "b3866d78",
+    "version": "fix/file-upload-new-scope-b3866d78",
+    "commit_file_mtime_utc": "2026-08-21T08:30:14.500238+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "b3866d78091f0e74b33de6570c52d672f067dc9b",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/main-02224027",
+    "commit": "02224027554289453c04a5f5332a03174fb49448",
+    "version": "main-02224027",
+    "commit_file_mtime_utc": "2026-09-17T06:47:28.743884+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "02224027554289453c04a5f5332a03174fb49448",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/main-1fb4a702",
+    "commit": "1fb4a702770db99ed53cf5cb81b0ddd7bf503c01",
+    "version": "main-1fb4a702",
+    "commit_file_mtime_utc": "2026-09-17T03:52:04.246929+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "1fb4a702770db99ed53cf5cb81b0ddd7bf503c01",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/main-40739b51",
+    "commit": "40739b518425ae72ed5edd63a595b17b066d8208",
+    "version": "main-40739b51",
+    "commit_file_mtime_utc": "2026-09-14T08:42:42.784176+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "40739b518425ae72ed5edd63a595b17b066d8208",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/main-714194ea",
+    "commit": "714194ea4e7155efe9b73425c25570ad6f9447a4",
+    "version": "main-714194ea",
+    "commit_file_mtime_utc": "2026-09-14T06:34:51.634935+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "714194ea4e7155efe9b73425c25570ad6f9447a4",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/main-7ff70161",
+    "commit": "7ff70161596089707fcc596cb234905ec0b940c1",
+    "version": "main-7ff70161",
+    "commit_file_mtime_utc": "2026-09-14T03:48:31.365249+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "7ff70161596089707fcc596cb234905ec0b940c1",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/main-8a9a77bc",
+    "commit": "8a9a77bceee6c68cce2b8b6e6926183db4b49eff",
+    "version": "main-8a9a77bc",
+    "commit_file_mtime_utc": "2026-09-14T06:17:56.656108+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "8a9a77bceee6c68cce2b8b6e6926183db4b49eff",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/main-8b65ef45",
+    "commit": "8b65ef457a53b9fa1e166bf20e84f94b16a8b04e",
+    "version": "main-8b65ef45",
+    "commit_file_mtime_utc": "2026-09-16T02:29:21.067484+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "8b65ef457a53b9fa1e166bf20e84f94b16a8b04e",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/main-9e09f2a2",
+    "commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "version": "main-9e09f2a2",
+    "commit_file_mtime_utc": "2026-09-17T09:17:43.020007+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/main-c5cc42f5",
+    "commit": "c5cc42f5a3c2f413e4029393e76fcc4f61be9188",
+    "version": "main-c5cc42f5",
+    "commit_file_mtime_utc": "2026-09-14T07:44:03.645382+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "c5cc42f5a3c2f413e4029393e76fcc4f61be9188",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/main-e59d7d52",
+    "commit": "e59d7d52db3a5eb30e8bd24df54c3ba4b817d819",
+    "version": "main-e59d7d52",
+    "commit_file_mtime_utc": "2026-09-16T12:55:51.501017+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "e59d7d52db3a5eb30e8bd24df54c3ba4b817d819",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/ship-v2.43.0-5f98503c",
+    "commit": "5f98503c",
+    "version": "ship-v2.43.0-5f98503c",
+    "commit_file_mtime_utc": "2026-07-12T23:45:08.435138+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "5f98503c3ca8ed355152f88044aa76c6b85ab436",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/v2.10.0-02057c8",
+    "commit": "02057c820b91798ec65037b648273cc93f61ca92",
+    "version": "v2.10.0-02057c8",
+    "commit_file_mtime_utc": "2026-06-14T17:04:34.064293+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "02057c820b91798ec65037b648273cc93f61ca92",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/v2.7.1",
+    "commit": "17bdc0e",
+    "version": "v2.7.1",
+    "commit_file_mtime_utc": "2026-06-07T03:23:11.132311+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "17bdc0ed9fa2574061fe19510220f0347850e115",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/v2.8.1-0945dcc",
+    "commit": "0945dcc",
+    "version": "v2.8.1-0945dcc",
+    "commit_file_mtime_utc": "2026-06-08T13:23:55.075010+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "0945dccc8a72151c4d1a084a2c6fa665b1744c4d",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/v2.8.1-3487d7b",
+    "commit": "3487d7b",
+    "version": "v2.8.1-3487d7b",
+    "commit_file_mtime_utc": "2026-06-08T13:01:15.343509+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "3487d7ba8fd9944b9b259e7c36b5c8a14a897baa",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/v2.8.1-41402cc",
+    "commit": "41402cc",
+    "version": "v2.8.1-41402cc",
+    "commit_file_mtime_utc": "2026-06-09T23:37:56.200463+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "41402cc22a290574feaa30f433d2388f9bae2728",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/v2.8.1-6e1ac2a",
+    "commit": "6e1ac2a",
+    "version": "v2.8.1-6e1ac2a",
+    "commit_file_mtime_utc": "2026-06-08T12:30:59.860277+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "6e1ac2a45ba55b75898b0c1d33bcfcc0f0dcab5b",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/v2.8.1-89f3376",
+    "commit": "89f3376",
+    "version": "v2.8.1-89f3376",
+    "commit_file_mtime_utc": "2026-06-08T12:16:19.629378+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "89f33769ed490e54a2ecd9cec19e2a0995e33979",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/v2.8.1-b2aaade",
+    "commit": "b2aaade",
+    "version": "v2.8.1-b2aaade",
+    "commit_file_mtime_utc": "2026-06-09T12:44:56.313985+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "b2aaade42a564e17ebfd83d08490d6ecb1a9f739",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/v2.8.1-c9c6607",
+    "commit": "c9c6607",
+    "version": "v2.8.1-c9c6607",
+    "commit_file_mtime_utc": "2026-06-09T12:51:48.636240+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "c9c660761c9e2c14d4f0d0acff46427695557756",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/v2.9-50691bf",
+    "commit": "50691bf",
+    "version": "v2.9-50691bf",
+    "commit_file_mtime_utc": "2026-06-11T13:25:44.028015+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "50691bf0694169ee478b41123b7ef5a64f09becc",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/v2.9-f6fd373",
+    "commit": "f6fd373",
+    "version": "v2.9-f6fd373",
+    "commit_file_mtime_utc": "2026-06-11T12:25:59.244464+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "f6fd373d47742457d7f2f34990e4e7796ba35610",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "directory": "versions/v2.9.2-bc4211b",
+    "commit": "bc4211bc5f33762ba65b95dabce8c5545c400cba",
+    "version": "v2.9.2-bc4211b",
+    "commit_file_mtime_utc": "2026-06-14T07:48:57.105291+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "bc4211bc5f33762ba65b95dabce8c5545c400cba",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "center",
+    "current_symlink": "/Users/oopslink/.agent-center/versions/main-9e09f2a2",
+    "commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "version": "main-9e09f2a2",
+    "observed_utc": "2026-11-04T06:03:46.115826+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "evidence_scope": "current symlink only"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/HEAD-441de8bb",
+    "commit": "441de8bb",
+    "version": "HEAD-441de8bb",
+    "commit_file_mtime_utc": "2026-07-13T09:15:22.245572+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "441de8bb89efa1f2914c71681f1085eb360de7d5",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/HEAD-48616aa6",
+    "commit": "48616aa6",
+    "version": "HEAD-48616aa6",
+    "commit_file_mtime_utc": "2026-07-13T03:18:18.332618+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "48616aa620650093c7492f954925b388d71c4fda",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/HEAD-7e373cc1",
+    "commit": "7e373cc1",
+    "version": "HEAD-7e373cc1",
+    "commit_file_mtime_utc": "2026-07-16T13:44:18.181657+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "7e373cc105de8bbe8f94c87cde606351f75d657e",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/HEAD-88efae07",
+    "commit": "88efae07",
+    "version": "HEAD-88efae07",
+    "commit_file_mtime_utc": "2026-07-13T10:17:58.492368+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "88efae07fc24f898077aba23112251961ccf33cb",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/main-02224027",
+    "commit": "02224027554289453c04a5f5332a03174fb49448",
+    "version": "main-02224027",
+    "commit_file_mtime_utc": "2026-09-17T06:47:28.802375+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "02224027554289453c04a5f5332a03174fb49448",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/main-1fb4a702",
+    "commit": "1fb4a702770db99ed53cf5cb81b0ddd7bf503c01",
+    "version": "main-1fb4a702",
+    "commit_file_mtime_utc": "2026-09-17T03:52:04.286521+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "1fb4a702770db99ed53cf5cb81b0ddd7bf503c01",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/main-40739b51",
+    "commit": "40739b518425ae72ed5edd63a595b17b066d8208",
+    "version": "main-40739b51",
+    "commit_file_mtime_utc": "2026-09-14T08:42:42.952842+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "40739b518425ae72ed5edd63a595b17b066d8208",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/main-714194ea",
+    "commit": "714194ea4e7155efe9b73425c25570ad6f9447a4",
+    "version": "main-714194ea",
+    "commit_file_mtime_utc": "2026-09-14T06:34:51.657870+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "714194ea4e7155efe9b73425c25570ad6f9447a4",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/main-71cde362",
+    "commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "version": "main-71cde362",
+    "commit_file_mtime_utc": "2026-09-23T04:52:05.065798+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/main-8b65ef45",
+    "commit": "8b65ef457a53b9fa1e166bf20e84f94b16a8b04e",
+    "version": "main-8b65ef45",
+    "commit_file_mtime_utc": "2026-09-16T02:29:21.086959+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "8b65ef457a53b9fa1e166bf20e84f94b16a8b04e",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/main-9e09f2a2",
+    "commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "version": "main-9e09f2a2",
+    "commit_file_mtime_utc": "2026-09-17T09:17:43.102880+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/main-c5cc42f5",
+    "commit": "c5cc42f5a3c2f413e4029393e76fcc4f61be9188",
+    "version": "main-c5cc42f5",
+    "commit_file_mtime_utc": "2026-09-14T07:44:03.673505+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "c5cc42f5a3c2f413e4029393e76fcc4f61be9188",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/main-e59d7d52",
+    "commit": "e59d7d52db3a5eb30e8bd24df54c3ba4b817d819",
+    "version": "main-e59d7d52",
+    "commit_file_mtime_utc": "2026-09-16T12:55:51.574107+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "e59d7d52db3a5eb30e8bd24df54c3ba4b817d819",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/main-ee9eab20",
+    "commit": "ee9eab20c82083ae526f89ecf3907846a03c5dd7",
+    "version": "main-ee9eab20",
+    "commit_file_mtime_utc": "2026-09-14T09:25:30.280519+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "ee9eab20c82083ae526f89ecf3907846a03c5dd7",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/ship-v2.43.0-5f98503c",
+    "commit": "5f98503c",
+    "version": "ship-v2.43.0-5f98503c",
+    "commit_file_mtime_utc": "2026-07-12T23:45:09.022402+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "5f98503c3ca8ed355152f88044aa76c6b85ab436",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/v2.10.0-02057c8",
+    "commit": "02057c820b91798ec65037b648273cc93f61ca92",
+    "version": "v2.10.0-02057c8",
+    "commit_file_mtime_utc": "2026-06-14T17:04:34.523341+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "02057c820b91798ec65037b648273cc93f61ca92",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/v2.7.1",
+    "commit": "17bdc0e",
+    "version": "v2.7.1",
+    "commit_file_mtime_utc": "2026-06-07T03:23:48.586680+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "17bdc0ed9fa2574061fe19510220f0347850e115",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/v2.8.1-0945dcc",
+    "commit": "0945dcc",
+    "version": "v2.8.1-0945dcc",
+    "commit_file_mtime_utc": "2026-06-08T13:23:52.751776+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "0945dccc8a72151c4d1a084a2c6fa665b1744c4d",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/v2.8.1-3487d7b",
+    "commit": "3487d7b",
+    "version": "v2.8.1-3487d7b",
+    "commit_file_mtime_utc": "2026-06-08T13:01:18.113741+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "3487d7ba8fd9944b9b259e7c36b5c8a14a897baa",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/v2.8.1-41402cc",
+    "commit": "41402cc",
+    "version": "v2.8.1-41402cc",
+    "commit_file_mtime_utc": "2026-06-09T23:37:53.119253+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "41402cc22a290574feaa30f433d2388f9bae2728",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/v2.8.1-6e1ac2a",
+    "commit": "6e1ac2a",
+    "version": "v2.8.1-6e1ac2a",
+    "commit_file_mtime_utc": "2026-06-08T12:30:57.709792+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "6e1ac2a45ba55b75898b0c1d33bcfcc0f0dcab5b",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/v2.8.1-89f3376",
+    "commit": "89f3376",
+    "version": "v2.8.1-89f3376",
+    "commit_file_mtime_utc": "2026-06-08T12:16:25.473401+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "89f33769ed490e54a2ecd9cec19e2a0995e33979",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/v2.8.1-b2aaade",
+    "commit": "b2aaade",
+    "version": "v2.8.1-b2aaade",
+    "commit_file_mtime_utc": "2026-06-09T12:44:52.166576+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "b2aaade42a564e17ebfd83d08490d6ecb1a9f739",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/v2.8.1-c9c6607",
+    "commit": "c9c6607",
+    "version": "v2.8.1-c9c6607",
+    "commit_file_mtime_utc": "2026-06-09T12:51:51.566009+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "c9c660761c9e2c14d4f0d0acff46427695557756",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/v2.9-50691bf",
+    "commit": "50691bf",
+    "version": "v2.9-50691bf",
+    "commit_file_mtime_utc": "2026-06-11T13:25:43.777197+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "50691bf0694169ee478b41123b7ef5a64f09becc",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/v2.9-f6fd373",
+    "commit": "f6fd373",
+    "version": "v2.9-f6fd373",
+    "commit_file_mtime_utc": "2026-06-11T12:25:59.027633+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "f6fd373d47742457d7f2f34990e4e7796ba35610",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "directory": "versions/v2.9.2-bc4211b",
+    "commit": "bc4211bc5f33762ba65b95dabce8c5545c400cba",
+    "version": "v2.9.2-bc4211b",
+    "commit_file_mtime_utc": "2026-06-14T07:48:57.711908+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "bc4211bc5f33762ba65b95dabce8c5545c400cba",
+    "evidence_scope": "artifact retained; activation time unknown"
+  },
+  {
+    "side": "worker",
+    "current_symlink": "/Users/oopslink/.agent-center/workers/worker-edb09a0c/versions/main-71cde362",
+    "commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "version": "main-71cde362",
+    "observed_utc": "2026-11-04T06:03:46.125231+00:00",
+    "local_git_resolvable": true,
+    "resolved_source_commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "evidence_scope": "current symlink only"
+  }
+]

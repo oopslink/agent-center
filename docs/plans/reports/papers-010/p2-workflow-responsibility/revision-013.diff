@@ -1,0 +1,22 @@
+--- P2/before/draft.md
++++ P2/after/draft.md
+@@ -1,6 +1,10 @@
+ # 多智能体工作流中的协调失效与责任分配
+ 
+ *Coordination Failures and Responsibility Allocation in Multi-Agent Workflows*
++
++**作者：** oopslink
++
++**作者主页：** [https://github.com/oopslink](https://github.com/oopslink)
+ 
+ ## 中文摘要
+ 
+@@ -337,7 +341,7 @@
+ 
+ **伦理与隐私。** 记录含用户与 Agent 的协作内容。伦理机构、批准或豁免情况尚未由作者声明；本文不推断无需审查。公开前须由责任作者复核访问授权、可识别信息和必要脱敏，原生标识符（ID）供本地追溯。
+ 
+-**作者贡献。** 作者名单、单位、通讯作者及 CRediT 分工待作者确认，AI 不列为作者。
++**作者贡献。** 署名作者为 oopslink；具体 CRediT 贡献角色待补充。AI 不列为作者。
+ 
+ **利益冲突。** 待作者声明，未据资料缺失写作“无利益冲突”。
+ 

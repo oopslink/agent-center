@@ -1,0 +1,94 @@
+{
+  "P2": {
+    "all": {
+      "controller_turns": {
+        "n": 12,
+        "sum": 52,
+        "median": 4.0,
+        "min": 1,
+        "max": 9,
+        "positive": 12
+      },
+      "worker_decisions": {
+        "n": 12,
+        "sum": 39,
+        "median": 3.0,
+        "min": 1,
+        "max": 10,
+        "positive": 12
+      },
+      "total": {
+        "n": 12,
+        "sum": 91,
+        "median": 7.0,
+        "min": 4,
+        "max": 19,
+        "positive": 12
+      },
+      "worker_starts": {
+        "n": 12,
+        "sum": 25,
+        "median": 2.0,
+        "min": 1,
+        "max": 4,
+        "positive": 12
+      }
+    },
+    "both_delivered": {
+      "controller_turns": {
+        "n": 11,
+        "sum": 43,
+        "median": 4,
+        "min": 1,
+        "max": 5,
+        "positive": 11
+      },
+      "worker_decisions": {
+        "n": 11,
+        "sum": 29,
+        "median": 3,
+        "min": 1,
+        "max": 4,
+        "positive": 11
+      },
+      "total": {
+        "n": 11,
+        "sum": 72,
+        "median": 7,
+        "min": 4,
+        "max": 8,
+        "positive": 11
+      },
+      "worker_starts": {
+        "n": 11,
+        "sum": 21,
+        "median": 2,
+        "min": 1,
+        "max": 2,
+        "positive": 11
+      }
+    }
+  },
+  "P4": {
+    "cross": {
+      "True": {
+        "shared_status_changes": 157,
+        "became_completed": 101,
+        "left_completed": 0,
+        "all_parent_nodes_retained": 146,
+        "n": 166
+      },
+      "False": {
+        "shared_status_changes": 3,
+        "became_completed": 1,
+        "left_completed": 0,
+        "all_parent_nodes_retained": 3,
+        "n": 3
+      }
+    },
+    "loo_retention_range": [
+      0.8540145985401459,
+      0.910828025477707
+    ]
+  }
+}

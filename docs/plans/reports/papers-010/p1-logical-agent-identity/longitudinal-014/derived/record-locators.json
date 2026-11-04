@@ -1,0 +1,308 @@
+[
+  {
+    "case": "L01",
+    "id": "01KY4B5KS3272X3AMXDXHQMEC0",
+    "timestamp": "2026-07-22T07:20:47.651234Z",
+    "sender": "agent:agent-20d5e05c",
+    "file": "raw/records/01KY4B5KS3272X3AMXDXHQMEC0.json",
+    "json_pointer": "",
+    "sha256": "708ac600e5409460d70c3910346369397bdc4784d8f223405c266d848ed5fb74"
+  },
+  {
+    "case": "L01",
+    "id": "01KY4B74V6XGRFG85EV29RS1RT",
+    "timestamp": "2026-07-22T07:21:37.894896Z",
+    "sender": "user:user-04982846",
+    "file": "raw/records/01KY4B74V6XGRFG85EV29RS1RT.json",
+    "json_pointer": "",
+    "sha256": "4862831982266d7e170fdf1704312e3ca5892b8cc242b6714671580ef44cc45e"
+  },
+  {
+    "case": "L01",
+    "id": "01KY4B7K5QXK434NNHY9K1FKEF",
+    "timestamp": "2026-07-22T07:21:52.567652Z",
+    "sender": "agent:agent-20d5e05c",
+    "file": "raw/records/01KY4B7K5QXK434NNHY9K1FKEF.json",
+    "json_pointer": "",
+    "sha256": "e8f3ef8e28a825fc3a206c0d6bed6da3a178b3c94ea0a940edf1e01ea540f748"
+  },
+  {
+    "case": "L02",
+    "id": "01KY5BMKX9ZM03BTJTENTQSKDB",
+    "timestamp": "2026-07-22T16:48:13.737573Z",
+    "sender": "agent:agent-ba6bc42a",
+    "file": "raw/records/01KY5BMKX9ZM03BTJTENTQSKDB.json",
+    "json_pointer": "",
+    "sha256": "e7d1b7ca73c354b305690f9853fd143f6becb2b25d5d770d7ff228e4ca8386ee"
+  },
+  {
+    "case": "L02",
+    "id": "01KY5BYKS2T49YEXAGRPQQ9XWN",
+    "timestamp": "2026-07-22T16:53:41.282145Z",
+    "sender": "user:user-04982846",
+    "file": "raw/records/01KY5BYKS2T49YEXAGRPQQ9XWN.json",
+    "json_pointer": "",
+    "sha256": "acdc8ec03bcd8f2158289fcaf4d592880f878e4fadb5503af7f9e9ac632b97b9"
+  },
+  {
+    "case": "L02",
+    "id": "01KY5BZ3804ZA0ETH34RA1XEH1",
+    "timestamp": "2026-07-22T16:53:57.120322Z",
+    "sender": "agent:agent-ba6bc42a",
+    "file": "raw/records/01KY5BZ3804ZA0ETH34RA1XEH1.json",
+    "json_pointer": "",
+    "sha256": "adb4cd3bf03dda010577303b176503fd344dcca5f61f3037cd89d16cc1687ce4"
+  },
+  {
+    "case": "L02",
+    "id": "01KY5C4XXCTE2AGYB373M42A9Y",
+    "timestamp": "2026-07-22T16:57:08.268484Z",
+    "sender": "agent:agent-b5036ea8",
+    "file": "raw/records/01KY5C4XXCTE2AGYB373M42A9Y.json",
+    "json_pointer": "",
+    "sha256": "ad451f0bed9246ef886dac85d57ef353acc6512214d1edbb2b5c86f198576b40"
+  },
+  {
+    "case": "L02",
+    "id": "01KY5C5HW683A4YZG91P23RC7G",
+    "timestamp": "2026-07-22T16:57:28.71098Z",
+    "sender": "agent:agent-b5036ea8",
+    "file": "raw/records/01KY5C5HW683A4YZG91P23RC7G.json",
+    "json_pointer": "",
+    "sha256": "b1fa96feda58bbc82bfc3afa5122475602ed8a8a3eec422e6c0dd693985ca794"
+  },
+  {
+    "case": "L03",
+    "id": "01KY68C1K5SHCFA4SFNZSS7C4C",
+    "timestamp": "2026-07-23T01:10:21.541167Z",
+    "sender": "user:user-04982846",
+    "file": "raw/records/01KY68C1K5SHCFA4SFNZSS7C4C.json",
+    "json_pointer": "",
+    "sha256": "91fe592d18da0a72cf65ee82ed61b4c7e55afb85cc841640a85a4fbe0f66699d"
+  },
+  {
+    "case": "L03",
+    "id": "01KY68TD24Y07FCY5CZY56JEDZ",
+    "timestamp": "2026-07-23T01:18:12.036841Z",
+    "sender": "agent:agent-b5036ea8",
+    "file": "raw/records/01KY68TD24Y07FCY5CZY56JEDZ.json",
+    "json_pointer": "",
+    "sha256": "3f87ec3e8655aa8dea94ac2cb102190d1b3c65a338c3294aeea0fdf1f2f4bbf0"
+  },
+  {
+    "case": "L03",
+    "id": "01KY699NV8C4KRZ8DNXC4858KM",
+    "timestamp": "2026-07-23T01:26:32.552729Z",
+    "sender": "user:user-04982846",
+    "file": "raw/records/01KY699NV8C4KRZ8DNXC4858KM.json",
+    "json_pointer": "",
+    "sha256": "890111b29728b24f64488fe0c7e24bffa5a2ee50ef8e66ffd3444f47657a73f6"
+  },
+  {
+    "case": "L03",
+    "id": "01KY69AW978C5TVS6GBM5TXK6N",
+    "timestamp": "2026-07-23T01:27:11.911017Z",
+    "sender": "agent:agent-b5036ea8",
+    "file": "raw/records/01KY69AW978C5TVS6GBM5TXK6N.json",
+    "json_pointer": "",
+    "sha256": "50f176928fa2ff57fccd9bb8775e0c6f6a6e5bf7d43e15d312408391076d3280"
+  },
+  {
+    "case": "L04",
+    "id": "01KZABVT594GFNYTWZ7AZRHF30",
+    "timestamp": "2026-08-06T01:44:03.497609Z",
+    "sender": "agent:agent-20d5e05c",
+    "file": "raw/records/01KZABVT594GFNYTWZ7AZRHF30.json",
+    "json_pointer": "",
+    "sha256": "3b141113e9a02232f63cd784031408f3a57f82cabcb7a4ab14108174899cc09e"
+  },
+  {
+    "case": "L04",
+    "id": "01KZABY7HSVA1FF42EH7XYX7GX",
+    "timestamp": "2026-08-06T01:45:22.745154Z",
+    "sender": "user:user-04982846",
+    "file": "raw/records/01KZABY7HSVA1FF42EH7XYX7GX.json",
+    "json_pointer": "",
+    "sha256": "9089842a3bcbef03f63ab7c757d0ee427979295526e134cfeb33a0fbd8ac1ebc"
+  },
+  {
+    "case": "L04",
+    "id": "01KZAC08EKE041V1XB1C2XWE5V",
+    "timestamp": "2026-08-06T01:46:29.203159Z",
+    "sender": "agent:agent-20d5e05c",
+    "file": "raw/records/01KZAC08EKE041V1XB1C2XWE5V.json",
+    "json_pointer": "",
+    "sha256": "6bd12e62f6c342e9cf0579169d544516d9d3a7dd94907eca7a5cd306491fd150"
+  },
+  {
+    "case": "L04",
+    "id": "01KZACFHV3BFM5CP04CR07Q79W",
+    "timestamp": "2026-08-06T01:54:50.339993Z",
+    "sender": "agent:agent-20d5e05c",
+    "file": "raw/records/01KZACFHV3BFM5CP04CR07Q79W.json",
+    "json_pointer": "",
+    "sha256": "748e348b3455182d04224b9e8474477f4c2183f8f5c178e77d721dfc4aafce43"
+  },
+  {
+    "case": "L05",
+    "id": "01KZDJ41E4XMR6RSRDW2342DCE",
+    "timestamp": "2026-08-07T07:31:07.844252Z",
+    "sender": "agent:agent-35ac0e16",
+    "file": "raw/records/01KZDJ41E4XMR6RSRDW2342DCE.json",
+    "json_pointer": "",
+    "sha256": "9ada862b772ed1508c077bda01dc25c8022bf5c77911cdcc791d27871e4f5dfd"
+  },
+  {
+    "case": "L05",
+    "id": "01KZDKN7K7XRNZ0DPE7G9V0GQA",
+    "timestamp": "2026-08-07T07:57:59.783637Z",
+    "sender": "agent:agent-35ac0e16",
+    "file": "raw/records/01KZDKN7K7XRNZ0DPE7G9V0GQA.json",
+    "json_pointer": "",
+    "sha256": "cefd9d147c3be95ae8bb04ccfcdeac701a35b5486aa578cb83560161666baf5d"
+  },
+  {
+    "case": "L05",
+    "id": "01KZDKS2M645VTZJ9GR8SW0MDJ",
+    "timestamp": "2026-08-07T08:00:05.766163Z",
+    "sender": "agent:agent-35ac0e16",
+    "file": "raw/records/01KZDKS2M645VTZJ9GR8SW0MDJ.json",
+    "json_pointer": "",
+    "sha256": "44bb1e15ff0d32f18102327ad07a253de110cde5b870dbe76a8566e098bb34aa"
+  },
+  {
+    "case": "L06",
+    "id": "01KZG850KPD719RY7K3PVMXMFN",
+    "timestamp": "2026-08-08T08:34:37.302213Z",
+    "sender": "user:user-04982846",
+    "file": "raw/records/01KZG850KPD719RY7K3PVMXMFN.json",
+    "json_pointer": "",
+    "sha256": "411fa7d6ecf896cb2df08d2f510154eba753ea2e0e926a9f3b6c61db8e8d22aa"
+  },
+  {
+    "case": "L07",
+    "id": "01KZQQMJHHZ2BR69ZVVA6Z2ATQ",
+    "timestamp": "2026-08-11T06:19:56.849223Z",
+    "sender": "agent:agent-b5036ea8",
+    "file": "raw/records/01KZQQMJHHZ2BR69ZVVA6Z2ATQ.json",
+    "json_pointer": "",
+    "sha256": "79d6285bad265c550248b95316fc3f3b19008dcca25214e7d2e4d47f94e7f90d"
+  },
+  {
+    "case": "L07",
+    "id": "01KZQQTJTZHXSQ687330E7GJE8",
+    "timestamp": "2026-08-11T06:23:13.759163Z",
+    "sender": "user:user-04982846",
+    "file": "raw/records/01KZQQTJTZHXSQ687330E7GJE8.json",
+    "json_pointer": "",
+    "sha256": "09a385c7ab13b12e378c0a9a1f26ec197b752a53ac3d707922bc35dd5e06d4b5"
+  },
+  {
+    "case": "L07",
+    "id": "01KZQQVEC2Y51A0ACEVK57BB6Q",
+    "timestamp": "2026-08-11T06:23:41.954132Z",
+    "sender": "user:user-04982846",
+    "file": "raw/records/01KZQQVEC2Y51A0ACEVK57BB6Q.json",
+    "json_pointer": "",
+    "sha256": "cd4f9b3f0ed1d5030656a2ab138f1d8827a3d07234a1c338916deef50f1557a6"
+  },
+  {
+    "case": "L07",
+    "id": "01KZQQWTZZCCDTG8P1ZYMDJKSQ",
+    "timestamp": "2026-08-11T06:24:27.647778Z",
+    "sender": "agent:agent-b5036ea8",
+    "file": "raw/records/01KZQQWTZZCCDTG8P1ZYMDJKSQ.json",
+    "json_pointer": "",
+    "sha256": "36fe5b871e1c147195acec698e65448b6ecf770a882976342f720622ae2b2c17"
+  },
+  {
+    "case": "L08",
+    "id": "01M1NJPH00SNX2PKBSVVMKA4RH",
+    "timestamp": "2026-09-04T06:46:32.704428Z",
+    "sender": "user:user-04982846",
+    "file": "raw/records/01M1NJPH00SNX2PKBSVVMKA4RH.json",
+    "json_pointer": "",
+    "sha256": "c241c08a95d8e33662c7d742624d9b741fb4bcfc5886816818fa144097b601dc"
+  },
+  {
+    "case": "L08",
+    "id": "01M1NJWYCQYTYXT37FCD004M8X",
+    "timestamp": "2026-09-04T06:50:03.031916Z",
+    "sender": "system",
+    "file": "raw/records/01M1NJWYCQYTYXT37FCD004M8X.json",
+    "json_pointer": "",
+    "sha256": "33a053475bf386ffa3c7064199510cd4ffb1b500ee7cedb4f6928b1c22068a8e"
+  },
+  {
+    "case": "L08",
+    "id": "01M1NK31VXQ3AJMG0CQDG1Y3F0",
+    "timestamp": "2026-09-04T06:53:23.197749Z",
+    "sender": "user:user-04982846",
+    "file": "raw/records/01M1NK31VXQ3AJMG0CQDG1Y3F0.json",
+    "json_pointer": "",
+    "sha256": "8a8cccb429bae12605ce2509419e3fca456b74417d172d094f019a2e9e52eb4b"
+  },
+  {
+    "case": "L08",
+    "id": "01M1NK72402T0YWKAP4PT9ZWZJ",
+    "timestamp": "2026-09-04T06:55:34.528899Z",
+    "sender": "agent:agent-f6899fef",
+    "file": "raw/records/01M1NK72402T0YWKAP4PT9ZWZJ.json",
+    "json_pointer": "",
+    "sha256": "e10f93d3808f240dbba7c70463ff91a8eff5ccada31ab1409bf27dac68326df6"
+  },
+  {
+    "case": "L09",
+    "id": "01M1NR44ZFJ04S7HKR6HT3XYYS",
+    "timestamp": "2026-09-04T08:21:22.0313Z",
+    "sender": "agent:agent-584e0bdd",
+    "file": "raw/records/01M1NR44ZFJ04S7HKR6HT3XYYS.json",
+    "json_pointer": "",
+    "sha256": "9ae48255d4ad0fb6c79ab28a5b71f58882f2d2858e0961af5f65409bee290df8"
+  },
+  {
+    "case": "L09",
+    "id": "01M1NR4CJ6CATJGP1T9EKMM7SK",
+    "timestamp": "2026-09-04T08:21:29.798471Z",
+    "sender": "agent:agent-584e0bdd",
+    "file": "raw/records/01M1NR4CJ6CATJGP1T9EKMM7SK.json",
+    "json_pointer": "",
+    "sha256": "16129854dc1d692d74004fe5c9a42f56157cff2f66dbb0dcb86827151e23c8a9"
+  },
+  {
+    "case": "L09",
+    "id": "01M1NRAFM5RP2N4TWS32W8JVJQ",
+    "timestamp": "2026-09-04T08:24:49.541359Z",
+    "sender": "user:user-04982846",
+    "file": "raw/records/01M1NRAFM5RP2N4TWS32W8JVJQ.json",
+    "json_pointer": "",
+    "sha256": "c5eb20d0bcbea5a95c0722ced5219c48fa95fb2ffc23eaa8a34dc9c36c6f5bd1"
+  },
+  {
+    "case": "L09",
+    "id": "01M1NRC54NBS3EBES8CTBPA7MP",
+    "timestamp": "2026-09-04T08:25:44.341709Z",
+    "sender": "user:user-04982846",
+    "file": "raw/records/01M1NRC54NBS3EBES8CTBPA7MP.json",
+    "json_pointer": "",
+    "sha256": "12bb5daf5e623a1ef2126c424b48c2649894367ef1c7034da8dc6482a043e999"
+  },
+  {
+    "case": "L09",
+    "id": "01M1NRCMXMXT0RX58VWDAK8EZQ",
+    "timestamp": "2026-09-04T08:26:00.500255Z",
+    "sender": "agent:agent-584e0bdd",
+    "file": "raw/records/01M1NRCMXMXT0RX58VWDAK8EZQ.json",
+    "json_pointer": "",
+    "sha256": "0e851d676139cb62a352c2a234083637c16f84d8478f75d1a9e2c051ef57f69e"
+  },
+  {
+    "case": "L09",
+    "id": "01M1NRFGD1F1NF8XPQN4F9D9E2",
+    "timestamp": "2026-09-04T08:27:34.177741Z",
+    "sender": "agent:agent-584e0bdd",
+    "file": "raw/records/01M1NRFGD1F1NF8XPQN4F9D9E2.json",
+    "json_pointer": "",
+    "sha256": "e2bd874db52fedc93fd0ac490f2ddc90dd03e774312e4a1ad8bba431cba33d16"
+  }
+]

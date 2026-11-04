@@ -1,0 +1,7 @@
+case,segment,classification,reason,retained_use
+M03,T1751 recovery/reset_exhausted,bug_or_runtime_mixed,executor恢复异常与知识来源混合且完整输入缺失,仅分析规则适用条件与后续独立任务中的采用
+M03,T2222 reset at 2026-09-16T09:09:50Z,bug_or_runtime_mixed,系统声称executor dead并reset,不作为记忆导致等待或恢复的证据
+M03,T2224 deploy timeout and missing attempt,system_failure,部署请求超时且attempt链缺失,排除记忆负效应且不认定整个Plan成功
+M05,T1032 repeated executor success and API wiring,system_failure_or_unresolved,空转和接口接线可独立解释交付问题,仅保留笔记与验收边界的记录用途
+M06,private quickfix shared clone interference,unresolved_configuration_and_concurrency,缺原始笔记和完整输入且并发工作区混杂,仅保留事后自述及待核实建议
+M07,missing historic private homes,missing_data,当前bootstrap不能回溯旧agent写读,不计算历史采用率或失败率
