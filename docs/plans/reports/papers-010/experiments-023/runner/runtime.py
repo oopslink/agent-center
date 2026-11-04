@@ -266,18 +266,65 @@ def budgets(row):
             out[key]=value
     return out
 
+def seed_mode(row):
+    """episode 的起点：'failed_execution'（实验一）或 'cross_session'（实验二）。"""
+    value=row.get('seed_cross_session')
+    if value is None:return 'failed_execution'
+    if value not in ('valid','stale'):
+        raise ValueError(f"seed_cross_session must be valid or stale, got {value!r}")
+    return 'cross_session'
+
+def seed_cross_session(ep,row):
+    """由研究者置入一份由另一个会话签发的通过回执与配套 review（实验二的起点）。
+
+    控制者在自己的工具历史里看不到这张回执，因此必须决定接受还是重新索证。
+    manifest 故意留空：episode 仍有实际工作要做，不是零工作量。
+    `seed_cross_session='stale'` 让回执绑定到过期产物，此时三个凭据水平下
+    正确行为都是重验——这是确认"共享回执不等于放宽"的反例。
+    """
+    ep=Path(ep).resolve();task_id=row['task'];actor='worker-00'
+    mode=row.get('seed_cross_session','valid')
+    record(ep,actor,'process_started',{'pid':os.getpid(),'origin':'researcher_seeded_cross_session','model_generated':False})
+    reference=TASKS[task_id]['reference']
+    write(ep,actor,'implementer','module.py',reference)
+    cases=[{'input':v['input'],**{k:v[k] for k in ('output','error') if k in v}} for v in vectors(task_id)[:4]]
+    write(ep,actor,'tester','test_cases.json',cases)
+    checked=run_tests(ep,actor,task_id,write_receipt=False)
+    assert checked['user_tests'] and checked['user_tests']['passed'],'seeded artifacts must pass'
+    fs=files_state(ep)
+    candidate=fs['module.py']['sha256'];tests=fs['test_cases.json']['sha256']
+    if mode=='stale':
+        # 回执绑定到一个此后被改动过的产物版本：当前产物与回执不符
+        candidate='0'*64
+    _transport,_issuer,contract_id=cfg(ep)
+    receipt=RC.make_receipt(candidate_hash=candidate,tests_hash=tests,contract_id=contract_id,
+                            result='pass',issuer=actor,utc=now(),seq=1)
+    RC.write_receipt(ep/'receipts',receipt)
+    review={'candidate_hash':fs['module.py']['sha256'],'tests_hash':tests,'verdict':'pass',
+            'notes':f'reviewed by {actor}; receipt {receipt["receipt_id"]}'}
+    write(ep,actor,'reviewer','review.json',review)
+    report={'worker_id':actor,'status':'passed','origin':'researcher_seeded_cross_session',
+            'model_generated':False,'seed_mode':mode,'receipt':receipt,'review':review,
+            'files':files_state(ep,True)}
+    save(ep/'seed-cross-session.json',report)
+    record(ep,actor,'process_finished',{'status':'passed','origin':report['origin'],'seed_mode':mode})
+    return report
+
 def episode(row,ep):
     ep=Path(ep).resolve();ep.mkdir(parents=True,exist_ok=False)
     for d in ['work','versions','events','workers','calls','checks','receipts']: (ep/d).mkdir()
     save(ep/'row.json',row)
-    proc=subprocess.run([sys.executable,str(ROOT/'runtime.py'),'--seed-task',row['task'],'--episode',str(ep)],capture_output=True,text=True,cwd=ROOT)
-    (ep/'seed-stdout.txt').write_text(proc.stdout);(ep/'seed-stderr.txt').write_text(proc.stderr)
-    assert proc.returncode==0,proc.stderr
-    seed=json.loads((ep/'seed-execution.json').read_text());initial=seed['candidate_check']
+    if seed_mode(row)=='cross_session':
+        seed=seed_cross_session(ep,row);initial=check(ep,'seed-probe',row['task'])
+    else:
+        proc=subprocess.run([sys.executable,str(ROOT/'runtime.py'),'--seed-task',row['task'],'--episode',str(ep)],capture_output=True,text=True,cwd=ROOT)
+        (ep/'seed-stdout.txt').write_text(proc.stdout);(ep/'seed-stderr.txt').write_text(proc.stderr)
+        assert proc.returncode==0,proc.stderr
+        seed=json.loads((ep/'seed-execution.json').read_text());initial=seed['candidate_check']
     mono=row.get('identity')=='single';paper=row['paper'];task_id=row['task']
     _b=budgets(row);limit=_b['decisions'];spawn_limit=_b['worker_starts']
     system=system_prompt('controller',True,row.get('identity','separate'),mono,row.get('transport','report_only'))
-    goal={'goal':'Deliver the complete requested implementation.' if paper=='P1' else 'Deliver the implementation, executable test cases, verified review, and version-bound release manifest.', 'user_contract':TASKS[task_id]['spec'],'organization':relation_view(row),'current_files':files_state(ep,True),'prior_execution':seed,'decision_budget':limit,'worker_start_budget':spawn_limit,'receipt_terms':RC.contract_text(row.get('transport','report_only'),row.get('required_issuer','controller'))}
+    goal={'goal':'Deliver the complete requested implementation.' if paper=='P1' else 'Deliver the implementation, executable test cases, verified review, and version-bound release manifest.', 'user_contract':TASKS[task_id]['spec'],'organization':relation_view(row),'current_files':files_state(ep,True),'prior_session':seed,'decision_budget':limit,'worker_start_budget':spawn_limit,'receipt_terms':RC.contract_text(row.get('transport','report_only'),row.get('required_issuer','controller'))}
     history=[{'role':'user','content':goal}];active=None;starts=0;lastcheck=initial;status='budget_exhausted';final_action=None;no_progress=0;first_failure_budget=None;controller_actions=[];worker_summaries=[]
     record(ep,'controller','process_started',{'pid':os.getpid(),'goal':goal})
     def get_worker(wait_for=False):

@@ -1,0 +1,11 @@
+team_id,rule_slug,bytes_at_head,promoted_at,first_audit_at,hours_promotion_to_first_audit,receipt_count,agents,contexts
+team-772532f5,hot-topic-radar-work-rules,7593,2026-09-01T03:15:17.979856Z,2026-09-09T06:22:59.703629Z,195.1282566036111,2,1,2
+team-f5a633d6,contract-to-production-chain-and-auditable-integration,1489,2026-08-13T06:41:17.217621Z,2026-08-14T06:29:46.003865Z,23.80799617888889,60,11,59
+team-f5a633d6,evidence-before-verdict,1222,2026-08-13T06:41:16.607334Z,2026-08-20T15:08:05.493597Z,176.44691285083331,16,4,16
+team-f5a633d6,intermediate-candidate-nodes-complete-before-final-main-integration,1451,2026-08-29T05:00:10.744079Z,2026-08-29T05:01:25.937095Z,0.02088694888888889,19,8,19
+team-f5a633d6,origin-main-required-before-completion,877,2026-08-13T06:01:20.934215Z,2026-08-14T06:29:46.182939Z,24.47368020111111,46,11,46
+team-f5a633d6,plan-node-description-must-be-executable-contract,2406,2026-08-27T09:17:48.594149Z,2026-08-28T17:24:23.025877Z,32.10956436888889,13,4,13
+team-f5a633d6,production-evidence-report-for-runnable-but-not-started,2885,2026-09-04T08:30:48.20718Z,2026-09-04T08:32:12.374648Z,0.023379852222222223,7,3,7
+team-f5a633d6,production-like-testing-must-use-isolated-instance,2071,2026-09-04T06:16:32.314511Z,2026-09-04T06:17:33.365216Z,0.016958529166666667,11,7,11
+team-f5a633d6,stop-repeated-evolution-without-acceptance-progress,1130,2026-08-31T10:03:19.776431Z,2026-08-31T10:07:44.77996Z,0.0736120913888889,7,3,7
+team-f5a633d6,verify-world-state-after-actions,1073,2026-08-13T06:41:15.968543Z,2026-08-14T06:29:46.359882Z,23.80844203861111,49,11,48

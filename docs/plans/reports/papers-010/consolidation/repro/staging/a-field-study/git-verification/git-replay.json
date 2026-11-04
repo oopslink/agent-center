@@ -1,0 +1,132 @@
+[
+  {
+    "check": "G5_not_ancestor_G6",
+    "command": [
+      "git",
+      "merge-base",
+      "--is-ancestor",
+      "2c6a5d389f8098e640f49297e202e6e8fdfe7ebc",
+      "2aebe30c14da91a431b4e94642a896f31739f419"
+    ],
+    "rc": 1,
+    "stdout": "",
+    "matches_previous": true
+  },
+  {
+    "check": "G5_ancestor_G7",
+    "command": [
+      "git",
+      "merge-base",
+      "--is-ancestor",
+      "2c6a5d389f8098e640f49297e202e6e8fdfe7ebc",
+      "4d4ccf3230f8d9bb82ca6c36bd328fb05c5b24bd"
+    ],
+    "rc": 0,
+    "stdout": "",
+    "matches_previous": true
+  },
+  {
+    "check": "G5_ancestor_final",
+    "command": [
+      "git",
+      "merge-base",
+      "--is-ancestor",
+      "2c6a5d389f8098e640f49297e202e6e8fdfe7ebc",
+      "1ba42c24ac613d23bcfa5a0c14ae1ca121032bed"
+    ],
+    "rc": 0,
+    "stdout": "",
+    "matches_previous": true
+  },
+  {
+    "check": "G6_parent",
+    "command": [
+      "git",
+      "show",
+      "-s",
+      "--format=%H%n%P%n%cI",
+      "2aebe30c14da91a431b4e94642a896f31739f419"
+    ],
+    "rc": 0,
+    "stdout": "2aebe30c14da91a431b4e94642a896f31739f419\n14ef9fd74b7a2d9b12ae22f78a91cb9616e93594\n2026-09-03T22:52:18+08:00",
+    "matches_previous": true
+  },
+  {
+    "check": "G5_graph_file",
+    "command": [
+      "git",
+      "ls-tree",
+      "2c6a5d389f8098e640f49297e202e6e8fdfe7ebc",
+      "--",
+      "internal/observability/collaborationeffect/graph_sqlite.go"
+    ],
+    "rc": 0,
+    "stdout": "100644 blob bacc12a7b91f4071a8e006758a62bdf9ec83171a\tinternal/observability/collaborationeffect/graph_sqlite.go",
+    "matches_previous": true
+  },
+  {
+    "check": "G6_graph_file",
+    "command": [
+      "git",
+      "ls-tree",
+      "2aebe30c14da91a431b4e94642a896f31739f419",
+      "--",
+      "internal/observability/collaborationeffect/graph_sqlite.go"
+    ],
+    "rc": 0,
+    "stdout": "",
+    "matches_previous": true
+  },
+  {
+    "check": "Spark_old_tree",
+    "command": [
+      "git",
+      "show",
+      "-s",
+      "--format=%H%n%P%n%T",
+      "ce5bbe69129da6c3fdc48505cbf732baeae61844"
+    ],
+    "rc": 0,
+    "stdout": "ce5bbe69129da6c3fdc48505cbf732baeae61844\nc854aac0a26db4f543a39ad44d482eed650f07ef\n038278d8d832903cc0df7c7271d08562b81d059c",
+    "matches_previous": true
+  },
+  {
+    "check": "Spark_equivalent_tree",
+    "command": [
+      "git",
+      "show",
+      "-s",
+      "--format=%H%n%P%n%T",
+      "20e942f62d31378b524ad8b34790ed7ac33d3b02"
+    ],
+    "rc": 0,
+    "stdout": "20e942f62d31378b524ad8b34790ed7ac33d3b02\nc854aac0a26db4f543a39ad44d482eed650f07ef\n038278d8d832903cc0df7c7271d08562b81d059c",
+    "matches_previous": true
+  },
+  {
+    "check": "Spark_G7_not_ancestor_bad",
+    "command": [
+      "git",
+      "merge-base",
+      "--is-ancestor",
+      "87eb1749e9180f4baa5a40cc883b4c6e4aaf7d69",
+      "5033340b136404539a784c5ab1a6546ceb52c1fd"
+    ],
+    "rc": 1,
+    "stdout": "",
+    "matches_previous": true
+  },
+  {
+    "check": "Spark_G7_ancestor_recovery",
+    "command": [
+      "git",
+      "merge-base",
+      "--is-ancestor",
+      "87eb1749e9180f4baa5a40cc883b4c6e4aaf7d69",
+      "d4cc8f6c099036e20a4c0b00132e4665874bf8a2"
+    ],
+    "rc": 0,
+    "stdout": "",
+    "matches_previous": true
+  }
+]

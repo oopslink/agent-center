@@ -1,0 +1,82 @@
+{
+ "source_note": "派生物的脱敏副本；原始协作对话不包含在内。",
+ "rules": [
+  "<ARCHIVE>",
+  "<ARCHIVE>",
+  "<HOST>",
+  "<AUTHOR>"
+ ],
+ "files": [
+  {
+   "path": "README.md",
+   "sha256": "8803602fac444a65e1d09a6bf91416022616ddc5359fce4b1ee135bd879f9385",
+   "bytes": 2579
+  },
+  {
+   "path": "a-field-study/git-verification/git-replay.json",
+   "sha256": "2c715f1be049c2ce8508dde9912f001473fede112a70c43d14f3362f39e7140f",
+   "bytes": 3187
+  },
+  {
+   "path": "a-field-study/git-verification/verify_git.py",
+   "sha256": "883019a43725ca5a28e06ac9068cdd3de2d7ac8cc73316822336ab79862ee3be",
+   "bytes": 773
+  },
+  {
+   "path": "a-field-study/recompute/_common.py",
+   "sha256": "4bba6ad5f290e30a875434b4d01a3f58232198c4bec5f143a7136d5a4b697ca9",
+   "bytes": 2554
+  },
+  {
+   "path": "a-field-study/recompute/reanalyse.py",
+   "sha256": "5536efe28d3b930d76bd4d464d90746a2515523a1b5fc9649df6a5488bd1f2c2",
+   "bytes": 3675
+  },
+  {
+   "path": "a-field-study/recompute/reanalysis.json",
+   "sha256": "d46389902871b2911ee8efe190eb8ec00767c53aa610fa02a26c8041955a3fbc",
+   "bytes": 1754
+  },
+  {
+   "path": "a-field-study/recompute/recompute.py",
+   "sha256": "0e5434d7eab8bb6164fbb3a892504a4654e16174d0317e0402c247ccb774cfba",
+   "bytes": 8414
+  },
+  {
+   "path": "a-field-study/rule-audit/proposals.csv",
+   "sha256": "2d2c3d4f1e765e47b8d8b95d9d9314e35dfad9a430dd04f4f8b317e85b706cd2",
+   "bytes": 5795
+  },
+  {
+   "path": "a-field-study/rule-audit/read-receipts.csv",
+   "sha256": "5e75c19d9061bc2297bb7c1bf9b2e90ed52216adf8281f1d805b612ad486bbe6",
+   "bytes": 98306
+  },
+  {
+   "path": "a-field-study/rule-audit/rules.csv",
+   "sha256": "284fca4f54aae5d4afacda4a24bd47afa27be333508b1a22abcc06c78de73d7a",
+   "bytes": 1589
+  },
+  {
+   "path": "a-field-study/rule-audit/summary.json",
+   "sha256": "6e7924281741457f0bd361debe7e766bea59fd8923f79899f8265389161e536d",
+   "bytes": 2605
+  },
+  {
+   "path": "a-field-study/task-graph/p4-leave-one-plan-out.csv",
+   "sha256": "e724603e94638b0ffd5d9f1d18f68d481b401bdabc05515e23956152431d8e7d",
+   "bytes": 811
+  },
+  {
+   "path": "a-field-study/task-graph/p4-transitions.csv",
+   "sha256": "845635a9b4dd04252d54f0acd046b1c20a7f10af959470d8eac0bcf9fbbfda3b",
+   "bytes": 11973
+  },
+  {
+   "path": "a-field-study/verify.py",
+   "sha256": "3ac147fe88af36554a8cf98c74668ddb99f4cc014b1e50d1e2053ac2888b8786",
+   "bytes": 4008
+  }
+ ],
+ "skipped_binary": []
+}
