@@ -839,7 +839,7 @@ describe('PlanDetail — v2.9 #287 execution view', () => {
     expect(screen.queryByTestId('plan-edge-add')).not.toBeInTheDocument();
     expect(screen.queryByTestId('plan-edge-remove')).not.toBeInTheDocument();
     // a connect control per node (7 nodes), each a real <button> with an aria-label
-    const connects = screen.getAllByTestId('plan-node-connect');
+    const connects = await screen.findAllByTestId('plan-node-connect');
     expect(connects).toHaveLength(7);
     for (const c of connects) expect(c.tagName).toBe('BUTTON');
     const n1Connect = within(dagNode('n1')).getByTestId('plan-node-connect');
