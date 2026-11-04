@@ -1,0 +1,33 @@
+{
+  "subsection_id": "1.4.1",
+  "title": "3.1 仪器",
+  "depth": 3,
+  "parent_id": "1.4",
+  "source_file": "b-controlled.tex",
+  "editable": {
+    "part": "current",
+    "source_start": 156,
+    "source_end": 190,
+    "status": "ok"
+  },
+  "read_only": [
+    {
+      "part": "next.head",
+      "subsection_id": "1.4.2",
+      "source_file": "b-controlled.tex",
+      "source_start": 193,
+      "source_end": 196,
+      "status": "ok"
+    }
+  ],
+  "same_parent": {
+    "prev": null,
+    "next": true
+  },
+  "boundary": "first",
+  "prev_id": null,
+  "next_id": "1.4.2",
+  "current_lead_status": "ok",
+  "prev_tail_status": "absent",
+  "next_head_status": "ok"
+}

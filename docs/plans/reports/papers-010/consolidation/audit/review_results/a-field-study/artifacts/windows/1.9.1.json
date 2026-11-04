@@ -1,0 +1,42 @@
+{
+  "subsection_id": "1.9.1",
+  "title": "§1.1 的证据",
+  "depth": 3,
+  "parent_id": "1.9",
+  "source_file": "a-field-study.tex",
+  "editable": {
+    "part": "current",
+    "source_start": 1361,
+    "source_end": 1394,
+    "status": "ok"
+  },
+  "read_only": [
+    {
+      "part": "prev.tail",
+      "subsection_id": "1.2.1",
+      "source_file": "a-field-study.tex",
+      "source_start": 241,
+      "source_end": 244,
+      "status": "ok"
+    },
+    {
+      "part": "parent_lead",
+      "subsection_id": null,
+      "source_file": "a-field-study.tex",
+      "source_start": 1354,
+      "source_end": 1359,
+      "status": "ok"
+    }
+  ],
+  "same_parent": {
+    "prev": false,
+    "next": true
+  },
+  "boundary": "",
+  "prev_id": "1.2.1",
+  "next_id": "1.9.2",
+  "current_lead_status": "no_eligible_paragraph",
+  "prev_tail_status": "ok",
+  "parent_lead_status": "ok",
+  "next_head_status": "no_eligible_paragraph"
+}

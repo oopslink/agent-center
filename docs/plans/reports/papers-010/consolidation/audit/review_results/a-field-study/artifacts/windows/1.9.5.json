@@ -1,0 +1,24 @@
+{
+  "subsection_id": "1.9.5",
+  "title": "§4.3 的证据",
+  "depth": 3,
+  "parent_id": "1.9",
+  "source_file": "a-field-study.tex",
+  "editable": {
+    "part": "current",
+    "source_start": 1625,
+    "source_end": 1656,
+    "status": "ok"
+  },
+  "read_only": [],
+  "same_parent": {
+    "prev": true,
+    "next": true
+  },
+  "boundary": "",
+  "prev_id": "1.9.4",
+  "next_id": "1.9.6",
+  "current_lead_status": "no_eligible_paragraph",
+  "prev_tail_status": "no_eligible_paragraph",
+  "next_head_status": "no_eligible_paragraph"
+}

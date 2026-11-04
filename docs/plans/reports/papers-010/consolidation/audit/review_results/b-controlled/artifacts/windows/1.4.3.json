@@ -1,0 +1,33 @@
+{
+  "subsection_id": "1.4.3",
+  "title": "3.4 终点",
+  "depth": 3,
+  "parent_id": "1.4",
+  "source_file": "b-controlled.tex",
+  "editable": {
+    "part": "current",
+    "source_start": 234,
+    "source_end": 272,
+    "status": "ok"
+  },
+  "read_only": [
+    {
+      "part": "prev.tail",
+      "subsection_id": "1.4.2",
+      "source_file": "b-controlled.tex",
+      "source_start": 230,
+      "source_end": 232,
+      "status": "ok"
+    }
+  ],
+  "same_parent": {
+    "prev": true,
+    "next": null
+  },
+  "boundary": "last",
+  "prev_id": "1.4.2",
+  "next_id": null,
+  "current_lead_status": "ok",
+  "prev_tail_status": "ok",
+  "next_head_status": "absent"
+}

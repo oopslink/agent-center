@@ -1,0 +1,24 @@
+{
+  "subsection_id": "1.2.1",
+  "title": "1.2 研究问题",
+  "depth": 3,
+  "parent_id": "1.2",
+  "source_file": "a-field-study.tex",
+  "editable": {
+    "part": "current",
+    "source_start": 129,
+    "source_end": 245,
+    "status": "ok"
+  },
+  "read_only": [],
+  "same_parent": {
+    "prev": null,
+    "next": false
+  },
+  "boundary": "first",
+  "prev_id": null,
+  "next_id": "1.9.1",
+  "current_lead_status": "ok",
+  "prev_tail_status": "absent",
+  "next_head_status": "no_eligible_paragraph"
+}

@@ -1,0 +1,18 @@
+[
+  {
+    "title": "Abstract was not detected; submission packages need a visible abstract",
+    "quote": "",
+    "explanation": "[A0] Abstract was not detected; submission packages need a visible abstract. This is a mechanical pre-submission readiness finding and should be fixed before the final submission package.",
+    "comment_type": "missing_information",
+    "severity": "moderate",
+    "confidence": "high",
+    "source_kind": "script",
+    "source_section": "abstract",
+    "related_sections": [
+      "abstract"
+    ],
+    "review_lane": "pre_submission_readiness",
+    "gate_blocker": false,
+    "root_cause_key": "presubmission-a0"
+  }
+]

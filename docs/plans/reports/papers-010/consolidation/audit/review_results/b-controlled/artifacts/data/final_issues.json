@@ -1,0 +1,36 @@
+[
+  {
+    "title": "Abstract was not detected; submission packages need a visible abstract",
+    "quote": "",
+    "explanation": "[A0] Abstract was not detected; submission packages need a visible abstract. This is a mechanical pre-submission readiness finding and should be fixed before the final submission package.",
+    "comment_type": "missing_information",
+    "severity": "moderate",
+    "confidence": "high",
+    "source_kind": "script",
+    "source_section": "abstract",
+    "related_sections": [
+      "abstract"
+    ],
+    "root_cause_key": "presubmission-a0",
+    "review_lane": "pre_submission_readiness",
+    "gate_blocker": false,
+    "quote_verified": false
+  },
+  {
+    "title": "Deep review requires manual reviewer judgment",
+    "quote": "",
+    "explanation": "The deterministic fallback could not derive lane findings from the extracted text. A human or agent reviewer should inspect the prepared workspace directly.",
+    "comment_type": "missing_information",
+    "severity": "minor",
+    "confidence": "low",
+    "source_kind": "llm",
+    "source_section": "unknown",
+    "related_sections": [
+      "unknown"
+    ],
+    "root_cause_key": "deep-review-requires-manual-reviewer-judgment",
+    "review_lane": "claims_vs_evidence",
+    "gate_blocker": false,
+    "quote_verified": false
+  }
+]

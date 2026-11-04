@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "status": "completed",
+  "phase_index": 6,
+  "phases": [
+    {
+      "name": "prepare",
+      "status": "completed"
+    },
+    {
+      "name": "phase0_audit",
+      "status": "completed"
+    },
+    {
+      "name": "committee",
+      "status": "completed"
+    },
+    {
+      "name": "lanes",
+      "status": "completed"
+    },
+    {
+      "name": "consolidation",
+      "status": "completed"
+    },
+    {
+      "name": "present",
+      "status": "completed"
+    }
+  ],
+  "completed_lanes": [
+    "claims_vs_evidence",
+    "pre_submission_readiness",
+    "committee_editor",
+    "committee_theory",
+    "committee_literature",
+    "committee_methodology",
+    "committee_logic"
+  ],
+  "suspended_lanes": [],
+  "generated_files": [
+    "artifacts/comments/claims_vs_evidence.json",
+    "artifacts/comments/committee_editor.json",
+    "artifacts/comments/committee_literature.json",
+    "artifacts/comments/committee_logic.json",
+    "artifacts/comments/committee_methodology.json",
+    "artifacts/comments/committee_theory.json",
+    "artifacts/comments/pre_submission_readiness.json",
+    "artifacts/committee/editor.md",
+    "artifacts/committee/literature.md",
+    "artifacts/committee/logic.md",
+    "artifacts/committee/methodology.md",
+    "artifacts/committee/theory.md",
+    "artifacts/data/all_comments.json",
+    "artifacts/data/claim_map.json",
+    "artifacts/data/final_issues.json",
+    "artifacts/data/section_index.json",
+    "artifacts/data/subsection_index.json",
+    "artifacts/meta/full_text.md",
+    "artifacts/meta/metadata.json",
+    "artifacts/meta/phase0_context.md",
+    "artifacts/summary/overall_assessment.txt",
+    "artifacts/summary/paper_summary.md",
+    "artifacts/summary/peer_review_report.md",
+    "artifacts/windows/1.4.1.json",
+    "artifacts/windows/1.4.2.json",
+    "artifacts/windows/1.4.3.json",
+    "review_report.md",
+    "revision_suggestions.md"
+  ],
+  "created_at": "2026-11-04T10:22:41.805675",
+  "updated_at": "2026-11-04T10:22:41.954314"
+}

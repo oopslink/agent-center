@@ -1,8 +1,19 @@
-# Agent Center五篇论文工作稿（010）
+# Agent Center论文工作稿（010）
 
-**作者：** oopslink、OpenAI Codex（AI 共同作者）
+**作者：** oopslink
 
-**oopslink 主页：** [https://github.com/oopslink](https://github.com/oopslink)
+**主页：** [https://github.com/oopslink](https://github.com/oopslink)
+
+> **当前成果是两篇，不是五篇。** 下方 P1–P5 五篇工作稿自 023 轮起为**历史快照**，已合并为按证据类型切分的两篇：
+>
+> | 现稿 | 定位 | 取材 |
+> |---|---|---|
+> | [A 篇：交付状态的绑定断裂](papers-010/paper-a-field-study/paper.md) | 单部署回顾性案例研究，结论停在描述与机制解释 | 仅部署记录 |
+> | [B 篇：交接的代价与凭据的可查性](papers-010/paper-b-controlled/paper.md) | 受控实验，真实运行器与产物 | 仅新采集的 84 次执行数据 |
+>
+> 合并原因（五篇共用同一批证据、主张强度超出证据等级、实验撞天花板、AI 署名与 arXiv 政策冲突、参考文献过薄）及处置见 [合并记录（023）](papers-010/revision-023.md)。两篇的证据集**不重叠**，按原生记录 ID 求交集为空，可由 `consolidation/checks/crossrefs.py --disjoint` 复验。
+>
+> 以下五篇表格按其当时版本保留，供追溯；其中的主张强度与署名均未按 023 轮的标准改写。
 
 五篇分别研究身份认知、流程复杂度、个人命名、DAG 演化和团队记忆。下表区分部署观察、受控结果与据此提出的设计取舍。全部为 AI 辅助的探索性工作稿，尚未人工复核。
 

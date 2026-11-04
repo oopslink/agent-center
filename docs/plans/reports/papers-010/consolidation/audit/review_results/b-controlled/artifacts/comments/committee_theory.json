@@ -1,0 +1,19 @@
+[
+  {
+    "title": "Deep review requires manual reviewer judgment",
+    "quote": "",
+    "explanation": "The deterministic fallback could not derive lane findings from the extracted text. A human or agent reviewer should inspect the prepared workspace directly.",
+    "comment_type": "missing_information",
+    "severity": "minor",
+    "confidence": "low",
+    "source_kind": "llm",
+    "source_section": "unknown",
+    "related_sections": [
+      "unknown"
+    ],
+    "root_cause_key": "deep-review-requires-manual-reviewer-judgment",
+    "review_lane": "committee_theory",
+    "gate_blocker": false,
+    "quote_verified": false
+  }
+]

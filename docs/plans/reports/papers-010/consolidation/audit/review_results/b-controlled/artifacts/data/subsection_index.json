@@ -1,0 +1,32 @@
+{
+  "subsection_index_status": "ok",
+  "units": [
+    {
+      "subsection_id": "1.4.1",
+      "title": "3.1 仪器",
+      "depth": 3,
+      "parent_id": "1.4",
+      "source_file": "b-controlled.tex",
+      "source_start": 156,
+      "source_end": 190
+    },
+    {
+      "subsection_id": "1.4.2",
+      "title": "3.3 设计与冻结",
+      "depth": 3,
+      "parent_id": "1.4",
+      "source_file": "b-controlled.tex",
+      "source_start": 191,
+      "source_end": 233
+    },
+    {
+      "subsection_id": "1.4.3",
+      "title": "3.4 终点",
+      "depth": 3,
+      "parent_id": "1.4",
+      "source_file": "b-controlled.tex",
+      "source_start": 234,
+      "source_end": 272
+    }
+  ]
+}

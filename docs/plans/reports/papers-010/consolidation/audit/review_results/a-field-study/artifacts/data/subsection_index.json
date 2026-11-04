@@ -1,0 +1,86 @@
+{
+  "subsection_index_status": "ok",
+  "units": [
+    {
+      "subsection_id": "1.2.1",
+      "title": "1.2 研究问题",
+      "depth": 3,
+      "parent_id": "1.2",
+      "source_file": "a-field-study.tex",
+      "source_start": 129,
+      "source_end": 245
+    },
+    {
+      "subsection_id": "1.9.1",
+      "title": "§1.1 的证据",
+      "depth": 3,
+      "parent_id": "1.9",
+      "source_file": "a-field-study.tex",
+      "source_start": 1361,
+      "source_end": 1394
+    },
+    {
+      "subsection_id": "1.9.2",
+      "title": "§3.2 的证据",
+      "depth": 3,
+      "parent_id": "1.9",
+      "source_file": "a-field-study.tex",
+      "source_start": 1395,
+      "source_end": 1430
+    },
+    {
+      "subsection_id": "1.9.3",
+      "title": "§4.1 的证据",
+      "depth": 3,
+      "parent_id": "1.9",
+      "source_file": "a-field-study.tex",
+      "source_start": 1431,
+      "source_end": 1545
+    },
+    {
+      "subsection_id": "1.9.4",
+      "title": "§4.2 的证据",
+      "depth": 3,
+      "parent_id": "1.9",
+      "source_file": "a-field-study.tex",
+      "source_start": 1546,
+      "source_end": 1624
+    },
+    {
+      "subsection_id": "1.9.5",
+      "title": "§4.3 的证据",
+      "depth": 3,
+      "parent_id": "1.9",
+      "source_file": "a-field-study.tex",
+      "source_start": 1625,
+      "source_end": 1656
+    },
+    {
+      "subsection_id": "1.9.6",
+      "title": "§4.4 的证据",
+      "depth": 3,
+      "parent_id": "1.9",
+      "source_file": "a-field-study.tex",
+      "source_start": 1657,
+      "source_end": 1688
+    },
+    {
+      "subsection_id": "1.9.7",
+      "title": "§4.6 的证据",
+      "depth": 3,
+      "parent_id": "1.9",
+      "source_file": "a-field-study.tex",
+      "source_start": 1689,
+      "source_end": 1754
+    },
+    {
+      "subsection_id": "1.9.8",
+      "title": "§6.2 的证据",
+      "depth": 3,
+      "parent_id": "1.9",
+      "source_file": "a-field-study.tex",
+      "source_start": 1755,
+      "source_end": 1786
+    }
+  ]
+}

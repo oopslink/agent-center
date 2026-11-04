@@ -1,0 +1,41 @@
+{
+  "subsection_id": "1.4.2",
+  "title": "3.3 设计与冻结",
+  "depth": 3,
+  "parent_id": "1.4",
+  "source_file": "b-controlled.tex",
+  "editable": {
+    "part": "current",
+    "source_start": 191,
+    "source_end": 233,
+    "status": "ok"
+  },
+  "read_only": [
+    {
+      "part": "prev.tail",
+      "subsection_id": "1.4.1",
+      "source_file": "b-controlled.tex",
+      "source_start": 187,
+      "source_end": 189,
+      "status": "ok"
+    },
+    {
+      "part": "next.head",
+      "subsection_id": "1.4.3",
+      "source_file": "b-controlled.tex",
+      "source_start": 236,
+      "source_end": 236,
+      "status": "ok"
+    }
+  ],
+  "same_parent": {
+    "prev": true,
+    "next": true
+  },
+  "boundary": "",
+  "prev_id": "1.4.1",
+  "next_id": "1.4.3",
+  "current_lead_status": "ok",
+  "prev_tail_status": "ok",
+  "next_head_status": "ok"
+}

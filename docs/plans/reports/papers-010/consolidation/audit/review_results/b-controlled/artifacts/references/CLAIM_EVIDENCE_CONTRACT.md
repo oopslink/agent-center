@@ -1,0 +1,62 @@
+# Claim-Evidence Contract
+
+This reference defines the lightweight contract used when a writing or audit flow needs to judge whether manuscript claims are supported by visible evidence. It is an advisory contract, not permission to invent missing evidence.
+
+## Claim Candidate Record
+
+Use this shape when emitting a claim-evidence map:
+
+```json
+{
+  "claim": "exact manuscript claim or proposed claim",
+  "section_key": "abstract|introduction|results|discussion|conclusion|...",
+  "evidence_anchor": [
+    {"type": "citation|figure_or_table|metric|section|analysis_artifact|missing", "text": "visible anchor"}
+  ],
+  "claim_strength": "unsupported|observed|supported|strong",
+  "missing_evidence": ["specific missing support or verification action"],
+  "allowed_wording": "bounded wording that does not outrun the evidence",
+  "forbidden_wording": ["wording family that requires stronger evidence"]
+}
+```
+
+## Strength Ladder
+
+| Strength | Meaning | Safe action |
+|---|---|---|
+| `unsupported` | No visible citation, metric, figure/table, section, or artifact anchor supports the claim. | Soften, mark missing evidence, or remove. |
+| `observed` | A local observation or metric is visible, but cross-checking or comparison support is incomplete. | Keep bounded to the observed setting. |
+| `supported` | At least one visible anchor exists, but the source still needs claim-level verification. | Keep the claim only within the anchor's scope. |
+| `strong` | Metric plus figure/table/artifact support is visible and the boundary is explicit. | Keep, while preserving dataset/method/setting limits. |
+
+## Evidence Anchor Rules
+
+- A citation key proves only that a reference is cited. It does not prove the cited paper supports the manuscript sentence until claim support is checked.
+- A figure supports patterns and comparisons; a table supports exact values. Do not use a figure-only anchor for an exact numeric claim unless the value is readable or separately tabulated.
+- A metric without a dataset, baseline, or unit of analysis should remain `observed`, not `strong`.
+- A section or appendix reference is useful only when the target section actually contains the promised method, proof, data, or limitation.
+
+## Under-claim
+
+A claim-evidence mismatch has two directions. When the evidence row already supports a stronger statement than the manuscript makes, `allowed_wording` may be stronger than the manuscript wording, raised only to the rung the anchors earn; report it as `claim_accuracy` and follow the under-claim section of `OVER_CLAIM_GUARD.md`. Never trade a caveat for the stronger wording.
+
+## Defensive Speculative Explanations
+
+Treat a multi-mechanism explanation as `unsupported extrapolation` when it:
+
+- starts from an observation but names two or more specific mechanisms;
+- lacks a visible evidence anchor or discriminating test for at least one mechanism; and
+- ends with a caveat that the current data or comparison verify none of them.
+
+Hedges such as `may`, `could`, and `is consistent with` calibrate wording but do not create
+evidence. Preserve the observation, map every retained mechanism to its own anchor, and set
+the unsupported alternatives to `speculative` or `undetermined`. If no mechanism is
+supported, say that the mechanism remains undetermined and record the missing experiment or
+analysis; do not delete the caveat or strengthen the inference.
+
+## Output Discipline
+
+- Preserve the author's original claim text when reporting problems.
+- Never invent baselines, p-values, ablations, sample sizes, citations, figures, or datasets.
+- When evidence is missing, write the missing evidence explicitly instead of filling the gap.
+- Prefer bounded wording such as "in the reported setting" or "the presented results suggest" over universal claims.
