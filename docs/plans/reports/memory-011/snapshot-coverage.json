@@ -1,0 +1,125 @@
+{
+  "snapshot_manifest": "raw/manifest.json",
+  "snapshot_finished_utc": "2026-11-02T06:41:08.656823+00:00",
+  "snapshot_sha256_recorded": "fbc9cca0e1147a6bed9feddaf71bc9b17651a76a5983b49de68ad199ac159838",
+  "hash_recomputed_this_round": false,
+  "access": "read_only",
+  "tables": [
+    {
+      "table": "agents",
+      "rows": 16,
+      "columns": [
+        "id",
+        "organization_id",
+        "name",
+        "description",
+        "model",
+        "cli",
+        "env_vars",
+        "worker_id",
+        "lifecycle",
+        "lifecycle_error",
+        "created_by",
+        "identity_member_id",
+        "created_at",
+        "updated_at",
+        "version",
+        "reasoning",
+        "mode",
+        "provider",
+        "capability_tags",
+        "orchestrator_model",
+        "default_executor_model",
+        "max_concurrent_tasks",
+        "allowed_models",
+        "allowed_executors",
+        "auto_assignable",
+        "include_description_in_system_prompt",
+        "last_lifecycle_transition_at",
+        "judge_enabled",
+        "executor_git_worktree",
+        "sandbox_enabled",
+        "sandbox_provider"
+      ]
+    },
+    {
+      "table": "pm_projects",
+      "rows": 9,
+      "columns": [
+        "id",
+        "organization_id",
+        "name",
+        "description",
+        "status",
+        "created_by",
+        "created_at",
+        "updated_at",
+        "version"
+      ]
+    },
+    {
+      "table": "team_members",
+      "rows": 17,
+      "columns": [
+        "team_id",
+        "member_ref",
+        "member_kind",
+        "role",
+        "created_at"
+      ]
+    },
+    {
+      "table": "team_memory_observability_checkpoints",
+      "rows": 4,
+      "columns": [
+        "team_id",
+        "last_projected_commit",
+        "updated_at"
+      ]
+    },
+    {
+      "table": "team_memory_policies",
+      "rows": 3,
+      "columns": [
+        "team_id",
+        "mode",
+        "updated_at"
+      ]
+    },
+    {
+      "table": "team_memory_policy_curators",
+      "rows": 1,
+      "columns": [
+        "team_id",
+        "agent_ref",
+        "created_at"
+      ]
+    },
+    {
+      "table": "teams",
+      "rows": 4,
+      "columns": [
+        "id",
+        "org_id",
+        "name",
+        "description",
+        "created_at",
+        "updated_at",
+        "version"
+      ]
+    }
+  ],
+  "queries": [
+    "SELECT count(*) FROM \"agents\"",
+    "SELECT count(*) FROM \"pm_projects\"",
+    "SELECT count(*) FROM \"team_members\"",
+    "SELECT count(*) FROM \"team_memory_observability_checkpoints\"",
+    "SELECT count(*) FROM \"team_memory_policies\"",
+    "SELECT count(*) FROM \"team_memory_policy_curators\"",
+    "SELECT count(*) FROM \"teams\""
+  ],
+  "limits": [
+    "Memory markdown and Git history are outside SQLite; these are metadata counts, not numbers of memory entries or reuse events.",
+    "No new production snapshot and no historical deployed-version reconstruction this round."
+  ]
+}

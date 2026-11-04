@@ -2,7 +2,9 @@
 
 当前研究主线：[Agent Center 失败复盘与设计取舍](reports/agent-harness-failure-review.md)（2026-11-02更新：解释方案实际价值；**排除明显系统bug作为设计失效证据**，不以创新为目标）。
 
-论文工作稿：[四篇论文010](reports/agent-harness-papers-010.md)（逻辑Agent身份混淆、流程责任与停摆、名字与角色共享context、DAG evolution；四篇完整稿与AI审阅已完成，引用及撤稿严格核验，尚未人工复核）。
+论文工作稿：[四篇论文010](reports/agent-harness-papers-010.md)（Supervisor–Executor身份与责任、工作流协调、名字与context、DAG evolution；已完成007—013正文、机制/对照实验、图表、标题及作者信息修订，尚未人工复核）。
+
+新增方向：[P5记忆组织与知识共享011](reports/agent-harness-memory-011.md) · [实现初查](reports/agent-harness-memory-implementation-011.md)（agent、project、team记忆；已建立研究计划、源码版本证据与快照覆盖记录，尚未开展新效果实验）。
 
 最新研究：[四重点综合取舍009](reports/agent-harness-synthesis-009.md) · [Supervisor与流程增量逐案记录](reports/agent-harness-review-increment-cases-009.md)（固定代码核对、检查覆盖与转述用途分开；单AI探索，尚未人工复核）。
 
