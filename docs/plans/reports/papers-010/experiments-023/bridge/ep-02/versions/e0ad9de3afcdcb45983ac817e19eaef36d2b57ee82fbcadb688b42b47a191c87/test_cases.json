@@ -1,0 +1,93 @@
+[
+  {
+    "input": [],
+    "name": "empty list returns []",
+    "output": []
+  },
+  {
+    "input": [
+      {
+        "name": " A ",
+        "quantity": 2
+      },
+      {
+        "name": "a",
+        "quantity": 3
+      }
+    ],
+    "name": "case and whitespace merge",
+    "output": [
+      {
+        "name": "a",
+        "quantity": 5
+      }
+    ]
+  },
+  {
+    "input": [
+      {
+        "name": "   ",
+        "quantity": 4
+      },
+      {
+        "name": "b",
+        "quantity": 1
+      }
+    ],
+    "name": "whitespace-only name skipped",
+    "output": [
+      {
+        "name": "b",
+        "quantity": 1
+      }
+    ]
+  },
+  {
+    "input": [
+      {
+        "name": "x",
+        "quantity": 0
+      }
+    ],
+    "name": "zero total preserved",
+    "output": [
+      {
+        "name": "x",
+        "quantity": 0
+      }
+    ]
+  },
+  {
+    "error": "ValueError",
+    "input": [
+      {
+        "name": " ",
+        "quantity": -1
+      }
+    ],
+    "name": "negative quantity on skipped name raises ValueError"
+  },
+  {
+    "input": [
+      {
+        "name": "Zed",
+        "quantity": 1
+      },
+      {
+        "name": " apple ",
+        "quantity": 2
+      }
+    ],
+    "name": "output sorted by normalized name",
+    "output": [
+      {
+        "name": "apple",
+        "quantity": 2
+      },
+      {
+        "name": "zed",
+        "quantity": 1
+      }
+    ]
+  }
+]

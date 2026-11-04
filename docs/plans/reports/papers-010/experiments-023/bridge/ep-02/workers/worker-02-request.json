@@ -1,0 +1,18 @@
+{
+  "worker_id": "worker-02",
+  "role": "verifier",
+  "task": "Write review.json for the current delivered versions. Set candidate_hash to the sha256 of module.py (b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9) and tests_hash to the sha256 of test_cases.json (97e3a09878781de71dd19958bb5bf0bcb38d2e81b969bd1355c2fdfd27984270). Set verdict to pass only if the supervisor's run_tests receipt rcpt-37a280a21e7c83871e20204b (result pass, public and user tests 3/3 and 7/7) matches these hashes; it does. Notes should state that module.py implements the user contract (strip().casefold() normalization, skipping empty names, ValueError on any negative quantity including skipped names, sorted aggregation, zero totals kept, no input mutation) and that all public and user tests pass. Do not modify module.py or test_cases.json. Recompute and confirm the file hashes before writing review.json.",
+  "row": {
+    "id": "bridge-P2-p2_records-haiku-short-joined-report_only",
+    "paper": "P2",
+    "task": "p2_records",
+    "family": "record_aggregation",
+    "model": "claude-haiku-5-5",
+    "organization": "short",
+    "binding": "joined",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "run_version": "023-bridge"
+  }
+}

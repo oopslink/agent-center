@@ -1,0 +1,336 @@
+{
+  "id": "bridge-P2-p2_records-haiku-short-joined-report_only",
+  "row": {
+    "id": "bridge-P2-p2_records-haiku-short-joined-report_only",
+    "paper": "P2",
+    "task": "p2_records",
+    "family": "record_aggregation",
+    "model": "claude-haiku-5-5",
+    "organization": "short",
+    "binding": "joined",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "run_version": "023-bridge"
+  },
+  "status": "reported_complete",
+  "controller_turns": 8,
+  "worker_starts": 2,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py (sha256 b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9), test_cases.json (sha256 97e3a09878781de71dd19958bb5bf0bcb38d2e81b969bd1355c2fdfd27984270), review.json (sha256 8a7cc6dd04a08f99f1cce36b114c3adc8807e29cf065b4670506b79c8550bfc7, verdict pass), and manifest.json (sha256 88f2f6289bb4c63355ae243f28a94376876f0b24c5b7f6949cc0a402c8f6dc30). The supervisor's run_tests receipt rcpt-37a280a21e7c83871e20204b covers these versions: public 3/3 and user 7/7 pass with no input mutation. accept() release checks passed. The verifier's cited receipt rcpt-44b1f78a34f63fb802585250 is session-bound and was not independently verified, so the pass rests on the supervisor's receipt."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 3,
+  "initial_recovery_budget": {
+    "decisions": 18,
+    "worker_starts": 6
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 8,
+      "total": 8,
+      "checks": [
+        {
+          "index": 0,
+          "input": [],
+          "expected": {
+            "output": []
+          },
+          "observed": {
+            "output": []
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": [
+            {
+              "name": " A ",
+              "quantity": 2
+            },
+            {
+              "name": "a",
+              "quantity": 3
+            }
+          ],
+          "expected": {
+            "output": [
+              {
+                "name": "a",
+                "quantity": 5
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "name": "a",
+                "quantity": 5
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": [
+            {
+              "name": "",
+              "quantity": 2
+            }
+          ],
+          "expected": {
+            "output": []
+          },
+          "observed": {
+            "output": []
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": [
+            {
+              "name": " Z",
+              "quantity": 0
+            },
+            {
+              "name": "b",
+              "quantity": 1
+            }
+          ],
+          "expected": {
+            "output": [
+              {
+                "name": "b",
+                "quantity": 1
+              },
+              {
+                "name": "z",
+                "quantity": 0
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "name": "b",
+                "quantity": 1
+              },
+              {
+                "name": "z",
+                "quantity": 0
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": [
+            {
+              "name": "Straße",
+              "quantity": 2
+            },
+            {
+              "name": "STRASSE",
+              "quantity": 3
+            }
+          ],
+          "expected": {
+            "output": [
+              {
+                "name": "strasse",
+                "quantity": 5
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "name": "strasse",
+                "quantity": 5
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": [
+            {
+              "name": "x",
+              "quantity": -1
+            }
+          ],
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": [
+            {
+              "name": " ",
+              "quantity": -1
+            }
+          ],
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": [
+            {
+              "name": "x",
+              "quantity": 0
+            }
+          ],
+          "expected": {
+            "output": [
+              {
+                "name": "x",
+                "quantity": 0
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "name": "x",
+                "quantity": 0
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9",
+      "label": "private-final",
+      "duration_s": 0.027898041997104883
+    },
+    "files": {
+      "module.py": {
+        "sha256": "b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9"
+      },
+      "test_cases.json": {
+        "sha256": "97e3a09878781de71dd19958bb5bf0bcb38d2e81b969bd1355c2fdfd27984270"
+      },
+      "review.json": {
+        "sha256": "8a7cc6dd04a08f99f1cce36b114c3adc8807e29cf065b4670506b79c8550bfc7"
+      },
+      "manifest.json": {
+        "sha256": "88f2f6289bb4c63355ae243f28a94376876f0b24c5b7f6949cc0a402c8f6dc30"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T16:57:38.055851+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9"
+      },
+      "test_cases.json": {
+        "sha256": "97e3a09878781de71dd19958bb5bf0bcb38d2e81b969bd1355c2fdfd27984270"
+      },
+      "review.json": {
+        "sha256": "8a7cc6dd04a08f99f1cce36b114c3adc8807e29cf065b4670506b79c8550bfc7"
+      },
+      "manifest.json": {
+        "sha256": "88f2f6289bb4c63355ae243f28a94376876f0b24c5b7f6949cc0a402c8f6dc30"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "builder",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "module.py implements solve(data) per the contract (strip().casefold() normalization, skip empty names, ValueError on any negative quantity including skipped names, aggregate and sort by name, keep zero totals, no input mutation). test_cases.json has 7 distinct cases covering empty input, case/whitespace merge, whitespace-only skip, zero total, negative on skipped name, sorting, and a non-mutation case. Note: the non-mutation case checks normalization output only; the non-mutation guarantee is verified by the harness's input_mutated flag, which reported false for all checks. Receipt rcpt-dea61ef98bd2b1c7fa7b7c55 (result pass) is bound to module.py sha256 b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9 and test_cases.json sha256 97e3a09878781de71dd19958bb5bf0bcb38d2e81b969bd1355c2fdfd27984270, both matching the current files."
+      },
+      "transport_error": null,
+      "turns": 6,
+      "pid": 33156
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "verifier",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json and manifest.json are written. module.py (b1a9f61e...) and test_cases.json (97e3a098...) match the hashes in the assignment. The pass verdict rests on this session's run_tests receipt rcpt-44b1f78a34f63fb802585250 (result pass, public 3/3, user 7/7), not on the supervisor's rcpt-37a280a21e7c83871e20204b, which is not retrievable from this session. review.json sha256 is 8a7cc6dd04a08f99f1cce36b114c3adc8807e29cf065b4670506b79c8550bfc7. module.py and test_cases.json were not modified."
+      },
+      "transport_error": null,
+      "turns": 6,
+      "pid": 33670
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "builder",
+      "task": "Write module.py and test_cases.json for this contract. module.py: define solve(data) using only Python standard library, with no I/O and no dynamic code execution. data is a list of {name: string, quantity: integer}. Normalize each name with strip().casefold(). Skip entries whose normalized name is empty. If any quantity is negative, raise ValueError, including for entries whose names are skipped. Aggregate quantities by normalized name and return a list of {name: normalized_name, quantity: total} sorted by name. Preserve zero totals. An empty input returns []. Do not mutate the input. The current module.py is a stub (return data) and must be replaced. test_cases.json: a JSON list of at least four distinct cases, each with input and exactly one of output (expected JSON result) or error (exception class name such as ValueError). Cover: empty list; case-and-whitespace merging (' A ' and 'a' merge to 'a'); empty or whitespace-only names skipped; zero totals preserved; negative quantity raising ValueError, including on a skipped name; and input not mutated. Expectations must match the contract exactly. Prior executor output failed because it returned the input unchanged, so do not reuse that approach."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "spawn",
+      "role": "verifier",
+      "task": "Write review.json for the current delivered versions. Set candidate_hash to the sha256 of module.py (b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9) and tests_hash to the sha256 of test_cases.json (97e3a09878781de71dd19958bb5bf0bcb38d2e81b969bd1355c2fdfd27984270). Set verdict to pass only if the supervisor's run_tests receipt rcpt-37a280a21e7c83871e20204b (result pass, public and user tests 3/3 and 7/7) matches these hashes; it does. Notes should state that module.py implements the user contract (strip().casefold() normalization, skipping empty names, ValueError on any negative quantity including skipped names, sorted aggregation, zero totals kept, no input mutation) and that all public and user tests pass. Do not modify module.py or test_cases.json. Recompute and confirm the file hashes before writing review.json."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "inspect",
+      "note": "Before accepting, I'm confirming that the current file hashes match the verifier's review and manifest. The verifier cited its own receipt, rcpt-44b1f78a34f63fb802585250, which I can't independently check, so I'll rely on my own run_tests receipt rcpt-37a280a21e7c83871e20204b for the test evidence."
+    },
+    {
+      "op": "accept",
+      "note": "Hashes in review.json and manifest.json match the current module.py and test_cases.json. My run_tests receipt rcpt-37a280a21e7c83871e20204b covers the same versions. The verifier's receipt rcpt-44b1f78a34f63fb802585250 is session-bound and I cannot retrieve it, so I am not relying on it. Running release checks now."
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py (sha256 b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9), test_cases.json (sha256 97e3a09878781de71dd19958bb5bf0bcb38d2e81b969bd1355c2fdfd27984270), review.json (sha256 8a7cc6dd04a08f99f1cce36b114c3adc8807e29cf065b4670506b79c8550bfc7, verdict pass), and manifest.json (sha256 88f2f6289bb4c63355ae243f28a94376876f0b24c5b7f6949cc0a402c8f6dc30). The supervisor's run_tests receipt rcpt-37a280a21e7c83871e20204b covers these versions: public 3/3 and user 7/7 pass with no input mutation. accept() release checks passed. The verifier's cited receipt rcpt-44b1f78a34f63fb802585250 is session-bound and was not independently verified, so the pass rests on the supervisor's receipt."
+    }
+  ],
+  "finished_utc": "2026-11-04T16:57:38.123812+00:00",
+  "evaluation_race_possible": false
+}

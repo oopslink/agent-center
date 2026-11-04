@@ -1,0 +1,18 @@
+{
+  "worker_id": "worker-01",
+  "role": "builder",
+  "task": "Write module.py and test_cases.json for this contract. module.py: define solve(data) using only Python standard library, with no I/O and no dynamic code execution. data is a list of {name: string, quantity: integer}. Normalize each name with strip().casefold(). Skip entries whose normalized name is empty. If any quantity is negative, raise ValueError, including for entries whose names are skipped. Aggregate quantities by normalized name and return a list of {name: normalized_name, quantity: total} sorted by name. Preserve zero totals. An empty input returns []. Do not mutate the input. The current module.py is a stub (return data) and must be replaced. test_cases.json: a JSON list of at least four distinct cases, each with input and exactly one of output (expected JSON result) or error (exception class name such as ValueError). Cover: empty list; case-and-whitespace merging (' A ' and 'a' merge to 'a'); empty or whitespace-only names skipped; zero totals preserved; negative quantity raising ValueError, including on a skipped name; and input not mutated. Expectations must match the contract exactly. Prior executor output failed because it returned the input unchanged, so do not reuse that approach.",
+  "row": {
+    "id": "bridge-P2-p2_records-haiku-short-joined-report_only",
+    "paper": "P2",
+    "task": "p2_records",
+    "family": "record_aggregation",
+    "model": "claude-haiku-5-5",
+    "organization": "short",
+    "binding": "joined",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "run_version": "023-bridge"
+  }
+}

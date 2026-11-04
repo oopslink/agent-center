@@ -1,0 +1,70 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 4.689778125029989,
+  "finished_utc": "2026-11-04T16:57:31.572677+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0024606,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 11012,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 516,
+    "output_tokens_details": {
+      "thinking_tokens": 375
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 11012,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 516,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 11012,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 11012
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 516,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 11012,
+      "webSearchRequests": 0,
+      "costUSD": 0.0024606,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 375,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 11012,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"accept\",\"args\":{},\"note\":\"Hashes in review.json and manifest.json match the current module.py and test_cases.json. My run_tests receipt rcpt-37a280a21e7c83871e20204b covers the same versions. The verifier's receipt rcpt-44b1f78a34f63fb802585250 is session-bound and I cannot retrieve it, so I am not relying on it. Running release checks now.\"}",
+  "parsed": {
+    "op": "accept",
+    "args": {},
+    "note": "Hashes in review.json and manifest.json match the current module.py and test_cases.json. My run_tests receipt rcpt-37a280a21e7c83871e20204b covers the same versions. The verifier's receipt rcpt-44b1f78a34f63fb802585250 is session-bound and I cannot retrieve it, so I am not relying on it. Running release checks now."
+  }
+}

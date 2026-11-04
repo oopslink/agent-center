@@ -1,0 +1,72 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 6.3975329590030015,
+  "finished_utc": "2026-11-04T16:57:38.046854+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0026671999999999998,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 11795,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 616,
+    "output_tokens_details": {
+      "thinking_tokens": 234
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 11795,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 616,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 11795,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 11795
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 616,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 11795,
+      "webSearchRequests": 0,
+      "costUSD": 0.0026671999999999998,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 234,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 11795,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"finish\",\"args\":{\"status\":\"complete\",\"message\":\"Delivered module.py (sha256 b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9), test_cases.json (sha256 97e3a09878781de71dd19958bb5bf0bcb38d2e81b969bd1355c2fdfd27984270), review.json (sha256 8a7cc6dd04a08f99f1cce36b114c3adc8807e29cf065b4670506b79c8550bfc7, verdict pass), and manifest.json (sha256 88f2f6289bb4c63355ae243f28a94376876f0b24c5b7f6949cc0a402c8f6dc30). The supervisor's run_tests receipt rcpt-37a280a21e7c83871e20204b covers these versions: public 3/3 and user 7/7 pass with no input mutation. accept() release checks passed. The verifier's cited receipt rcpt-44b1f78a34f63fb802585250 is session-bound and was not independently verified, so the pass rests on the supervisor's receipt.\"}}",
+  "parsed": {
+    "op": "finish",
+    "args": {
+      "status": "complete",
+      "message": "Delivered module.py (sha256 b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9), test_cases.json (sha256 97e3a09878781de71dd19958bb5bf0bcb38d2e81b969bd1355c2fdfd27984270), review.json (sha256 8a7cc6dd04a08f99f1cce36b114c3adc8807e29cf065b4670506b79c8550bfc7, verdict pass), and manifest.json (sha256 88f2f6289bb4c63355ae243f28a94376876f0b24c5b7f6949cc0a402c8f6dc30). The supervisor's run_tests receipt rcpt-37a280a21e7c83871e20204b covers these versions: public 3/3 and user 7/7 pass with no input mutation. accept() release checks passed. The verifier's cited receipt rcpt-44b1f78a34f63fb802585250 is session-bound and was not independently verified, so the pass rests on the supervisor's receipt."
+    }
+  }
+}

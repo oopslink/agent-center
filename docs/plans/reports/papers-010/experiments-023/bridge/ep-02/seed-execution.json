@@ -1,0 +1,92 @@
+{
+  "worker_id": "executor-00",
+  "status": "failed",
+  "origin": "researcher_seeded_scripted_executor",
+  "model_generated": false,
+  "pid": 32931,
+  "candidate_check": {
+    "passed": false,
+    "passed_count": 1,
+    "total": 3,
+    "checks": [
+      {
+        "index": 0,
+        "input": [],
+        "expected": {
+          "output": []
+        },
+        "observed": {
+          "output": []
+        },
+        "passed": true,
+        "input_mutated": false
+      },
+      {
+        "index": 1,
+        "input": [
+          {
+            "name": " A ",
+            "quantity": 2
+          },
+          {
+            "name": "a",
+            "quantity": 3
+          }
+        ],
+        "expected": {
+          "output": [
+            {
+              "name": "a",
+              "quantity": 5
+            }
+          ]
+        },
+        "observed": {
+          "output": [
+            {
+              "name": " A ",
+              "quantity": 2
+            },
+            {
+              "name": "a",
+              "quantity": 3
+            }
+          ]
+        },
+        "passed": false,
+        "input_mutated": false
+      },
+      {
+        "index": 2,
+        "input": [
+          {
+            "name": "",
+            "quantity": 2
+          }
+        ],
+        "expected": {
+          "output": []
+        },
+        "observed": {
+          "output": [
+            {
+              "name": "",
+              "quantity": 2
+            }
+          ]
+        },
+        "passed": false,
+        "input_mutated": false
+      }
+    ],
+    "candidate_hash": "f78ba79d06b46ade305584f8bdbf75ab56637d62f60ba3f9a1d6706257fc27ab",
+    "label": "public",
+    "duration_s": 0.0170543750282377
+  },
+  "files": {
+    "module.py": {
+      "sha256": "f78ba79d06b46ade305584f8bdbf75ab56637d62f60ba3f9a1d6706257fc27ab",
+      "content": "def solve(data):\n    return data\n"
+    }
+  }
+}

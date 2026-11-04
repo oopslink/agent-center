@@ -1,0 +1,70 @@
+{
+  "passed": true,
+  "passed_count": 3,
+  "total": 3,
+  "checks": [
+    {
+      "index": 0,
+      "input": [],
+      "expected": {
+        "output": []
+      },
+      "observed": {
+        "output": []
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 1,
+      "input": [
+        {
+          "name": " A ",
+          "quantity": 2
+        },
+        {
+          "name": "a",
+          "quantity": 3
+        }
+      ],
+      "expected": {
+        "output": [
+          {
+            "name": "a",
+            "quantity": 5
+          }
+        ]
+      },
+      "observed": {
+        "output": [
+          {
+            "name": "a",
+            "quantity": 5
+          }
+        ]
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 2,
+      "input": [
+        {
+          "name": "",
+          "quantity": 2
+        }
+      ],
+      "expected": {
+        "output": []
+      },
+      "observed": {
+        "output": []
+      },
+      "passed": true,
+      "input_mutated": false
+    }
+  ],
+  "candidate_hash": "b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9",
+  "label": "public",
+  "duration_s": 0.01822920807171613
+}

@@ -1,0 +1,105 @@
+[
+  {
+    "input": [],
+    "output": []
+  },
+  {
+    "input": [
+      {
+        "name": " A ",
+        "quantity": 2
+      },
+      {
+        "name": "a",
+        "quantity": 3
+      }
+    ],
+    "output": [
+      {
+        "name": "a",
+        "quantity": 5
+      }
+    ]
+  },
+  {
+    "input": [
+      {
+        "name": "",
+        "quantity": 2
+      }
+    ],
+    "output": []
+  },
+  {
+    "input": [
+      {
+        "name": " Z",
+        "quantity": 0
+      },
+      {
+        "name": "b",
+        "quantity": 1
+      }
+    ],
+    "output": [
+      {
+        "name": "b",
+        "quantity": 1
+      },
+      {
+        "name": "z",
+        "quantity": 0
+      }
+    ]
+  },
+  {
+    "input": [
+      {
+        "name": "Straße",
+        "quantity": 2
+      },
+      {
+        "name": "STRASSE",
+        "quantity": 3
+      }
+    ],
+    "output": [
+      {
+        "name": "strasse",
+        "quantity": 5
+      }
+    ]
+  },
+  {
+    "input": [
+      {
+        "name": "x",
+        "quantity": -1
+      }
+    ],
+    "error": "ValueError"
+  },
+  {
+    "input": [
+      {
+        "name": " ",
+        "quantity": -1
+      }
+    ],
+    "error": "ValueError"
+  },
+  {
+    "input": [
+      {
+        "name": "x",
+        "quantity": 0
+      }
+    ],
+    "output": [
+      {
+        "name": "x",
+        "quantity": 0
+      }
+    ]
+  }
+]

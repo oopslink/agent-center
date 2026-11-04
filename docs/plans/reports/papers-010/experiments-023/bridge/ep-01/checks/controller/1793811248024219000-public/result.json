@@ -1,0 +1,8 @@
+{
+  "passed": false,
+  "error": "FileNotFoundError",
+  "message": "[Errno 2] No such file or directory: '../bridge/ep-01/checks/controller/1793811248024219000-public/cases.json'",
+  "candidate_hash": "0db99a5344c8f33afaa2c86adadb684f8d1c0fdeee2dc22458ba3698dc7d50ae",
+  "label": "public",
+  "duration_s": 0.020562332938425243
+}

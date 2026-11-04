@@ -1,0 +1,10 @@
+{
+  "receipt_id": "rcpt-26fa9b061fc37fdec3e1a239",
+  "candidate_hash": "0db99a5344c8f33afaa2c86adadb684f8d1c0fdeee2dc22458ba3698dc7d50ae",
+  "tests_hash": "72a5dec447450746b87d0019ab151ccbe63b2ce1cabeda156dfa6e6b2c5a40ea",
+  "contract_id": "P2-short-report_only",
+  "result": "fail",
+  "issuer": "worker-01",
+  "utc": "2026-11-04T16:53:36.711871+00:00",
+  "seq": 1
+}

@@ -1,0 +1,13 @@
+{
+  "id": "bridge-P2-p2_records-haiku-short-joined-report_only",
+  "paper": "P2",
+  "task": "p2_records",
+  "family": "record_aggregation",
+  "model": "claude-haiku-5-5",
+  "organization": "short",
+  "binding": "joined",
+  "ledger": "off",
+  "identity": "separate",
+  "transport": "report_only",
+  "run_version": "023-bridge"
+}

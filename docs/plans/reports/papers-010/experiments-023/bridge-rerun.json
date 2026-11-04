@@ -1,0 +1,85 @@
+{
+ "baseline_rt017": {
+  "status": "reported_complete",
+  "autonomous_delivery": "True",
+  "independent_pass": "True",
+  "implementation_pass": "True",
+  "hidden_passed": "5",
+  "hidden_total": "5",
+  "controller_turns": "9",
+  "worker_starts": "3",
+  "worker_decisions": "11",
+  "format_errors": "0",
+  "cost_usd_reported": "0.023320300000000002"
+ },
+ "bridge_023": {
+  "status": "reported_complete",
+  "autonomous_delivery": "True",
+  "independent_pass": "True",
+  "implementation_pass": "True",
+  "controller_turns": "8",
+  "worker_starts": "2",
+  "worker_decisions": "12",
+  "cost_usd_reported": "0.026732"
+ },
+ "final_errors": [],
+ "controller_actions": [
+  "spawn",
+  "wait",
+  "run_tests",
+  "spawn",
+  "wait",
+  "inspect",
+  "accept",
+  "finish"
+ ],
+ "receipts": [
+  {
+   "receipt_id": "rcpt-dea61ef98bd2b1c7fa7b7c55",
+   "issuer": "worker-01",
+   "result": "pass",
+   "contract_id": "P2-short-report_only"
+  },
+  {
+   "receipt_id": "rcpt-37a280a21e7c83871e20204b",
+   "issuer": "controller",
+   "result": "pass",
+   "contract_id": "P2-short-report_only"
+  },
+  {
+   "receipt_id": "rcpt-44b1f78a34f63fb802585250",
+   "issuer": "worker-02",
+   "result": "pass",
+   "contract_id": "P2-short-report_only"
+  }
+ ],
+ "verdict": "terminal_verdicts_identical",
+ "comparison": {
+  "identical": [
+   "status",
+   "autonomous_delivery",
+   "independent_pass",
+   "implementation_pass"
+  ],
+  "differing": {
+   "controller_turns": "9 -> 8",
+   "worker_starts": "3 -> 2",
+   "worker_decisions": "11 -> 12",
+   "cost_usd_reported": "0.023320 -> 0.026732"
+  },
+  "reading": "四项终态判定完全一致；决策数与报告价的差异在同一量级内，归因于模型非确定性（n=1，不构成等效性证据）。"
+ },
+ "instrument_defect_found": {
+  "symptom": "首次桥接重跑（ep-01）每一次检查都返回 FileNotFoundError，产物看起来全不合格，实际模型代码从未被执行。",
+  "cause": "codecheck 把 cases.json 的路径交给 cwd=ep/work 的子进程；episode 路径为相对路径时子进程解析不到。",
+  "trigger": "仅在命令行显式传入相对 --episode 时触发。",
+  "rt017_impact": "无。rt017 的 run_batch.py 用 ROOT=Path(__file__).parent 构造 episode 路径，而 Python 3.9+ 对主脚本的 __file__ 亦为绝对路径，故其批次路径一直是绝对的；53/54 自主交付与通过的检查与此一致。本缺陷不使 rt017 既有结果失效。",
+  "fix": "epoch 装饰器与 check/episode/worker/seed_execution 四个入口统一 Path(ep).resolve()。",
+  "regression_tests": "tests/test_episode_paths.py 三项（绝对路径可执行、相对路径可执行、两者判定一致）。"
+ },
+ "excluded_episode": {
+  "id": "bridge/ep-01",
+  "reason": "仪器缺陷导致的无效运行，保留原始记录，不进入任何比较。",
+  "reported_cost_usd": 0.011946
+ }
+}

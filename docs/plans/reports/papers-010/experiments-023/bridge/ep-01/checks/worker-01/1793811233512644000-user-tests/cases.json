@@ -1,0 +1,107 @@
+[
+  {
+    "input": [
+      {
+        "name": "apple",
+        "quantity": 2
+      },
+      {
+        "name": "banana",
+        "quantity": 3
+      },
+      {
+        "name": "apple",
+        "quantity": 5
+      }
+    ],
+    "name": "normal aggregation",
+    "output": [
+      {
+        "name": "apple",
+        "quantity": 7
+      },
+      {
+        "name": "banana",
+        "quantity": 3
+      }
+    ]
+  },
+  {
+    "input": [
+      {
+        "name": "  Apple ",
+        "quantity": 1
+      },
+      {
+        "name": "APPLE",
+        "quantity": 2
+      }
+    ],
+    "name": "whitespace and case normalization",
+    "output": [
+      {
+        "name": "apple",
+        "quantity": 3
+      }
+    ]
+  },
+  {
+    "input": [
+      {
+        "name": "   ",
+        "quantity": 4
+      },
+      {
+        "name": "pear",
+        "quantity": 1
+      }
+    ],
+    "name": "skipped empty name",
+    "output": [
+      {
+        "name": "pear",
+        "quantity": 1
+      }
+    ]
+  },
+  {
+    "input": [
+      {
+        "name": "kiwi",
+        "quantity": 0
+      }
+    ],
+    "name": "zero total preserved",
+    "output": [
+      {
+        "name": "kiwi",
+        "quantity": 0
+      }
+    ]
+  },
+  {
+    "error": "ValueError",
+    "input": [
+      {
+        "name": "fig",
+        "quantity": -1
+      }
+    ],
+    "name": "negative quantity raises"
+  },
+  {
+    "error": "ValueError",
+    "input": [
+      {
+        "name": " ",
+        "quantity": -2
+      }
+    ],
+    "name": "negative quantity on skipped name raises"
+  },
+  {
+    "input": [],
+    "name": "empty input",
+    "output": []
+  }
+]

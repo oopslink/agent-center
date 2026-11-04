@@ -1,0 +1,33 @@
+[
+  {
+    "input": [],
+    "output": []
+  },
+  {
+    "input": [
+      {
+        "name": " A ",
+        "quantity": 2
+      },
+      {
+        "name": "a",
+        "quantity": 3
+      }
+    ],
+    "output": [
+      {
+        "name": "a",
+        "quantity": 5
+      }
+    ]
+  },
+  {
+    "input": [
+      {
+        "name": "",
+        "quantity": 2
+      }
+    ],
+    "output": []
+  }
+]

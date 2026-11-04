@@ -1,0 +1,77 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 5.872423749999143,
+  "finished_utc": "2026-11-04T16:57:09.479257+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0015628,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 6003,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 724,
+    "output_tokens_details": {
+      "thinking_tokens": 338
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 6003,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 724,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 6003,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 6003
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 724,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 6003,
+      "webSearchRequests": 0,
+      "costUSD": 0.0015628,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 338,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 6003,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"write_file\",\"args\":{\"file\":\"review.json\",\"content\":{\"candidate_hash\":\"b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9\",\"tests_hash\":\"97e3a09878781de71dd19958bb5bf0bcb38d2e81b969bd1355c2fdfd27984270\",\"verdict\":\"pass\",\"notes\":\"module.py implements the user contract: names are normalized with strip().casefold(), empty normalized names are skipped, a negative quantity raises ValueError even on skipped names, quantities are aggregated by normalized name, output is sorted by normalized name, zero totals are kept, and the input is not mutated. Public tests 3/3 and user tests 7/7 passed in a run_tests execution by this verifier session, receipt rcpt-44b1f78a34f63fb802585250 (result pass), bound to candidate_hash b1a9f61e... and tests_hash 97e3a098.... The supervisor's receipt rcpt-37a280a21e7c83871e20204b was not used because receipts are session-bound and not retrievable from this session.\"}}}",
+  "parsed": {
+    "op": "write_file",
+    "args": {
+      "file": "review.json",
+      "content": {
+        "candidate_hash": "b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9",
+        "tests_hash": "97e3a09878781de71dd19958bb5bf0bcb38d2e81b969bd1355c2fdfd27984270",
+        "verdict": "pass",
+        "notes": "module.py implements the user contract: names are normalized with strip().casefold(), empty normalized names are skipped, a negative quantity raises ValueError even on skipped names, quantities are aggregated by normalized name, output is sorted by normalized name, zero totals are kept, and the input is not mutated. Public tests 3/3 and user tests 7/7 passed in a run_tests execution by this verifier session, receipt rcpt-44b1f78a34f63fb802585250 (result pass), bound to candidate_hash b1a9f61e... and tests_hash 97e3a098.... The supervisor's receipt rcpt-37a280a21e7c83871e20204b was not used because receipts are session-bound and not retrievable from this session."
+      }
+    }
+  }
+}

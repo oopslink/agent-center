@@ -1,0 +1,201 @@
+{
+  "passed": true,
+  "passed_count": 7,
+  "total": 7,
+  "checks": [
+    {
+      "index": 0,
+      "input": [],
+      "expected": {
+        "name": "empty list returns []",
+        "output": []
+      },
+      "observed": {
+        "output": []
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 1,
+      "input": [
+        {
+          "name": " A ",
+          "quantity": 2
+        },
+        {
+          "name": "a",
+          "quantity": 3
+        }
+      ],
+      "expected": {
+        "name": "case and whitespace merge",
+        "output": [
+          {
+            "name": "a",
+            "quantity": 5
+          }
+        ]
+      },
+      "observed": {
+        "output": [
+          {
+            "name": "a",
+            "quantity": 5
+          }
+        ]
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 2,
+      "input": [
+        {
+          "name": "   ",
+          "quantity": 4
+        },
+        {
+          "name": "b",
+          "quantity": 1
+        }
+      ],
+      "expected": {
+        "name": "whitespace-only name skipped",
+        "output": [
+          {
+            "name": "b",
+            "quantity": 1
+          }
+        ]
+      },
+      "observed": {
+        "output": [
+          {
+            "name": "b",
+            "quantity": 1
+          }
+        ]
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 3,
+      "input": [
+        {
+          "name": "x",
+          "quantity": 0
+        }
+      ],
+      "expected": {
+        "name": "zero total preserved",
+        "output": [
+          {
+            "name": "x",
+            "quantity": 0
+          }
+        ]
+      },
+      "observed": {
+        "output": [
+          {
+            "name": "x",
+            "quantity": 0
+          }
+        ]
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 4,
+      "input": [
+        {
+          "name": " ",
+          "quantity": -1
+        }
+      ],
+      "expected": {
+        "error": "ValueError",
+        "name": "negative quantity on skipped name raises ValueError"
+      },
+      "observed": {
+        "error": "ValueError"
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 5,
+      "input": [
+        {
+          "name": "Zed",
+          "quantity": 1
+        },
+        {
+          "name": " apple ",
+          "quantity": 2
+        }
+      ],
+      "expected": {
+        "name": "output sorted by normalized name",
+        "output": [
+          {
+            "name": "apple",
+            "quantity": 2
+          },
+          {
+            "name": "zed",
+            "quantity": 1
+          }
+        ]
+      },
+      "observed": {
+        "output": [
+          {
+            "name": "apple",
+            "quantity": 2
+          },
+          {
+            "name": "zed",
+            "quantity": 1
+          }
+        ]
+      },
+      "passed": true,
+      "input_mutated": false
+    },
+    {
+      "index": 6,
+      "input": [
+        {
+          "name": " Q ",
+          "quantity": 7
+        }
+      ],
+      "expected": {
+        "name": "input not mutated (names keep original form)",
+        "output": [
+          {
+            "name": "q",
+            "quantity": 7
+          }
+        ]
+      },
+      "observed": {
+        "output": [
+          {
+            "name": "q",
+            "quantity": 7
+          }
+        ]
+      },
+      "passed": true,
+      "input_mutated": false
+    }
+  ],
+  "candidate_hash": "b1a9f61e53d5765f82d2cb13ab49c6770f0db6a62bff88f11e5d132e3134e8f9",
+  "label": "user-tests",
+  "duration_s": 0.01596858398988843
+}

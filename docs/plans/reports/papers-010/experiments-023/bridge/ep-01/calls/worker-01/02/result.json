@@ -1,0 +1,178 @@
+{
+  "transport_ok": true,
+  "attempt": 1,
+  "returncode": 0,
+  "timeout": false,
+  "duration_s": 8.00333924998995,
+  "finished_utc": "2026-11-04T16:53:32.420369+00:00",
+  "model_reported": [
+    "claude-haiku-5-5"
+  ],
+  "cost_usd_reported": 0.0009177,
+  "usage": {
+    "input_tokens": 2,
+    "cache_creation_input_tokens": 2175,
+    "cache_read_input_tokens": 0,
+    "output_tokens": 965,
+    "output_tokens_details": {
+      "thinking_tokens": 545
+    },
+    "server_tool_use": {
+      "web_search_requests": 0,
+      "web_fetch_requests": 0
+    },
+    "service_tier": "standard",
+    "cache_creation": {
+      "ephemeral_1h_input_tokens": 2175,
+      "ephemeral_5m_input_tokens": 0
+    },
+    "inference_geo": "global",
+    "iterations": [
+      {
+        "input_tokens": 2,
+        "output_tokens": 965,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 2175,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 2175
+        },
+        "type": "message"
+      }
+    ],
+    "speed": "standard",
+    "fallback_credit": null
+  },
+  "model_usage": {
+    "claude-haiku-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 965,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 2175,
+      "webSearchRequests": 0,
+      "costUSD": 0.0009177,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 545,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 2175,
+      "canonicalModel": "claude-haiku-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "text": "{\"op\":\"write_file\",\"args\":{\"file\":\"test_cases.json\",\"content\":[{\"name\":\"normal aggregation\",\"input\":[{\"name\":\"apple\",\"quantity\":2},{\"name\":\"banana\",\"quantity\":3},{\"name\":\"apple\",\"quantity\":5}],\"output\":[{\"name\":\"apple\",\"quantity\":7},{\"name\":\"banana\",\"quantity\":3}]},{\"name\":\"whitespace and case normalization\",\"input\":[{\"name\":\"  Apple \",\"quantity\":1},{\"name\":\"APPLE\",\"quantity\":2}],\"output\":[{\"name\":\"apple\",\"quantity\":3}]},{\"name\":\"skipped empty name\",\"input\":[{\"name\":\"   \",\"quantity\":4},{\"name\":\"pear\",\"quantity\":1}],\"output\":[{\"name\":\"pear\",\"quantity\":1}]},{\"name\":\"zero total preserved\",\"input\":[{\"name\":\"kiwi\",\"quantity\":0}],\"output\":[{\"name\":\"kiwi\",\"quantity\":0}]},{\"name\":\"negative quantity raises\",\"input\":[{\"name\":\"fig\",\"quantity\":-1}],\"error\":\"ValueError\"},{\"name\":\"negative quantity on skipped name raises\",\"input\":[{\"name\":\" \",\"quantity\":-2}],\"error\":\"ValueError\"},{\"name\":\"empty input\",\"input\":[],\"output\":[]}]}}",
+  "parsed": {
+    "op": "write_file",
+    "args": {
+      "file": "test_cases.json",
+      "content": [
+        {
+          "name": "normal aggregation",
+          "input": [
+            {
+              "name": "apple",
+              "quantity": 2
+            },
+            {
+              "name": "banana",
+              "quantity": 3
+            },
+            {
+              "name": "apple",
+              "quantity": 5
+            }
+          ],
+          "output": [
+            {
+              "name": "apple",
+              "quantity": 7
+            },
+            {
+              "name": "banana",
+              "quantity": 3
+            }
+          ]
+        },
+        {
+          "name": "whitespace and case normalization",
+          "input": [
+            {
+              "name": "  Apple ",
+              "quantity": 1
+            },
+            {
+              "name": "APPLE",
+              "quantity": 2
+            }
+          ],
+          "output": [
+            {
+              "name": "apple",
+              "quantity": 3
+            }
+          ]
+        },
+        {
+          "name": "skipped empty name",
+          "input": [
+            {
+              "name": "   ",
+              "quantity": 4
+            },
+            {
+              "name": "pear",
+              "quantity": 1
+            }
+          ],
+          "output": [
+            {
+              "name": "pear",
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "name": "zero total preserved",
+          "input": [
+            {
+              "name": "kiwi",
+              "quantity": 0
+            }
+          ],
+          "output": [
+            {
+              "name": "kiwi",
+              "quantity": 0
+            }
+          ]
+        },
+        {
+          "name": "negative quantity raises",
+          "input": [
+            {
+              "name": "fig",
+              "quantity": -1
+            }
+          ],
+          "error": "ValueError"
+        },
+        {
+          "name": "negative quantity on skipped name raises",
+          "input": [
+            {
+              "name": " ",
+              "quantity": -2
+            }
+          ],
+          "error": "ValueError"
+        },
+        {
+          "name": "empty input",
+          "input": [],
+          "output": []
+        }
+      ]
+    }
+  }
+}
