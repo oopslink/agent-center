@@ -104,24 +104,38 @@ def rt017_checks(data_root):
     ]
 
 
+# 每个锚点给多种写法，按顺序取第一个命中；检查器不应迫使正文只能用一种措辞。
 CENSUS_ANCHORS = {
-    "total_tasks": re.compile(r"([\d,]+)\s*个\s*Task\s*中"),
-    "with_actions": re.compile(r"([\d,]+)\s*个关联到动作日志"),
-    "total_actions": re.compile(r"全部\s*([\d,]+)\s*条\s*Task\s*动作"),
-    "migrated": re.compile(r"([\d,]+)\s*条由迁移过程重建"),
-    "nonmig_actions": re.compile(r"其余\s*([\d,]+)\s*条非迁移动作"),
-    "nonmig_tasks": re.compile(r"非迁移动作覆盖\s*([\d,]+)\s*个\s*Task"),
-    "only_migrated": re.compile(r"([\d,]+)\s*个\s*Task\s*只有迁移记录"),
-    "no_actions": re.compile(r"([\d,]+)\s*个没有动作行"),
+    "total_tasks": [
+        r"([\d,]+)\s*个\s*Task\s*中",
+        r"占全部\s*([\d,]+)\s*个\s*Task",
+        r"全部\s*([\d,]+)\s*个\s*Task",
+    ],
+    "with_actions": [
+        r"([\d,]+)\s*个关联到动作日志",
+        r"存在任何动作行[^。]{0,20}?([\d,]+)\s*个\s*Task",
+        r"任何动作行[^。]{0,24}?（\s*([\d,]+)\s*个\s*Task",
+    ],
+    "total_actions": [
+        r"全部\s*([\d,]+)\s*条\s*Task\s*动作",
+        r"([\d,]+)\s*条\s*Task\s*动作中",
+    ],
+    "migrated": [r"([\d,]+)\s*条由迁移过程重建"],
+    "nonmig_actions": [r"其余\s*([\d,]+)\s*条非迁移动作"],
+    "nonmig_tasks": [r"非迁移动作覆盖\s*([\d,]+)\s*个\s*Task"],
+    "only_migrated": [r"([\d,]+)\s*个\s*Task\s*只有迁移记录"],
+    "no_actions": [r"([\d,]+)\s*个没有动作行"],
 }
 
 
 def census_check(full_text):
     vals = {}
-    for name, pat in CENSUS_ANCHORS.items():
-        m = pat.search(full_text)
-        if m:
-            vals[name] = int(m.group(1).replace(",", ""))
+    for name, patterns in CENSUS_ANCHORS.items():
+        for pat in patterns:
+            m = re.search(pat, full_text)
+            if m:
+                vals[name] = int(m.group(1).replace(",", ""))
+                break
     if len(vals) < len(CENSUS_ANCHORS):
         return {"id": "p1_census_closure", "status": "not_found",
                 "derived": {"found": sorted(vals)}}

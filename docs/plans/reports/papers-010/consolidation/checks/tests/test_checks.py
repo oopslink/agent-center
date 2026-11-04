@@ -252,6 +252,22 @@ class TestRecompute(TempTree):
         ids = {c["id"]: c for c in json.loads(out)["checks"]}
         self.assertEqual(ids["p1_census_closure"]["status"], "ok")
 
+    def test_p1_census_closure_accepts_alternative_phrasings(self):
+        """锚点正则不应迫使正文只能用一种写法。"""
+        data = self.make_data_root()
+        paper = self.write(
+            "paper.md",
+            "# 标题\n\n2,527 条 Task 动作中，597 条由迁移过程重建；"
+            "其余 1,930 条非迁移动作覆盖 927 个 Task，占全部 2,221 个 Task 的 41.7%。"
+            "另有 311 个 Task 只有迁移记录、983 个没有动作行，"
+            "因此存在任何动作行的覆盖率为 1,238 个 Task、55.7%。\n",
+        )
+        code, out, _ = run("recompute.py", "--paper", str(paper), "--data-root", str(data),
+                           "--checks", "p1")
+        ids = {c["id"]: c for c in json.loads(out)["checks"]}
+        self.assertEqual(ids["p1_census_closure"]["status"], "ok", out)
+        self.assertEqual(code, 0, out)
+
     def test_p1_census_closure_absent_anchors_are_skipped(self):
         data = self.make_data_root()
         paper = self.write("paper.md", "# 标题\n\n没有普查数字。\n")
