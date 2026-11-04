@@ -1,0 +1,503 @@
+% ============================================================================
+% lit-new.bib -- new references for papers A (field study) and B (controlled
+% experiment).  38 entries, none duplicating the existing 30-entry baseline.
+%
+% Verification policy (see lit-coverage.md):
+%   - Entries with a publisher DOI: metadata taken verbatim from the Crossref
+%     REST API (title / authors / container / volume / issue / pages / year)
+%     and retraction status from OpenAlex (`is_retracted`).
+%   - arXiv-only preprints: Crossref does not register arXiv DataCite DOIs
+%     (10.48550/arXiv.*), so those are verified against the arXiv API (metadata)
+%     and OpenAlex (record existence + `is_retracted`).  Comment lines say
+%     which registries answered.
+%   - Every entry below returned `is_retracted: false` from OpenAlex on
+%     2026-11-04.
+% ============================================================================
+
+
+% ---------------------------------------------------------------------------
+% Topic 1 -- Failure taxonomies, coordination misalignment and reliability
+%            studies of multi-agent LLM systems
+% ---------------------------------------------------------------------------
+
+% topic: 1 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{mao2025towards,
+  author        = {Mao, Zhenyu and Keung, Jacky and Zhang, Fengji and Liu, Shuo and Wang, Yifei and Li, Jialong},
+  title         = {Towards Engineering Multi-Agent {LLMs}: A Protocol-Driven Approach},
+  year          = {2025},
+  eprint        = {2510.12120},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.SE},
+  doi           = {10.48550/arXiv.2510.12120},
+  url           = {https://arxiv.org/abs/2510.12120}
+}
+
+% topic: 1 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{shah2026characterizing,
+  author        = {Shah, Mehil B. and Morovati, Mohammad Mehdi and Rahman, Mohammad Masudur and Khomh, Foutse},
+  title         = {Characterizing Faults in Agentic {AI}: A Taxonomy of Types, Symptoms, and Root Causes},
+  year          = {2026},
+  eprint        = {2603.06847},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.SE},
+  doi           = {10.48550/arXiv.2603.06847},
+  url           = {https://arxiv.org/abs/2603.06847}
+}
+
+% topic: 1 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{zhou2026messages,
+  author        = {Zhou, Jinhao and Zhang, Xiaoyu and Yu, Jiongchi and Chen, Fahao and Wu, Jun},
+  title         = {When Messages Go Wrong: Understanding Communication Faults in {LLM}-Based Multi-Agent Systems},
+  year          = {2026},
+  eprint        = {2610.15459},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.SE},
+  doi           = {10.48550/arXiv.2610.15459},
+  url           = {https://arxiv.org/abs/2610.15459}
+}
+
+% topic: 1 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{pitre2026understanding,
+  author        = {Pitre, Priya and Hou, Jun and Fang, Yi and Ramakrishnan, Naren and Wang, Xuan},
+  title         = {Understanding Communication Failures in Multi-Agent {LLM} Systems},
+  year          = {2026},
+  eprint        = {2610.32060},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  doi           = {10.48550/arXiv.2610.32060},
+  url           = {https://arxiv.org/abs/2610.32060}
+}
+
+% topic: 1 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{albayaydh2026beyond,
+  author        = {Albayaydh, Wael and Zhao, Rui and Flechais, Ivan},
+  title         = {Beyond the Leaderboard: A Synthesis of Tool-Use, Planning, and Reasoning Failures in Large Language Model Agents},
+  year          = {2026},
+  eprint        = {2607.05775},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  doi           = {10.48550/arXiv.2607.05775},
+  url           = {https://arxiv.org/abs/2607.05775}
+}
+
+
+% ---------------------------------------------------------------------------
+% Topic 2 -- Plan repair, plan reuse and replanning (classical AI planning and
+%            LLM-agent sides)
+% ---------------------------------------------------------------------------
+
+% topic: 2 | verified: crossref+openalex | retracted: false
+@article{nebel1995plan,
+  author  = {Nebel, Bernhard and Koehler, Jana},
+  title   = {Plan reuse versus plan generation: a theoretical and empirical analysis},
+  journal = {Artificial Intelligence},
+  year    = {1995},
+  volume  = {76},
+  number  = {1-2},
+  pages   = {427--454},
+  doi     = {10.1016/0004-3702(94)00082-C}
+}
+
+% topic: 2 | verified: crossref+openalex | retracted: false
+@article{babli2023plan,
+  author  = {Babli, Mohannad and Sapena, {\'O}scar and Onaindia, Eva},
+  title   = {Plan commitment: Replanning versus plan repair},
+  journal = {Engineering Applications of Artificial Intelligence},
+  year    = {2023},
+  volume  = {123},
+  pages   = {106275},
+  doi     = {10.1016/j.engappai.2023.106275}
+}
+
+% topic: 2 | verified: crossref+openalex | retracted: false
+@incollection{vanderkrogt2005coordination,
+  author    = {van der Krogt, Roman and de Weerdt, Mathijs},
+  title     = {Coordination Through Plan Repair},
+  booktitle = {Advances in Artificial Intelligence -- IBERAMIA 2005},
+  series    = {Lecture Notes in Computer Science},
+  publisher = {Springer Berlin Heidelberg},
+  year      = {2005},
+  pages     = {264--274},
+  doi       = {10.1007/11579427_27}
+}
+
+% topic: 2 | verified: crossref+openalex | retracted: false
+@article{veloso1993derivational,
+  author  = {Veloso, Manuela M. and Carbonell, Jaime G.},
+  title   = {Derivational Analogy in {PRODIGY}: Automating Case Acquisition, Storage, and Utilization},
+  journal = {Machine Learning},
+  year    = {1993},
+  volume  = {10},
+  number  = {3},
+  pages   = {249--278},
+  doi     = {10.1023/A:1022686910523}
+}
+
+% topic: 2 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{yuan2026replan,
+  author        = {Yuan, Xiaofei and Zhang, Yan and Qiao, Shaobo and He, Huangleshuai and Ni, Leyan and Ju, Mingchen and Yang, Lujia and Xu, Sijia and Tang, Yifu and Yang, Zhengyi},
+  title         = {Replan, Repair, or Edit? A Unified Empirical Evaluation of Travel Agents for Itinerary Revision under Resource Disruptions},
+  year          = {2026},
+  eprint        = {2609.19654},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  doi           = {10.48550/arXiv.2609.19654},
+  url           = {https://arxiv.org/abs/2609.19654}
+}
+
+% topic: 2 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{komenda2012decentralized,
+  author        = {Komenda, Anton{\'\i}n and Nov{\'a}k, Peter and P{\v{e}}chou{\v{c}}ek, Michal},
+  title         = {Decentralized Multi-agent Plan Repair in Dynamic Environments},
+  year          = {2012},
+  eprint        = {1202.2773},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  doi           = {10.48550/arXiv.1202.2773},
+  url           = {https://arxiv.org/abs/1202.2773}
+}
+
+
+% ---------------------------------------------------------------------------
+% Topic 3 -- Organizational memory, team knowledge governance, and the scope /
+%            versioning of norms and rules
+% ---------------------------------------------------------------------------
+
+% topic: 3 | verified: crossref+openalex | retracted: false
+@article{schmidt1996coordination,
+  author  = {Schmidt, Kjeld and Simone, Carla},
+  title   = {Coordination mechanisms: Towards a conceptual foundation of {CSCW} systems design},
+  journal = {Computer Supported Cooperative Work (CSCW)},
+  year    = {1996},
+  volume  = {5},
+  number  = {2-3},
+  pages   = {155--200},
+  doi     = {10.1007/BF00133655}
+}
+
+% topic: 3 | verified: crossref+openalex | retracted: false
+@article{ackerman2000reexamining,
+  author  = {Ackerman, Mark S. and Halverson, Christine A.},
+  title   = {Reexamining organizational memory},
+  journal = {Communications of the ACM},
+  year    = {2000},
+  volume  = {43},
+  number  = {1},
+  pages   = {58--64},
+  doi     = {10.1145/323830.323845}
+}
+
+% topic: 3 | verified: crossref+openalex | retracted: false
+@article{olivera2000memory,
+  author  = {Olivera, Fernando},
+  title   = {Memory Systems in Organizations: An Empirical Investigation of Mechanisms for Knowledge Collection, Storage and Access},
+  journal = {Journal of Management Studies},
+  year    = {2000},
+  volume  = {37},
+  number  = {6},
+  pages   = {811--832},
+  doi     = {10.1111/1467-6486.00205}
+}
+
+% topic: 3 | verified: crossref+openalex | retracted: false
+@article{argote2000knowledge,
+  author  = {Argote, Linda and Ingram, Paul},
+  title   = {Knowledge Transfer: A Basis for Competitive Advantage in Firms},
+  journal = {Organizational Behavior and Human Decision Processes},
+  year    = {2000},
+  volume  = {82},
+  number  = {1},
+  pages   = {150--169},
+  doi     = {10.1006/obhd.2000.2893}
+}
+
+% topic: 3 | verified: crossref+openalex | retracted: false
+@article{feldman2003reconceptualizing,
+  author  = {Feldman, Martha S. and Pentland, Brian T.},
+  title   = {Reconceptualizing Organizational Routines as a Source of Flexibility and Change},
+  journal = {Administrative Science Quarterly},
+  year    = {2003},
+  volume  = {48},
+  number  = {1},
+  pages   = {94--118},
+  doi     = {10.2307/3556620}
+}
+
+% topic: 3 | verified: crossref+openalex | retracted: false
+@inproceedings{joshi2026deontic,
+  author    = {Joshi, Anupam and Finin, Tim and Joshi, Karuna and Kagal, Lalana},
+  title     = {Deontic Policies for Runtime Governance of Agentic {AI} Systems},
+  booktitle = {2026 IEEE International Conference on Web Services (ICWS)},
+  publisher = {IEEE},
+  year      = {2026},
+  pages     = {1255--1264},
+  doi       = {10.1109/ICWS72778.2026.00159}
+}
+
+% topic: 3 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{qi2026memory,
+  author        = {Qi, Yijiashun and Xu, Xiang and Li, Yuxuan},
+  title         = {When Not to Write Memory: Governing False Promotion from Correlated Agent Traces},
+  year          = {2026},
+  eprint        = {2607.02579},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.SE},
+  doi           = {10.48550/arXiv.2607.02579},
+  url           = {https://arxiv.org/abs/2607.02579}
+}
+
+% topic: 3 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{kirchdorfer2026organizational,
+  author        = {Kirchdorfer, Lukas and Rebmann, Adrian and Warmuth, Christian and Kampik, Timotheus and Heilker, Theiss and Berg, Gregor},
+  title         = {Organizational Memory for Agentic Business Process Execution},
+  year          = {2026},
+  eprint        = {2607.03228},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  doi           = {10.48550/arXiv.2607.03228},
+  url           = {https://arxiv.org/abs/2607.03228}
+}
+
+
+% ---------------------------------------------------------------------------
+% Topic 4 -- Agent harness, tool-interface boundaries, and the expression of
+%            responsibility / authority in agent systems
+% ---------------------------------------------------------------------------
+
+% topic: 4 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{wang2026approval,
+  author        = {Wang, Yang},
+  title         = {Approval Laundering: Systematizing Approval--Execution Binding Failures in {AI} Coding-Agent Harnesses},
+  year          = {2026},
+  eprint        = {2609.38983},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CR},
+  doi           = {10.48550/arXiv.2609.38983},
+  url           = {https://arxiv.org/abs/2609.38983}
+}
+
+% topic: 4 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{arora2026specifying,
+  author        = {Arora, Chetan and Vogelsang, Andreas and Sharma, Abbi},
+  title         = {Specifying the Delegated-Autonomy Boundary: Requirements Engineering for Agentic {AI}},
+  year          = {2026},
+  eprint        = {2607.17225},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.SE},
+  doi           = {10.48550/arXiv.2607.17225},
+  url           = {https://arxiv.org/abs/2607.17225}
+}
+
+% topic: 4 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{macedo2026harness,
+  author        = {de Macedo, Sanderson Oliveira},
+  title         = {What makes a harness a harness: necessary and sufficient conditions for an agent harness},
+  year          = {2026},
+  eprint        = {2606.10106},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.SE},
+  doi           = {10.48550/arXiv.2606.10106},
+  url           = {https://arxiv.org/abs/2606.10106}
+}
+
+% topic: 4 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{sghaier2026dont,
+  author        = {Ben Sghaier, Oussama and Li, Hao and Adams, Bram and Hassan, Ahmed E.},
+  title         = {Don't Blame the Large Language Model: How Agent Harness Evolution Shapes Coding Agent Quality},
+  year          = {2026},
+  eprint        = {2607.03691},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.SE},
+  doi           = {10.48550/arXiv.2607.03691},
+  url           = {https://arxiv.org/abs/2607.03691}
+}
+
+% topic: 4 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{yang2026privileges,
+  author        = {Yang, Kaiyue and Bu, Yuyan and Yi, Jingwei and Wang, Yuchi and Zhou, Biyu and Dai, Juntao and Hu, Songlin and Yang, Yaodong},
+  title         = {When Lower Privileges Suffice: Investigating Over-Privileged Tool Selection in {LLM} Agents},
+  year          = {2026},
+  eprint        = {2606.20023},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.SE},
+  doi           = {10.48550/arXiv.2606.20023},
+  url           = {https://arxiv.org/abs/2606.20023}
+}
+
+% topic: 4 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{marla2026permission,
+  author        = {Marla, Deekshith and Bhatnagar, Kushagra},
+  title         = {Permission to Retry: A Study of Authorization and Recovery in {AI} Agent Workflows},
+  year          = {2026},
+  eprint        = {2610.31916},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  doi           = {10.48550/arXiv.2610.31916},
+  url           = {https://arxiv.org/abs/2610.31916}
+}
+
+
+% ---------------------------------------------------------------------------
+% Topic 5 -- Multi-agent workflow topology, role specialization and quantified
+%            coordination overhead
+% ---------------------------------------------------------------------------
+
+% topic: 5 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{orogat2026architectural,
+  author        = {Orogat, Abdelghny and Rostam, Ana and Mansour, Essam},
+  title         = {Architectural Design, Not Only Model Intelligence, Governs Multi-Agent {LLM} Performance},
+  year          = {2026},
+  eprint        = {2602.03128},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  doi           = {10.48550/arXiv.2602.03128},
+  url           = {https://arxiv.org/abs/2602.03128}
+}
+
+% topic: 5 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{hong2026learning,
+  author        = {Hong, Yunsong},
+  title         = {Learning How Much to Collaborate: Difficulty-Aware Topology Selection for Multi-Agent Code Generation},
+  year          = {2026},
+  eprint        = {2609.13890},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.MA},
+  doi           = {10.48550/arXiv.2609.13890},
+  url           = {https://arxiv.org/abs/2609.13890}
+}
+
+% topic: 5 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{zhou2026token,
+  author        = {Zhou, Zihan and Hu, Xinzhe and Yang, Hanxu and Wen, Liangjian and Kang, Zhao},
+  title         = {Token-Efficient Multi-Agent Collaboration via System One-Guided Computational Division of Labor},
+  year          = {2026},
+  eprint        = {2610.08155},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.MA},
+  doi           = {10.48550/arXiv.2610.08155},
+  url           = {https://arxiv.org/abs/2610.08155}
+}
+
+% topic: 5 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{liu2026know,
+  author        = {Liu, Xinwen and Pan, Zhuocheng and Zhu, Isabella and Zhang, Jawei and Liu, Xudong and Wo, Tianyu},
+  title         = {Know the Shape, Find the Fault: Topology-Conditioned Diagnosis of Multi-Agent {LLM} Failures},
+  year          = {2026},
+  eprint        = {2610.10126},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.MA},
+  doi           = {10.48550/arXiv.2610.10126},
+  url           = {https://arxiv.org/abs/2610.10126}
+}
+
+% topic: 5 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{zhang2026silo,
+  author        = {Zhang, Yuzhe and Liu, Feiran and Shan, Yi and Huang, Xinyi and Yang, Xin and Zhu, Yueqi and Cheng, Xuxin and Liu, Cao and Zeng, Ke and Zhang, Terry Jingchen and Jiang, Wenyuan},
+  title         = {Silo-Bench: A Scalable Environment for Evaluating Distributed Coordination in Multi-Agent {LLM} Systems},
+  year          = {2026},
+  eprint        = {2603.01045},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.MA},
+  doi           = {10.48550/arXiv.2603.01045},
+  url           = {https://arxiv.org/abs/2603.01045}
+}
+
+% topic: 5 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{mediratta2026decentralized,
+  author        = {Mediratta, Rishabh and Xiao, Lingyun and Stone, Peter and Biswas, Joydeep and Stengel-Eskin, Elias},
+  title         = {Decentralized Multi-Agent Coordination and Communication in Shared Codebases},
+  year          = {2026},
+  eprint        = {2611.00314},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.AI},
+  doi           = {10.48550/arXiv.2611.00314},
+  url           = {https://arxiv.org/abs/2611.00314}
+}
+
+
+% ---------------------------------------------------------------------------
+% Topic 6 -- Recognition of evidence / credentials / provenance in distributed
+%            collaboration (provenance, attestation, build provenance, review)
+% ---------------------------------------------------------------------------
+
+% topic: 6 | verified: crossref+openalex | retracted: false
+@article{simmhan2005survey,
+  author  = {Simmhan, Yogesh L. and Plale, Beth and Gannon, Dennis},
+  title   = {A survey of data provenance in e-science},
+  journal = {ACM SIGMOD Record},
+  year    = {2005},
+  volume  = {34},
+  number  = {3},
+  pages   = {31--36},
+  doi     = {10.1145/1084805.1084812}
+}
+
+% topic: 6 | verified: crossref+openalex | retracted: false
+@article{moreau2010foundations,
+  author  = {Moreau, Luc},
+  title   = {The Foundations for Provenance on the Web},
+  journal = {Foundations and Trends in Web Science},
+  year    = {2010},
+  volume  = {2},
+  number  = {2--3},
+  pages   = {99--241},
+  doi     = {10.1561/1800000010}
+}
+
+% topic: 6 | verified: crossref+openalex | retracted: false
+@inproceedings{muto2026attestable,
+  author    = {Muto, Kenichiro and Suzaki, Kuniyasu},
+  title     = {Attestable Build Chain: Enabling Trust in Reproducible Builds},
+  booktitle = {2026 56th Annual IEEE International Conference on Dependable Systems and Networks Workshops (DSN-W)},
+  publisher = {IEEE},
+  year      = {2026},
+  pages     = {196--203},
+  doi       = {10.1109/DSN-W70714.2026.00051}
+}
+
+% topic: 6 | verified: crossref+openalex | retracted: false
+@inproceedings{sadowski2018modern,
+  author    = {Sadowski, Caitlin and S{\"o}derberg, Emma and Church, Luke and Sipko, Michal and Bacchelli, Alberto},
+  title     = {Modern code review: a case study at Google},
+  booktitle = {Proceedings of the 40th International Conference on Software Engineering: Software Engineering in Practice (ICSE-SEIP)},
+  publisher = {ACM},
+  year      = {2018},
+  pages     = {181--190},
+  doi       = {10.1145/3183519.3183525}
+}
+
+% topic: 6 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{asad2026kettle,
+  author        = {Asad, Amean and Arko, Andr{\'e}},
+  title         = {Kettle: Attested builds for verifiable software provenance},
+  year          = {2026},
+  eprint        = {2605.08363},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CR},
+  doi           = {10.48550/arXiv.2605.08363},
+  url           = {https://arxiv.org/abs/2605.08363}
+}
+
+% topic: 6 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{castillo2026evidence,
+  author        = {Castillo, Fernando and Brito, Eduardo and Pullonen-Raudvere, Pille and Werner, Sebastian and Tai, Stefan},
+  title         = {An Evidence-driven Protocol for Trustworthy {CI} Pipelines},
+  year          = {2026},
+  eprint        = {2605.21089},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CR},
+  doi           = {10.48550/arXiv.2605.21089},
+  url           = {https://arxiv.org/abs/2605.21089}
+}
+
+% topic: 6 | verified: arxiv+openalex (crossref: no record for 10.48550 DOIs) | retracted: false
+@misc{tamanna2024analyzing,
+  author        = {Tamanna, Mahzabin and Hamer, Sivana and Tran, Mindy and Fahl, Sascha and Acar, Yasemin and Williams, Laurie},
+  title         = {Analyzing Challenges in Deployment of the {SLSA} Framework for Software Supply Chain Security},
+  year          = {2024},
+  eprint        = {2409.05014},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CE},
+  doi           = {10.48550/arXiv.2409.05014},
+  url           = {https://arxiv.org/abs/2409.05014}
+}
