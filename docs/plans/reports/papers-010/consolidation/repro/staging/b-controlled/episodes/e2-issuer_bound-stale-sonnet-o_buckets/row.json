@@ -1,0 +1,18 @@
+{
+  "id": "e2-issuer_bound-stale-sonnet-o_buckets",
+  "experiment": "receipt_recognition",
+  "paper": "P2",
+  "task": "o_buckets",
+  "family": "rate_buckets",
+  "split": "holdout",
+  "model": "claude-sonnet-5-5",
+  "organization": "long",
+  "binding": "distributed",
+  "ledger": "off",
+  "identity": "separate",
+  "transport": "issuer_bound",
+  "seed_cross_session": "stale",
+  "decision_budget": 32,
+  "worker_start_budget": 12,
+  "run_version": "023-main"
+}

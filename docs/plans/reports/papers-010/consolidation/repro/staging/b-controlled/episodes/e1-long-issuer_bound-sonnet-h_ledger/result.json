@@ -1,0 +1,449 @@
+{
+  "id": "e1-long-issuer_bound-sonnet-h_ledger",
+  "row": {
+    "id": "e1-long-issuer_bound-sonnet-h_ledger",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "h_ledger",
+    "family": "ledger_replay",
+    "split": "development",
+    "model": "claude-sonnet-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "issuer_bound",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 13,
+  "worker_starts": 4,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py, test_cases.json (12 cases), review.json (pass) and manifest.json. A controller-issued pass receipt, rcpt-d696130ca11b2b6ceccacb02, is bound to module.py 3f2a0712... and test_cases.json fea08afe.... The accept check passed, with hashes consistent across the manifest."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 4,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "ops": []
+          },
+          "expected": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 100
+              },
+              {
+                "kind": "debit",
+                "amount": 40
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 60,
+              "held": 0,
+              "available": 60
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 60,
+              "held": 0,
+              "available": 60
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 20,
+                "id": "h1"
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 50,
+              "held": 20,
+              "available": 30
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 50,
+              "held": 20,
+              "available": 30
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 50,
+                "id": "h1"
+              },
+              {
+                "kind": "release",
+                "id": "h1"
+              },
+              {
+                "kind": "debit",
+                "amount": 50
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 30,
+                "id": "h1"
+              },
+              {
+                "kind": "debit",
+                "amount": 21
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "ops": [
+              {
+                "kind": "release",
+                "amount": 0,
+                "id": "nope"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "ops": [
+              {
+                "kind": "release",
+                "id": "nope"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 10
+              },
+              {
+                "kind": "hold",
+                "amount": 5,
+                "id": "h1"
+              },
+              {
+                "kind": "hold",
+                "amount": 999,
+                "id": "h1"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": true
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "ops": [
+              {
+                "kind": "freeze",
+                "amount": -1
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "3f2a0712d181740ee5a61418e80cdb7dd7da25230b207dcb95d9e06e82959c71",
+      "label": "private-final",
+      "duration_s": 0.01913979195524007
+    },
+    "files": {
+      "module.py": {
+        "sha256": "3f2a0712d181740ee5a61418e80cdb7dd7da25230b207dcb95d9e06e82959c71"
+      },
+      "test_cases.json": {
+        "sha256": "fea08afec7113555b56b0e0b982c586c7a5db2c3a26dc841a0f252a06570145b"
+      },
+      "review.json": {
+        "sha256": "7ab049df11956424174b638b585faac15de5d8e509c1a43b5f1295c196eb5cdf"
+      },
+      "manifest.json": {
+        "sha256": "03a3fac6edbe69838eabbf1e585ea888820300ddd2c265b7db43507e55c294b1"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:57:57.757467+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "3f2a0712d181740ee5a61418e80cdb7dd7da25230b207dcb95d9e06e82959c71"
+      },
+      "test_cases.json": {
+        "sha256": "fea08afec7113555b56b0e0b982c586c7a5db2c3a26dc841a0f252a06570145b"
+      },
+      "review.json": {
+        "sha256": "7ab049df11956424174b638b585faac15de5d8e509c1a43b5f1295c196eb5cdf"
+      },
+      "manifest.json": {
+        "sha256": "03a3fac6edbe69838eabbf1e585ea888820300ddd2c265b7db43507e55c294b1"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "implementer",
+      "status": "reported_blocked",
+      "last_report": {
+        "op": "finish",
+        "status": "blocked",
+        "message": "module.py is implemented per the contract and public tests pass (3/3, hash 3f2a0712...c71). However, list_receipts() shows no receipts at all, so there is no controller-issued receipt bound to this module.py version. I can't produce or substitute one myself, so the release gate is not satisfied. A controller-issued test receipt for this version is needed."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 90281
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "tester",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "test_cases.json written with 12 distinct cases covering every requested scenario (empty ops, credit/debit, credit/hold, hold/release with ignored amount, and the error cases). All 12 user tests and 3 public tests pass against module.py (sha256 3f2a0712...9c71); tests_hash is fea08afe...145b. Note: the receipt I produced is rcpt-02a432213b5641d2b5352532, issued by worker-02. Under the receipt terms only controller-issued receipts satisfy the release gate, so this receipt does not satisfy it. A controller-issued run is still needed."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 90899
+    },
+    {
+      "worker_id": "worker-03",
+      "role": "reviewer",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json written with verdict pass. Hashes match the controller-issued receipt rcpt-d696130ca11b2b6ceccacb02 (module.py 3f2a0712..., test_cases.json fea08afe...). Verified via list_receipts and inspect; the worker-02 receipt was not relied upon."
+      },
+      "transport_error": null,
+      "turns": 5,
+      "pid": 91811
+    },
+    {
+      "worker_id": "worker-04",
+      "role": "integrator",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "manifest.json written with candidate_hash 3f2a0712d181740ee5a61418e80cdb7dd7da25230b207dcb95d9e06e82959c71, tests_hash fea08afec7113555b56b0e0b982c586c7a5db2c3a26dc841a0f252a06570145b, review_hash 7ab049df11956424174b638b585faac15de5d8e509c1a43b5f1295c196eb5cdf. All three hashes matched the current files from inspect. A controller-issued pass receipt (rcpt-d696130ca11b2b6ceccacb02) is bound to the module.py and test_cases.json versions."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 92453
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "implementer",
+      "task": "Write module.py exposing solve(data) per the user contract. Process data['ops'] in order without mutating input. Maintain balance and a dict of active holds (id->amount); held = sum of holds; available = balance - held. Per-op check order: (1) kind must be in credit/debit/hold/release else ValueError; (2) for credit/debit/hold, amount must be int (not bool) and >=1 else ValueError; (3) hold: id must not already be an active hold; release: id must be an active hold, else ValueError; (4) debit/hold: amount must not exceed available else ValueError. credit adds to balance; debit subtracts; hold adds hold; release removes hold and ignores any amount. Return {'balance':int,'held':int,'available':int}. Empty ops returns zeros. Standard library only, no I/O."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "inspect"
+    },
+    {
+      "op": "spawn",
+      "role": "tester",
+      "task": "Write test_cases.json: a JSON list of at least 8 distinct cases, each with 'input' ({\"ops\": [...]}) and exactly one of 'output' or 'error' (exception class name, e.g. ValueError). Expectations must match the user contract: kinds credit/debit/hold/release; check order (1) kind, (2) amount int>=1 not bool for credit/debit/hold, (3) hold id must be new / release id must be active, (4) debit/hold amount <= available; release ignores amount; result {balance,held,available} with available=balance-held; empty ops returns zeros. Include cases: empty ops; credit then debit; credit then hold; hold then release (with ignored amount); unknown kind error; bool amount error; zero amount error; duplicate hold id error; release unknown id error; debit exceeding available (due to hold) error; hold exceeding available error; invalid amount on an op with a bad id (amount error precedence is not tested ambiguously, keep it consistent with order)."
+    },
+    {
+      "op": "wait"
+    },
+    null,
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "spawn",
+      "role": "reviewer",
+      "task": "Write review.json: JSON object with candidate_hash 3f2a0712d181740ee5a61418e80cdb7dd7da25230b207dcb95d9e06e82959c71 (module.py sha256), tests_hash fea08afec7113555b56b0e0b982c586c7a5db2c3a26dc841a0f252a06570145b (test_cases.json sha256), verdict 'pass', and notes (string). Basis: controller-issued run_tests receipt rcpt-d696130ca11b2b6ceccacb02 (result pass, 3/3 public and 12/12 user tests) bound to these exact versions. Verify with list_receipts and inspect first; module.py follows the contract check order and the tests match it. If hashes differ from the above, do not write a pass."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "spawn",
+      "role": "integrator",
+      "task": "Write manifest.json: JSON object with candidate_hash 3f2a0712d181740ee5a61418e80cdb7dd7da25230b207dcb95d9e06e82959c71 (module.py sha256), tests_hash fea08afec7113555b56b0e0b982c586c7a5db2c3a26dc841a0f252a06570145b (test_cases.json sha256), review_hash 7ab049df11956424174b638b585faac15de5d8e509c1a43b5f1295c196eb5cdf (review.json sha256). Verify these against inspect first; if any differ, use the actual current hashes only if the files are unchanged in intent, otherwise report blocked."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py, test_cases.json (12 cases), review.json (pass) and manifest.json. A controller-issued pass receipt, rcpt-d696130ca11b2b6ceccacb02, is bound to module.py 3f2a0712... and test_cases.json fea08afe.... The accept check passed, with hashes consistent across the manifest."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:57:57.817429+00:00",
+  "evaluation_race_possible": false
+}

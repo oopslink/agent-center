@@ -69,10 +69,12 @@ def number_candidates(value):
         return [str(value)]
     if isinstance(value, int):
         return [str(value), f"{value:,}"]
+    # `:g` 默认只保留 6 位有效数字（6.2051478 会变成 6.20515），
+    # 因此除了各档四舍五入的写法，还要给出去掉尾零的全精度写法。
     out = []
-    for nd in range(2, 8):
-        s = f"{round(float(value), nd):g}"
-        if s not in out:
+    for nd in range(2, 12):
+        s = f"{round(float(value), nd):.{nd}f}".rstrip("0").rstrip(".")
+        if s and s not in out:
             out.append(s)
     return out
 

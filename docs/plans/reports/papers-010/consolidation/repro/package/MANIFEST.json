@@ -76,6 +76,966 @@
    "path": "a-field-study/verify.py",
    "sha256": "3ac147fe88af36554a8cf98c74668ddb99f4cc014b1e50d1e2053ac2888b8786",
    "bytes": 4008
+  },
+  {
+   "path": "b-controlled/analysis.json",
+   "sha256": "8c530eb7d5f6d7bb7c25c246c44780dd66e8639e20e251238280e3f1f87a8f2a",
+   "bytes": 72331
+  },
+  {
+   "path": "b-controlled/bridge-rerun.json",
+   "sha256": "eb07579e734441deaf727b17bd3e0d2e564fdaa2552aaefb2e033146629e5e01",
+   "bytes": 2850
+  },
+  {
+   "path": "b-controlled/design-lock.json",
+   "sha256": "dbe29cc992d0f2f6592fdb66371761e8a16f0f18172c44a6c37e2273c2ec00c4",
+   "bytes": 1107
+  },
+  {
+   "path": "b-controlled/design023.json",
+   "sha256": "1ff580b39614b89fa43bf1a1b3fc8fc4baf2c01dd071980d5099b1d5a1e1e171",
+   "bytes": 39583
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-haiku-h_ledger/result.json",
+   "sha256": "91d57a118c500e26ef7c740a02389279e43c81ee9fe24f7400351fd97888079d",
+   "bytes": 16322
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-haiku-h_ledger/row.json",
+   "sha256": "d9edfdd22099ac02e4705f4bf31bbd8d608e8fcc1d88f860c90df17a92835977",
+   "bytes": 425
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-haiku-h_merge/result.json",
+   "sha256": "79674cb6b1c778041c06a3cfc038acb74ef7f006f49a7b0d890141b0d41fb0b4",
+   "bytes": 16053
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-haiku-h_merge/row.json",
+   "sha256": "900adbd69982b6f3da68bf561756246a6d1dd83759c3853e264d68cacd936106",
+   "bytes": 422
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-haiku-h_sessions/result.json",
+   "sha256": "c322ec8da07cf13546d7dc20e8ede4c7b25d40a71631144f7a7d67d9b30946f9",
+   "bytes": 20835
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-haiku-h_sessions/row.json",
+   "sha256": "33e66f544c4478b5f86525a6b45761b2c0f40a7ea79a0dc6b230724236a05003",
+   "bytes": 431
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-haiku-o_buckets/result.json",
+   "sha256": "25c8aeaa1190d2ec3b73fc9cb9f222c07b1d60eafb27e86ca24476dcfbb59eb7",
+   "bytes": 17245
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-haiku-o_buckets/row.json",
+   "sha256": "f207bd9802986abba95f3374ae61e259ee19709a66c9b588edc303d6103f11b2",
+   "bytes": 422
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-haiku-o_paths/result.json",
+   "sha256": "3f95524f053e913bb51b8f7c9c8a85185eebf58a26badf7db0d2ffd3f5fc5189",
+   "bytes": 13282
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-haiku-o_paths/row.json",
+   "sha256": "fcd0310c15a7620f4d63450f90092e5b6746eb681c7bbbae68db8fbe8d12e515",
+   "bytes": 420
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-sonnet-h_ledger/result.json",
+   "sha256": "1da9f8c14f4da1e6b43b9e3a60f9be4f4acddac3be39128f6fa43306dc1ffa55",
+   "bytes": 15031
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-sonnet-h_ledger/row.json",
+   "sha256": "90cba6fcce2ee8012e54679288cd1bad20fdff7c6768734d5eaa95bbfc5a24f9",
+   "bytes": 427
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-sonnet-h_merge/result.json",
+   "sha256": "ffb94384991d1499cb1ff27d5113e831f0bd4fb98dd8180e94d8ab6682ae679c",
+   "bytes": 13359
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-sonnet-h_merge/row.json",
+   "sha256": "52f3a3282d8cca4da613f07721ab0fa8e6747f2f195f87a4007fa92f1768baa9",
+   "bytes": 424
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-sonnet-h_sessions/result.json",
+   "sha256": "497d6de58264ff9ac03e8f83fa9244f58240a2dc2e321095e9a0b59b2da59923",
+   "bytes": 17349
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-sonnet-h_sessions/row.json",
+   "sha256": "8386f6bb8aaf2e495a9321b8fb1ed8cd377f4b6797cf43402071c76d321cdd12",
+   "bytes": 433
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-sonnet-o_buckets/result.json",
+   "sha256": "e983ede1e0c487cbfda9666c06646130befe0ff7bd880f927415fe46ea81e188",
+   "bytes": 14998
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-sonnet-o_buckets/row.json",
+   "sha256": "6d0b763104a247c6bc5143edba069ef075000e9f631db21dadec6e10f96b8c82",
+   "bytes": 424
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-sonnet-o_paths/result.json",
+   "sha256": "c769096c15d7c05f7dd415c4c07e11664ee2b064998e49858b7443e121d0fe0c",
+   "bytes": 11539
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-issuer_bound-sonnet-o_paths/row.json",
+   "sha256": "260a23824fdcc90ec181f981f9d1b73bcef8f3bce9ef0cfe169f7c4d8864caf4",
+   "bytes": 422
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-haiku-h_ledger/result.json",
+   "sha256": "a858e61a1a942337bf79d6589727a1dc4c5bd459fc886ebcd37912b8d106f41e",
+   "bytes": 31143
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-haiku-h_ledger/row.json",
+   "sha256": "69a649d33af91d301a4d351978b5ccc4442cad9187c6116bc7753b9dcb979175",
+   "bytes": 423
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-haiku-h_merge/result.json",
+   "sha256": "285de8d5edc060b27d54bbb380d906d6ccf18abbe22aacedc1463eda02058bd5",
+   "bytes": 21472
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-haiku-h_merge/row.json",
+   "sha256": "9a202fc2c3a8a7037d0fbba9b258361a9b08664826bcb7d6c00cd42934b68271",
+   "bytes": 420
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-haiku-h_sessions/result.json",
+   "sha256": "8cbd3822af70af9210eedc4670f6b51cbf650e84c78433cfe4b28d811bd63862",
+   "bytes": 22311
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-haiku-h_sessions/row.json",
+   "sha256": "a3fb38a010e4c7b3f7a0e78bc90476249f3387a43087637cf789474a8895249f",
+   "bytes": 429
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-haiku-o_buckets/result.json",
+   "sha256": "d8727c7fac46aafec3be1e3c07d82412c00e490625ec405f29a53894d1ef911e",
+   "bytes": 35803
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-haiku-o_buckets/row.json",
+   "sha256": "51739c430cbc429d093abd439dae14365760aea9c61fb25e6120e3a4a56d00f6",
+   "bytes": 420
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-haiku-o_paths/result.json",
+   "sha256": "16bd8b21d98690281b207b11d27ec2322e473001879a94f37f289f180ab2915c",
+   "bytes": 32864
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-haiku-o_paths/row.json",
+   "sha256": "408851aa4024b44fe21397146bb48e6d8d43e0b6fb1c28dbe51f7a040cd19de4",
+   "bytes": 418
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-sonnet-h_ledger/result.json",
+   "sha256": "4c8089f5262e18561763f043e1042191c075e4d6c3391549abca4950f6aac4e5",
+   "bytes": 15587
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-sonnet-h_ledger/row.json",
+   "sha256": "42c4013b3976231e2b11de477fecec6feb6ae01893e7d8cad4ea5e4d7685f4e9",
+   "bytes": 425
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-sonnet-h_merge/result.json",
+   "sha256": "a357d8e3cfb84121b407f9cca86fa7938f52a4290d787c45ce7347fb6efe5b0f",
+   "bytes": 14782
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-sonnet-h_merge/row.json",
+   "sha256": "fc84115a6549dec49c7d585ed5c4cc8260454da4a175215cf157b164c46bdd15",
+   "bytes": 422
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-sonnet-h_sessions/result.json",
+   "sha256": "d521b9b0cf2c61d4d62082ab534d724dc74504ffa96a38270161d0ce395d97d9",
+   "bytes": 17678
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-sonnet-h_sessions/row.json",
+   "sha256": "3e9424c477eaa6ccae3fdd0d254d4faa3697da4f67b2309794697bbcd0a4f576",
+   "bytes": 431
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-sonnet-o_buckets/result.json",
+   "sha256": "979521f8bffeb0da9095696f1e8b665019b3c7730b90d4deda0a5e6b9d0e4875",
+   "bytes": 14476
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-sonnet-o_buckets/row.json",
+   "sha256": "b3cdda6f7a6667d32d0c9ba515d84fa67be5150534f515abacbc14a78eb5a536",
+   "bytes": 422
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-sonnet-o_paths/result.json",
+   "sha256": "b1b45d79df27531973d164fe73b5ab1d769c0fe2c8557dd4903150f8cdd4f88f",
+   "bytes": 12896
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-report_only-sonnet-o_paths/row.json",
+   "sha256": "a7d338e74d7320d3f93895c28bd941f85bcd56556dbb144ae0e965e72c6d7334",
+   "bytes": 420
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-haiku-h_ledger/result.json",
+   "sha256": "30118266f58650474119352d7dabe16eb5db634477ecb1a11ca7e713d793ad36",
+   "bytes": 17667
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-haiku-h_ledger/row.json",
+   "sha256": "196f28a2ca0b0b42681d35206b4ea86b5e940e1b0be69fb6924ba21089130504",
+   "bytes": 431
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-haiku-h_merge/result.json",
+   "sha256": "4b6989407dda923d01a5fac5d3f6b88c059ccc96194f9db040860caf42e97c0f",
+   "bytes": 15661
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-haiku-h_merge/row.json",
+   "sha256": "911d3f816e86f5a88ab3cf646719e57ae7613c500c3326129fff4b7eea043868",
+   "bytes": 428
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-haiku-h_sessions/result.json",
+   "sha256": "30f0bc6c410682b7da3d79a6b447439ecb1948a4fb4b3fd7dae9537e790d684b",
+   "bytes": 19500
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-haiku-h_sessions/row.json",
+   "sha256": "c239199699fedeee881d6e7526b2882deae7f443f8791ad147985aa61c863b13",
+   "bytes": 437
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-haiku-o_buckets/result.json",
+   "sha256": "82f0c4c9b5f794048f6d94ef8f97bdd6b1614a6df67ab08f416732b2871cf4b5",
+   "bytes": 16997
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-haiku-o_buckets/row.json",
+   "sha256": "3d478124b0670463677c66f73f23a7d0668e5bbd69be709ef1cef8e6f47cae19",
+   "bytes": 428
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-haiku-o_paths/result.json",
+   "sha256": "26e39199b201be7fddf4bc9f97ea8483cd77ca726aeb11b39d21ba85628e0603",
+   "bytes": 13095
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-haiku-o_paths/row.json",
+   "sha256": "31c1fccde72330a350739e22a77ff4e36e12925324b261e829ebbe1b096b1c0a",
+   "bytes": 426
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-sonnet-h_ledger/result.json",
+   "sha256": "ea91a683be663038097d2c7e375f5d8cb9618751eac56030f3c41e4b3e11610f",
+   "bytes": 14722
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-sonnet-h_ledger/row.json",
+   "sha256": "8579ba660e374524af127457c681280246629e21af5161b8ef73f5806c720a2d",
+   "bytes": 433
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-sonnet-h_merge/result.json",
+   "sha256": "7aecf0f9fe84a20f29a80875b0a62959b821e751d76d9a27eca02dd133b8d221",
+   "bytes": 13568
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-sonnet-h_merge/row.json",
+   "sha256": "e325f87b4a598495bfee7c3c2480d6d05fb7336e8aabce660ab20b588e7851f9",
+   "bytes": 430
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-sonnet-h_sessions/result.json",
+   "sha256": "cf3b47e0a462228c757289298cabe94eda73efd574e9432fdc159a1b48227b4a",
+   "bytes": 17400
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-sonnet-h_sessions/row.json",
+   "sha256": "ccba069a2a552c3f9eaacf12cb012af88b00bdcc340f0ef30e82a974bda61022",
+   "bytes": 439
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-sonnet-o_buckets/result.json",
+   "sha256": "92e674d3e23042754bd7192e1a53862804b27a378fdce9471b8fdbb4ab0979d1",
+   "bytes": 14410
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-sonnet-o_buckets/row.json",
+   "sha256": "81bb672b943e2720e0f8350757197e285d33c802a616a85071063626e23efb2c",
+   "bytes": 430
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-sonnet-o_paths/result.json",
+   "sha256": "614e60159dd925a04729ab1d1db1c1fe180b6f633ee1ca21a138774f81f4587b",
+   "bytes": 11544
+  },
+  {
+   "path": "b-controlled/episodes/e1-long-shared_receipts-sonnet-o_paths/row.json",
+   "sha256": "2aff1bf092b64dfa5044365de52da6dd089d66705fa20daf18b514359bd9716c",
+   "bytes": 428
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-haiku-h_ledger/result.json",
+   "sha256": "160749a1dc78fe2edef33ecf44eacaa69b35e68ee809e291a44ac8367bcf786d",
+   "bytes": 11854
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-haiku-h_ledger/row.json",
+   "sha256": "7464d953db20942a42159536617a2f114a9f212ee10c6002793812be83b82a24",
+   "bytes": 427
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-haiku-h_merge/result.json",
+   "sha256": "5a94928e89a21b9ed2ca2436b1a8a8702a126d08cb84e664e749e7c46c03655e",
+   "bytes": 11871
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-haiku-h_merge/row.json",
+   "sha256": "c8d239877658529f06631b059f7da939eff769f128e6e4f1dbd65b135f118f60",
+   "bytes": 424
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-haiku-h_sessions/result.json",
+   "sha256": "b07bd96a9e02924e3fb97ceaf5f0b784a0cea8e6dcf757847e601c7f8a84c13f",
+   "bytes": 16332
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-haiku-h_sessions/row.json",
+   "sha256": "a6c555bddd79c3abea045dd021b616fae14819fa0cad2026952997d12eb781c5",
+   "bytes": 433
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-haiku-o_buckets/result.json",
+   "sha256": "458da481c534a2fc3c4105d697dd7aa7368711a26afcec38ffb629bbae341c72",
+   "bytes": 13813
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-haiku-o_buckets/row.json",
+   "sha256": "a6d8f4f6159e9327c24a85aa32cc2a7ba93df6e5a4ca4172ddf6f5eb8a3e1798",
+   "bytes": 424
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-haiku-o_paths/result.json",
+   "sha256": "efbf6cb4ed63044898f5c01ea59723e1795f47b1b5e4354918cf9d93d178f7d5",
+   "bytes": 11305
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-haiku-o_paths/row.json",
+   "sha256": "561cd7d598e367ea73f6afe1dd010ac4bd1a0a08989da00a73b73c9e20f4d17f",
+   "bytes": 422
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-sonnet-h_ledger/result.json",
+   "sha256": "d491e0e237c0dc211f52d1725c5824fcb59bc32cd4a3f41c8eff8bbc66aaa029",
+   "bytes": 12311
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-sonnet-h_ledger/row.json",
+   "sha256": "5b8e16677c950d31b825e9c0194538446c6d83c6bb6c0ae0d3a236ac74bb6dc6",
+   "bytes": 429
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-sonnet-h_merge/result.json",
+   "sha256": "e3052aa4ed46a59fb862731bfdc2f00a9cd33ba852d4190a346c010c4c830d37",
+   "bytes": 11369
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-sonnet-h_merge/row.json",
+   "sha256": "b217a0567044a7923b5f7a7ba51c72c3224c4f368d17b91942f6dc78eca9ed68",
+   "bytes": 426
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-sonnet-h_sessions/result.json",
+   "sha256": "7182cd66ff6a49f6b70aafb667a7ecb73edc1b0eab9728ec6449a5052b732a77",
+   "bytes": 14292
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-sonnet-h_sessions/row.json",
+   "sha256": "96df95f6ac3e1fb623efce72142c1fd992db572ccb7fa52f3ab77c4aa463dc5f",
+   "bytes": 435
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-sonnet-o_buckets/result.json",
+   "sha256": "50ea662e614c27ce740eaac0dc74f970f6de49b513fe6e584e70f09fde10cc49",
+   "bytes": 12894
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-sonnet-o_buckets/row.json",
+   "sha256": "cb5de74f4892c74f438e52cb4eeee851d090750648d8e3ecea437c4c889a1f9e",
+   "bytes": 426
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-sonnet-o_paths/result.json",
+   "sha256": "55f19d09306a30ad7142fc5e2e3083c4e6ef74680b9a4ffc4942545bc7cc6499",
+   "bytes": 9840
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-issuer_bound-sonnet-o_paths/row.json",
+   "sha256": "9bcb936bc35c7937c67772393d3b06b7a62eb3154bddaf52188b2aea7fea3057",
+   "bytes": 424
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-haiku-h_ledger/result.json",
+   "sha256": "4a9d0c13ae56620e78d57b5134694a42a4185e50287b004a05b90e319dd165cb",
+   "bytes": 17510
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-haiku-h_ledger/row.json",
+   "sha256": "af9d6d51b46e315dc65d6c8c710c1318bcfd09b0238103cb9564492af6fb7b49",
+   "bytes": 425
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-haiku-h_merge/result.json",
+   "sha256": "a3db05836cd6df4e661dc0c395524dd1f4ced0f7276a9402fb69c3a3ce59d4ad",
+   "bytes": 14511
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-haiku-h_merge/row.json",
+   "sha256": "b340a9b97778b703d8770e990aafba7e25e0c46e3b491474c230f7d1640dc491",
+   "bytes": 422
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-haiku-h_sessions/result.json",
+   "sha256": "3edb19f9db8ab690e6d6b61da67c2ccdfd98d3977e4c969a55b0c32d7ff09a9c",
+   "bytes": 37550
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-haiku-h_sessions/row.json",
+   "sha256": "7096686e6441f92ea7d02059092539d54ddd4a2f21f97b556110fc4a37e79c39",
+   "bytes": 431
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-haiku-o_buckets/result.json",
+   "sha256": "fcc5a1c0a7a0f743c9ff35c1ebc8e63b650f0af6237c57e2f1c9762b556b0e61",
+   "bytes": 19366
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-haiku-o_buckets/row.json",
+   "sha256": "6a9d6caeb74e4199ca4ce4c5ac68f1d9cc235b17bed673c9bf4c44eaf8776a7e",
+   "bytes": 422
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-haiku-o_paths/result.json",
+   "sha256": "0c491707bd4500433016dc3fd04d99b191bf68fe8195918cdbe8af5f27c75fe3",
+   "bytes": 30534
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-haiku-o_paths/row.json",
+   "sha256": "b70be66f75bbfe05dea2a1c8ced194fb01195ca3fad484102edb2fc66af25df6",
+   "bytes": 420
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-sonnet-h_ledger/result.json",
+   "sha256": "5e7f28f7765f756bc11808abcbc31955d9d39f1459bae0951ac121066426502c",
+   "bytes": 12873
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-sonnet-h_ledger/row.json",
+   "sha256": "d1fea3eb49dd3ae6195c268d3f68742c7ddfb9b83a52c94d51eb1f4e77c75ecd",
+   "bytes": 427
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-sonnet-h_merge/result.json",
+   "sha256": "9a34378a998a09b63c37eba5257e3f7e2e33f91cfa83891d859ef3f177df7842",
+   "bytes": 11244
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-sonnet-h_merge/row.json",
+   "sha256": "505f939675b529212f5fc10824b5a296544e23be73f3a3bffe15216dbb072f8f",
+   "bytes": 424
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-sonnet-h_sessions/result.json",
+   "sha256": "55cb75d0ae34a1796c6fbde1715a32b4cb3b174dba7a351fac21fbec5243dc52",
+   "bytes": 14360
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-sonnet-h_sessions/row.json",
+   "sha256": "c9f12b886fde822bd4891dfa83afbb00d1959d67ec9b501b0dacd648e4bceb58",
+   "bytes": 433
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-sonnet-o_buckets/result.json",
+   "sha256": "fc21065dd6cc0bf659d2021e764fdf1682715a73f3dcf179e26189a5c9a5a544",
+   "bytes": 13493
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-sonnet-o_buckets/row.json",
+   "sha256": "ae6a9f983ae533c8849d10bfd07650456eea848376d5e843b2a046ece561f278",
+   "bytes": 424
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-sonnet-o_paths/result.json",
+   "sha256": "21ef8cb23b3696053a9d60bf9b5205b92f83cae1cfc652723db748773c62592a",
+   "bytes": 9837
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-report_only-sonnet-o_paths/row.json",
+   "sha256": "62901c0b5c24f1c85048bc5222fad37f310db4d82dcc7dea6d58e2b88d533b0d",
+   "bytes": 422
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-haiku-h_ledger/result.json",
+   "sha256": "15668531842d163d91355bd7becde4d83b7242e57e0c33049b47dde1ff3c2074",
+   "bytes": 13491
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-haiku-h_ledger/row.json",
+   "sha256": "d579be5340e71725e9c00e43da965748de229fb928a636c880f00e3d925769c8",
+   "bytes": 433
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-haiku-h_merge/result.json",
+   "sha256": "64d053b2281432b6510bbf3944a31473ab1cb0bcd719f8a353542deed7bfadf0",
+   "bytes": 13436
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-haiku-h_merge/row.json",
+   "sha256": "8f5bd68e6e45b0b98367bb2deb68b292e04d9c6e008bba3d36cc385e74d65555",
+   "bytes": 430
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-haiku-h_sessions/result.json",
+   "sha256": "8b86c8fa2a32e7a2308484aa594b2b19421f4dcd5431a1087694ee0384177db9",
+   "bytes": 16025
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-haiku-h_sessions/row.json",
+   "sha256": "53f406220ea621e55ee7fc5480835c2cae6d2e7a2d845d1a4f40916d9727029b",
+   "bytes": 439
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-haiku-o_buckets/result.json",
+   "sha256": "dc76f829078aa645b8de31eda2b11fba81cde01bfcd84fea2b9f92db4e0d6292",
+   "bytes": 14320
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-haiku-o_buckets/row.json",
+   "sha256": "25eef7530561a177b94f2fed2a648d8bda822b8f59a92c926e71c11e1f4c56e8",
+   "bytes": 430
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-haiku-o_paths/result.json",
+   "sha256": "ff81e98ebc13499f3c40d8f64b63b7498255e3384064240e824da49e0a26ba1c",
+   "bytes": 11850
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-haiku-o_paths/row.json",
+   "sha256": "f287ca9df2db61877b9ff7fbb7a8c14db14eabacc8a04c7a350b22411f784075",
+   "bytes": 428
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-sonnet-h_ledger/result.json",
+   "sha256": "595ea2f529914a0cc1bb0aeaf314fe4bec1cf0c0c9268e82a387795dc511c793",
+   "bytes": 12366
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-sonnet-h_ledger/row.json",
+   "sha256": "9d75ca7bf57acd5d06662032493de3a7c070e346c202528856b7050b864ed085",
+   "bytes": 435
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-sonnet-h_merge/result.json",
+   "sha256": "a081e3732c212f7bd9d9b19a191d253af798e713418c6e0a076f9498c6f03cb4",
+   "bytes": 12752
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-sonnet-h_merge/row.json",
+   "sha256": "d287841888ff9deacf3af87b238d5486193e78f6d9246463e8858ca36aba5621",
+   "bytes": 432
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-sonnet-h_sessions/result.json",
+   "sha256": "868f4e80f6be5bd3af96cb6e3a7e8cba35f67b36d3facdeaec1524e692776f30",
+   "bytes": 14776
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-sonnet-h_sessions/row.json",
+   "sha256": "cbf37d94714472e937f6854545b09b3696da0b89d72d1f41f53c237dda04f579",
+   "bytes": 441
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-sonnet-o_buckets/result.json",
+   "sha256": "69b53a606f97f0f3d00db8eb299234e2b81387c64b13f8bc8e88d2d67ac996fe",
+   "bytes": 12339
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-sonnet-o_buckets/row.json",
+   "sha256": "1e47e0ad9e01458f23c927890ff684c99c6f81b9352eff0e8c7544a316fabfe3",
+   "bytes": 432
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-sonnet-o_paths/result.json",
+   "sha256": "f1de13fe38dc215a832e9ed819e0c853e8d6868392d6f8910b701a38c1f77a93",
+   "bytes": 9164
+  },
+  {
+   "path": "b-controlled/episodes/e1-short-shared_receipts-sonnet-o_paths/row.json",
+   "sha256": "af108757aef99c74e4288a2e9ebc4922d638413af9886c6a55235cd52db62fe3",
+   "bytes": 430
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-stale-haiku-h_sessions/result.json",
+   "sha256": "9f1cc4165a74dc717f0aaea9ef90e10ae14b45d4390b2b3c3a9566dd3fc11b61",
+   "bytes": 16018
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-stale-haiku-h_sessions/row.json",
+   "sha256": "66515e3c2ce23ce38ba57343e42b744d3aa343b302d419cbe48ce15253619e8f",
+   "bytes": 467
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-stale-haiku-o_buckets/result.json",
+   "sha256": "205dd9a9fe9afdb0d392f9206dbedad189e59ffc8363abd0a407b630cd700583",
+   "bytes": 13220
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-stale-haiku-o_buckets/row.json",
+   "sha256": "2388442e11be3a94a0350b3664b65273a244ca197f9e271e4947c7905c64bbe4",
+   "bytes": 458
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-stale-sonnet-h_sessions/result.json",
+   "sha256": "cf63d226dc3e7e55cf2b5c699c7d8a67e8d36e23939e7610b9263e9f859dae4e",
+   "bytes": 14969
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-stale-sonnet-h_sessions/row.json",
+   "sha256": "41740054aa204eb2cca53610ac3ed3f5f9a7e365a70d2bc39f794abd54c1aa4b",
+   "bytes": 469
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-stale-sonnet-o_buckets/result.json",
+   "sha256": "c0b19547ab0cce2313ac8d79eab4864c19193512ec04dcdbeb5f7b9fb529392f",
+   "bytes": 12450
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-stale-sonnet-o_buckets/row.json",
+   "sha256": "5cae343e7eac2d3632353839cc80ff0838ecc71e751e3aff37f9ed2c3f9f7865",
+   "bytes": 460
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-valid-haiku-h_sessions/result.json",
+   "sha256": "d60ae1e8178b9adc9f13a097cc7ef1186007a40ff00385aba69cd4e96e638c32",
+   "bytes": 17846
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-valid-haiku-h_sessions/row.json",
+   "sha256": "c1786513510e6586c1e98ff6870c845037e79928847e2b548c08c9d6b5f19a5f",
+   "bytes": 467
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-valid-haiku-o_buckets/result.json",
+   "sha256": "26930584127a5b9348c13cd0aa4d02dd71ea7378802cfbde8420cf7d8af15c14",
+   "bytes": 12983
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-valid-haiku-o_buckets/row.json",
+   "sha256": "31ee23b1fba2211e1d96b0487b54e078f6e3544e63f2e2587df94d9bea7f4814",
+   "bytes": 458
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-valid-sonnet-h_sessions/result.json",
+   "sha256": "cbd7e3c728bafa2ddd94641acf1b062b187ae929ee8defbb2fd57994a2f8ddac",
+   "bytes": 14818
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-valid-sonnet-h_sessions/row.json",
+   "sha256": "bf6849a710caf0443d66d63add9eb60263b30af35427bb8887c8fb164dd3f547",
+   "bytes": 469
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-valid-sonnet-o_buckets/result.json",
+   "sha256": "0d6c88a641a88f333f6a13cfb4896915d2e1d1c01ed65bf583993e7862ce0ac2",
+   "bytes": 12278
+  },
+  {
+   "path": "b-controlled/episodes/e2-issuer_bound-valid-sonnet-o_buckets/row.json",
+   "sha256": "85eb12c6666ac31f6a3d7dba6eb08be0303c267702300598e83c5a2456b6fa0c",
+   "bytes": 460
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-stale-haiku-h_sessions/result.json",
+   "sha256": "fbaf23e5e3b11fbfcbda1d2e51b19b5023c91aa30eb2fd5e08e545c03ffc3c9c",
+   "bytes": 27837
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-stale-haiku-h_sessions/row.json",
+   "sha256": "fe442acfb96255442dd1e49bd8e33f4e5b7a8933095a0ddbbac561eee28fcd38",
+   "bytes": 465
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-stale-haiku-o_buckets/result.json",
+   "sha256": "e742c5a2f63015646ed299094add371a965656b1f097eded4457342ae0c1b77a",
+   "bytes": 23916
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-stale-haiku-o_buckets/row.json",
+   "sha256": "31e837858652eb74e0421df3613dbe7bd00ec63caae18d78716cc53f209f7a89",
+   "bytes": 456
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-stale-sonnet-h_sessions/result.json",
+   "sha256": "1879c1e146b688eeb4f4a6061e62a8f59d159c1fdef1e72d5c1a3d24f309a845",
+   "bytes": 16106
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-stale-sonnet-h_sessions/row.json",
+   "sha256": "81dc970a3cd5fffb08e139e4273dc629ce063dceb5650878c40fb48125779a12",
+   "bytes": 467
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-stale-sonnet-o_buckets/result.json",
+   "sha256": "d0244d8dbd71a004281b2d79c1cd7dbb5ce385bc26223234a7e94848a730605d",
+   "bytes": 13896
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-stale-sonnet-o_buckets/row.json",
+   "sha256": "3eb295d8e041876bc8d2c1f92eb7d6a344251fc2c124ef227e84290e4a05b99b",
+   "bytes": 458
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-valid-haiku-h_sessions/result.json",
+   "sha256": "23781a085342f2abb6d6efc23c4fa2ab5ffd0205968e0923dfea2d791613140d",
+   "bytes": 32328
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-valid-haiku-h_sessions/row.json",
+   "sha256": "160de8d2475d1418b020fb41dc548ffe5674c5ab8c860f76446002399591c25f",
+   "bytes": 465
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-valid-haiku-o_buckets/result.json",
+   "sha256": "0f4652dcc4e34bba4ab3fde132f9897692817fc49bb2aebe6f20397a011fa521",
+   "bytes": 23063
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-valid-haiku-o_buckets/row.json",
+   "sha256": "8d354dd3da26ea07cc5e193c13834add9a04c7d278294ca766e9195d44220136",
+   "bytes": 456
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-valid-sonnet-h_sessions/result.json",
+   "sha256": "65f68689d06e99eed5b391e8db34f4ac7cf866a8bc41ecf435c571150f933f81",
+   "bytes": 15534
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-valid-sonnet-h_sessions/row.json",
+   "sha256": "a31c3823876850736f102c188d5dd268cf2779075c160430af045b0b7cf1e66b",
+   "bytes": 467
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-valid-sonnet-o_buckets/result.json",
+   "sha256": "c5f098004504cfc88b1ad4e81155b3a6a9467f052cb2a4b408ced311ac33eac0",
+   "bytes": 15857
+  },
+  {
+   "path": "b-controlled/episodes/e2-report_only-valid-sonnet-o_buckets/row.json",
+   "sha256": "449447968a19f1c4c5979fa56483605c6700d7b30b1b3a9171b24fda259e445b",
+   "bytes": 458
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-stale-haiku-h_sessions/result.json",
+   "sha256": "aaf9b578d23c8f052e1362db2ac800ef2b5b471786eba811349246f0127e5660",
+   "bytes": 16612
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-stale-haiku-h_sessions/row.json",
+   "sha256": "63460c960b275ee7428686c72803ab066cc6882e3274ed25ce144d9ff98378be",
+   "bytes": 473
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-stale-haiku-o_buckets/result.json",
+   "sha256": "a9dcd42af8b84788a6e51eece1311b55e6acd22772a01961099d30eff6a7d251",
+   "bytes": 13072
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-stale-haiku-o_buckets/row.json",
+   "sha256": "6cd6c3839731231fc4dcfe8fb41336783ddab8ce1e77af8ecd2faa1348ba4065",
+   "bytes": 464
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-stale-sonnet-h_sessions/result.json",
+   "sha256": "340edf7f04449764a03daf1e04dabfd56dec64b6131fd963d187aabc3a04cddb",
+   "bytes": 15233
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-stale-sonnet-h_sessions/row.json",
+   "sha256": "64bada5f945ae0055d0544d63c30fbf0fd48b1928e7207d4aa3f473319d23296",
+   "bytes": 475
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-stale-sonnet-o_buckets/result.json",
+   "sha256": "e598f22e8a8e2ccc4b5526c8ec54c45c734558366dc622637eb7398cd88712a9",
+   "bytes": 12527
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-stale-sonnet-o_buckets/row.json",
+   "sha256": "d93822922105709997f6330bf57660da7ba71a4f4f503dac32e769d189b36782",
+   "bytes": 466
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-valid-haiku-h_sessions/result.json",
+   "sha256": "54c17b4d41ab08b3a00e5a3058f494b0cf582e493c5355aed51ab62f70790f2b",
+   "bytes": 14852
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-valid-haiku-h_sessions/row.json",
+   "sha256": "d2d2ddf9e08beed0f5d288ea9edc2b1093287f7074024a37bd719ddbeee1cb70",
+   "bytes": 473
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-valid-haiku-o_buckets/result.json",
+   "sha256": "54bdfb88dff9eeeed2857b5615980d2bf23129857d1bb256576ccf1bd5a50cb2",
+   "bytes": 12103
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-valid-haiku-o_buckets/row.json",
+   "sha256": "a151c8cc1c332aae6bff26c0b301cc9fe715faa9339dc537bc600c5439f25479",
+   "bytes": 464
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-valid-sonnet-h_sessions/result.json",
+   "sha256": "6f680b25efac7544a932355033c4195c3218f13b0accfe63d2a0816b6884db87",
+   "bytes": 13101
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-valid-sonnet-h_sessions/row.json",
+   "sha256": "c2e8c3f5b5ce480bd17b5055283cb41fcafe6a23455267cb54796b4fee91d61a",
+   "bytes": 475
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-valid-sonnet-o_buckets/result.json",
+   "sha256": "2ca0e56aea39b9b3c64530b73d77a2ebca7536b656ea12409e8ae374e6058d37",
+   "bytes": 11208
+  },
+  {
+   "path": "b-controlled/episodes/e2-shared_receipts-valid-sonnet-o_buckets/row.json",
+   "sha256": "8f7edadce982b3fec7c0cda1055a248a26ca5206a74dea941f41fefa53340862",
+   "bytes": 466
+  },
+  {
+   "path": "b-controlled/paired.json",
+   "sha256": "00f7e64983cf9daf69707ac50bc99d6791b329ccc14acbcd07a419c39429a954",
+   "bytes": 27978
+  },
+  {
+   "path": "b-controlled/pilot/accounting.json",
+   "sha256": "e79a7c25a3df9979e471cce7603cd9875e99c03decb82faa71580587180e0413",
+   "bytes": 405
+  },
+  {
+   "path": "b-controlled/pilot/decision.md",
+   "sha256": "f14dbac50047013bdbb9a917524dd508e213bb5600fdaa438fe2dc4d357213ae",
+   "bytes": 4680
+  },
+  {
+   "path": "b-controlled/pilot/results-fourrole.json",
+   "sha256": "527f6f9302d0cafd921bb9d6dad55f776ce35874554cad652cfae837dad28596",
+   "bytes": 543
+  },
+  {
+   "path": "b-controlled/pilot/results-raised-budget.json",
+   "sha256": "3503294576c0b273869636b2cd95bac82a8c7874c655bcc2722843f4be20f1e7",
+   "bytes": 589
+  },
+  {
+   "path": "b-controlled/pilot/results.json",
+   "sha256": "ad95f42acdb34c40089445a48b7afa96bf5b6d971dc14ee747f3034e4d5fa68f",
+   "bytes": 1452
+  },
+  {
+   "path": "b-controlled/raw-transcripts-manifest.json",
+   "sha256": "fbc82c2d34b368ec09f1f2ba99db4fc66752749e6aaa728950bee51d9d9142e0",
+   "bytes": 2150832
+  },
+  {
+   "path": "b-controlled/run-status.json",
+   "sha256": "01a37e60078835cda17e817f6a2e3edc96b3dfe1b4d4cf0e455d23946b2e4f07",
+   "bytes": 352
+  },
+  {
+   "path": "b-controlled/scripts/analyse023.py",
+   "sha256": "1aa718245d34321581d36d2a6e761d6eee0eb43a2ea7883c4510bca82a1b963e",
+   "bytes": 5916
+  },
+  {
+   "path": "b-controlled/scripts/build_design023.py",
+   "sha256": "c129ca76c3af113d4fb9f99dbbc1d6bc55b486186af3b128c045d8ea1458313b",
+   "bytes": 4147
+  },
+  {
+   "path": "b-controlled/scripts/check_candidate.py",
+   "sha256": "3658abf8342223a4915f89345e127d81a8202d823053a3bcafee0aa8ebada4e6",
+   "bytes": 1910
+  },
+  {
+   "path": "b-controlled/scripts/paired023.py",
+   "sha256": "86c1e04a1adff56de8c0e6689f301718bf9eac34601155497936c9f96d58436f",
+   "bytes": 3640
+  },
+  {
+   "path": "b-controlled/scripts/receipts.py",
+   "sha256": "df94b22d54e913024949a00a1168d9c7d45329614459714968906ac1e4770ca9",
+   "bytes": 5608
+  },
+  {
+   "path": "b-controlled/scripts/run_batch023.py",
+   "sha256": "e3c490159689fcb601e8d54e61802e2ec2dd4397870d4352624b790c01fdc5ec",
+   "bytes": 3131
+  },
+  {
+   "path": "b-controlled/scripts/runtime.py",
+   "sha256": "d48027825eb4113b73fdb6c5b559b6a63783287a9433dd0a81c9a295f1d4f108",
+   "bytes": 30486
+  },
+  {
+   "path": "b-controlled/scripts/selfcheck.py",
+   "sha256": "6089010f34671f8b1d9b3a16879ec2d478fa583d91e1b175ffbbca1f8d682d7e",
+   "bytes": 4463
+  },
+  {
+   "path": "b-controlled/scripts/tasks.py",
+   "sha256": "120938e8aa263b4dc2e8e12b54dbc0393fadb77997c76d000ff1d9db4173aac7",
+   "bytes": 8761
+  },
+  {
+   "path": "b-controlled/scripts/tasks023.py",
+   "sha256": "d59bbe0d3dec4361f974bd1139a7d5d5e992cb01f4dce71e3d72f32134c9696f",
+   "bytes": 17523
+  },
+  {
+   "path": "b-controlled/scripts/transport.py",
+   "sha256": "c379ffa389fcb441550d82587c81f80e7d9bc0680a2a978d1eb14f9f8bcbf5ad",
+   "bytes": 2563
+  },
+  {
+   "path": "b-controlled/verify.py",
+   "sha256": "187825535998ec4a804adae2cd5558f34f3c143a32f2a13f3052c2956ebb89c1",
+   "bytes": 7415
   }
  ],
  "skipped_binary": []

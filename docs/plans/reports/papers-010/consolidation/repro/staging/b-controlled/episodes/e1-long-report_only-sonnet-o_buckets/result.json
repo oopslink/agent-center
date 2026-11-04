@@ -1,0 +1,487 @@
+{
+  "id": "e1-long-report_only-sonnet-o_buckets",
+  "row": {
+    "id": "e1-long-report_only-sonnet-o_buckets",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "o_buckets",
+    "family": "rate_buckets",
+    "split": "holdout",
+    "model": "claude-sonnet-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 12,
+  "worker_starts": 4,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py, test_cases.json (9 cases), review.json (pass) and manifest.json. The manifest hashes match the delivered files. run_tests passed 3/3 public and 9/9 user tests, and accept passed."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 3,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "width": 5,
+            "requests": []
+          },
+          "expected": {
+            "output": []
+          },
+          "observed": {
+            "output": []
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "width": 5,
+            "requests": [
+              0,
+              1,
+              2
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 3
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 3
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "width": 5,
+            "requests": [
+              4,
+              5
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 1
+              },
+              {
+                "bucket": 1,
+                "start": 5,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 1
+              },
+              {
+                "bucket": 1,
+                "start": 5,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "width": 5,
+            "requests": [
+              -1
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": -1,
+                "start": -5,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": -1,
+                "start": -5,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "width": 5,
+            "requests": [
+              -5,
+              -6
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": -2,
+                "start": -10,
+                "count": 1
+              },
+              {
+                "bucket": -1,
+                "start": -5,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": -2,
+                "start": -10,
+                "count": 1
+              },
+              {
+                "bucket": -1,
+                "start": -5,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "width": 1,
+            "requests": [
+              7,
+              7,
+              7
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": 7,
+                "start": 7,
+                "count": 3
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": 7,
+                "start": 7,
+                "count": 3
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "width": 0,
+            "requests": []
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "width": -2,
+            "requests": [
+              1
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "width": 3,
+            "requests": [
+              10,
+              -10
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": -4,
+                "start": -12,
+                "count": 1
+              },
+              {
+                "bucket": 3,
+                "start": 9,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": -4,
+                "start": -12,
+                "count": 1
+              },
+              {
+                "bucket": 3,
+                "start": 9,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "width": 4,
+            "requests": [
+              0,
+              0,
+              3,
+              4
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 3
+              },
+              {
+                "bucket": 1,
+                "start": 4,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 3
+              },
+              {
+                "bucket": 1,
+                "start": 4,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "7e5c19919bc540ee143e971de558345b7efa6e2872c71abd83d033c69ad6de90",
+      "label": "private-final",
+      "duration_s": 0.01949783298186958
+    },
+    "files": {
+      "module.py": {
+        "sha256": "7e5c19919bc540ee143e971de558345b7efa6e2872c71abd83d033c69ad6de90"
+      },
+      "test_cases.json": {
+        "sha256": "28536d8558e84dd15662c82f8e3a25cf69ddb67f797c1bb10ecfa01fb4d35044"
+      },
+      "review.json": {
+        "sha256": "fccf45c8d136d8ffa2358bc72c7bf506814ef3941ca009639fdbe496b4a84673"
+      },
+      "manifest.json": {
+        "sha256": "1e890b06c595a74fd9ea4622c5859208e5f99f4840292efb74b2aca06f5be030"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:49:08.862214+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "7e5c19919bc540ee143e971de558345b7efa6e2872c71abd83d033c69ad6de90"
+      },
+      "test_cases.json": {
+        "sha256": "28536d8558e84dd15662c82f8e3a25cf69ddb67f797c1bb10ecfa01fb4d35044"
+      },
+      "review.json": {
+        "sha256": "fccf45c8d136d8ffa2358bc72c7bf506814ef3941ca009639fdbe496b4a84673"
+      },
+      "manifest.json": {
+        "sha256": "1e890b06c595a74fd9ea4622c5859208e5f99f4840292efb74b2aca06f5be030"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "implementer",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "module.py implements solve(data): raises ValueError for width < 1, buckets timestamps with floor division, counts repeats, returns sorted entries {'bucket','start','count'}, returns [] for empty requests, and does not mutate input. Public tests passed 3/3 for candidate hash 7e5c1991...de90."
+      },
+      "transport_error": null,
+      "turns": 3,
+      "pid": 77524
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "tester",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "test_cases.json written with 9 distinct cases (empty, width 0 and negative width errors, single bucket, boundary 4/5, negatives -1/-5/-6, duplicates, unsorted, width 1). run_tests passed: public 3/3, user tests 9/9, receipt rcpt-55912770a6ebffd438ab8517 bound to module.py sha 7e5c1991... and test_cases.json sha 28536d85.... Note: receipt was issued to this session only; it cannot be retrieved from another session."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 78055
+    },
+    {
+      "worker_id": "worker-03",
+      "role": "reviewer",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json written with verdict pass. run_tests in this session succeeded (public 3/3, user tests 9/9, receipt rcpt-5da4051c0909c9d5fda503a3) bound to module.py hash 7e5c1991... and test_cases.json hash 28536d85.... module.py matches the contract: ValueError for width < 1, floor division bucketing, start = bucket*width, duplicates counted, sorted ascending, empty returns [], no input mutation."
+      },
+      "transport_error": null,
+      "turns": 3,
+      "pid": 78736
+    },
+    {
+      "worker_id": "worker-04",
+      "role": "integrator",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "manifest.json written with candidate_hash, tests_hash, review_hash matching the delivered module.py, test_cases.json and review.json. run_tests in this session passed public 3/3 and user tests 9/9 (receipt rcpt-d50230eb4c2fac6a271cef35, bound to the candidate and tests hashes)."
+      },
+      "transport_error": null,
+      "turns": 3,
+      "pid": 79408
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "implementer",
+      "task": "Rewrite module.py so solve(data) implements the contract: data has 'width' (int) and 'requests' (list of ints). If width < 1 raise ValueError. Bucket for each timestamp t is t // width (floor division). Return a list with one dict per non-empty bucket: {'bucket': b, 'start': b*width, 'count': n}, sorted by bucket ascending. Repeated timestamps each count. Empty requests returns []. Do not mutate input. Use only the standard library, no I/O."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "spawn",
+      "role": "tester",
+      "task": "Write test_cases.json: a JSON list of at least six distinct cases for solve(data) with data {'width': int, 'requests': [ints]}. Each case has 'input' plus exactly one of 'output' (expected result) or 'error' (exception class name). Expectations must follow the contract: width < 1 raises ValueError (include width 0 and a negative width); bucket = floor(t/width) with floor division toward negative infinity; each entry is {'bucket': b, 'start': b*width, 'count': n}, sorted by bucket ascending; repeated timestamps each count; empty requests returns []. Include cases: empty list, multiple timestamps in one bucket, boundary values (e.g. width 5 with 4 and 5), negative timestamps (e.g. width 5 with -1, -5, -6 giving buckets -2,-1... computed correctly), duplicates, unsorted input order, and width 1. Compute expected outputs carefully by hand."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "spawn",
+      "role": "reviewer",
+      "task": "Write review.json with keys candidate_hash=7e5c19919bc540ee143e971de558345b7efa6e2872c71abd83d033c69ad6de90, tests_hash=28536d8558e84dd15662c82f8e3a25cf69ddb67f797c1bb10ecfa01fb4d35044, verdict, notes. Review module.py against the user contract and test_cases.json expectations. Call run_tests yourself so a genuine receipt exists for these versions in your session; set verdict to pass only if it succeeds, and describe what you checked in notes."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "spawn",
+      "role": "integrator",
+      "task": "Write manifest.json as a JSON object with candidate_hash=7e5c19919bc540ee143e971de558345b7efa6e2872c71abd83d033c69ad6de90, tests_hash=28536d8558e84dd15662c82f8e3a25cf69ddb67f797c1bb10ecfa01fb4d35044, review_hash=fccf45c8d136d8ffa2358bc72c7bf506814ef3941ca009639fdbe496b4a84673."
+    },
+    {
+      "op": "wait"
+    },
+    null,
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py, test_cases.json (9 cases), review.json (pass) and manifest.json. The manifest hashes match the delivered files. run_tests passed 3/3 public and 9/9 user tests, and accept passed."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:49:08.920662+00:00",
+  "evaluation_race_possible": false
+}

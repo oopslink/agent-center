@@ -1,0 +1,10 @@
+# 原始模型调用记录与 episode 工作目录：129 MB、2 万余文件，不入版本库。
+# 打分结果（result.json / row.json）、设计、lock、分析与配对输出随复现包提交，
+# 足以重算 B 篇正文的全部数字；原始对话的逐文件哈希见
+# consolidation/repro/package/b-controlled/raw-transcripts-manifest.json。
+episodes/
+pilot/ep-*/
+bridge/ep-*/
+batch-stdout.txt
+batch-stderr.txt
+runner/__pycache__/

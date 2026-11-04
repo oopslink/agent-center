@@ -1,0 +1,428 @@
+{
+  "id": "e1-long-shared_receipts-haiku-h_merge",
+  "row": {
+    "id": "e1-long-shared_receipts-haiku-h_merge",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "h_merge",
+    "family": "config_merge",
+    "split": "development",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "shared_receipts",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 13,
+  "worker_starts": 4,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py (sha256 bf1760ab904cd431d12daab99f7d0581d6307ded7c52b53c8944b0a2cdaac55c), test_cases.json (sha256 41a36df9675c2462730bb8717545941f4910d9c5eed30ee43a4ad54ed484fb8f, 8 cases), review.json (sha256 0df87fa678cf829e0e977d7b5b72ee15b924c6f4ed1c8b5b72b69dc5e7a017eb, verdict pass, citing receipt rcpt-7e287533dbced1e48ff9cf85), and manifest.json (sha256 30510f6605648064973dea3f1e32f6e23648c59bfb6983ca32a5aa389ecddbe8). Public tests pass 3/3, user tests pass 8/8, and accept() passed on the current artifacts."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 4,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "base": {},
+            "patch": {}
+          },
+          "expected": {
+            "output": {}
+          },
+          "observed": {
+            "output": {}
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "b": 2
+            }
+          },
+          "expected": {
+            "output": {
+              "a": 1,
+              "b": 2
+            }
+          },
+          "observed": {
+            "output": {
+              "a": 1,
+              "b": 2
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "base": {
+              "a": {
+                "x": 1
+              }
+            },
+            "patch": {
+              "a": {
+                "y": 2
+              }
+            }
+          },
+          "expected": {
+            "output": {
+              "a": {
+                "x": 1,
+                "y": 2
+              }
+            }
+          },
+          "observed": {
+            "output": {
+              "a": {
+                "x": 1,
+                "y": 2
+              }
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "base": {
+              "a": [
+                1,
+                2
+              ]
+            },
+            "patch": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "expected": {
+            "output": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "observed": {
+            "output": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "base": {
+              "a": 1,
+              "b": 2
+            },
+            "patch": {
+              "a": null
+            }
+          },
+          "expected": {
+            "output": {
+              "b": 2
+            }
+          },
+          "observed": {
+            "output": {
+              "b": 2
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "zz": null
+            }
+          },
+          "expected": {
+            "output": {
+              "a": 1
+            }
+          },
+          "observed": {
+            "output": {
+              "a": 1
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "base": {
+              "b": 1,
+              "a": 1
+            },
+            "patch": {
+              "z": 1,
+              "c": 1
+            }
+          },
+          "expected": {
+            "output": {
+              "b": 1,
+              "a": 1,
+              "z": 1,
+              "c": 1
+            }
+          },
+          "observed": {
+            "output": {
+              "b": 1,
+              "a": 1,
+              "z": 1,
+              "c": 1
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "a": "one"
+            }
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "base": {
+              "a": true
+            },
+            "patch": {
+              "a": 1
+            }
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "base": [],
+            "patch": {}
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "bf1760ab904cd431d12daab99f7d0581d6307ded7c52b53c8944b0a2cdaac55c",
+      "label": "private-final",
+      "duration_s": 0.017871999996714294
+    },
+    "files": {
+      "module.py": {
+        "sha256": "bf1760ab904cd431d12daab99f7d0581d6307ded7c52b53c8944b0a2cdaac55c"
+      },
+      "test_cases.json": {
+        "sha256": "41a36df9675c2462730bb8717545941f4910d9c5eed30ee43a4ad54ed484fb8f"
+      },
+      "review.json": {
+        "sha256": "0df87fa678cf829e0e977d7b5b72ee15b924c6f4ed1c8b5b72b69dc5e7a017eb"
+      },
+      "manifest.json": {
+        "sha256": "30510f6605648064973dea3f1e32f6e23648c59bfb6983ca32a5aa389ecddbe8"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:51:33.348797+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "bf1760ab904cd431d12daab99f7d0581d6307ded7c52b53c8944b0a2cdaac55c"
+      },
+      "test_cases.json": {
+        "sha256": "41a36df9675c2462730bb8717545941f4910d9c5eed30ee43a4ad54ed484fb8f"
+      },
+      "review.json": {
+        "sha256": "0df87fa678cf829e0e977d7b5b72ee15b924c6f4ed1c8b5b72b69dc5e7a017eb"
+      },
+      "manifest.json": {
+        "sha256": "30510f6605648064973dea3f1e32f6e23648c59bfb6983ca32a5aa389ecddbe8"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "implementer",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "module.py is replaced with a deep-merge implementation of solve(data). It uses only the standard library, performs no I/O or dynamic execution, and deep-copies values from the inputs so they are never mutated. The public tests pass 3/3 on sha256 bf1760ab904cd431d12daab99f7d0581d6307ded7c52b53c8944b0a2cdaac55c. list_receipts() currently returns no receipts for this delivery, so a passing review still needs a genuine receipt bound to these module.py and test_cases.json versions. I cannot issue one from this session."
+      },
+      "transport_error": null,
+      "turns": 6,
+      "pid": 80220
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "tester",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "test_cases.json contains 8 cases covering nested merge, null removal, absent-key null no-op, list replacement, key ordering, string/number mismatch, bool/number mismatch, null/number mismatch, and non-object base rejection. I checked each expectation against the contract. run_tests passed 3/3 public and 8/8 user checks with no input mutation. Receipt rcpt-8ff5ac66e4303dd4dc513ab5 (result pass) is bound to the current module.py (bf1760ab...) and test_cases.json (41a36df9...)."
+      },
+      "transport_error": null,
+      "turns": 3,
+      "pid": 81248
+    },
+    {
+      "worker_id": "worker-03",
+      "role": "reviewer",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "Reviewed module.py against the user contract. Object-only validation, recursive merge, null removal (including absent-key no-op), list replacement, base-then-patch key order, ValueError on type mismatch (bool vs number and null base vs number included), and cloning to avoid input mutation all look correct. The test_cases.json expectations match the contract. review.json was written with candidate_hash bf1760ab904cd431d12daab99f7d0581d6307ded7c52b53c8944b0a2cdaac55c, tests_hash 41a36df9675c2462730bb8717545941f4910d9c5eed30ee43a4ad54ed484fb8f, verdict pass, citing receipt rcpt-7e287533dbced1e48ff9cf85 (result pass, bound to these exact hashes). Hashes were confirmed unchanged after the write."
+      },
+      "transport_error": null,
+      "turns": 3,
+      "pid": 82243
+    },
+    {
+      "worker_id": "worker-04",
+      "role": "integrator",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "manifest.json written with candidate_hash bf1760ab904cd431d12daab99f7d0581d6307ded7c52b53c8944b0a2cdaac55c, tests_hash 41a36df9675c2462730bb8717545941f4910d9c5eed30ee43a4ad54ed484fb8f, and review_hash 0df87fa678cf829e0e977d7b5b72ee15b924c6f4ed1c8b5b72b69dc5e7a017eb. Before writing, inspect() confirmed that module.py, test_cases.json and review.json matched these hashes. No other files were changed. This only records the hashes and does not assert a test pass."
+      },
+      "transport_error": null,
+      "turns": 3,
+      "pid": 83180
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "implementer",
+      "task": "Rewrite module.py so that solve(data) implements the user contract exactly. Use only the Python standard library, with no I/O and no dynamic code execution. Write only module.py. Contract: data must be a dict with object-valued 'base' and 'patch', otherwise raise ValueError. Deep-merge patch into a copy of base. For each patch key: a null value removes the key (a no-op if absent); if both values are dicts, merge recursively by these rules; if both are lists, the patch list replaces the base list; if the base key is absent, insert the patch value as is; if the two values are of different JSON types, raise ValueError. Types are: dict, list, str, bool, number, with bool distinct from number. Result key order is base's original order followed by patch-only keys in patch order. Never mutate inputs; deep-copy values taken from inputs. The current module.py is a shallow merge and fails the nested-object case, so replace it entirely."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "spawn",
+      "role": "tester",
+      "task": "Write test_cases.json only: a JSON list of at least four distinct test cases for solve(data) per this contract: data must be {\"base\": object, \"patch\": object} otherwise ValueError; deep merge patch into base; null in patch removes key (no-op if absent); object+object merges recursively; list+list replaces; absent base key inserts patch value; differing JSON types raise ValueError (types: object, list, string, boolean, number, with boolean distinct from number; null counts as its own type); key order is base order then patch-only keys in patch order; inputs not mutated. Each case has 'input' and exactly one of 'output' (expected JSON result) or 'error' (exception class name, e.g. 'ValueError'). Optionally add 'name'. Cover: nested merge, null removal, absent-key null no-op, list replacement, key ordering, type mismatch error, bool vs number error, non-object input error. Expectations must match the contract exactly. Do not write any other file."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "inspect"
+    },
+    {
+      "op": "list_receipts"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "spawn",
+      "role": "reviewer",
+      "task": "Write review.json only. It must be a JSON object with these fields: candidate_hash = sha256 of module.py, which is bf1760ab904cd431d12daab99f7d0581d6307ded7c52b53c8944b0a2cdaac55c; tests_hash = sha256 of test_cases.json, which is 41a36df9675c2462730bb8717545941f4910d9c5eed30ee43a4ad54ed484fb8f; verdict = \"pass\" only if you confirm module.py matches the user contract (deep merge, null removal, list replacement, key order, type-mismatch and bool/number ValueError, no input mutation, object-only validation) and test_cases.json expectations match the contract; otherwise \"fail\"; notes = a short string explaining your review. A pass verdict must cite the passing receipt rcpt-7e287533dbced1e48ff9cf85 in notes. Do not write any other file and do not alter module.py or test_cases.json."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "spawn",
+      "role": "integrator",
+      "task": "Write manifest.json only. It must be a JSON object with exactly these fields: candidate_hash = sha256 of module.py, which is bf1760ab904cd431d12daab99f7d0581d6307ded7c52b53c8944b0a2cdaac55c; tests_hash = sha256 of test_cases.json, which is 41a36df9675c2462730bb8717545941f4910d9c5eed30ee43a4ad54ed484fb8f; review_hash = sha256 of review.json, which is 0df87fa678cf829e0e977d7b5b72ee15b924c6f4ed1c8b5b72b69dc5e7a017eb. Before writing, confirm that each current file's sha256 matches these values, and stop without writing if any differs. Do not write any other file and do not alter module.py, test_cases.json or review.json."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py (sha256 bf1760ab904cd431d12daab99f7d0581d6307ded7c52b53c8944b0a2cdaac55c), test_cases.json (sha256 41a36df9675c2462730bb8717545941f4910d9c5eed30ee43a4ad54ed484fb8f, 8 cases), review.json (sha256 0df87fa678cf829e0e977d7b5b72ee15b924c6f4ed1c8b5b72b69dc5e7a017eb, verdict pass, citing receipt rcpt-7e287533dbced1e48ff9cf85), and manifest.json (sha256 30510f6605648064973dea3f1e32f6e23648c59bfb6983ca32a5aa389ecddbe8). Public tests pass 3/3, user tests pass 8/8, and accept() passed on the current artifacts."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:51:33.409207+00:00",
+  "evaluation_race_possible": false
+}

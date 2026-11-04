@@ -1,0 +1,444 @@
+{
+  "id": "e1-short-issuer_bound-sonnet-o_buckets",
+  "row": {
+    "id": "e1-short-issuer_bound-sonnet-o_buckets",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "o_buckets",
+    "family": "rate_buckets",
+    "split": "holdout",
+    "model": "claude-sonnet-5-5",
+    "organization": "short",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "issuer_bound",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 7,
+  "worker_starts": 2,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py, test_cases.json, review.json and manifest.json. The controller-issued receipt rcpt-c55c81258cfa4bb303558878 passed (public 3/3, user tests 6/6) and is bound to the delivered module.py and test_cases.json. The accept release checks passed, and the manifest hashes match the delivered files."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 2,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "width": 5,
+            "requests": []
+          },
+          "expected": {
+            "output": []
+          },
+          "observed": {
+            "output": []
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "width": 5,
+            "requests": [
+              0,
+              1,
+              2
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 3
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 3
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "width": 5,
+            "requests": [
+              4,
+              5
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 1
+              },
+              {
+                "bucket": 1,
+                "start": 5,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 1
+              },
+              {
+                "bucket": 1,
+                "start": 5,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "width": 5,
+            "requests": [
+              -1
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": -1,
+                "start": -5,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": -1,
+                "start": -5,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "width": 5,
+            "requests": [
+              -5,
+              -6
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": -2,
+                "start": -10,
+                "count": 1
+              },
+              {
+                "bucket": -1,
+                "start": -5,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": -2,
+                "start": -10,
+                "count": 1
+              },
+              {
+                "bucket": -1,
+                "start": -5,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "width": 1,
+            "requests": [
+              7,
+              7,
+              7
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": 7,
+                "start": 7,
+                "count": 3
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": 7,
+                "start": 7,
+                "count": 3
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "width": 0,
+            "requests": []
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "width": -2,
+            "requests": [
+              1
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "width": 3,
+            "requests": [
+              10,
+              -10
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": -4,
+                "start": -12,
+                "count": 1
+              },
+              {
+                "bucket": 3,
+                "start": 9,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": -4,
+                "start": -12,
+                "count": 1
+              },
+              {
+                "bucket": 3,
+                "start": 9,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "width": 4,
+            "requests": [
+              0,
+              0,
+              3,
+              4
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 3
+              },
+              {
+                "bucket": 1,
+                "start": 4,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 3
+              },
+              {
+                "bucket": 1,
+                "start": 4,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "7b5ac1850e04ef6839732a8295b97b93ace787fe2c909e9935221688ef25926d",
+      "label": "private-final",
+      "duration_s": 0.02146079100202769
+    },
+    "files": {
+      "module.py": {
+        "sha256": "7b5ac1850e04ef6839732a8295b97b93ace787fe2c909e9935221688ef25926d"
+      },
+      "test_cases.json": {
+        "sha256": "08cb48f39ab5f40ce507a383b9e2d10b6cc12ddcc1f45ab5c52f061db2b65f89"
+      },
+      "review.json": {
+        "sha256": "cd60da417334a1b3ed250499f7877c47c559460e5de2a28ec8359fb02714824d"
+      },
+      "manifest.json": {
+        "sha256": "e1d7219268babfc7556ff863d0658971880659fa2d4c82046a95a31695af39bc"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:40:41.453752+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "7b5ac1850e04ef6839732a8295b97b93ace787fe2c909e9935221688ef25926d"
+      },
+      "test_cases.json": {
+        "sha256": "08cb48f39ab5f40ce507a383b9e2d10b6cc12ddcc1f45ab5c52f061db2b65f89"
+      },
+      "review.json": {
+        "sha256": "cd60da417334a1b3ed250499f7877c47c559460e5de2a28ec8359fb02714824d"
+      },
+      "manifest.json": {
+        "sha256": "e1d7219268babfc7556ff863d0658971880659fa2d4c82046a95a31695af39bc"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "builder",
+      "status": "reported_blocked",
+      "last_report": {
+        "op": "finish",
+        "status": "blocked",
+        "message": "module.py and test_cases.json are written and pass all public tests (3/3) and my 6 submitted tests. The candidate hash is 7b5ac185...926d and the tests hash is 08cb48f3...5f89. The only receipt is rcpt-3fe59356108a65b1190830e5, issued by worker-01. The release gate accepts only controller-issued receipts, and I can't issue one or alter the issuer. The Supervisor or controller needs to rerun the tests against these exact file versions to get an acceptable receipt. I did not change any files after the receipt."
+      },
+      "transport_error": null,
+      "turns": 5,
+      "pid": 66505
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "verifier",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json (sha256 cd60da417334a1b3ed250499f7877c47c559460e5de2a28ec8359fb02714824d) and manifest.json (sha256 e1d7219268babfc7556ff863d0658971880659fa2d4c82046a95a31695af39bc) written. Hashes were verified against the current module.py and test_cases.json, which were not modified. The pass verdict cites controller-issued receipt rcpt-c55c81258cfa4bb303558878, which list_receipts showed bound to these exact versions with result pass. I did not run run_tests myself; the verdict relies on that receipt."
+      },
+      "transport_error": null,
+      "turns": 6,
+      "pid": 67453
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "builder",
+      "task": "Write module.py implementing solve(data) per the user contract: width<1 raises ValueError; bucket=t//width (floor division); return one entry per non-empty bucket {bucket,start:bucket*width,count}, sorted by bucket ascending; duplicates each count; empty list returns []; do not mutate input. Also write test_cases.json: JSON list of at least 5 distinct cases, each with input plus exactly one of output or error (exception class name), e.g. empty requests, [0,1,2] width 5 -> one bucket count 3, [4,5] width 5, negative timestamps like [-1,-5,-6] width 5 -> buckets -2 and -1, duplicates, unsorted input, width 0 -> error ValueError. Expectations must match the contract. Use only the Python standard library, no I/O."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "spawn",
+      "role": "verifier",
+      "task": "Write review.json and manifest.json. Use candidate_hash 7b5ac1850e04ef6839732a8295b97b93ace787fe2c909e9935221688ef25926d (module.py) and tests_hash 08cb48f39ab5f40ce507a383b9e2d10b6cc12ddcc1f45ab5c52f061db2b65f89 (test_cases.json). Controller-issued receipt rcpt-c55c81258cfa4bb303558878 is a pass for these versions (public 3/3, user tests 6/6). review.json: {candidate_hash, tests_hash, verdict:'pass', notes}, with the notes citing that receipt. manifest.json: {candidate_hash, tests_hash, review_hash} where review_hash is the sha256 of the final review.json. Verify the hashes against current files first, and do not modify module.py or test_cases.json."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py, test_cases.json, review.json and manifest.json. The controller-issued receipt rcpt-c55c81258cfa4bb303558878 passed (public 3/3, user tests 6/6) and is bound to the delivered module.py and test_cases.json. The accept release checks passed, and the manifest hashes match the delivered files."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:40:41.518036+00:00",
+  "evaluation_race_possible": false
+}

@@ -1,0 +1,28 @@
+[
+ {
+  "id": "pilot4-h_merge",
+  "task": "h_merge",
+  "status": "reported_blocked",
+  "independent_pass": true,
+  "autonomous_delivery": false,
+  "controller_turns": 18,
+  "worker_starts": 6,
+  "worker_decisions": 24,
+  "errors": [],
+  "secs": 241.8
+ },
+ {
+  "id": "pilot4-h_ledger",
+  "task": "h_ledger",
+  "status": "reported_blocked",
+  "independent_pass": false,
+  "autonomous_delivery": false,
+  "controller_turns": 18,
+  "worker_starts": 6,
+  "worker_decisions": 20,
+  "errors": [
+   "manifest_missing_or_stale"
+  ],
+  "secs": 226.5
+ }
+]

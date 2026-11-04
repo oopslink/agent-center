@@ -1,0 +1,22 @@
+{
+ "files": {
+  "tasks023.py": "d59bbe0d3dec4361f974bd1139a7d5d5e992cb01f4dce71e3d72f32134c9696f",
+  "receipts.py": "df94b22d54e913024949a00a1168d9c7d45329614459714968906ac1e4770ca9",
+  "runtime.py": "dba743e8653b1682394a22523e3a5d6db8e4600f9a341789769be4dd89299a08",
+  "analyse023.py": "1aa718245d34321581d36d2a6e761d6eee0eb43a2ea7883c4510bca82a1b963e",
+  "selfcheck.py": "6089010f34671f8b1d9b3a16879ec2d478fa583d91e1b175ffbbca1f8d682d7e",
+  "build_design023.py": "c129ca76c3af113d4fb9f99dbbc1d6bc55b486186af3b128c045d8ea1458313b",
+  "tasks.py": "120938e8aa263b4dc2e8e12b54dbc0393fadb77997c76d000ff1d9db4173aac7",
+  "transport.py": "c379ffa389fcb441550d82587c81f80e7d9bc0680a2a978d1eb14f9f8bcbf5ad",
+  "check_candidate.py": "3658abf8342223a4915f89345e127d81a8202d823053a3bcafee0aa8ebada4e6",
+  "design023.json": "1ff580b39614b89fa43bf1a1b3fc8fc4baf2c01dd071980d5099b1d5a1e1e171"
+ },
+ "scoring_sha256": "1aa718245d34321581d36d2a6e761d6eee0eb43a2ea7883c4510bca82a1b963e",
+ "runs": 84,
+ "budget": {
+  "decision_budget": 32,
+  "worker_start_budget": 12
+ },
+ "experiment_1_runs": 60,
+ "experiment_2_runs": 24
+}

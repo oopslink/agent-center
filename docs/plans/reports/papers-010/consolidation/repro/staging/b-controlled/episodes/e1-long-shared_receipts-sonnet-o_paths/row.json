@@ -1,0 +1,17 @@
+{
+  "id": "e1-long-shared_receipts-sonnet-o_paths",
+  "experiment": "coordination_cost",
+  "paper": "P2",
+  "task": "o_paths",
+  "family": "path_normalize",
+  "split": "holdout",
+  "model": "claude-sonnet-5-5",
+  "organization": "long",
+  "binding": "distributed",
+  "ledger": "off",
+  "identity": "separate",
+  "transport": "shared_receipts",
+  "decision_budget": 32,
+  "worker_start_budget": 12,
+  "run_version": "023-main"
+}

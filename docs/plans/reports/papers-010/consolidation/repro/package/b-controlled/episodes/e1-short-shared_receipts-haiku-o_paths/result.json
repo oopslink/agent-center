@@ -1,0 +1,323 @@
+{
+  "id": "e1-short-shared_receipts-haiku-o_paths",
+  "row": {
+    "id": "e1-short-shared_receipts-haiku-o_paths",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "o_paths",
+    "family": "path_normalize",
+    "split": "holdout",
+    "model": "claude-haiku-5-5",
+    "organization": "short",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "shared_receipts",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 9,
+  "worker_starts": 2,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivery complete. module.py (sha256 33f4c3cd3768415476e83b9ac11a74c0290419667e906edde3bba1762c296a0d) and test_cases.json (sha256 85e3ace11c3f3c44991d334f9433d6f557528b71287af06a2809884d2fbd52b2) passed all 3 public checks and all 10 user tests under receipt rcpt-6f5fda23aaab012df535c24b. review.json (sha256 538eea28a0336b35349a4afd883e622ce647446fd62831161db108db2cf0c352) has verdict pass and is bound to that receipt. manifest.json (sha256 a6c3e71bb5638c59dfa1c61091739504c34d6ff7587155ab6a453eb4c6094884) references the candidate, tests and review hashes. accept() passed with no errors."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 4,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": [
+            "a/b"
+          ],
+          "expected": {
+            "output": [
+              "a/b"
+            ]
+          },
+          "observed": {
+            "output": [
+              "a/b"
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": [
+            "/a//b/"
+          ],
+          "expected": {
+            "output": [
+              "/a/b"
+            ]
+          },
+          "observed": {
+            "output": [
+              "/a/b"
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": [
+            "/a/./b/../c"
+          ],
+          "expected": {
+            "output": [
+              "/a/c"
+            ]
+          },
+          "observed": {
+            "output": [
+              "/a/c"
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": [
+            "/.."
+          ],
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": [
+            "../a"
+          ],
+          "expected": {
+            "output": [
+              "../a"
+            ]
+          },
+          "observed": {
+            "output": [
+              "../a"
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": [
+            "a/../.."
+          ],
+          "expected": {
+            "output": [
+              ".."
+            ]
+          },
+          "observed": {
+            "output": [
+              ".."
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": [
+            "."
+          ],
+          "expected": {
+            "output": [
+              "."
+            ]
+          },
+          "observed": {
+            "output": [
+              "."
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": [
+            "/"
+          ],
+          "expected": {
+            "output": [
+              "/"
+            ]
+          },
+          "observed": {
+            "output": [
+              "/"
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": [
+            ""
+          ],
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": [
+            "a/b/../../c/./d//"
+          ],
+          "expected": {
+            "output": [
+              "c/d"
+            ]
+          },
+          "observed": {
+            "output": [
+              "c/d"
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "33f4c3cd3768415476e83b9ac11a74c0290419667e906edde3bba1762c296a0d",
+      "label": "private-final",
+      "duration_s": 0.02116066706366837
+    },
+    "files": {
+      "module.py": {
+        "sha256": "33f4c3cd3768415476e83b9ac11a74c0290419667e906edde3bba1762c296a0d"
+      },
+      "test_cases.json": {
+        "sha256": "85e3ace11c3f3c44991d334f9433d6f557528b71287af06a2809884d2fbd52b2"
+      },
+      "review.json": {
+        "sha256": "538eea28a0336b35349a4afd883e622ce647446fd62831161db108db2cf0c352"
+      },
+      "manifest.json": {
+        "sha256": "a6c3e71bb5638c59dfa1c61091739504c34d6ff7587155ab6a453eb4c6094884"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:35:29.255453+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "33f4c3cd3768415476e83b9ac11a74c0290419667e906edde3bba1762c296a0d"
+      },
+      "test_cases.json": {
+        "sha256": "85e3ace11c3f3c44991d334f9433d6f557528b71287af06a2809884d2fbd52b2"
+      },
+      "review.json": {
+        "sha256": "538eea28a0336b35349a4afd883e622ce647446fd62831161db108db2cf0c352"
+      },
+      "manifest.json": {
+        "sha256": "a6c3e71bb5638c59dfa1c61091739504c34d6ff7587155ab6a453eb4c6094884"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "builder",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "module.py and test_cases.json are delivered. The current hashes match receipt rcpt-4557b26ed48731b8ce46539c (result pass): module.py 33f4c3cd3768415476e83b9ac11a74c0290419667e906edde3bba1762c296a0d, test_cases.json 85e3ace11c3f3c44991d334f9433d6f557528b71287af06a2809884d2fbd52b2. All 3 public checks and all 10 user tests pass, and no inputs were mutated."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 58743
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "verifier",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json and manifest.json are written. review.json has verdict pass, bound to receipt rcpt-6f5fda23aaab012df535c24b (result pass, issuer controller). list_receipts shows that receipt bound to candidate_hash 33f4c3cd...296a0d and tests_hash 85e3ace1...fbd52b2, which match the current module.py and test_cases.json. manifest.json references the same candidate and tests hashes and review_hash 538eea28...c352. module.py and test_cases.json were not modified."
+      },
+      "transport_error": null,
+      "turns": 5,
+      "pid": 59884
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "builder",
+      "task": "Write module.py and test_cases.json for the user contract below. module.py must expose solve(data), use only the Python standard library, perform no I/O, and must not mutate its input. The current module.py is wrong: it only replaces '//' and fails the public checks, so replace it entirely.\n\nContract: solve(data) takes a list of POSIX-style path strings and returns normalized paths in input order. An empty string raises ValueError. A path starting with '/' is absolute; otherwise it is relative. Collapse repeated slashes, drop '.' segments, and resolve each '..' against the preceding segment. For an absolute path, a '..' that would go above the root raises ValueError. For a relative path, unresolvable leading '..' segments are kept. Drop a trailing slash, except that the normalized root stays '/'. A relative path that normalizes away entirely becomes '.'.\n\ntest_cases.json: a JSON list of at least four distinct cases. Each case has 'input' (a list of paths) plus exactly one of 'output' (expected JSON result) or 'error' (exception class name, e.g. 'ValueError'). Extra fields such as 'name' are allowed. Expectations must follow the contract. Include cases for: repeated slashes, '.' removal, '..' resolution, absolute '..' above root raising ValueError, relative leading '..' kept, empty string raising ValueError, trailing slash removal, root preserved as '/', relative path normalizing to '.', and input order preserved.\n\nExample expectations: '/a//b/' -> '/a/b'; '/a/./b/../c' -> '/a/c'; '../x/../../y' -> '../../y'; '/..' -> error ValueError; 'a/..' -> '.'."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "inspect"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "list_receipts",
+      "receipt_id": "rcpt-6f5fda23aaab012df535c24b"
+    },
+    {
+      "op": "spawn",
+      "role": "verifier",
+      "task": "Write review.json and manifest.json for the current delivery. Do not modify module.py or test_cases.json.\n\nCurrent versions: module.py sha256 33f4c3cd3768415476e83b9ac11a74c0290419667e906edde3bba1762c296a0d; test_cases.json sha256 85e3ace11c3f3c44991d334f9433d6f557528b71287af06a2809884d2fbd52b2.\n\nA genuine passing receipt exists for these exact versions: rcpt-6f5fda23aaab012df535c24b (result pass, issuer controller). Use list_receipts to confirm it is still bound to these hashes before relying on it.\n\nreview.json: JSON object with candidate_hash (module.py sha256), tests_hash (test_cases.json sha256), verdict ('pass' only if the receipt is confirmed for these versions, otherwise 'fail'), and notes (string summarizing the review against the user contract: repeated slashes, '.' removal, '..' resolution, absolute '..' above root raising ValueError, relative leading '..' kept, empty string raising ValueError, trailing slash removal, root preserved, relative normalizing to '.', input order preserved, no input mutation).\n\nmanifest.json: JSON object with candidate_hash (module.py sha256), tests_hash (test_cases.json sha256), review_hash (sha256 of the exact review.json file as written)."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivery complete. module.py (sha256 33f4c3cd3768415476e83b9ac11a74c0290419667e906edde3bba1762c296a0d) and test_cases.json (sha256 85e3ace11c3f3c44991d334f9433d6f557528b71287af06a2809884d2fbd52b2) passed all 3 public checks and all 10 user tests under receipt rcpt-6f5fda23aaab012df535c24b. review.json (sha256 538eea28a0336b35349a4afd883e622ce647446fd62831161db108db2cf0c352) has verdict pass and is bound to that receipt. manifest.json (sha256 a6c3e71bb5638c59dfa1c61091739504c34d6ff7587155ab6a453eb4c6094884) references the candidate, tests and review hashes. accept() passed with no errors."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:35:29.321254+00:00",
+  "evaluation_race_possible": false
+}

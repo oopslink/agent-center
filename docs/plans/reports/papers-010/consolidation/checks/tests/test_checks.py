@@ -131,6 +131,32 @@ class TestClaimStrength(TempTree):
         self.assertEqual(json.loads(out)["hits"], [])
 
 
+class TestNumberCandidates(unittest.TestCase):
+    """浮点数的候选写法不能被 6 位有效数字截断。"""
+
+    def setUp(self):
+        sys.path.insert(0, str(CHECKS))
+        import importlib
+
+        self.mod = importlib.import_module("_common")
+        importlib.reload(self.mod)
+        self.addCleanup(lambda: sys.path.remove(str(CHECKS)))
+
+    def test_full_precision_value_is_a_candidate(self):
+        # :g 默认 6 位有效数字，会把 6.2051478 变成 6.20515
+        self.assertTrue(self.mod.contains_number("报告价 6.2051478 美元", 6.205147799999996))
+
+    def test_rounded_forms_remain_candidates(self):
+        for text in ("6.21", "6.205", "6.2051", "6.20515"):
+            self.assertTrue(self.mod.contains_number(f"价 {text} 元", 6.205147799999996), text)
+
+    def test_unrelated_number_is_not_matched(self):
+        self.assertFalse(self.mod.contains_number("价 7.1 元", 6.205147799999996))
+
+    def test_integer_still_matches_with_thousands_separator(self):
+        self.assertTrue(self.mod.contains_number("共 26,961 条", 26961))
+
+
 class TestCrossrefs(TempTree):
     def test_dangling_section_reference_is_reported(self):
         paper = self.write(

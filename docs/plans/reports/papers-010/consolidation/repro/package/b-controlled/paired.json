@@ -1,0 +1,1530 @@
+{
+ "experiment_1": {
+  "long_minus_short": {
+   "total_decisions": {
+    "pairs": 30,
+    "median": 9.0,
+    "range": [
+     -26,
+     45
+    ],
+    "positive": 28,
+    "zero": 1,
+    "negative": 1,
+    "sum": 268
+   },
+   "controller_decisions": {
+    "pairs": 30,
+    "median": 4.0,
+    "range": [
+     -13,
+     22
+    ],
+    "positive": 28,
+    "zero": 1,
+    "negative": 1,
+    "sum": 123
+   },
+   "worker_decisions": {
+    "pairs": 30,
+    "median": 5.0,
+    "range": [
+     -13,
+     23
+    ],
+    "positive": 28,
+    "zero": 0,
+    "negative": 2,
+    "sum": 145
+   },
+   "evidence_cycles": {
+    "pairs": 30,
+    "median": 2.0,
+    "range": [
+     -6,
+     10
+    ],
+    "positive": 28,
+    "zero": 0,
+    "negative": 2,
+    "sum": 59
+   }
+  },
+  "long_minus_short_pairs": [
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "total_decisions",
+    "short": 19,
+    "long": 26,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "controller_decisions",
+    "short": 8,
+    "long": 11,
+    "delta": 3
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "worker_decisions",
+    "short": 11,
+    "long": 15,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "total_decisions",
+    "short": 21,
+    "long": 28,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "controller_decisions",
+    "short": 9,
+    "long": 12,
+    "delta": 3
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "worker_decisions",
+    "short": 12,
+    "long": 16,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "total_decisions",
+    "short": 18,
+    "long": 28,
+    "delta": 10
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "controller_decisions",
+    "short": 7,
+    "long": 12,
+    "delta": 5
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "worker_decisions",
+    "short": 11,
+    "long": 16,
+    "delta": 5
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "total_decisions",
+    "short": 20,
+    "long": 27,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "controller_decisions",
+    "short": 9,
+    "long": 11,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "worker_decisions",
+    "short": 11,
+    "long": 16,
+    "delta": 5
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "total_decisions",
+    "short": 17,
+    "long": 30,
+    "delta": 13
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "controller_decisions",
+    "short": 7,
+    "long": 14,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "worker_decisions",
+    "short": 10,
+    "long": 16,
+    "delta": 6
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-haiku-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 6,
+    "delta": 3
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "total_decisions",
+    "short": 19,
+    "long": 30,
+    "delta": 11
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "controller_decisions",
+    "short": 7,
+    "long": 13,
+    "delta": 6
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "worker_decisions",
+    "short": 12,
+    "long": 17,
+    "delta": 5
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "total_decisions",
+    "short": 21,
+    "long": 30,
+    "delta": 9
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "controller_decisions",
+    "short": 9,
+    "long": 12,
+    "delta": 3
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "worker_decisions",
+    "short": 12,
+    "long": 18,
+    "delta": 6
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "total_decisions",
+    "short": 19,
+    "long": 27,
+    "delta": 8
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "controller_decisions",
+    "short": 7,
+    "long": 12,
+    "delta": 5
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "worker_decisions",
+    "short": 12,
+    "long": 15,
+    "delta": 3
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "total_decisions",
+    "short": 18,
+    "long": 29,
+    "delta": 11
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "controller_decisions",
+    "short": 7,
+    "long": 11,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "worker_decisions",
+    "short": 11,
+    "long": 18,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "total_decisions",
+    "short": 17,
+    "long": 28,
+    "delta": 11
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "controller_decisions",
+    "short": 7,
+    "long": 11,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "worker_decisions",
+    "short": 10,
+    "long": 17,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-sonnet-5-5",
+     "transport": "issuer_bound"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "total_decisions",
+    "short": 23,
+    "long": 40,
+    "delta": 17
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "controller_decisions",
+    "short": 11,
+    "long": 22,
+    "delta": 11
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "worker_decisions",
+    "short": 12,
+    "long": 18,
+    "delta": 6
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "evidence_cycles",
+    "short": 4,
+    "long": 11,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "total_decisions",
+    "short": 21,
+    "long": 34,
+    "delta": 13
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "controller_decisions",
+    "short": 9,
+    "long": 16,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "worker_decisions",
+    "short": 12,
+    "long": 18,
+    "delta": 6
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 7,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "total_decisions",
+    "short": 53,
+    "long": 27,
+    "delta": -26
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "controller_decisions",
+    "short": 26,
+    "long": 13,
+    "delta": -13
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "worker_decisions",
+    "short": 27,
+    "long": 14,
+    "delta": -13
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "evidence_cycles",
+    "short": 11,
+    "long": 5,
+    "delta": -6
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "total_decisions",
+    "short": 23,
+    "long": 68,
+    "delta": 45
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "controller_decisions",
+    "short": 10,
+    "long": 32,
+    "delta": 22
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "worker_decisions",
+    "short": 13,
+    "long": 36,
+    "delta": 23
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "evidence_cycles",
+    "short": 4,
+    "long": 14,
+    "delta": 10
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "total_decisions",
+    "short": 62,
+    "long": 62,
+    "delta": 0
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "controller_decisions",
+    "short": 26,
+    "long": 30,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "worker_decisions",
+    "short": 36,
+    "long": 32,
+    "delta": -4
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-haiku-5-5",
+     "transport": "report_only"
+    },
+    "metric": "evidence_cycles",
+    "short": 12,
+    "long": 14,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "total_decisions",
+    "short": 17,
+    "long": 29,
+    "delta": 12
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "controller_decisions",
+    "short": 8,
+    "long": 13,
+    "delta": 5
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "worker_decisions",
+    "short": 9,
+    "long": 16,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "total_decisions",
+    "short": 20,
+    "long": 29,
+    "delta": 9
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "controller_decisions",
+    "short": 8,
+    "long": 13,
+    "delta": 5
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "worker_decisions",
+    "short": 12,
+    "long": 16,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "total_decisions",
+    "short": 16,
+    "long": 27,
+    "delta": 11
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "controller_decisions",
+    "short": 8,
+    "long": 11,
+    "delta": 3
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "worker_decisions",
+    "short": 8,
+    "long": 16,
+    "delta": 8
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "total_decisions",
+    "short": 17,
+    "long": 25,
+    "delta": 8
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "controller_decisions",
+    "short": 8,
+    "long": 12,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "worker_decisions",
+    "short": 9,
+    "long": 13,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "total_decisions",
+    "short": 19,
+    "long": 26,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "controller_decisions",
+    "short": 8,
+    "long": 12,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "worker_decisions",
+    "short": 11,
+    "long": 14,
+    "delta": 3
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-sonnet-5-5",
+     "transport": "report_only"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "total_decisions",
+    "short": 21,
+    "long": 28,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "controller_decisions",
+    "short": 10,
+    "long": 13,
+    "delta": 3
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "worker_decisions",
+    "short": 11,
+    "long": 15,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "total_decisions",
+    "short": 18,
+    "long": 28,
+    "delta": 10
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "controller_decisions",
+    "short": 9,
+    "long": 13,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "worker_decisions",
+    "short": 9,
+    "long": 15,
+    "delta": 6
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 5,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "total_decisions",
+    "short": 20,
+    "long": 25,
+    "delta": 5
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "controller_decisions",
+    "short": 10,
+    "long": 12,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "worker_decisions",
+    "short": 10,
+    "long": 13,
+    "delta": 3
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 4,
+    "delta": 1
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "total_decisions",
+    "short": 15,
+    "long": 27,
+    "delta": 12
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "controller_decisions",
+    "short": 7,
+    "long": 12,
+    "delta": 5
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "worker_decisions",
+    "short": 8,
+    "long": 15,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 4,
+    "delta": 1
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "total_decisions",
+    "short": 18,
+    "long": 27,
+    "delta": 9
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "controller_decisions",
+    "short": 9,
+    "long": 12,
+    "delta": 3
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "worker_decisions",
+    "short": 9,
+    "long": 15,
+    "delta": 6
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-haiku-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 4,
+    "delta": 1
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "total_decisions",
+    "short": 17,
+    "long": 30,
+    "delta": 13
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "controller_decisions",
+    "short": 7,
+    "long": 12,
+    "delta": 5
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "worker_decisions",
+    "short": 10,
+    "long": 18,
+    "delta": 8
+   },
+   {
+    "cell": {
+     "task": "h_ledger",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 4,
+    "delta": 1
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "total_decisions",
+    "short": 27,
+    "long": 28,
+    "delta": 1
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "controller_decisions",
+    "short": 11,
+    "long": 11,
+    "delta": 0
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "worker_decisions",
+    "short": 16,
+    "long": 17,
+    "delta": 1
+   },
+   {
+    "cell": {
+     "task": "h_merge",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "evidence_cycles",
+    "short": 5,
+    "long": 4,
+    "delta": -1
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "total_decisions",
+    "short": 16,
+    "long": 26,
+    "delta": 10
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "controller_decisions",
+    "short": 7,
+    "long": 11,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "worker_decisions",
+    "short": 9,
+    "long": 15,
+    "delta": 6
+   },
+   {
+    "cell": {
+     "task": "h_sessions",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "evidence_cycles",
+    "short": 2,
+    "long": 4,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "total_decisions",
+    "short": 18,
+    "long": 25,
+    "delta": 7
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "controller_decisions",
+    "short": 9,
+    "long": 11,
+    "delta": 2
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "worker_decisions",
+    "short": 9,
+    "long": 14,
+    "delta": 5
+   },
+   {
+    "cell": {
+     "task": "o_buckets",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 4,
+    "delta": 1
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "total_decisions",
+    "short": 21,
+    "long": 25,
+    "delta": 4
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "controller_decisions",
+    "short": 10,
+    "long": 11,
+    "delta": 1
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "worker_decisions",
+    "short": 11,
+    "long": 14,
+    "delta": 3
+   },
+   {
+    "cell": {
+     "task": "o_paths",
+     "model": "claude-sonnet-5-5",
+     "transport": "shared_receipts"
+    },
+    "metric": "evidence_cycles",
+    "short": 3,
+    "long": 4,
+    "delta": 1
+   }
+  ],
+  "shared_receipts_minus_report_only": {
+   "total_decisions": {
+    "pairs": 20,
+    "median": -1.5,
+    "range": [
+     -44,
+     7
+    ],
+    "positive": 4,
+    "zero": 3,
+    "negative": 13,
+    "sum": -178
+   },
+   "controller_decisions": {
+    "pairs": 20,
+    "median": -1.0,
+    "range": [
+     -20,
+     3
+    ],
+    "positive": 3,
+    "zero": 2,
+    "negative": 15,
+    "sum": -89
+   },
+   "worker_decisions": {
+    "pairs": 20,
+    "median": -1.0,
+    "range": [
+     -27,
+     4
+    ],
+    "positive": 6,
+    "zero": 3,
+    "negative": 11,
+    "sum": -89
+   },
+   "evidence_cycles": {
+    "pairs": 20,
+    "median": -1.0,
+    "range": [
+     -10,
+     2
+    ],
+    "positive": 1,
+    "zero": 4,
+    "negative": 15,
+    "sum": -52
+   }
+  },
+  "issuer_bound_minus_report_only": {
+   "total_decisions": {
+    "pairs": 20,
+    "median": 0.0,
+    "range": [
+     -45,
+     4
+    ],
+    "positive": 9,
+    "zero": 2,
+    "negative": 9,
+    "sum": -166
+   },
+   "controller_decisions": {
+    "pairs": 20,
+    "median": -1.0,
+    "range": [
+     -21,
+     1
+    ],
+    "positive": 2,
+    "zero": 2,
+    "negative": 16,
+    "sum": -100
+   },
+   "worker_decisions": {
+    "pairs": 20,
+    "median": -0.5,
+    "range": [
+     -26,
+     5
+    ],
+    "positive": 8,
+    "zero": 2,
+    "negative": 10,
+    "sum": -66
+   },
+   "evidence_cycles": {
+    "pairs": 20,
+    "median": 0.0,
+    "range": [
+     -9,
+     0
+    ],
+    "positive": 0,
+    "zero": 12,
+    "negative": 8,
+    "sum": -44
+   }
+  }
+ },
+ "experiment_2": {
+  "shared_receipts_minus_report_only": {
+   "evidence_cycles": {
+    "pairs": 8,
+    "median": -3.0,
+    "range": [
+     -8,
+     0
+    ],
+    "positive": 0,
+    "zero": 1,
+    "negative": 7,
+    "sum": -30
+   },
+   "total_decisions": {
+    "pairs": 8,
+    "median": -15.5,
+    "range": [
+     -33,
+     7
+    ],
+    "positive": 1,
+    "zero": 0,
+    "negative": 7,
+    "sum": -129
+   }
+  },
+  "issuer_bound_minus_report_only": {
+   "evidence_cycles": {
+    "pairs": 8,
+    "median": -2.5,
+    "range": [
+     -7,
+     0
+    ],
+    "positive": 0,
+    "zero": 2,
+    "negative": 6,
+    "sum": -26
+   },
+   "total_decisions": {
+    "pairs": 8,
+    "median": -15.5,
+    "range": [
+     -30,
+     8
+    ],
+    "positive": 2,
+    "zero": 0,
+    "negative": 6,
+    "sum": -110
+   }
+  }
+ }
+}

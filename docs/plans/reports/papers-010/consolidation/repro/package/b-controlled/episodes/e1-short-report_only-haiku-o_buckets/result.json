@@ -1,0 +1,470 @@
+{
+  "id": "e1-short-report_only-haiku-o_buckets",
+  "row": {
+    "id": "e1-short-report_only-haiku-o_buckets",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "o_buckets",
+    "family": "rate_buckets",
+    "split": "holdout",
+    "model": "claude-haiku-5-5",
+    "organization": "short",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 10,
+  "worker_starts": 3,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py (sha256 44401b59d60029846e279fc7e521a5fd09d0ad2a2c856a3d464224abd064f738), test_cases.json (sha256 1360c890a819e63de833cd916d2153578677d0a44433b224f15f0254174b1eff), review.json (sha256 008b8b8f0e4da31b45a3ccc021eeafdeb9fe866d9896b13f5c5cef6fbd4982e4, verdict pass) and manifest.json (sha256 2ea01ff1df9067a7a8ac18c80824a2ccf7352af27779dc19fedb73a2dca50cec). accept() passed on the current artifacts, and all manifest hashes match the delivered files. Test evidence: supervisor controller receipt rcpt-756b1206e1692c7796cffb55 (public 3/3, user-tests 5/5, pass). The review cites the verifier's own run_tests receipt rcpt-9e1aa77cede4f41443661396 (pass, same two hashes), which is the receipt the verifier session was issued under receipt_terms. The verifier's earlier citation of rcpt-6e2dc7e64aace4c704307ea2 was replaced, and the builder's self-reported receipt rcpt-19bc36d88256d8aee6bfac93 is not relied on. Caveat: the supervisor cannot independently retrieve rcpt-9e1aa77cede4f41443661396, so that receipt is accepted on the verifier's report. Code review found no contract defects."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 3,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "width": 5,
+            "requests": []
+          },
+          "expected": {
+            "output": []
+          },
+          "observed": {
+            "output": []
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "width": 5,
+            "requests": [
+              0,
+              1,
+              2
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 3
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 3
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "width": 5,
+            "requests": [
+              4,
+              5
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 1
+              },
+              {
+                "bucket": 1,
+                "start": 5,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 1
+              },
+              {
+                "bucket": 1,
+                "start": 5,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "width": 5,
+            "requests": [
+              -1
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": -1,
+                "start": -5,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": -1,
+                "start": -5,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "width": 5,
+            "requests": [
+              -5,
+              -6
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": -2,
+                "start": -10,
+                "count": 1
+              },
+              {
+                "bucket": -1,
+                "start": -5,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": -2,
+                "start": -10,
+                "count": 1
+              },
+              {
+                "bucket": -1,
+                "start": -5,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "width": 1,
+            "requests": [
+              7,
+              7,
+              7
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": 7,
+                "start": 7,
+                "count": 3
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": 7,
+                "start": 7,
+                "count": 3
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "width": 0,
+            "requests": []
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "width": -2,
+            "requests": [
+              1
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "width": 3,
+            "requests": [
+              10,
+              -10
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": -4,
+                "start": -12,
+                "count": 1
+              },
+              {
+                "bucket": 3,
+                "start": 9,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": -4,
+                "start": -12,
+                "count": 1
+              },
+              {
+                "bucket": 3,
+                "start": 9,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "width": 4,
+            "requests": [
+              0,
+              0,
+              3,
+              4
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 3
+              },
+              {
+                "bucket": 1,
+                "start": 4,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "bucket": 0,
+                "start": 0,
+                "count": 3
+              },
+              {
+                "bucket": 1,
+                "start": 4,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "44401b59d60029846e279fc7e521a5fd09d0ad2a2c856a3d464224abd064f738",
+      "label": "private-final",
+      "duration_s": 0.017887832946144044
+    },
+    "files": {
+      "module.py": {
+        "sha256": "44401b59d60029846e279fc7e521a5fd09d0ad2a2c856a3d464224abd064f738"
+      },
+      "test_cases.json": {
+        "sha256": "1360c890a819e63de833cd916d2153578677d0a44433b224f15f0254174b1eff"
+      },
+      "review.json": {
+        "sha256": "008b8b8f0e4da31b45a3ccc021eeafdeb9fe866d9896b13f5c5cef6fbd4982e4"
+      },
+      "manifest.json": {
+        "sha256": "2ea01ff1df9067a7a8ac18c80824a2ccf7352af27779dc19fedb73a2dca50cec"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:28:52.348380+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "44401b59d60029846e279fc7e521a5fd09d0ad2a2c856a3d464224abd064f738"
+      },
+      "test_cases.json": {
+        "sha256": "1360c890a819e63de833cd916d2153578677d0a44433b224f15f0254174b1eff"
+      },
+      "review.json": {
+        "sha256": "008b8b8f0e4da31b45a3ccc021eeafdeb9fe866d9896b13f5c5cef6fbd4982e4"
+      },
+      "manifest.json": {
+        "sha256": "2ea01ff1df9067a7a8ac18c80824a2ccf7352af27779dc19fedb73a2dca50cec"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "builder",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "module.py (sha256 44401b59...) implements solve(data) with width validation, floor-division bucketing, per-bucket counting, and ascending output. test_cases.json (sha256 1360c890...) has 5 distinct cases, each with input and exactly one of output or error. Hand-verified: [] gives []; width=5 requests [0,1,2] gives bucket 0, start 0, count 3; [4,5] gives bucket 0 (count 1) and bucket 1 (start 5, count 1); [-1,0] gives bucket -1 (start -5) and bucket 0 (start 0); width=0 raises ValueError. run_tests passed 3/3 public and 5/5 user checks with no input mutation. Receipt rcpt-19bc36d88256d8aee6bfac93 is bound to these file hashes."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 48347
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "verifier",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json and manifest.json are written and bound to module.py 44401b59d60029846e279fc7e521a5fd09d0ad2a2c856a3d464224abd064f738 and test_cases.json 1360c890a819e63de833cd916d2153578677d0a44433b224f15f0254174b1eff. review.json sha256 is bbaaba590f8bc4e0060f6c87bf06ae8e92ea1a63e8fe324cfa0eda48469c4f66; manifest.json sha256 is 55020a51d79747f02139531ee7b2324e3e76f5cca408e086340f3a3a814e84c7. Deviation from the assignment: the review cites rcpt-6e2dc7e64aace4c704307ea2, the genuine successful run_tests receipt from this session (public 3/3, user-tests 5/5, both bound to these hashes), not supervisor receipt rcpt-756b1206e1692c7796cffb55. This session cannot retrieve that receipt, so I did not cite it. The builder receipt rcpt-19bc36d88256d8aee6bfac93 was not used. Code review against the user contract found no defects. The supervisor should confirm whether rcpt-6e2dc7e64aace4c704307ea2 is acceptable in place of rcpt-756b1206e1692c7796cffb55."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 49485
+    },
+    {
+      "worker_id": "worker-03",
+      "role": "verifier",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "Wrote review.json (sha256 008b8b8f0e4da31b45a3ccc021eeafdeb9fe866d9896b13f5c5cef6fbd4982e4) and manifest.json (sha256 2ea01ff1df9067a7a8ac18c80824a2ccf7352af27779dc19fedb73a2dca50cec). Bindings: candidate_hash 44401b59d60029846e279fc7e521a5fd09d0ad2a2c856a3d464224abd064f738 (module.py); tests_hash 1360c890a819e63de833cd916d2153578677d0a44433b224f15f0254174b1eff (test_cases.json); review_hash 008b8b8f0e4da31b45a3ccc021eeafdeb9fe866d9896b13f5c5cef6fbd4982e4. Verdict is pass. DEVIATION: the assignment required notes to cite only supervisor receipt rcpt-756b1206e1692c7796cffb55, which this session cannot verify. The notes instead cite rcpt-9e1aa77cede4f41443661396, the run_tests receipt this session issued (result pass, public 3/3, user-tests 5/5, bound to the same two hashes). The notes also state that rcpt-756b1206e1692c7796cffb55 could not be verified and is not cited. rcpt-6e2dc7e64aace4c704307ea2 and rcpt-19bc36d88256d8aee6bfac93 are not cited. Code review against the contract found no defects. The supervisor should confirm whether a citation to rcpt-9e1aa77cede4f41443661396 is acceptable in place of rcpt-756b1206e1692c7796cffb55."
+      },
+      "transport_error": null,
+      "turns": 5,
+      "pid": 50465
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "builder",
+      "task": "Write module.py and test_cases.json for this contract. module.py must define solve(data) for data={\"width\": int, \"requests\": list of int}. If width < 1, raise ValueError. Compute bucket = floor(t / width) using Python floor division (// handles negative timestamps correctly). Group requests by bucket, counting every occurrence including repeated timestamps. Return one dict per non-empty bucket as {\"bucket\": index, \"start\": index * width, \"count\": n}, sorted by bucket ascending. An empty request list returns []. Do not mutate the input. Use only the Python standard library, with no I/O and no dynamic code execution. The current module.py is incorrect: it returns one entry per request instead of grouping by bucket, and it does not validate width. Replace it. test_cases.json must be a JSON list of at least four distinct cases, each with an input field and exactly one of output or error. Include: an empty requests list; the repeated-timestamp case width=5 requests [0,1,2] expecting [{\"bucket\":0,\"start\":0,\"count\":3}]; a boundary case width=5 requests [4,5] expecting two buckets; a negative-timestamp case such as width=5 requests [-1,0] expecting buckets -1 and 0; and a width=0 case expecting error ValueError. Verify each expected output by hand against the contract. Only write module.py and test_cases.json."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "spawn",
+      "role": "verifier",
+      "task": "Write review.json and manifest.json for the delivered artifacts. Use these exact bindings: module.py sha256 44401b59d60029846e279fc7e521a5fd09d0ad2a2c856a3d464224abd064f738; test_cases.json sha256 1360c890a819e63de833cd916d2153578677d0a44433b224f15f0254174b1eff. review.json must be a JSON object with candidate_hash set to the module.py hash, tests_hash set to the test_cases.json hash, verdict \"pass\", and notes that cite the supervisor's successful run_tests receipt rcpt-756b1206e1692c7796cffb55 (public 3/3, user-tests 5/5, both bound to these hashes). Do not cite the builder's self-reported receipt rcpt-19bc36d88256d8aee6bfac93. Review the code against the user contract: width below 1 raises ValueError, floor division buckets handle negatives, repeated timestamps are counted, output is sorted ascending with start = bucket*width, empty input returns [], and the input is not mutated. After writing review.json, compute its sha256 and write manifest.json with candidate_hash, tests_hash, and review_hash set to those values. Only write review.json and manifest.json."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "inspect"
+    },
+    {
+      "op": "spawn",
+      "note": "The verifier's review cited an unverifiable receipt. I am re-issuing the review to cite only the controller-issued receipt rcpt-756b1206e1692c7796cffb55.",
+      "role": "verifier",
+      "task": "Rewrite review.json and manifest.json. The previous review cited rcpt-6e2dc7e64aace4c704307ea2, which this session cannot verify, so it must not be used. Use these exact bindings: module.py sha256 44401b59d60029846e279fc7e521a5fd09d0ad2a2c856a3d464224abd064f738; test_cases.json sha256 1360c890a819e63de833cd916d2153578677d0a44433b224f15f0254174b1eff. review.json must be a JSON object with candidate_hash set to the module.py hash, tests_hash set to the test_cases.json hash, verdict \"pass\", and notes that cite only the supervisor's controller-issued run_tests receipt rcpt-756b1206e1692c7796cffb55 (result pass, public 3/3, user-tests 5/5, both bound to these hashes). Do not cite rcpt-6e2dc7e64aace4c704307ea2 or the builder receipt rcpt-19bc36d88256d8aee6bfac93. Review the code against the user contract: width below 1 raises ValueError, floor division handles negative timestamps, repeated timestamps are counted, output is sorted ascending with start = bucket*width, empty input returns [], and the input is not mutated. After writing review.json, compute its sha256 and write manifest.json with candidate_hash, tests_hash, and review_hash set to those values. Only write review.json and manifest.json. Report the new review.json and manifest.json sha256 values."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "accept",
+      "note": "The verifier's latest review cites rcpt-9e1aa77cede4f41443661396, which I cannot check from this session. Before finishing, I'll run release checks on the current artifacts so the manifest is validated against the delivered files."
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py (sha256 44401b59d60029846e279fc7e521a5fd09d0ad2a2c856a3d464224abd064f738), test_cases.json (sha256 1360c890a819e63de833cd916d2153578677d0a44433b224f15f0254174b1eff), review.json (sha256 008b8b8f0e4da31b45a3ccc021eeafdeb9fe866d9896b13f5c5cef6fbd4982e4, verdict pass) and manifest.json (sha256 2ea01ff1df9067a7a8ac18c80824a2ccf7352af27779dc19fedb73a2dca50cec). accept() passed on the current artifacts, and all manifest hashes match the delivered files. Test evidence: supervisor controller receipt rcpt-756b1206e1692c7796cffb55 (public 3/3, user-tests 5/5, pass). The review cites the verifier's own run_tests receipt rcpt-9e1aa77cede4f41443661396 (pass, same two hashes), which is the receipt the verifier session was issued under receipt_terms. The verifier's earlier citation of rcpt-6e2dc7e64aace4c704307ea2 was replaced, and the builder's self-reported receipt rcpt-19bc36d88256d8aee6bfac93 is not relied on. Caveat: the supervisor cannot independently retrieve rcpt-9e1aa77cede4f41443661396, so that receipt is accepted on the verifier's report. Code review found no contract defects."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:28:52.405668+00:00",
+  "evaluation_race_possible": false
+}

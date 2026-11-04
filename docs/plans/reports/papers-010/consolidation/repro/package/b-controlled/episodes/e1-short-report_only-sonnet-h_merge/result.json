@@ -1,0 +1,377 @@
+{
+  "id": "e1-short-report_only-sonnet-h_merge",
+  "row": {
+    "id": "e1-short-report_only-sonnet-h_merge",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "h_merge",
+    "family": "config_merge",
+    "split": "development",
+    "model": "claude-sonnet-5-5",
+    "organization": "short",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 8,
+  "worker_starts": 2,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py, test_cases.json (10 cases), review.json (pass) and manifest.json. Hashes match the delivered versions. run_tests passed (public 3/3, user tests 10/10) and accept passed. The review cites the verifier session's own run_tests receipt, rcpt-599b669413e7cef1ad0005df, because the verifier could not verify the earlier receipt from the supervisor session."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 3,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "base": {},
+            "patch": {}
+          },
+          "expected": {
+            "output": {}
+          },
+          "observed": {
+            "output": {}
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "b": 2
+            }
+          },
+          "expected": {
+            "output": {
+              "a": 1,
+              "b": 2
+            }
+          },
+          "observed": {
+            "output": {
+              "a": 1,
+              "b": 2
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "base": {
+              "a": {
+                "x": 1
+              }
+            },
+            "patch": {
+              "a": {
+                "y": 2
+              }
+            }
+          },
+          "expected": {
+            "output": {
+              "a": {
+                "x": 1,
+                "y": 2
+              }
+            }
+          },
+          "observed": {
+            "output": {
+              "a": {
+                "x": 1,
+                "y": 2
+              }
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "base": {
+              "a": [
+                1,
+                2
+              ]
+            },
+            "patch": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "expected": {
+            "output": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "observed": {
+            "output": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "base": {
+              "a": 1,
+              "b": 2
+            },
+            "patch": {
+              "a": null
+            }
+          },
+          "expected": {
+            "output": {
+              "b": 2
+            }
+          },
+          "observed": {
+            "output": {
+              "b": 2
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "zz": null
+            }
+          },
+          "expected": {
+            "output": {
+              "a": 1
+            }
+          },
+          "observed": {
+            "output": {
+              "a": 1
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "base": {
+              "b": 1,
+              "a": 1
+            },
+            "patch": {
+              "z": 1,
+              "c": 1
+            }
+          },
+          "expected": {
+            "output": {
+              "b": 1,
+              "a": 1,
+              "z": 1,
+              "c": 1
+            }
+          },
+          "observed": {
+            "output": {
+              "b": 1,
+              "a": 1,
+              "z": 1,
+              "c": 1
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "a": "one"
+            }
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "base": {
+              "a": true
+            },
+            "patch": {
+              "a": 1
+            }
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "base": [],
+            "patch": {}
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "b632c5d954e3faf0a7ba8986ebfaa5f678bda26739d9980f5c9756293a029358",
+      "label": "private-final",
+      "duration_s": 0.019009249983355403
+    },
+    "files": {
+      "module.py": {
+        "sha256": "b632c5d954e3faf0a7ba8986ebfaa5f678bda26739d9980f5c9756293a029358"
+      },
+      "test_cases.json": {
+        "sha256": "471e84f838c27ece3bf186542cfb1515aa2aa25e8b50cc98a33d16b84f5518db"
+      },
+      "review.json": {
+        "sha256": "e0f7b1ea1320eaaffc9862f9095719fd47eb59a1be212edd5b91981806f0ef07"
+      },
+      "manifest.json": {
+        "sha256": "77cce07683e6bb54e91f302e946fd54c79decf0602d453fd9df662c76fa32459"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:32:08.477427+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "b632c5d954e3faf0a7ba8986ebfaa5f678bda26739d9980f5c9756293a029358"
+      },
+      "test_cases.json": {
+        "sha256": "471e84f838c27ece3bf186542cfb1515aa2aa25e8b50cc98a33d16b84f5518db"
+      },
+      "review.json": {
+        "sha256": "e0f7b1ea1320eaaffc9862f9095719fd47eb59a1be212edd5b91981806f0ef07"
+      },
+      "manifest.json": {
+        "sha256": "77cce07683e6bb54e91f302e946fd54c79decf0602d453fd9df662c76fa32459"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "builder",
+      "status": "budget_exhausted",
+      "last_report": null,
+      "transport_error": null,
+      "turns": 6,
+      "pid": 53936
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "verifier",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "Wrote review.json (sha256 e0f7b1ea1320eaaffc9862f9095719fd47eb59a1be212edd5b91981806f0ef07) and manifest.json (sha256 77cce07683e6bb54e91f302e946fd54c79decf0602d453fd9df662c76fa32459). Hashes of module.py (b632c5d9...9358) and test_cases.json (471e84f8...18db) were verified unchanged. The review cites receipt rcpt-599b669413e7cef1ad0005df, issued by run_tests in this session (public 3/3, user tests 10/10). The assignment's receipt id rcpt-b2ce961220b526a8be589ebc was not issued to this session and could not be verified, so it is not cited."
+      },
+      "transport_error": null,
+      "turns": 6,
+      "pid": 55238
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "builder",
+      "task": "Write module.py and test_cases.json. module.py: solve(data) implementing the user contract exactly (validate data, base and patch are dicts else ValueError; deep merge without mutating inputs, deep-copy inserted values; null in patch removes key, absent no-op; dict+dict recurse; list+list replace; absent base key inserts patch value; differing JSON types raise ValueError, with bool and number distinct (bool is subclass of int in Python, handle explicitly; int and float are both numbers); key order: base keys in order then patch-only keys in patch order). Nested null in recursive merge also removes keys. Only imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions; no I/O. test_cases.json: JSON list of at least 8 distinct cases, each with input and exactly one of output or error (e.g. ValueError), covering: nested merge, list replace, null removal, null on absent key, type mismatch error, bool vs number error, int vs float ok, non-object input error, key order, and null patch value where base value is a different type (removal, no error)."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "run_tests"
+    },
+    null,
+    {
+      "op": "spawn",
+      "role": "verifier",
+      "task": "Write review.json and manifest.json. run_tests passed (receipt rcpt-b2ce961220b526a8be589ebc: public 3/3, user tests 10/10) for module.py sha256 b632c5d954e3faf0a7ba8986ebfaa5f678bda26739d9980f5c9756293a029358 and test_cases.json sha256 471e84f838c27ece3bf186542cfb1515aa2aa25e8b50cc98a33d16b84f5518db. review.json: {\"candidate_hash\": module hash, \"tests_hash\": tests hash, \"verdict\": \"pass\", \"notes\": short string citing the receipt}. Then manifest.json: {\"candidate_hash\", \"tests_hash\", \"review_hash\": sha256 of the exact review.json file you wrote}. Verify the current file hashes match before writing; do not modify module.py or test_cases.json."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py, test_cases.json (10 cases), review.json (pass) and manifest.json. Hashes match the delivered versions. run_tests passed (public 3/3, user tests 10/10) and accept passed. The review cites the verifier session's own run_tests receipt, rcpt-599b669413e7cef1ad0005df, because the verifier could not verify the earlier receipt from the supervisor session."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:32:08.542119+00:00",
+  "evaluation_race_possible": false
+}

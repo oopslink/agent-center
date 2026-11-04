@@ -1,0 +1,17 @@
+{
+  "id": "e1-long-report_only-sonnet-h_merge",
+  "experiment": "coordination_cost",
+  "paper": "P2",
+  "task": "h_merge",
+  "family": "config_merge",
+  "split": "development",
+  "model": "claude-sonnet-5-5",
+  "organization": "long",
+  "binding": "distributed",
+  "ledger": "off",
+  "identity": "separate",
+  "transport": "report_only",
+  "decision_budget": 32,
+  "worker_start_budget": 12,
+  "run_version": "023-main"
+}

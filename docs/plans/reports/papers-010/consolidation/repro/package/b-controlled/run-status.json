@@ -1,0 +1,15 @@
+{
+  "started_utc": "2026-11-04T17:26:39.293476+00:00",
+  "planned": 84,
+  "already_done": 0,
+  "todo": 84,
+  "spent_usd": 26.56276,
+  "cap_usd": 200.0,
+  "lock_runs": 84,
+  "complete": 84,
+  "failed": 0,
+  "stopped_on_cap": false,
+  "last_utc": "2026-11-04T18:10:53.954716+00:00",
+  "finished_utc": "2026-11-04T18:10:53.954976+00:00",
+  "missing": 0
+}

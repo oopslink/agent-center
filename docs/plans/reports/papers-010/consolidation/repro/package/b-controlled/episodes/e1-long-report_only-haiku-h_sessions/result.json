@@ -1,0 +1,601 @@
+{
+  "id": "e1-long-report_only-haiku-h_sessions",
+  "row": {
+    "id": "e1-long-report_only-haiku-h_sessions",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "h_sessions",
+    "family": "session_windows",
+    "split": "development",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_blocked",
+  "controller_turns": 13,
+  "worker_starts": 4,
+  "final_action": {
+    "op": "finish",
+    "status": "blocked",
+    "message": "module.py (sha256 62c82dab1c9ed0309cd3f6c4ee6363fb1937de9100666c018d89408d15f86a97) and test_cases.json (sha256 0f1a9e0c2c91358fc3091ab09c1b43106c44b56330c71033d1ad16863d758f54) pass all 3 public and 7 user tests with no input mutation, and the code matches the contract on inspection. The supervisor's own run_tests receipt rcpt-54f3ea11594461dfa65f4c07 covers these exact hashes. However, the reviewer worker cannot verify that receipt in its own session, and receipts can only be retrieved by the session that issued them, so review.json is recorded as fail. Because review.json is not a passing review, manifest.json cannot be produced and accept() reports review_missing_stale_or_unverified and manifest_missing_or_stale. I did not write a pass verdict or a manifest myself, since that would bypass the receipt requirement. Unblocking needs a review path that can verify receipts issued to the supervisor session, or an explicit decision to accept supervisor-issued receipts for review."
+  },
+  "independent_pass_at_stop": false,
+  "autonomous_delivery": false,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 5,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": {
+    "decisions_remaining": 20,
+    "worker_starts_remaining": 8
+  },
+  "final_acceptance": {
+    "passed": false,
+    "errors": [
+      "review_missing_stale_or_unverified",
+      "manifest_missing_or_stale"
+    ],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "gap": 5,
+            "events": []
+          },
+          "expected": {
+            "output": []
+          },
+          "observed": {
+            "output": []
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "gap": 5,
+            "events": [
+              {
+                "user": "a",
+                "t": 1
+              },
+              {
+                "user": "a",
+                "t": 3
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 3,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 3,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "gap": 2,
+            "events": [
+              {
+                "user": "a",
+                "t": 1
+              },
+              {
+                "user": "a",
+                "t": 10
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 10,
+                "end": 10,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 10,
+                "end": 10,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "gap": 3,
+            "events": [
+              {
+                "user": "a",
+                "t": 0
+              },
+              {
+                "user": "a",
+                "t": 3
+              },
+              {
+                "user": "a",
+                "t": 7
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 0,
+                "end": 3,
+                "count": 2
+              },
+              {
+                "user": "a",
+                "start": 7,
+                "end": 7,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 0,
+                "end": 3,
+                "count": 2
+              },
+              {
+                "user": "a",
+                "start": 7,
+                "end": 7,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "gap": 1,
+            "events": [
+              {
+                "user": "b",
+                "t": 10
+              },
+              {
+                "user": "a",
+                "t": 0
+              },
+              {
+                "user": "b",
+                "t": 11
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 0,
+                "end": 0,
+                "count": 1
+              },
+              {
+                "user": "b",
+                "start": 10,
+                "end": 11,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 0,
+                "end": 0,
+                "count": 1
+              },
+              {
+                "user": "b",
+                "start": 10,
+                "end": 11,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "gap": 0,
+            "events": [
+              {
+                "user": "a",
+                "t": 4
+              },
+              {
+                "user": "a",
+                "t": 4
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 4,
+                "end": 4,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 4,
+                "end": 4,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "gap": 0,
+            "events": [
+              {
+                "user": "a",
+                "t": 1
+              },
+              {
+                "user": "a",
+                "t": 2
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 2,
+                "end": 2,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 2,
+                "end": 2,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "gap": 2,
+            "events": [
+              {
+                "user": "a",
+                "t": 9
+              },
+              {
+                "user": "a",
+                "t": 1
+              },
+              {
+                "user": "a",
+                "t": 10
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 9,
+                "end": 10,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 9,
+                "end": 10,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "gap": -1,
+            "events": []
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "gap": 2,
+            "events": [
+              {
+                "user": "z",
+                "t": -5
+              },
+              {
+                "user": "z",
+                "t": -4
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "z",
+                "start": -5,
+                "end": -4,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "z",
+                "start": -5,
+                "end": -4,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "62c82dab1c9ed0309cd3f6c4ee6363fb1937de9100666c018d89408d15f86a97",
+      "label": "private-final",
+      "duration_s": 0.016122707980684936
+    },
+    "files": {
+      "module.py": {
+        "sha256": "62c82dab1c9ed0309cd3f6c4ee6363fb1937de9100666c018d89408d15f86a97"
+      },
+      "test_cases.json": {
+        "sha256": "0f1a9e0c2c91358fc3091ab09c1b43106c44b56330c71033d1ad16863d758f54"
+      },
+      "review.json": {
+        "sha256": "0221f7939d3c0c7de350146009e4dfce1f4a7738cf47c9eb0e0417dd29e2a0f7"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:42:54.723751+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "62c82dab1c9ed0309cd3f6c4ee6363fb1937de9100666c018d89408d15f86a97"
+      },
+      "test_cases.json": {
+        "sha256": "0f1a9e0c2c91358fc3091ab09c1b43106c44b56330c71033d1ad16863d758f54"
+      },
+      "review.json": {
+        "sha256": "0221f7939d3c0c7de350146009e4dfce1f4a7738cf47c9eb0e0417dd29e2a0f7"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "implementer",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "module.py exposes solve(data) per the contract: negative gap raises ValueError, events are grouped by user and sorted by t, a new session starts when the gap exceeds gap, and results are sorted by user then start. It uses only the standard library and does not mutate input. run_tests passed all 3 public checks on sha256 62c82dab1c9ed0309cd3f6c4ee6363fb1937de9100666c018d89408d15f86a97."
+      },
+      "transport_error": null,
+      "turns": 3,
+      "pid": 68567
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "tester",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "test_cases.json written with 8 cases covering all requested areas. run_tests passed public (3/3) and user tests (7/7). Receipt rcpt-3f0066706f0d922ec28c1f7a is bound to module.py sha256 62c82dab1c9ed0309cd3f6c4ee6363fb1937de9100666c018d89408d15f86a97 and test_cases.json sha256 0f1a9e0c2c91358fc3091ab09c1b43106c44b56330c71033d1ad16863d758f54."
+      },
+      "transport_error": null,
+      "turns": 3,
+      "pid": 69151
+    },
+    {
+      "worker_id": "worker-03",
+      "role": "reviewer",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json was written with verdict fail. module.py and test_cases.json hashes match the contract, and run_tests returned passing public (3/3) and user (7/7) results with no input mutation. The fail verdict is because the required supervisor receipt rcpt-54f3ea11594461dfa65f4c07 was not received. The only receipt in evidence is rcpt-553ca8afe01135fdf27b41fe. Re-review after the supervisor issues a receipt bound to these hashes."
+      },
+      "transport_error": null,
+      "turns": 3,
+      "pid": 69821
+    },
+    {
+      "worker_id": "worker-04",
+      "role": "reviewer",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json was written with verdict fail. module.py matches the user contract on inspection, and the public (3/3) and user (7/7) tests passed on the required hashes. The required supervisor receipt rcpt-54f3ea11594461dfa65f4c07 is not available in this session, so the pass condition is not met. The final notes cite no receipt IDs other than the required one, which is named only as missing."
+      },
+      "transport_error": null,
+      "turns": 5,
+      "pid": 70499
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "implementer",
+      "task": "Rewrite module.py so it exposes solve(data) implementing this user contract, and nothing else. Use only the Python standard library, with imports limited to math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, no dynamic code execution, no external packages. Input: {\"gap\": integer, \"events\": list of {\"user\": string, \"t\": integer}}. A negative gap raises ValueError. Group events by user. Within one user, order events by t ascending, keeping input order for equal t (use a stable sort). A new session begins when the difference between an event's t and the previous event's t is strictly greater than gap; a difference equal to gap stays in the same session. Each session is {\"user\": user, \"start\": smallest t, \"end\": largest t, \"count\": number of events in it}, where count includes repeated identical t values. Return all sessions sorted by user ascending, then by start ascending. An empty event list returns []. Do not mutate the input. The current module.py is wrong (it emits one session per event) and must be replaced. Write only module.py."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "inspect"
+    },
+    {
+      "op": "spawn",
+      "role": "tester",
+      "task": "Write test_cases.json: a JSON list of at least four distinct test cases for solve(data), per the user contract below. Each case has an \"input\" plus exactly one of \"output\" (expected JSON result) or \"error\" (exception class name, e.g. \"ValueError\"). Optional fields such as \"name\" or \"notes\" are allowed. Write only test_cases.json. Cover: empty events returns []; a gap-equal difference stays in one session (gap 2, t=1 and t=3 -> one session with count 2); a gap-exceeded difference splits sessions; equal t values are counted in count; events from multiple users are grouped and sorted by user then start; input order with equal t is preserved; negative gap raises ValueError; unsorted input within a user is ordered by t; input is not mutated. Expected outputs must match the contract exactly.\n\nUser contract: Implement solve(data) for {\"gap\": integer, \"events\": list of {\"user\": string, \"t\": integer}}. A negative gap raises ValueError. Group events by user. Within one user, order events by t ascending, keeping input order for equal t. A new session begins when the difference between an event's t and the previous event's t is strictly greater than gap; a difference equal to gap stays in the same session. Each session is {\"user\": user, \"start\": smallest t, \"end\": largest t, \"count\": number of events in it}, where count includes repeated identical t values. Return all sessions sorted by user ascending, then by start ascending. An empty event list returns []. Do not mutate the input.",
+      "note": "Module.py has been replaced by the implementer (sha256 62c82dab1c9ed0309cd3f6c4ee6363fb1937de9100666c018d89408d15f86a97); its self-reported check is not a receipt. Tests will be run by this Supervisor via run_tests."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "spawn",
+      "role": "reviewer",
+      "task": "Write review.json, a JSON object with exactly these fields: candidate_hash, tests_hash, verdict, notes. Set candidate_hash to 62c82dab1c9ed0309cd3f6c4ee6363fb1937de9100666c018d89408d15f86a97 (module.py sha256) and tests_hash to 0f1a9e0c2c91358fc3091ab09c1b43106c44b56330c71033d1ad16863d758f54 (test_cases.json sha256). Review module.py against this user contract: solve(data) for {\"gap\": integer, \"events\": list of {\"user\": string, \"t\": integer}}; negative gap raises ValueError; group by user; order by t ascending with stable input order for equal t; new session when difference is strictly greater than gap (equal stays); each session is {user, start, end, count} with count including repeated t; sessions sorted by user then start; empty list returns []; input not mutated. Set verdict to pass only if the code matches the contract and the supervisor's run_tests receipt (rcpt-54f3ea11594461dfa65f4c07, pass, bound to these hashes) covers it; otherwise set verdict to fail and explain in notes. Write only review.json. Do not claim a receipt you did not receive; the supervisor will bind the receipt.",
+      "note": "Supervisor's own run_tests receipt rcpt-54f3ea11594461dfa65f4c07 passed for module.py 62c8... and test_cases.json 0f1a...; the tester's receipt is from another session and is not reused."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "inspect"
+    },
+    {
+      "op": "spawn",
+      "role": "reviewer",
+      "task": "Rewrite review.json as a JSON object with exactly these fields: candidate_hash, tests_hash, verdict, notes. Set candidate_hash to 62c82dab1c9ed0309cd3f6c4ee6363fb1937de9100666c018d89408d15f86a97 (module.py sha256) and tests_hash to 0f1a9e0c2c91358fc3091ab09c1b43106c44b56330c71033d1ad16863d758f54 (test_cases.json sha256). Review module.py against this user contract: solve(data) for {\"gap\": integer, \"events\": list of {\"user\": string, \"t\": integer}}; negative gap raises ValueError; group by user; order by t ascending with stable input order for equal t; new session when difference is strictly greater than gap (equal stays); each session is {user, start, end, count} with count including repeated t; sessions sorted by user then start; empty list returns []; input not mutated. Supervisor run_tests receipt to cite: receipt_id rcpt-54f3ea11594461dfa65f4c07, result pass, issuer controller, candidate_hash 62c82dab1c9ed0309cd3f6c4ee6363fb1937de9100666c018d89408d15f86a97, tests_hash 0f1a9e0c2c91358fc3091ab09c1b43106c44b56330c71033d1ad16863d758f54, public 3/3 passed, user-tests 7/7 passed. If the code matches the contract and this receipt covers these hashes, set verdict to pass and cite the receipt ID in notes; otherwise set verdict to fail and explain. Do not cite any other receipt. Write only review.json.",
+      "note": "Re-review after the previous fail, which was due to the reviewer lacking the supervisor's receipt. The receipt details are supplied verbatim from the supervisor's run_tests result."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "blocked",
+      "message": "module.py (sha256 62c82dab1c9ed0309cd3f6c4ee6363fb1937de9100666c018d89408d15f86a97) and test_cases.json (sha256 0f1a9e0c2c91358fc3091ab09c1b43106c44b56330c71033d1ad16863d758f54) pass all 3 public and 7 user tests with no input mutation, and the code matches the contract on inspection. The supervisor's own run_tests receipt rcpt-54f3ea11594461dfa65f4c07 covers these exact hashes. However, the reviewer worker cannot verify that receipt in its own session, and receipts can only be retrieved by the session that issued them, so review.json is recorded as fail. Because review.json is not a passing review, manifest.json cannot be produced and accept() reports review_missing_stale_or_unverified and manifest_missing_or_stale. I did not write a pass verdict or a manifest myself, since that would bypass the receipt requirement. Unblocking needs a review path that can verify receipts issued to the supervisor session, or an explicit decision to accept supervisor-issued receipts for review."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:42:54.777729+00:00",
+  "evaluation_race_possible": false
+}

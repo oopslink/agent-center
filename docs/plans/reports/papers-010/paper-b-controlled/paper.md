@@ -1,0 +1,319 @@
+# 交接的代价与凭据的可查性：多智能体软件交付的受控实验
+
+**作者：** oopslink
+
+**主页：** [https://github.com/oopslink](https://github.com/oopslink)
+
+**研究类型：** 受控实验（真实运行器、真实产物、真实子进程）。
+
+## 摘要
+
+把一项软件交付拆给更多角色会增加协调动作，但"增加了多少""在哪一步被卡住"很少有在真实执行条件下的测量。本文在一个隔离运行器上做两个析因实验：工具调用真实写文件、真实执行 Python 测试、真实启动独立 worker 子进程，终止后的产物由独立验收重新检查。84 次执行全部有效，报告价合计 26.56 美元。
+
+**实验一**固定交付物（实现、可执行测试、版本绑定的审查、发布 manifest）与验收门槛，只改变由两个角色还是四个角色承担，以及测试回执是否可被另一个会话查询。在 30 对匹配执行中，四角色比两角色多用 9 次决策（中位数，范围 −26 至 45，28/30 对为正）；两个模型的中位增量都是 9。**实验二**把那份"由另一个会话签发的通过回执"直接置入起点，让控制者必须决定是接受还是重新索证。
+
+回执可查性改变的不是决策数，而是能否闭合。实验一的 12 个格中，只有"回执不可查 × 较弱模型 × 四角色"一格是 0/5 交付、决策中位 40（最高 68），其余 11 格全部 5/5；配对比较中有 7/20 对只在回执可查时交付，反方向 0 对。实验二里，回执不可查时总决策中位为 30.5–32，可查时为 11.5–18。反例终点成立：把回执绑到过期产物上的 12 次执行中，没有一次被错误地判为完成（0/24），说明共享凭据没有让验收变轻信。
+
+本文的结论限于所测的两种角色配置与三种凭据可见性水平；交付率在这套任务上受天花板与模型能力影响，不作为效应主张的依据。
+
+**关键词：** 多智能体交接；协调成本；凭据认可；受控实验；软件交付
+
+## 1 引言
+
+把一项软件交付拆给多个 Agent，通常是为了让缺陷在交付前被独立发现。拆分同时制造了一个新的依赖：产出凭据的会话与认可凭据的会话不是同一个。测试者跑出一张通过回执，集成者需要判断这张回执是否对应当前候选——这不是沟通风格问题，而是一项必须被管理的依赖。[1]<!--ref:MC94-->
+
+既有工作给了两头。一头是系统与拓扑：角色、标准作业过程与阶段通信可以联合设计，[2]<!--ref:RV16_METAGPT-->[3]<!--ref:RV16_CHATDEV-->[4]<!--ref:RV16_AUTOGEN--> 工作流形态可以被搜索或按反馈演化，[5]<!--ref:R11-->[6]<!--ref:R28-->[7]<!--ref:R29--> 而受控对照显示架构而非模型能力主导多智能体系统的表现。[8]<!--ref:orogat2026architectural--> 另一头是失效：失败可以按角色规范、协调错位与验证问题分类，[9]<!--ref:R01--> 也可以按故障类型、症状与根因三轴组织；[10]<!--ref:shah2026characterizing--> 跨 benchmark 的综合指出排行榜掩盖了失效结构，[11]<!--ref:albayaydh2026beyond--> 通信边界则被两组独立研究反复定位到。[12]<!--ref:zhou2026messages-->[13]<!--ref:pitre2026understanding--> 过程视角要求保留失败的起点、演进与恢复而非只看终局标签，[14]<!--ref:R05--> 不对称授权与私有状态本身就是协作边界。[15]<!--ref:R08--> 中间缺的是一件具体的事：**在交付物与验收门槛完全固定的条件下，多走一道交接要多付多少次决策，以及凭据能否被跨会话核对会不会改变结果。**
+
+**本文的研究问题是：固定交付物、验收门槛与任务，只改变交接的多少与凭据的可查性，协调动作和能否闭合各自怎么变？**
+
+两个实验分别回答它的两半。实验一改变角色数（两个／四个）与凭据可见性（三个水平），测决策数与闭合。实验二把实验一中最少见的那种情形由构造诱发出来：控制者一开始就持有一份由另一个会话签发的通过回执，它在自己的工具历史里看不到这张回执，必须决定接受还是重新索证。
+
+两件事决定了本文的终点选择，都写在 §3.5：试跑显示这类任务的**代码难度在天花板上**（单会话条件下两个模型对全部任务一次通过），而默认预算会把终态固定在预算边界。因此主终点是协调动作的数量，交付率作为次要终点报告并带天花板说明。
+
+## 2 相关研究
+
+**协调开销很少被当作因变量。** 工作流搜索与拓扑演化优化的是任务评价函数下的流程形态，[5]<!--ref:R11-->[6]<!--ref:R28-->[7]<!--ref:R29--> 不量化协调本身的成本。少数工作直接处理这件事：按任务难度选择协作拓扑的研究指出协作量与收益并非单调，过度协作有净损失；[16]<!--ref:hong2026learning--> 另有工作以 token 计量分工的协调成本并用计算性分工降低它。[17]<!--ref:zhou2026token--> 另有工作指出不同拓扑下失效模式与定位难度不同，[18]<!--ref:liu2026know--> 因此角色划分的变化不只改成本，也改失效分布。本文与它们的差别在于把交付物与验收门槛完全固定，只改变承担者的划分，因此测到的差值不含"做的事情不一样"这一项。
+
+与本文被试环境最接近的既有研究有两类：在共享代码库上做去中心化多 Agent 协调的实证，[19]<!--ref:mediratta2026decentralized--> 以及在信息分隔条件下专门评测分布式协调的可扩展环境。[20]<!--ref:zhang2026silo--> 生产环境的调查也表明可靠性与可控自治是实际关注点。[21]<!--ref:R04-->
+
+**凭据的认可在软件工程里有成熟形态，在 Agent 系统里还没有。** 数据溯源研究把溯源记录的用途、粒度与信任模型分开讨论，[22]<!--ref:simmhan2005survey--> Web 规模的溯源框架直接处理"他方签发的断言此方是否接受"。[23]<!--ref:moreau2010foundations--> 工程侧，可证实的构建链让可复现构建产出可被第三方验证的 attestation，[24]<!--ref:muto2026attestable--> 另有独立实现以 attested build 产出可验证的软件溯源，[25]<!--ref:asad2026kettle--> 证据驱动的持续集成协议则让流水线每步产出可验证证据并逐步累积，[26]<!--ref:castillo2026evidence--> 而大规模代码评审的实证显示人类评审者同样依赖自动化证据作接受决定。[27]<!--ref:sadowski2018modern--> 机制存在不等于被采用：对 SLSA 溯源框架落地障碍的访谈研究说明这一点。[28]<!--ref:tamanna2024analyzing--> Agent 侧最接近的工作系统化了 coding-agent harness 中"批准—执行绑定"的失效，即被批准的对象与真正执行的对象不是同一个。[29]<!--ref:wang2026approval--> 本文把"回执能否被另一个会话查询"做成一个可操纵的因子。
+
+**实验必须固定 harness 版本。** 有实证表明同一模型下 harness 版本演进对 coding agent 质量的影响大于模型之间的差异，[30]<!--ref:sghaier2026dont--> 而模型与接口的交互本身就会改变可见行为。[31]<!--ref:R03--> 本文据此在真实运行器上执行，并用文件哈希冻结仪器与设计（§3.3）。harness 一词按已有的充要条件定义使用。[32]<!--ref:macedo2026harness-->
+
+## 3 方法
+
+### 3.1 仪器
+
+实验在一个隔离的 JSON 工具运行器上执行。合法操作**真实发生**：写文件落盘并留版本、测试在子进程里真实执行、worker 是独立的操作系统进程，工具结果进入该角色的后续输入。每个角色只能写它被授权的文件；控制者不能代替 worker 写代码。命令行以 safe-mode 调用，禁用本地旧上下文，每次调用重放该角色的完整历史。这不是动作答题，但也不是生产系统回放。
+
+运行器继承自本研究此前的一批执行实验，本文在其上加了三项改动：把测试回执做成带标识的共享对象、把决策与启动预算改为可配置参数、并把 episode 路径统一解析为绝对路径。最后一项修掉了一个会让整批执行静默失败的缺陷：检查子进程以产物目录为工作目录，路径为相对路径时每一次检查都返回文件不存在，于是产物看起来全不合格而模型代码从未被执行。该缺陷只在显式传入相对路径时触发，**不影响此前批次**，其路径一直是绝对的。仪器改动共配 81 项测试，其中三项对关键判定做了变异验证。
+
+以一个此前批次的条件做桥接重跑，确认仪器改动没有改变终态判定：四项终态（报告完成、自主交付、独立验收、实现通过）与原记录完全一致，决策数 9 对 8、3 对 2、11 对 12。n=1，这只支持"仪器未改变终态判定"，不构成等效性证据。
+
+### 3.2 任务家族与开发／留出划分
+
+五个任务家族，规则全部写在题面里，难度来自多条规则同时成立时的优先级与边界：账目重放（操作合法性、额度占用与释放、校验优先级）、会话切分（严格大于的间隔阈值、同值时间戳、按用户独立分段）、配置合并（深合并、列表整体替换、null 删除、键序、布尔与数字类型区分）、速率分桶（负数向负无穷取整的桶边界）、路径规范化（`..` 越过根与相对路径保留前导 `..`）。
+
+每个家族 10 个测试向量，前三个在执行中可运行，其余 7 个只在终止后检查且不反馈给模型。每个 episode 从一个研究者置入的错误实现开始。
+
+**三个家族划为开发集、两个划为留出集。** 开发集用于试跑定难度；留出集在正式批次之前没有被用来调过任何参数。两者都参与正式批次，但结果分开报告——留出集的作用正是提供一组未经调参的确认。
+
+真值由每个家族的参考实现推导，因此**参考实现错了就会静默定义错误的真值**。为此每个家族另附手写的期望值，共 44 条，由一个无模型的自洽性检查断言参考实现与手算逐条一致；同一检查还断言错误起点确实过不了公开向量、题面不含待验证的词汇。该检查本身经三次变异验证（破坏边界语义、改变列表合并方式、让错误起点变正确），三次都被精确抓到。
+
+### 3.3 设计与冻结
+
+**实验一**：组织（两角色／四角色）× 凭据可见性（三水平）× 模型（两个）共 12 格，每格 5 次即五个家族各一次，合计 60 次执行。两组织的交付物、依赖与验收门槛完全相同：实现、至少四例可执行测试、版本绑定的审查、以及指向当前版本的发布 manifest。短链由两个角色承担全部四项，长链拆为四个独立角色。
+
+**凭据可见性三水平**只改变回执的可达性与认可条件，不改变交付物：
+
+| 水平 | 回执能否被另一会话查询 | 认可条件 |
+|---|---|---|
+| 不可查 | 否。回执只返回给跑测试的那个会话 | 任何绑定当前版本的真实通过回执 |
+| 可查 | 是。可按标识查到完整回执对象（含签发者） | 同上 |
+| 限定签发者 | 是 | 只接受指定签发者的回执 |
+
+**实验二**：凭据可见性 × 起点（有效／过期）× 模型 × 两个家族，合计 24 次执行；主格为（可见性 × 起点），每格 4 次。起点由构造置入：一份由另一个会话签发的通过回执、配套的通过审查、以及正确的实现与测试，但 manifest 故意留空，因此 episode 仍有实际工作。**过期起点**把回执绑到一个与当前产物不符的版本上——此时三个水平下的正确行为都是重新取证，这是用来确认"共享回执不等于放宽"的反例。
+
+预算为 32 次控制决策与 12 次 worker 启动（理由见 §3.5）。模型为两个固定低档档位，low effort。设计、任务家族、运行器、评分脚本的文件哈希在**任何正式调用之前**写入冻结记录；评分脚本启动时自校验该哈希，不一致即退出，以防评分映射事后漂移。排除规则预先写定：传输或运行层无效的执行记为无效并排除，原始记录保留。无后验重试。
+
+### 3.4 终点
+
+终点在冻结之前定义，全部由执行结果的字段计算，不含人工判断：
+
+- **主终点（实验一）**：总决策数（控制者决策与各 worker 决策之和）、索证轮数（控制者为重新取得证据而发起的动作数）。
+- **主终点（实验二）**：索证轮数、是否在预算内闭合。
+- **反例终点（仅过期起点）**：是否错误闭合——回执绑定的版本已过期却仍报告完成。
+- **次要终点**：自主交付、独立验收通过。两者在本任务集上受天花板与模型能力影响，**不作为效应主张的依据**。
+
+比较在匹配单元内配对：比较组织时固定任务、模型与凭据水平；比较凭据水平时固定任务、模型与组织。报告配对差的中位数、范围与方向分布，不作显著性检验——五个家族、每格一次，不是独立生产任务的随机样本。
+
+### 3.5 试跑，以及它推翻的两个前提
+
+试跑三轮，189 次模型调用、报告价 0.58 美元，全部结果保留且不进入正式分析。它推翻了设计阶段的两个前提。
+
+**其一，代码难度不是杠杆。** 原假设是此前批次的天花板源于任务太容易，于是新造了规则交互更密的家族。第一轮直接否掉：单会话条件下两个模型对三个新家族**全部一次通过、仅 3–6 次决策**。这类"单函数、规格完备"的任务在代码层面就是天花板，换几条边界规则改变不了。真实失败空间在交接协议——同样的代码任务，四角色条件下的交付从 6/6 掉到 0/2。
+
+**其二，默认预算会把终态固定在预算边界。** 第二轮两次四角色失败的终态都是"预算耗尽"，这是预算边界而不是协议结果。第三轮把预算放宽到 32/12，两个 episode 分别只用了 20 与 19 次决策，预算不再是约束，交付变为 1/2——既离天花板也离地板。
+
+据此改定了三件事：预算成为记录在案的参数而非常量；主终点改为协调动作的数量；交付率降为带天花板说明的次要终点。第三轮之后没有再调任何参数，设计随即冻结。**这不是"迭代到出现效应"**：改的是被试跑证伪的两个设计前提，不是评分规则或题目答案，而全部三轮的结果（包括 0/2 的那一轮）都保留在复现包中。
+
+## 4 结果
+
+84 次执行全部有效（0 次传输或运行层无效），报告价合计 26.56 美元，墙钟 44 分钟（四路并行）。
+
+### 4.1 多一道交接要多付约九次决策
+
+在 30 对匹配执行中（固定任务、模型与凭据水平），四角色比两角色多用 **9 次决策**（中位数），范围 −26 至 45，**28/30 对为正**。按模型分开看，两者的中位增量都是 9：较弱模型 13/15 对为正、范围 −26 至 45；较强模型 **15/15 对为正**、范围仅 1 至 13。
+
+**表 1。实验一按组织汇总（n=30/组）**
+
+| 组织 | 总决策中位数 | 范围 | 索证轮数中位数 | 自主交付 |
+|---|---:|---|---:|---:|
+| 两角色 | 19 | 15–62 | 3 | 28/30 |
+| 四角色 | 28 | 25–68 | 5 | 25/30 |
+
+较强模型的范围（1–13）说明这不是偶发：在固定交付物与门槛的条件下，把同样四项工件拆给四个角色，稳定地多付约九次决策。较弱模型的范围跨到 −26 与 45，来自下一节的那一格。
+
+### 4.2 回执可查性改变的是能否闭合，不是决策数
+
+把凭据可见性当因子看，决策数上的配对差很小：可查减不可查的总决策中位差为 −1.5（20 对中 13 对为负），限定签发者减不可查为 0。但**交付上的差异是不对称的**：20 对中有 7 对只在回执可查时交付，反方向 **0 对**；限定签发者同样是 7 对与 0 对。
+
+逐格看，差异集中在一格：
+
+**表 2。实验一 12 格的总决策中位数与自主交付（每格 n=5）**
+
+| 组织 | 凭据可见性 | 模型 | 总决策中位数 | 范围 | 自主交付 |
+|---|---|---|---:|---|---:|
+| 四角色 | 不可查 | 较弱 | **40** | 27–68 | **0/5** |
+| 四角色 | 不可查 | 较强 | 27 | 25–29 | 5/5 |
+| 四角色 | 可查 | 较弱 | 27 | 25–28 | 5/5 |
+| 四角色 | 可查 | 较强 | 26 | 25–30 | 5/5 |
+| 四角色 | 限定签发者 | 较弱 | 28 | 26–30 | 5/5 |
+| 四角色 | 限定签发者 | 较强 | 29 | 27–30 | 5/5 |
+| 两角色 | 不可查 | 较弱 | 23 | 21–62 | **3/5** |
+| 两角色 | 不可查 | 较强 | 17 | 16–20 | 5/5 |
+| 两角色 | 可查 | 较弱 | 18 | 15–21 | 5/5 |
+| 两角色 | 可查 | 较强 | 18 | 16–27 | 5/5 |
+| 两角色 | 限定签发者 | 较弱 | 19 | 17–21 | 5/5 |
+| 两角色 | 限定签发者 | 较强 | 19 | 17–21 | 5/5 |
+
+**全部 7 次未交付都出现在"回执不可查"且都属较弱模型**（四角色 5 次、两角色 2 次）；较强模型在三个水平下都是 10/10。这是一条必须写明的边界：该效应是模型相关的，不能表述为与模型无关的协议性质。
+
+7 次未交付的终态都是"报告阻塞"而非预算耗尽。其中 **3 次的产物已通过独立验收**（终验无错误），即工件本已合格而控制者没有闭合；另 4 次缺 manifest，1 次同时缺有效审查。
+
+### 4.3 由构造诱发的跨会话凭据：不可查时决策数约为可查时的两倍
+
+实验二让控制者一开始就持有一份由另一会话签发的通过回执。
+
+**表 3。实验二按凭据可见性与起点（每格 n=4）**
+
+| 凭据可见性 | 起点 | 索证轮数 | 总决策中位数 | 预算内闭合 | 错误闭合 |
+|---|---|---|---:|---:|---:|
+| 不可查 | 有效 | 3, 5, 8, 10 | 32.0 | 2/4 | 0/4 |
+| 不可查 | 过期 | 3, 5, 6, 10 | 30.5 | 3/4 | 0/4 |
+| 可查 | 有效 | 2, 2, 2, 2 | 11.5 | 4/4 | 0/4 |
+| 可查 | 过期 | 3, 3, 3, 3 | 18.0 | 4/4 | 0/4 |
+| 限定签发者 | 有效 | 3, 3, 3, 3 | 17.0 | 4/4 | 0/4 |
+| 限定签发者 | 过期 | 3, 3, 3, 3 | 15.5 | 4/4 | 0/4 |
+
+配对比较中，可查减不可查的总决策中位差为 **−15.5**（8 对中 7 对为负），限定签发者减不可查同为 −15.5（6/8 为负）。回执不可查时索证轮数分散在 3 到 10 之间，可查时收敛到 2–3。
+
+两处值得注意。其一，**可查条件下有效起点的索证轮数是四次全为 2**，即控制者查一次回执、确认后写 manifest 收尾；不可查条件下它只能重新跑测试或重新派人，索证轮数随之上升且分散。其二，限定签发者条件下有效起点的索证轮数是 3 而非 2——多出来的一次正是"置入的回执由别的会话签发、按合同不可接受，必须自己再取一张"，这与合同规定一致。
+
+### 4.4 反例：共享凭据没有让验收变轻信
+
+过期起点的 12 次执行里，**没有一次错误闭合**（全部 24 次执行的错误闭合为 0/24）。而这 12 次的产物最终**全部通过独立验收**（12/12）——因为过期的只是回执绑定的版本，实现本身是正确的，模型重新取证后即满足门槛。
+
+这一条排除了对 §4.3 最自然的替代解释："把回执共享出去只是让验收端更容易放过。"如果是这样，过期起点在可查与限定签发者条件下应当出现错误闭合。实际是 0/8。
+
+### 4.5 留出家族给出一致的方向
+
+开发集 36 次执行自主交付 32 次、总决策中位 26；留出集 24 次交付 21 次、中位 25。留出家族在正式批次之前没有被用来调过任何参数，其方向与开发集一致，因此 §4.1 与 §4.2 的结果不是难度调参的产物。
+
+## 5 讨论
+
+### 5.1 这两个结果说的是同一件事的两面
+
+§4.1 的九次决策是**可预见的代价**：多一道交接就多一次派发、一次等待、一次局部确认，交付物并没有变多。§4.2 与 §4.3 的差异则是**不可预见的代价**：当一份有效凭据无法被跨会话核对时，接收方只能重新取证，而重新取证既花决策也可能花光机会。两者的区别在于，前者可以在设计时算出来，后者只在凭据恰好来自别的会话时才出现——而这正是分工本身必然导致的情形。
+
+§4.2 的三次"产物已合格却没有闭合"把这件事讲得最清楚：工件通过了独立验收，缺的不是质量，是接收方认可它的依据。这与"批准—执行绑定"失效的刻画同构，[29]<!--ref:wang2026approval--> 也与溯源研究把"他方断言此方是否接受"作为核心问题的取向一致。[23]<!--ref:moreau2010foundations-->
+
+**模型相关性必须留在结论里。** 较强模型在不可查条件下仍然 10/10 交付，只是多付决策。因此可查性不是让交付"从不可能变可能"，而是降低了它对模型能力的依赖。把它表述为协议性质会夸大结论。
+
+### 5.2 对交接协议的含意
+
+本文测到的差值支持三条具体做法，每条都对应一个被操纵过的因子：
+
+1. **回执作为可查询的共享对象**，带版本绑定、检查范围、结果与签发者。可查条件下索证轮数收敛到 2–3，而不可查条件下分散到 3–10。
+2. **认可条件写在合同里而不是留给接收方临场收紧。** 限定签发者条件下多出的那一次索证是合同要求的，可预期；不可查条件下多出的索证是接收方无法核对所致，不可预期。
+3. **为最终集成预留执行预算。** 四角色方案在同一启动上限下容纳返工的余量更小；本文把预算放宽到不构成约束之后，终态才反映协议结果而非预算边界。
+
+这三条与两类既有工作方向一致：把缺陷归因于缺少结构化约束、并以显式行为契约加生命周期验证作为干预，[33]<!--ref:mao2025towards--> 以及由长期委派方在短期执行方返回后选择继续、重试或重规划的角色分离设计。[34]<!--ref:R14--> 后者说明分离执行与持续承担责任可以共存，因此本文的成本结果不应被读作"分工不可行"。
+
+这三条针对的是实验中被操纵的因子，**尚未作为门禁在真实项目里验证**。
+
+## 6 证据边界
+
+**任务与规模。** 五个研究者构造的单函数 Python 任务家族，每格 5 次（实验一）或 4 次（实验二）。不是独立生产任务的随机样本，因此不作显著性检验，也不估计生产环境中的发生率。代码难度在这类任务上处于天花板（§3.5），所以质量终点无法承载效应主张；本文的效应主张只建立在协调动作的数量与闭合上。
+
+**两个因子各自含多个变化。** 两角色与四角色同时改变上下文分区、交接次数与启动余量；凭据可见性的三个水平同时改变可达性与披露给模型的合同文本。因此"四角色多付九次决策"是这两种具体组织方案之差，不是抽离其它因素的角色数效应。
+
+**模型与档位。** 两个固定低档档位模型，low effort。§4.2 的交付差异完全落在较弱模型上，不能外推为与模型无关的性质；两个模型也不代表模型总体。
+
+**仪器。** 真实文件、真实子进程与真实测试执行，但不是生产系统回放，也不是原生持久会话。桥接重跑 n=1，只支持仪器未改变终态判定。仪器缺陷（相对路径导致检查静默全败）已修并配回归测试，其影响范围已核实。
+
+**实验二的起点是研究者置入的，不是自然发生的。** 原现象在此前批次的 54 次执行中只出现过 1 次（约 2% 基率），任何样本量都无法把"是否发生"当终点，因此改为由构造诱发。这使 §4.3 回答的是"给定这种情形，可查性改变什么"，而不是"这种情形多久发生一次"。
+
+**未操纵的因素。** 并行分支、变化中的合同、跨项目范围、真实外部权限阻塞、人工提醒，以及团队记忆与长上下文，均未进入本实验。试跑与正式批次使用同一批任务家族中的开发集，留出集提供的是未调参确认，不是独立复现。
+
+**分析。** 终点定义与评分映射在正式调用前冻结并经哈希自校验；配对汇总脚本在看到分格汇总之后写成，它只改变汇总方式，不改变任何执行的打分。全部分析由 AI 完成，尚未经过独立人工复核。
+
+## 7 结论
+
+在交付物、依赖与验收门槛完全固定的条件下，把四项工件从两个角色拆给四个角色，稳定地多付约九次决策（30 对配对，中位数 9，28/30 为正；较强模型 15/15 为正、范围 1–13）。这是分工的可预见成本。
+
+不可预见的成本来自凭据。当一份有效的测试回执无法被另一个会话查询时，接收方只能重新取证：实验二中总决策中位数由 11.5–18 升至 30.5–32，索证轮数由 2–3 分散到 3–10；实验一中 20 对配对里有 7 对只在回执可查时交付，反方向 0 对，且其中 3 次的产物本已通过独立验收。这一效应集中在较弱模型，较强模型只是多付决策仍能交付，因此可查性降低的是交付对模型能力的依赖，而不是让交付从不可能变为可能。
+
+把回执共享出去没有让验收变轻信：绑定过期版本的 12 次执行无一被错误判为完成（0/24）。
+
+因此，设计交接协议时值得先问的不是"要几个角色"，而是"这一步能产生什么前一步没有的事实，产生的凭据由谁签发、绑定哪个版本、接收方据什么认可它"。本文的结论限于所测的两种角色配置与三种凭据可见性水平，不足以确定长程任务的最优角色数。
+
+## 声明
+
+**作者贡献。** oopslink 是本文唯一作者：提出研究问题、决定实验范围与终点、审阅结果与解释。
+
+**AI 使用。** 本研究在仪器改造、任务构造、脚本撰写、分析与文稿起草中使用了 AI 助手（Claude Opus 5）。AI 不是本文作者——生成式 AI 无法对文稿内容负责，也无法同意投稿平台的条款。作为被试的模型响应属于方法与材料。模型响应是行为记录，不能直接揭示其内部推理。全部分析尚未经过独立人工复核。
+
+**伦理与隐私。** 本实验不涉及人类被试，不采集个人数据。被试是商业语言模型，任务与材料由研究者构造，不含真实项目内容。本文不声称已获机构审查批准，也不声称经判定豁免。
+
+**数据可用性。** 实验数据无隐私问题，因此完整公开：冻结设计与文件哈希、每次执行的全部模型请求与响应、工具事件、产物版本、回执对象、终点评分脚本与配对脚本，以及三轮试跑的全部结果（含被推翻前提的那两轮）。评分脚本启动时自校验冻结哈希。
+
+**利益冲突。** 作者是被改造的实验运行器的作者。该运行器与其冻结记录、测试与桥接重跑一并公开，以便第三方核对仪器。
+
+**资助。** 本研究未获得资助。
+
+**同源材料。** 本文与同批的现场研究使用**互不重叠**的证据：本文只用新采集的实验数据，不引用任何部署记录。
+
+## 参考文献
+
+[1] Malone, Thomas W., Crowston, Kevin, “The interdisciplinary study of coordination,” *ACM Computing Surveys*, vol. 26, no. 1, pp. 87–119, 1994. DOI: [10.1145/174666.174668](https://doi.org/10.1145/174666.174668).
+
+[2] Hong, Sirui, Zhuge, Mingchen, Chen, Jiaqi, Zheng, Xiawu, Cheng, Yuheng, Zhang, Ceyao, Wang, Jinlin, Wang, Zili, Yau, Steven Ka Shing, Lin, Zijuan, Zhou, Liyang, Ran, Chenyu, Xiao, Lingfeng, Wu, Chenglin, Schmidhuber, Jürgen, “MetaGPT: Meta Programming for A Multi-Agent Collaborative Framework,” arXiv:2308.00352, 2023. DOI: [10.48550/arXiv.2308.00352](https://doi.org/10.48550/arXiv.2308.00352). （预印本，未经同行评审）
+
+[3] Qian, Chen, Liu, Wei, Liu, Hongzhang, Chen, Nuo, Dang, Yufan, Li, Jiahao, Yang, Cheng, Chen, Weize, Su, Yusheng, Cong, Xin, Xu, Juyuan, Li, Dahai, Liu, Zhiyuan, Sun, Maosong, “ChatDev: Communicative Agents for Software Development,” *Proceedings of the 62nd Annual Meeting of the Association for Computational Linguistics (Volume 1: Long Papers)*, pp. 15174–15186, 2024. DOI: [10.18653/v1/2024.acl-long.810](https://doi.org/10.18653/v1/2024.acl-long.810).
+
+[4] Wu, Qingyun, Bansal, Gagan, Zhang, Jieyu, Wu, Yiran, Li, Beibin, Zhu, Erkang, Jiang, Li, Zhang, Xiaoyun, Zhang, Shaokun, Liu, Jiale, Awadallah, Ahmed Hassan, White, Ryen W., Burger, Doug, Wang, Chi, “AutoGen: Enabling Next-Gen LLM Applications via Multi-Agent Conversation,” arXiv:2308.08155, 2023. DOI: [10.48550/arXiv.2308.08155](https://doi.org/10.48550/arXiv.2308.08155). （预印本，未经同行评审）
+
+[5] Zhang, Jiayi, Xiang, Jinyu, Yu, Zhaoyang, Teng, Fengwei, Chen, Xionghui, Chen, Jiaqi, Zhuge, Mingchen, Cheng, Xin, Hong, Sirui, Wang, Jinlin, Zheng, Bingnan, Liu, Bang, Luo, Yuyu, Wu, Chenglin, “AFlow: Automating Agentic Workflow Generation,” arXiv:2410.10762, 2024. DOI: [10.48550/arXiv.2410.10762](https://doi.org/10.48550/arXiv.2410.10762). （预印本，未经同行评审）
+
+[6] Wang, Yanbo, Xu, Zixiang, Huang, Yue, Wang, Xiangqi, Song, Zirui, Gao, Lang, Wang, Chenxi, Tang, Xiangru, Zhao, Yue, Cohan, Arman, Zhang, Xiangliang, Chen, Xiuying, “DyFlow: Dynamic Workflow Framework for Agentic Reasoning,” arXiv:2509.26062, 2025. DOI: [10.48550/arXiv.2509.26062](https://doi.org/10.48550/arXiv.2509.26062). （预印本，未经同行评审）
+
+[7] Wang, Siyu, Lu, Ruotian, Yang, Zhihao, Wang, Yuchao, Zhang, Yanzhou, Xu, Lei, Xu, Qimin, Yin, Guojun, Chen, Cailian, Guan, Xinping, “AgentConductor: Topology Evolution for Multi-Agent Competition-Level Code Generation,” arXiv:2602.17100, 2026. DOI: [10.48550/arXiv.2602.17100](https://doi.org/10.48550/arXiv.2602.17100). （预印本，未经同行评审）
+
+[8] Orogat, Abdelghny, Rostam, Ana, Mansour, Essam, “Architectural Design, Not Only Model Intelligence, Governs Multi-Agent LLM Performance,” arXiv:2602.03128 [cs.AI], 2026. DOI: [10.48550/arXiv.2602.03128](https://doi.org/10.48550/arXiv.2602.03128). （预印本，未经同行评审）
+
+[9] Cemri, Mert, Pan, Melissa Z., Yang, Shuyi, Agrawal, Lakshya A., Chopra, Bhavya, Tiwari, Rishabh, Keutzer, Kurt, Parameswaran, Aditya, Klein, Dan, Ramchandran, Kannan, Zaharia, Matei, Gonzalez, Joseph E., Stoica, Ion, “Why Do Multi-Agent LLM Systems Fail?,” arXiv:2503.13657, 2025. DOI: [10.48550/arXiv.2503.13657](https://doi.org/10.48550/arXiv.2503.13657). （预印本，未经同行评审）
+
+[10] Shah, Mehil B., Morovati, Mohammad Mehdi, Rahman, Mohammad Masudur, Khomh, Foutse, “Characterizing Faults in Agentic AI: A Taxonomy of Types, Symptoms, and Root Causes,” arXiv:2603.06847 [cs.SE], 2026. DOI: [10.48550/arXiv.2603.06847](https://doi.org/10.48550/arXiv.2603.06847). （预印本，未经同行评审）
+
+[11] Albayaydh, Wael, Zhao, Rui, Flechais, Ivan, “Beyond the Leaderboard: A Synthesis of Tool-Use, Planning, and Reasoning Failures in Large Language Model Agents,” arXiv:2607.05775 [cs.AI], 2026. DOI: [10.48550/arXiv.2607.05775](https://doi.org/10.48550/arXiv.2607.05775). （预印本，未经同行评审）
+
+[12] Zhou, Jinhao, Zhang, Xiaoyu, Yu, Jiongchi, Chen, Fahao, Wu, Jun, “When Messages Go Wrong: Understanding Communication Faults in LLM-Based Multi-Agent Systems,” arXiv:2610.15459 [cs.SE], 2026. DOI: [10.48550/arXiv.2610.15459](https://doi.org/10.48550/arXiv.2610.15459). （预印本，未经同行评审）
+
+[13] Pitre, Priya, Hou, Jun, Fang, Yi, Ramakrishnan, Naren, Wang, Xuan, “Understanding Communication Failures in Multi-Agent LLM Systems,” arXiv:2610.32060 [cs.AI], 2026. DOI: [10.48550/arXiv.2610.32060](https://doi.org/10.48550/arXiv.2610.32060). （预印本，未经同行评审）
+
+[14] Zhao, Xiangxin, Li, Han, Li, Shuaiting, Zhao, Tianyi, Barr, Earl T., Sarro, Federica, Ye, He, “Failure as a Process: An Anatomy of CLI Coding Agent Trajectories,” arXiv:2607.09510, 2026. DOI: [10.48550/arXiv.2607.09510](https://doi.org/10.48550/arXiv.2607.09510). （预印本，未经同行评审）
+
+[15] Shekkizhar, Sarath, Jwalapuram, Prathyusha, Ke, Zixuan, Patil, Vaidehi, Wang, Jiayu, Bansal, Srijan, Nguyen, Trong Huy, Jiang, Dingfeng, Liu, Dongqi, Zhao, Ruochen, Lu, Wei, Carenini, Giuseppe, Bansal, Mohit, Savarese, Silvio, Joty, Shafiq, “Why Do Agent Teams Fail Across Boundaries? A Failure Taxonomy for Agent-to-Agent Systems with Private States,” arXiv:2610.19342, 2026. DOI: [10.48550/arXiv.2610.19342](https://doi.org/10.48550/arXiv.2610.19342). （预印本，未经同行评审）
+
+[16] Hong, Yunsong, “Learning How Much to Collaborate: Difficulty-Aware Topology Selection for Multi-Agent Code Generation,” arXiv:2609.13890 [cs.MA], 2026. DOI: [10.48550/arXiv.2609.13890](https://doi.org/10.48550/arXiv.2609.13890). （预印本，未经同行评审）
+
+[17] Zhou, Zihan, Hu, Xinzhe, Yang, Hanxu, Wen, Liangjian, Kang, Zhao, “Token-Efficient Multi-Agent Collaboration via System One-Guided Computational Division of Labor,” arXiv:2610.08155 [cs.MA], 2026. DOI: [10.48550/arXiv.2610.08155](https://doi.org/10.48550/arXiv.2610.08155). （预印本，未经同行评审）
+
+[18] Liu, Xinwen, Pan, Zhuocheng, Zhu, Isabella, Zhang, Jawei, Liu, Xudong, Wo, Tianyu, “Know the Shape, Find the Fault: Topology-Conditioned Diagnosis of Multi-Agent LLM Failures,” arXiv:2610.10126 [cs.MA], 2026. DOI: [10.48550/arXiv.2610.10126](https://doi.org/10.48550/arXiv.2610.10126). （预印本，未经同行评审）
+
+[19] Mediratta, Rishabh, Xiao, Lingyun, Stone, Peter, Biswas, Joydeep, Stengel-Eskin, Elias, “Decentralized Multi-Agent Coordination and Communication in Shared Codebases,” arXiv:2611.00314 [cs.AI], 2026. DOI: [10.48550/arXiv.2611.00314](https://doi.org/10.48550/arXiv.2611.00314). （预印本，未经同行评审）
+
+[20] Zhang, Yuzhe, Liu, Feiran, Shan, Yi, Huang, Xinyi, Yang, Xin, Zhu, Yueqi, Cheng, Xuxin, Liu, Cao, Zeng, Ke, Zhang, Terry Jingchen, Jiang, Wenyuan, “Silo-Bench: A Scalable Environment for Evaluating Distributed Coordination in Multi-Agent LLM Systems,” arXiv:2603.01045 [cs.MA], 2026. DOI: [10.48550/arXiv.2603.01045](https://doi.org/10.48550/arXiv.2603.01045). （预印本，未经同行评审）
+
+[21] Pan, Melissa Z., Arabzadeh, Negar, Cogo, Riccardo, Zhu, Yuxuan, Xiong, Alexander, Agrawal, Lakshya A, Mao, Huanzhi, Shen, Emma, Pallerla, Sid, Patel, Liana, Liu, Shu, Shi, Tianneng, Liu, Xiaoyuan, Davis, Jared Quincy, Lacavalla, Emmanuele, Basile, Alessandro, Yang, Shuyi, Castro, Paul, Kang, Daniel, Sen, Koushik, Song, Dawn, Gonzalez, Joseph E., Stoica, Ion, Zaharia, Matei, Ellis, Marquita, “Measuring Agents in Production,” *Proceedings of the 43rd International Conference on Machine Learning*, vol. 306, pp. 95649–95695, 2026.
+
+[22] Simmhan, Yogesh L., Plale, Beth, Gannon, Dennis, “A survey of data provenance in e-science,” *ACM SIGMOD Record*, vol. 34, no. 3, pp. 31–36, 2005. DOI: [10.1145/1084805.1084812](https://doi.org/10.1145/1084805.1084812).
+
+[23] Moreau, Luc, “The Foundations for Provenance on the Web,” *Foundations and Trends in Web Science*, vol. 2, no. 2--3, pp. 99–241, 2010. DOI: [10.1561/1800000010](https://doi.org/10.1561/1800000010).
+
+[24] Muto, Kenichiro, Suzaki, Kuniyasu, “Attestable Build Chain: Enabling Trust in Reproducible Builds,” *2026 56th Annual IEEE International Conference on Dependable Systems and Networks Workshops (DSN-W)*, pp. 196–203, 2026. DOI: [10.1109/DSN-W70714.2026.00051](https://doi.org/10.1109/DSN-W70714.2026.00051).
+
+[25] Asad, Amean, Arko, Andr\'e, “Kettle: Attested builds for verifiable software provenance,” arXiv:2605.08363 [cs.CR], 2026. DOI: [10.48550/arXiv.2605.08363](https://doi.org/10.48550/arXiv.2605.08363). （预印本，未经同行评审）
+
+[26] Castillo, Fernando, Brito, Eduardo, Pullonen-Raudvere, Pille, Werner, Sebastian, Tai, Stefan, “An Evidence-driven Protocol for Trustworthy CI Pipelines,” arXiv:2605.21089 [cs.CR], 2026. DOI: [10.48550/arXiv.2605.21089](https://doi.org/10.48550/arXiv.2605.21089). （预印本，未经同行评审）
+
+[27] Sadowski, Caitlin, S\"oderberg, Emma, Church, Luke, Sipko, Michal, Bacchelli, Alberto, “Modern code review: a case study at Google,” *Proceedings of the 40th International Conference on Software Engineering: Software Engineering in Practice (ICSE-SEIP)*, pp. 181–190, 2018. DOI: [10.1145/3183519.3183525](https://doi.org/10.1145/3183519.3183525).
+
+[28] Tamanna, Mahzabin, Hamer, Sivana, Tran, Mindy, Fahl, Sascha, Acar, Yasemin, Williams, Laurie, “Analyzing Challenges in Deployment of the SLSA Framework for Software Supply Chain Security,” arXiv:2409.05014 [cs.CE], 2024. DOI: [10.48550/arXiv.2409.05014](https://doi.org/10.48550/arXiv.2409.05014). （预印本，未经同行评审）
+
+[29] Wang, Yang, “Approval Laundering: Systematizing Approval--Execution Binding Failures in AI Coding-Agent Harnesses,” arXiv:2609.38983 [cs.CR], 2026. DOI: [10.48550/arXiv.2609.38983](https://doi.org/10.48550/arXiv.2609.38983). （预印本，未经同行评审）
+
+[30] Ben Sghaier, Oussama, Li, Hao, Adams, Bram, Hassan, Ahmed E., “Don't Blame the Large Language Model: How Agent Harness Evolution Shapes Coding Agent Quality,” arXiv:2607.03691 [cs.SE], 2026. DOI: [10.48550/arXiv.2607.03691](https://doi.org/10.48550/arXiv.2607.03691). （预印本，未经同行评审）
+
+[31] Chen, Jingyi, Chen, Songqiang, Zhu, Hengcheng, Cao, Jialun, Shen, Jiasi, Cheung, Shing-Chi, “Understanding Agent-Reactive Bugs at the Model-Harness Boundary: An Empirical Study of LLM Agent Issue Reports,” arXiv:2607.15684, 2026. DOI: [10.48550/arXiv.2607.15684](https://doi.org/10.48550/arXiv.2607.15684). （预印本，未经同行评审）
+
+[32] de Macedo, Sanderson Oliveira, “What makes a harness a harness: necessary and sufficient conditions for an agent harness,” arXiv:2606.10106 [cs.SE], 2026. DOI: [10.48550/arXiv.2606.10106](https://doi.org/10.48550/arXiv.2606.10106). （预印本，未经同行评审）
+
+[33] Mao, Zhenyu, Keung, Jacky, Zhang, Fengji, Liu, Shuo, Wang, Yifei, Li, Jialong, “Towards Engineering Multi-Agent LLMs: A Protocol-Driven Approach,” arXiv:2510.12120 [cs.SE], 2025. DOI: [10.48550/arXiv.2510.12120](https://doi.org/10.48550/arXiv.2510.12120). （预印本，未经同行评审）
+
+[34] Fei, Tianxiang, Chen, Cheng, Pan, Yue, Zheng, Mao, Song, Mingyang, “CodeDelegator: Mitigating Context Pollution via Role Separation in Code-as-Action Agents,” arXiv:2601.14914, 2026. DOI: [10.48550/arXiv.2601.14914](https://doi.org/10.48550/arXiv.2601.14914). （预印本，未经同行评审）
+
+## 附录 A 前批次及其天花板诊断
+
+本研究此前做过一批 54 次执行的运行实验，以及若干组单步动作选择的短题实验。它们**不作为本文的结果**，在此只说明本文为何重做，以及重做改变了什么。
+
+**短题实验不可用于本文的问题。** 三组短题（合计 1,024 次响应）的输入都预先声明了待验证的原则——例如控制者须负责后续修复、不得把已授权的准备工作交给人、成果丢失时须恢复基线。因此它们测到的是"协议已明示之后的遵循"，而不是协议未明示时的选择。其干净子集的结果几乎全为满分（每模型 64/64、96/96），这与模型能力的关系小于与题面的关系。
+
+**前一批运行实验在交付终点上处于天花板。** 54 次执行中实现全部通过独立检查，自主交付 53 次。它测到的唯一有方差的维度是决策数：四角色比两角色在 12 对配对中全部为正，合计多出 91 次决策，其中 52 次发生在控制端、39 次发生在工作端；只比较双方均完成交付的 11 对，总增量的中位数为 7、范围 4 至 8。本文的 §4.1 在 30 对配对上重现了这个方向，并把每对的增量定在中位数 9。
+
+该批次的记账有一处**记载不一致**，在此披露而不是回避：其状态文件记报告价 6.2051478 美元、694 次模型尝试，而同目录的报告记 6.31371 美元、696 次尝试。两者相差 0.11 美元，不影响任何结论，但说明该批次的记账口径未统一。本文引用其执行数（54）与交付数（53），这两项在状态文件与逐 episode 底表中一致；成本一项以状态文件为准。本文自身的记账只有一个来源（§4 开头的 26.56 美元），由每次调用的返回值累加。
+
+**前一批次的凭据现象是单例。** 54 次执行中只有 1 次出现跨会话凭据不被认可（约 2% 基率）。该例中审查者产出了四张真实的通过回执，控制者以"不在自己的工具结果中"为由不予认可，重复审查耗尽了集成所需的启动预算。本文把这一机制做成可操纵的因子（§3.3）并由构造诱发（§4.3），正是因为 2% 的基率下任何样本量都无法把"是否发生"当终点。
+
+**两批次的仪器不同，结果不合并。** 本文的运行器增加了共享回执对象、可配置预算与路径解析修复，任务家族也不同（前一批次的三个家族在代码层面更容易）。桥接重跑（§3.1）只用于确认仪器改动未改变终态判定，不用于把两批结果放在一起比较。前一批次的全部记录、排除台账与缺陷登记随复现包一并公开。

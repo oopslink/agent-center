@@ -1,0 +1,402 @@
+{
+  "id": "e1-short-issuer_bound-haiku-h_ledger",
+  "row": {
+    "id": "e1-short-issuer_bound-haiku-h_ledger",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "h_ledger",
+    "family": "ledger_replay",
+    "split": "development",
+    "model": "claude-haiku-5-5",
+    "organization": "short",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "issuer_bound",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 8,
+  "worker_starts": 2,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py (sha256 2829ac9d...b34d0) implementing solve(data) per the user contract, test_cases.json (sha256 d0ee5ad7...1c07b) with six cases, review.json (verdict pass) and manifest.json (review_hash ec9886da...8475). The controller receipt rcpt-115bed49a81e48058a9bae77 passed for these module and test versions, and accept() passed with no errors."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 3,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "ops": []
+          },
+          "expected": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 100
+              },
+              {
+                "kind": "debit",
+                "amount": 40
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 60,
+              "held": 0,
+              "available": 60
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 60,
+              "held": 0,
+              "available": 60
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 20,
+                "id": "h1"
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 50,
+              "held": 20,
+              "available": 30
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 50,
+              "held": 20,
+              "available": 30
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 50,
+                "id": "h1"
+              },
+              {
+                "kind": "release",
+                "id": "h1"
+              },
+              {
+                "kind": "debit",
+                "amount": 50
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 30,
+                "id": "h1"
+              },
+              {
+                "kind": "debit",
+                "amount": 21
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "ops": [
+              {
+                "kind": "release",
+                "amount": 0,
+                "id": "nope"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "ops": [
+              {
+                "kind": "release",
+                "id": "nope"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 10
+              },
+              {
+                "kind": "hold",
+                "amount": 5,
+                "id": "h1"
+              },
+              {
+                "kind": "hold",
+                "amount": 999,
+                "id": "h1"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": true
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "ops": [
+              {
+                "kind": "freeze",
+                "amount": -1
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "2829ac9d4860594a52e7b38fe5429a1f8360e6b146a0d66ecd9391e6763b34d0",
+      "label": "private-final",
+      "duration_s": 0.017494291067123413
+    },
+    "files": {
+      "module.py": {
+        "sha256": "2829ac9d4860594a52e7b38fe5429a1f8360e6b146a0d66ecd9391e6763b34d0"
+      },
+      "test_cases.json": {
+        "sha256": "d0ee5ad72c55fc87abd56ea6e182fd2a2ce5017f7f58f2b5fecc038866c1c07b"
+      },
+      "review.json": {
+        "sha256": "ec9886dae98525b8c1f9865fb0681d2502dff567450a22b00d89389318b38475"
+      },
+      "manifest.json": {
+        "sha256": "0b52b4d51d0edc8f16bc1ee034387baac8456abc3e4383c0bfe702c596cfc34d"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:37:51.679453+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "2829ac9d4860594a52e7b38fe5429a1f8360e6b146a0d66ecd9391e6763b34d0"
+      },
+      "test_cases.json": {
+        "sha256": "d0ee5ad72c55fc87abd56ea6e182fd2a2ce5017f7f58f2b5fecc038866c1c07b"
+      },
+      "review.json": {
+        "sha256": "ec9886dae98525b8c1f9865fb0681d2502dff567450a22b00d89389318b38475"
+      },
+      "manifest.json": {
+        "sha256": "0b52b4d51d0edc8f16bc1ee034387baac8456abc3e4383c0bfe702c596cfc34d"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "builder",
+      "status": "budget_exhausted",
+      "last_report": null,
+      "transport_error": null,
+      "turns": 6,
+      "pid": 62013
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "verifier",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json and manifest.json are written and verified by inspect. review.json has candidate_hash 2829ac9d...b34d0, tests_hash d0ee5ad7...1c07b, verdict pass, and notes citing controller receipt rcpt-115bed49a81e48058a9bae77. manifest.json has the same candidate and tests hashes and review_hash ec9886da...8475, which matches the on-disk review.json. module.py and test_cases.json were not modified."
+      },
+      "transport_error": null,
+      "turns": 5,
+      "pid": 63391
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "builder",
+      "task": "Write module.py implementing solve(data) exactly per the user contract (ops list with kind credit/debit/hold/release; validation order: kind, amount integer >=1 with bools rejected, hold id uniqueness / release id must be active hold, debit/hold amount <= available; release ignores amount; return balance, held, available; empty ops returns zeros; do not mutate input; raise ValueError on violations; standard library only, no I/O). Also write test_cases.json: a JSON list of at least four distinct cases, each with input and exactly one of output or error (error = exception class name such as ValueError). Include cases for empty ops, credit+debit, credit+hold, release, and at least one error case. Only write module.py and test_cases.json."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "inspect"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "spawn",
+      "role": "verifier",
+      "task": "Write review.json and manifest.json for the current delivery. review.json: candidate_hash = sha256 of module.py (2829ac9d4860594a52e7b38fe5429a1f8360e6b146a0d66ecd9391e6763b34d0), tests_hash = sha256 of test_cases.json (d0ee5ad72c55fc87abd56ea6e182fd2a2ce5017f7f58f2b5fecc038866c1c07b), verdict = pass, notes = briefly state that module.py was checked against the user contract (validation order, bool rejection, hold/release id rules, debit/hold availability check, release ignoring amount, non-mutation) and that controller receipt rcpt-115bed49a81e48058a9bae77 passed for these versions. manifest.json: candidate_hash, tests_hash as above, and review_hash = sha256 of the written review.json. Write only review.json and manifest.json. Do not modify module.py or test_cases.json."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py (sha256 2829ac9d...b34d0) implementing solve(data) per the user contract, test_cases.json (sha256 d0ee5ad7...1c07b) with six cases, review.json (verdict pass) and manifest.json (review_hash ec9886da...8475). The controller receipt rcpt-115bed49a81e48058a9bae77 passed for these module and test versions, and accept() passed with no errors."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:37:51.737399+00:00",
+  "evaluation_race_possible": false
+}

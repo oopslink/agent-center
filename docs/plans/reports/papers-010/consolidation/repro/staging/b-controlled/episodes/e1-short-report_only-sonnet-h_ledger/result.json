@@ -1,0 +1,404 @@
+{
+  "id": "e1-short-report_only-sonnet-h_ledger",
+  "row": {
+    "id": "e1-short-report_only-sonnet-h_ledger",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "h_ledger",
+    "family": "ledger_replay",
+    "split": "development",
+    "model": "claude-sonnet-5-5",
+    "organization": "short",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 8,
+  "worker_starts": 2,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py, test_cases.json, review.json and manifest.json. The public 3/3 and user 14/14 tests passed, and accept passed. The manifest hashes match the delivered files. The review cites receipt rcpt-87ca0f1b8cb76db149230f1f, issued to the verifier's own session. I did not see that receipt, so I could not check it. The receipt I ran myself is rcpt-452c951819e1867ea4394ef1, bound to the same module.py and test_cases.json hashes. The review also notes one edge the contract does not cover: an unhashable id would raise TypeError rather than ValueError."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 3,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "ops": []
+          },
+          "expected": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 100
+              },
+              {
+                "kind": "debit",
+                "amount": 40
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 60,
+              "held": 0,
+              "available": 60
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 60,
+              "held": 0,
+              "available": 60
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 20,
+                "id": "h1"
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 50,
+              "held": 20,
+              "available": 30
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 50,
+              "held": 20,
+              "available": 30
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 50,
+                "id": "h1"
+              },
+              {
+                "kind": "release",
+                "id": "h1"
+              },
+              {
+                "kind": "debit",
+                "amount": 50
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 30,
+                "id": "h1"
+              },
+              {
+                "kind": "debit",
+                "amount": 21
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "ops": [
+              {
+                "kind": "release",
+                "amount": 0,
+                "id": "nope"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "ops": [
+              {
+                "kind": "release",
+                "id": "nope"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 10
+              },
+              {
+                "kind": "hold",
+                "amount": 5,
+                "id": "h1"
+              },
+              {
+                "kind": "hold",
+                "amount": 999,
+                "id": "h1"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": true
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "ops": [
+              {
+                "kind": "freeze",
+                "amount": -1
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "07ca55f16a7a5394ef2b3910fa0270ff4684ae558a4e48a7bb4923552d9ee92e",
+      "label": "private-final",
+      "duration_s": 0.030511833960190415
+    },
+    "files": {
+      "module.py": {
+        "sha256": "07ca55f16a7a5394ef2b3910fa0270ff4684ae558a4e48a7bb4923552d9ee92e"
+      },
+      "test_cases.json": {
+        "sha256": "25e844a60c5243160e04b78c39020c2c2109d524591bdb706621654eaf4c8516"
+      },
+      "review.json": {
+        "sha256": "84df883ef2ff49d615365376ec806f43d9e63dfc34199fdaf8a947b4eed66845"
+      },
+      "manifest.json": {
+        "sha256": "b8da0907fa8100052d4e92885b22a4f3a69d90e4b381adc9d011d1881ede5ee7"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:30:22.938224+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "07ca55f16a7a5394ef2b3910fa0270ff4684ae558a4e48a7bb4923552d9ee92e"
+      },
+      "test_cases.json": {
+        "sha256": "25e844a60c5243160e04b78c39020c2c2109d524591bdb706621654eaf4c8516"
+      },
+      "review.json": {
+        "sha256": "84df883ef2ff49d615365376ec806f43d9e63dfc34199fdaf8a947b4eed66845"
+      },
+      "manifest.json": {
+        "sha256": "b8da0907fa8100052d4e92885b22a4f3a69d90e4b381adc9d011d1881ede5ee7"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "builder",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "module.py and test_cases.json written; run_tests passed (3/3 public, 14/14 user tests) with receipt rcpt-81b90e42af17efa1e4a54059 bound to module.py sha 07ca55f1... and test_cases.json sha 25e844a6...."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 51881
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "verifier",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json (sha256 84df883ef2ff49d615365376ec806f43d9e63dfc34199fdaf8a947b4eed66845) and manifest.json (sha256 b8da0907fa8100052d4e92885b22a4f3a69d90e4b381adc9d011d1881ede5ee7) written. Review verdict is pass, bound to module.py 07ca55f1... and test_cases.json 25e844a6..., backed by this session's run_tests receipt rcpt-87ca0f1b8cb76db149230f1f (public 3/3, user tests 14/14). module.py and test_cases.json were not modified."
+      },
+      "transport_error": null,
+      "turns": 5,
+      "pid": 53013
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "builder",
+      "task": "Write module.py exposing solve(data) per the user contract, and test_cases.json. Contract: data={'ops': [...]}; each op has 'kind' and maybe 'amount'/'id'. Apply in order; return {'balance':int,'held':int,'available':int} (available=balance-held). Checks in exact order per op: (1) kind must be credit/debit/hold/release else ValueError. (2) for credit/debit/hold, amount must be int >=1; bool is rejected -> ValueError. (3) hold: id must not already be an active hold; release: id must be an active hold; else ValueError. (4) debit/hold: amount must not exceed available (balance - held) else ValueError. credit adds to balance; debit subtracts; hold adds active hold id->amount; release removes hold, ignoring any amount. First failing op raises; empty ops returns zeros. Do not mutate input. Python stdlib only, no I/O. test_cases.json: JSON list of at least 6 distinct cases, each {name, input, output} or {name, input, error:'ValueError'}; cover empty, credit/debit, hold/release, release ignoring amount, bool amount, unknown kind, duplicate hold id, release unknown id, debit exceeding available after hold, amount 0, check ordering (e.g. invalid kind before amount). Expectations must match the contract exactly."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "spawn",
+      "role": "verifier",
+      "task": "Write review.json and manifest.json. Current versions: module.py sha256 07ca55f16a7a5394ef2b3910fa0270ff4684ae558a4e48a7bb4923552d9ee92e, test_cases.json sha256 25e844a60c5243160e04b78c39020c2c2109d524591bdb706621654eaf4c8516. A successful run_tests receipt exists for these versions (rcpt-452c951819e1867ea4394ef1; public 3/3, user tests 14/14). First write review.json: {candidate_hash, tests_hash, verdict:'pass', notes:string} after inspecting the files against the contract. Then compute the sha256 of review.json and write manifest.json: {candidate_hash, tests_hash, review_hash}. Do not modify module.py or test_cases.json."
+    },
+    {
+      "op": "wait"
+    },
+    null,
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py, test_cases.json, review.json and manifest.json. The public 3/3 and user 14/14 tests passed, and accept passed. The manifest hashes match the delivered files. The review cites receipt rcpt-87ca0f1b8cb76db149230f1f, issued to the verifier's own session. I did not see that receipt, so I could not check it. The receipt I ran myself is rcpt-452c951819e1867ea4394ef1, bound to the same module.py and test_cases.json hashes. The review also notes one edge the contract does not cover: an unhashable id would raise TypeError rather than ValueError."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:30:23.024763+00:00",
+  "evaluation_race_possible": false
+}

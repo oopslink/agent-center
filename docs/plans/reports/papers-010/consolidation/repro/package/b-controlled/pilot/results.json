@@ -1,0 +1,68 @@
+[
+ {
+  "id": "pilot-h_ledger-haiku",
+  "task": "h_ledger",
+  "model": "claude-haiku-5-5",
+  "status": "reported_complete",
+  "independent_pass": true,
+  "autonomous_delivery": true,
+  "controller_turns": 3,
+  "errors": [],
+  "secs": 16.9
+ },
+ {
+  "id": "pilot-h_ledger-sonnet",
+  "task": "h_ledger",
+  "model": "claude-sonnet-5-5",
+  "status": "reported_complete",
+  "independent_pass": true,
+  "autonomous_delivery": true,
+  "controller_turns": 3,
+  "errors": [],
+  "secs": 13.8
+ },
+ {
+  "id": "pilot-h_sessions-haiku",
+  "task": "h_sessions",
+  "model": "claude-haiku-5-5",
+  "status": "reported_complete",
+  "independent_pass": true,
+  "autonomous_delivery": true,
+  "controller_turns": 3,
+  "errors": [],
+  "secs": 15.3
+ },
+ {
+  "id": "pilot-h_sessions-sonnet",
+  "task": "h_sessions",
+  "model": "claude-sonnet-5-5",
+  "status": "reported_complete",
+  "independent_pass": true,
+  "autonomous_delivery": true,
+  "controller_turns": 3,
+  "errors": [],
+  "secs": 20.1
+ },
+ {
+  "id": "pilot-h_merge-haiku",
+  "task": "h_merge",
+  "model": "claude-haiku-5-5",
+  "status": "reported_complete",
+  "independent_pass": true,
+  "autonomous_delivery": true,
+  "controller_turns": 3,
+  "errors": [],
+  "secs": 23.5
+ },
+ {
+  "id": "pilot-h_merge-sonnet",
+  "task": "h_merge",
+  "model": "claude-sonnet-5-5",
+  "status": "reported_complete",
+  "independent_pass": true,
+  "autonomous_delivery": true,
+  "controller_turns": 6,
+  "errors": [],
+  "secs": 33.2
+ }
+]

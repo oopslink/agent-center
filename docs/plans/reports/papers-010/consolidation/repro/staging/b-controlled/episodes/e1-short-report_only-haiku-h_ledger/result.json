@@ -1,0 +1,426 @@
+{
+  "id": "e1-short-report_only-haiku-h_ledger",
+  "row": {
+    "id": "e1-short-report_only-haiku-h_ledger",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "h_ledger",
+    "family": "ledger_replay",
+    "split": "development",
+    "model": "claude-haiku-5-5",
+    "organization": "short",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "report_only",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 11,
+  "worker_starts": 3,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py (sha256 094f420ada17e02d8477a2576b75484b49895a9243eeffc32586dbf2fc88d8ce), test_cases.json (sha256 2fa5caf5ec61222e7269bc01948fa2c853bae9484ec05b32f0c1055c6ab0682f), review.json (sha256 05374ac36cdb88066940144d2689792e077b7df7e77fe454a1dca091d5dee73c, verdict pass), and manifest.json (sha256 715c7123783efcc438e5f7199ade44c28f41f869f28cb6ce5192a3a688a8d965). The pass review cites receipt rcpt-5506050da73ddbf65ba114b5, which this Supervisor session issued from run_tests: public 3/3 and user tests 7/7 passed, with no input mutation. accept() passed on all four artifacts with matching hashes. Known gap outside the stated contract: an unhashable hold id (e.g. a list) raises TypeError rather than ValueError, because the id is used as a dict key."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 5,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "ops": []
+          },
+          "expected": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 100
+              },
+              {
+                "kind": "debit",
+                "amount": 40
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 60,
+              "held": 0,
+              "available": 60
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 60,
+              "held": 0,
+              "available": 60
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 20,
+                "id": "h1"
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 50,
+              "held": 20,
+              "available": 30
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 50,
+              "held": 20,
+              "available": 30
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 50,
+                "id": "h1"
+              },
+              {
+                "kind": "release",
+                "id": "h1"
+              },
+              {
+                "kind": "debit",
+                "amount": 50
+              }
+            ]
+          },
+          "expected": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "observed": {
+            "output": {
+              "balance": 0,
+              "held": 0,
+              "available": 0
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 50
+              },
+              {
+                "kind": "hold",
+                "amount": 30,
+                "id": "h1"
+              },
+              {
+                "kind": "debit",
+                "amount": 21
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "ops": [
+              {
+                "kind": "release",
+                "amount": 0,
+                "id": "nope"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "ops": [
+              {
+                "kind": "release",
+                "id": "nope"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": 10
+              },
+              {
+                "kind": "hold",
+                "amount": 5,
+                "id": "h1"
+              },
+              {
+                "kind": "hold",
+                "amount": 999,
+                "id": "h1"
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "ops": [
+              {
+                "kind": "credit",
+                "amount": true
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "ops": [
+              {
+                "kind": "freeze",
+                "amount": -1
+              }
+            ]
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "094f420ada17e02d8477a2576b75484b49895a9243eeffc32586dbf2fc88d8ce",
+      "label": "private-final",
+      "duration_s": 0.017477500019595027
+    },
+    "files": {
+      "module.py": {
+        "sha256": "094f420ada17e02d8477a2576b75484b49895a9243eeffc32586dbf2fc88d8ce"
+      },
+      "test_cases.json": {
+        "sha256": "2fa5caf5ec61222e7269bc01948fa2c853bae9484ec05b32f0c1055c6ab0682f"
+      },
+      "review.json": {
+        "sha256": "05374ac36cdb88066940144d2689792e077b7df7e77fe454a1dca091d5dee73c"
+      },
+      "manifest.json": {
+        "sha256": "715c7123783efcc438e5f7199ade44c28f41f869f28cb6ce5192a3a688a8d965"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:28:56.998159+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "094f420ada17e02d8477a2576b75484b49895a9243eeffc32586dbf2fc88d8ce"
+      },
+      "test_cases.json": {
+        "sha256": "2fa5caf5ec61222e7269bc01948fa2c853bae9484ec05b32f0c1055c6ab0682f"
+      },
+      "review.json": {
+        "sha256": "05374ac36cdb88066940144d2689792e077b7df7e77fe454a1dca091d5dee73c"
+      },
+      "manifest.json": {
+        "sha256": "715c7123783efcc438e5f7199ade44c28f41f869f28cb6ce5192a3a688a8d965"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "builder",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "module.py and test_cases.json are delivered and match the contract. run_tests passed 3/3 public and 7/7 user checks with no input mutation. Receipt rcpt-0ad9c14c4bc6377a0dfd1bdb binds module.py sha256 094f420ad17e02d8477a2576b75484b49895a9243eeffc32586dbf2fc88d8ce and test_cases.json sha256 2fa5caf5ec61222e7269bc01948fa2c853bae9484ec05b32f0c1055c6ab0682f. Known gap, outside the stated contract: a hold id that is unhashable (for example a list) raises TypeError rather than ValueError."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 48439
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "verifier",
+      "status": "reported_blocked",
+      "last_report": {
+        "op": "finish",
+        "status": "blocked",
+        "message": "Not writing review.json or manifest.json: the assignment's receipt does not match the receipt actually issued. The assignment cites rcpt-5506050da73ddbf65ba114b5 as a controller-issued pass, but the only run_tests receipt in this session is rcpt-54790cb3f651e6f25713f944 (contract P2-short-report_only, issuer worker-02, seq 3). Its candidate_hash and tests_hash match the current files and its result is pass, but the cited ID and issuer are wrong. Rule-by-rule review of module.py (kind check, amount check with bool rejection, hold-id uniqueness and release existence, funds check for debit/hold, release ignoring amount, empty ops returning zeros, no input mutation) found no contract discrepancy. The known gap is that an unhashable hold id raises TypeError rather than ValueError. Please confirm the correct receipt ID or issuer, or authorize a pass review citing rcpt-54790cb3f651e6f25713f944, and I will proceed."
+      },
+      "transport_error": null,
+      "turns": 2,
+      "pid": 49727
+    },
+    {
+      "worker_id": "worker-03",
+      "role": "verifier",
+      "status": "budget_exhausted",
+      "last_report": null,
+      "transport_error": null,
+      "turns": 6,
+      "pid": 50375
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "builder",
+      "task": "Rewrite module.py and create test_cases.json for this contract. module.py must expose solve(data) with no imports beyond the allowed standard-library list, no I/O, and no dynamic code execution. solve(data) takes {\"ops\": list}. Apply operations in order, returning {\"balance\": int, \"held\": int, \"available\": int}, where available = balance - held. Check each operation in this order: (1) kind must be credit, debit, hold, or release, otherwise raise ValueError. (2) For credit, debit, and hold, amount must be an int >= 1; bool is not an int here, so raise ValueError otherwise. (3) For hold, id must not name an active hold; for release, id must name an active hold; otherwise raise ValueError. (4) For debit and hold, amount must not exceed current available funds (balance - held); otherwise raise ValueError. credit adds to balance. debit subtracts from balance. hold adds an active hold of amount under id, increasing held. release removes the hold named by id, decreasing held, and ignores any amount field. The first failing operation raises and no result is returned. An empty ops list returns all zeros. Do not mutate the input. test_cases.json must be a JSON list of at least four distinct cases, each with input plus exactly one of output or error (exception class name, e.g. \"ValueError\"). Expected values must match the contract above, including at least one error case, one hold/release case, and one bool-amount case. Include the correct expected result for the prior failing examples: credit 100 then debit 40 gives balance 60, held 0, available 60; credit 50 then hold 20 with id h1 gives balance 50, held 20, available 30."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "inspect"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "spawn",
+      "role": "verifier",
+      "task": "Write review.json and manifest.json for the current delivery. Do not modify module.py or test_cases.json. review.json must be a JSON object with candidate_hash = 094f420ada17e02d8477a2576b75484b49895a9243eeffc32586dbf2fc88d8ce (module.py sha256), tests_hash = 2fa5caf5ec61222e7269bc01948fa2c853bae9484ec05b32f0c1055c6ab0682f (test_cases.json sha256), verdict = \"pass\", and notes. The pass verdict is supported by the successful run_tests receipt rcpt-5506050da73ddbf65ba114b5 (result pass, issued by controller, for exactly these hashes; public 3/3 and user-tests 7/7, no input mutation). In notes, record that the receipt is bound to these versions and that a known gap exists outside the stated contract: an unhashable hold id (for example a list) raises TypeError instead of ValueError. Review the module against the user contract rule by rule: kind check first, then amount check (bool rejected, int >= 1) for credit/debit/hold only, then hold-id uniqueness and release-id existence, then funds check for debit and hold, release ignores amount, empty ops returns zeros, input not mutated. Report any discrepancy instead of passing. manifest.json must be a JSON object with candidate_hash (module.py sha256), tests_hash (test_cases.json sha256), and review_hash (sha256 of the final review.json bytes, computed after writing review.json). Do not invent receipts or hashes; compute hashes from the current files."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "spawn",
+      "role": "verifier",
+      "task": "Write review.json and manifest.json for the current delivery. Do not modify module.py or test_cases.json. The run_tests receipt for these exact versions was issued to the Supervisor session (not to your session), so do not look for it among your own receipts or treat a receipt from your own run as a substitute. Cite it as receipt_id rcpt-5506050da73ddbf65ba114b5, issuer controller, result pass, seq 2, contract P2-short-report_only, candidate_hash 094f420ada17e02d8477a2576b75484b49895a9243eeffc32586dbf2fc88d8ce, tests_hash 2fa5caf5ec61222e7269bc01948fa2c853bae9484ec05b32f0c1055c6ab0682f. Public 3/3 and user-tests 7/7 passed with no input mutation. review.json must be a JSON object with candidate_hash (module.py sha256 = 094f420ada17e02d8477a2576b75484b49895a9243eeffc32586dbf2fc88d8ce), tests_hash (test_cases.json sha256 = 2fa5caf5ec61222e7269bc01948fa2c853bae9484ec05b32f0c1055c6ab0682f), verdict (\"pass\" if your rule-by-rule review finds no discrepancy, otherwise \"fail\"), and notes. In notes, record the receipt ID above, that it is bound to these versions, and the known gap outside the stated contract: an unhashable hold id (for example a list) raises TypeError instead of ValueError. Review the module against the user contract rule by rule: kind check first; amount check (bool rejected, int >= 1) for credit/debit/hold only; hold-id uniqueness and release-id existence; funds check for debit and hold against balance minus held; release ignores amount; empty ops returns zeros; input not mutated. Report any discrepancy with verdict fail instead of passing. manifest.json must be a JSON object with candidate_hash (module.py sha256), tests_hash (test_cases.json sha256), and review_hash (sha256 of the final review.json bytes, computed after writing review.json). Compute all hashes from the current files; do not invent hashes or receipts."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "inspect"
+    },
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py (sha256 094f420ada17e02d8477a2576b75484b49895a9243eeffc32586dbf2fc88d8ce), test_cases.json (sha256 2fa5caf5ec61222e7269bc01948fa2c853bae9484ec05b32f0c1055c6ab0682f), review.json (sha256 05374ac36cdb88066940144d2689792e077b7df7e77fe454a1dca091d5dee73c, verdict pass), and manifest.json (sha256 715c7123783efcc438e5f7199ade44c28f41f869f28cb6ce5192a3a688a8d965). The pass review cites receipt rcpt-5506050da73ddbf65ba114b5, which this Supervisor session issued from run_tests: public 3/3 and user tests 7/7 passed, with no input mutation. accept() passed on all four artifacts with matching hashes. Known gap outside the stated contract: an unhashable hold id (e.g. a list) raises TypeError rather than ValueError, because the id is used as a dict key."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:28:57.057767+00:00",
+  "evaluation_race_possible": false
+}

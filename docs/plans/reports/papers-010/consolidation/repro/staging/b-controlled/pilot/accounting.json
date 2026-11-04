@@ -1,0 +1,18 @@
+{
+ "calls": 221,
+ "reported_cost_usd": 0.61565,
+ "by_episode": {
+  "ep-pilot-h_ledger-haiku": 3,
+  "ep-pilot-h_ledger-sonnet": 3,
+  "ep-pilot-h_merge-haiku": 3,
+  "ep-pilot-h_merge-sonnet": 6,
+  "ep-pilot-h_sessions-haiku": 3,
+  "ep-pilot-h_sessions-sonnet": 3,
+  "ep-pilot4-h_ledger": 38,
+  "ep-pilot4-h_merge": 42,
+  "ep-pilot5-h_ledger": 42,
+  "ep-pilot5-h_merge": 46,
+  "ep-01": 12,
+  "ep-02": 20
+ }
+}

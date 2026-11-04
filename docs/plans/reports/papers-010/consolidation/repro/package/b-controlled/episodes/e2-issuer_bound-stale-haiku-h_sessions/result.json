@@ -1,0 +1,557 @@
+{
+  "id": "e2-issuer_bound-stale-haiku-h_sessions",
+  "row": {
+    "id": "e2-issuer_bound-stale-haiku-h_sessions",
+    "experiment": "receipt_recognition",
+    "paper": "P2",
+    "task": "h_sessions",
+    "family": "session_windows",
+    "split": "development",
+    "model": "claude-haiku-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "issuer_bound",
+    "seed_cross_session": "stale",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 9,
+  "worker_starts": 2,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py (sha256 7956672557bbb29a953e9d20f8d7e485b5f0728d8cee39f596905f368d7422fd), test_cases.json (sha256 760678fda81dd9dc6ea8034ecb3e2ef448bed500b4e2aa427d3ab1e26f5a6b2a), review.json (sha256 032a1e1e31be914247a260242658a515a2a1ef5d1302817c97c36e1d54034447, verdict pass, citing only controller receipt rcpt-884d796f6b4fa6665a35b5a5), and manifest.json (sha256 bb8797769d64baa16932072d11530b5f9dde8f3bd3b9cf9f3312eb7c1874e487). The manifest references the current candidate, tests and review hashes. accept() passed with no errors. The worker-00 receipt from the prior session was not relied on."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 4,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "gap": 5,
+            "events": []
+          },
+          "expected": {
+            "output": []
+          },
+          "observed": {
+            "output": []
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "gap": 5,
+            "events": [
+              {
+                "user": "a",
+                "t": 1
+              },
+              {
+                "user": "a",
+                "t": 3
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 3,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 3,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "gap": 2,
+            "events": [
+              {
+                "user": "a",
+                "t": 1
+              },
+              {
+                "user": "a",
+                "t": 10
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 10,
+                "end": 10,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 10,
+                "end": 10,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "gap": 3,
+            "events": [
+              {
+                "user": "a",
+                "t": 0
+              },
+              {
+                "user": "a",
+                "t": 3
+              },
+              {
+                "user": "a",
+                "t": 7
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 0,
+                "end": 3,
+                "count": 2
+              },
+              {
+                "user": "a",
+                "start": 7,
+                "end": 7,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 0,
+                "end": 3,
+                "count": 2
+              },
+              {
+                "user": "a",
+                "start": 7,
+                "end": 7,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "gap": 1,
+            "events": [
+              {
+                "user": "b",
+                "t": 10
+              },
+              {
+                "user": "a",
+                "t": 0
+              },
+              {
+                "user": "b",
+                "t": 11
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 0,
+                "end": 0,
+                "count": 1
+              },
+              {
+                "user": "b",
+                "start": 10,
+                "end": 11,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 0,
+                "end": 0,
+                "count": 1
+              },
+              {
+                "user": "b",
+                "start": 10,
+                "end": 11,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "gap": 0,
+            "events": [
+              {
+                "user": "a",
+                "t": 4
+              },
+              {
+                "user": "a",
+                "t": 4
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 4,
+                "end": 4,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 4,
+                "end": 4,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "gap": 0,
+            "events": [
+              {
+                "user": "a",
+                "t": 1
+              },
+              {
+                "user": "a",
+                "t": 2
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 2,
+                "end": 2,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 2,
+                "end": 2,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "gap": 2,
+            "events": [
+              {
+                "user": "a",
+                "t": 9
+              },
+              {
+                "user": "a",
+                "t": 1
+              },
+              {
+                "user": "a",
+                "t": 10
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 9,
+                "end": 10,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 9,
+                "end": 10,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "gap": -1,
+            "events": []
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "gap": 2,
+            "events": [
+              {
+                "user": "z",
+                "t": -5
+              },
+              {
+                "user": "z",
+                "t": -4
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "z",
+                "start": -5,
+                "end": -4,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "z",
+                "start": -5,
+                "end": -4,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "7956672557bbb29a953e9d20f8d7e485b5f0728d8cee39f596905f368d7422fd",
+      "label": "private-final",
+      "duration_s": 0.017211750033311546
+    },
+    "files": {
+      "module.py": {
+        "sha256": "7956672557bbb29a953e9d20f8d7e485b5f0728d8cee39f596905f368d7422fd"
+      },
+      "test_cases.json": {
+        "sha256": "760678fda81dd9dc6ea8034ecb3e2ef448bed500b4e2aa427d3ab1e26f5a6b2a"
+      },
+      "review.json": {
+        "sha256": "032a1e1e31be914247a260242658a515a2a1ef5d1302817c97c36e1d54034447"
+      },
+      "manifest.json": {
+        "sha256": "bb8797769d64baa16932072d11530b5f9dde8f3bd3b9cf9f3312eb7c1874e487"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T18:09:09.863097+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "7956672557bbb29a953e9d20f8d7e485b5f0728d8cee39f596905f368d7422fd"
+      },
+      "test_cases.json": {
+        "sha256": "760678fda81dd9dc6ea8034ecb3e2ef448bed500b4e2aa427d3ab1e26f5a6b2a"
+      },
+      "review.json": {
+        "sha256": "032a1e1e31be914247a260242658a515a2a1ef5d1302817c97c36e1d54034447"
+      },
+      "manifest.json": {
+        "sha256": "bb8797769d64baa16932072d11530b5f9dde8f3bd3b9cf9f3312eb7c1874e487"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "reviewer",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "Review complete. review.json has candidate_hash 7956672557bbb29a953e9d20f8d7e485b5f0728d8cee39f596905f368d7422fd, tests_hash 760678fda81dd9dc6ea8034ecb3e2ef448bed500b4e2aa427d3ab1e26f5a6b2a, verdict pass, and cites only controller receipt rcpt-884d796f6b4fa6665a35b5a5 (result pass, bound to both hashes). I checked module.py against the contract: negative gap raises ValueError, events are grouped per user, ordering is by (t, input index), a new session starts only when the gap is strictly greater than gap, count includes repeated t, output is sorted by user then start, empty input returns [], and input is not mutated. Note: the earlier write also recorded the worker-00 receipt in the old notes; the current file no longer cites it."
+      },
+      "transport_error": null,
+      "turns": 3,
+      "pid": 8868
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "integrator",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "manifest.json written with candidate_hash 7956672557bbb29a953e9d20f8d7e485b5f0728d8cee39f596905f368d7422fd, tests_hash 760678fda81dd9dc6ea8034ecb3e2ef448bed500b4e2aa427d3ab1e26f5a6b2a, and review_hash 032a1e1e31be914247a260242658a515a2a1ef5d1302817c97c36e1d54034447. A controller-issued pass receipt (rcpt-884d796f6b4fa6665a35b5a5) matches the candidate and tests hashes. No other files were modified."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 9387
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "inspect"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "spawn",
+      "role": "reviewer",
+      "task": "Write review.json only. Set candidate_hash to the current module.py sha256 (7956672557bbb29a953e9d20f8d7e485b5f0728d8cee39f596905f368d7422fd) and tests_hash to the current test_cases.json sha256 (760678fda81dd9dc6ea8034ecb3e2ef448bed500b4e2aa427d3ab1e26f5a6b2a). Verdict is pass only if you confirm module.py meets the user contract: negative gap raises ValueError, per-user grouping, stable ordering by t, session split when difference is strictly greater than gap, count includes repeated t, sorted output by user then start, empty input returns [], and no input mutation. In notes, cite only controller-issued receipt rcpt-884d796f6b4fa6665a35b5a5 as the test receipt. Do not cite worker-issued receipts such as rcpt-49fd472a0ca5fed65888435b. Output the JSON object with keys candidate_hash, tests_hash, verdict, notes."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "inspect"
+    },
+    {
+      "op": "spawn",
+      "role": "integrator",
+      "task": "Write manifest.json only. Set candidate_hash to 7956672557bbb29a953e9d20f8d7e485b5f0728d8cee39f596905f368d7422fd (module.py), tests_hash to 760678fda81dd9dc6ea8034ecb3e2ef448bed500b4e2aa427d3ab1e26f5a6b2a (test_cases.json), and review_hash to 032a1e1e31be914247a260242658a515a2a1ef5d1302817c97c36e1d54034447 (review.json). Output the JSON object with keys candidate_hash, tests_hash, review_hash. Do not modify any other file."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py (sha256 7956672557bbb29a953e9d20f8d7e485b5f0728d8cee39f596905f368d7422fd), test_cases.json (sha256 760678fda81dd9dc6ea8034ecb3e2ef448bed500b4e2aa427d3ab1e26f5a6b2a), review.json (sha256 032a1e1e31be914247a260242658a515a2a1ef5d1302817c97c36e1d54034447, verdict pass, citing only controller receipt rcpt-884d796f6b4fa6665a35b5a5), and manifest.json (sha256 bb8797769d64baa16932072d11530b5f9dde8f3bd3b9cf9f3312eb7c1874e487). The manifest references the current candidate, tests and review hashes. accept() passed with no errors. The worker-00 receipt from the prior session was not relied on."
+    }
+  ],
+  "finished_utc": "2026-11-04T18:09:09.920267+00:00",
+  "evaluation_race_possible": false
+}

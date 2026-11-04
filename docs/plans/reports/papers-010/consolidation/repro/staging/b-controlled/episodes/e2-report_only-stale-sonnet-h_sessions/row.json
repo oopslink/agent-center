@@ -1,0 +1,18 @@
+{
+  "id": "e2-report_only-stale-sonnet-h_sessions",
+  "experiment": "receipt_recognition",
+  "paper": "P2",
+  "task": "h_sessions",
+  "family": "session_windows",
+  "split": "development",
+  "model": "claude-sonnet-5-5",
+  "organization": "long",
+  "binding": "distributed",
+  "ledger": "off",
+  "identity": "separate",
+  "transport": "report_only",
+  "seed_cross_session": "stale",
+  "decision_budget": 32,
+  "worker_start_budget": 12,
+  "run_version": "023-main"
+}

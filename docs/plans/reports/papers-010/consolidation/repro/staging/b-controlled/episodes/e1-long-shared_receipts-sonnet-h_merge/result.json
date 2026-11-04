@@ -1,0 +1,422 @@
+{
+  "id": "e1-long-shared_receipts-sonnet-h_merge",
+  "row": {
+    "id": "e1-long-shared_receipts-sonnet-h_merge",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "h_merge",
+    "family": "config_merge",
+    "split": "development",
+    "model": "claude-sonnet-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "shared_receipts",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 11,
+  "worker_starts": 4,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py, test_cases.json (12 cases), review.json (pass) and manifest.json. Hashes are consistent, genuine receipts rcpt-6a077c1bdee3c7b5fc7ebdb5 and rcpt-78a5f9afb3e94573322ac6d1 are bound to the delivered module.py and test_cases.json versions, and accept passed."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 2,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "base": {},
+            "patch": {}
+          },
+          "expected": {
+            "output": {}
+          },
+          "observed": {
+            "output": {}
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "b": 2
+            }
+          },
+          "expected": {
+            "output": {
+              "a": 1,
+              "b": 2
+            }
+          },
+          "observed": {
+            "output": {
+              "a": 1,
+              "b": 2
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "base": {
+              "a": {
+                "x": 1
+              }
+            },
+            "patch": {
+              "a": {
+                "y": 2
+              }
+            }
+          },
+          "expected": {
+            "output": {
+              "a": {
+                "x": 1,
+                "y": 2
+              }
+            }
+          },
+          "observed": {
+            "output": {
+              "a": {
+                "x": 1,
+                "y": 2
+              }
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "base": {
+              "a": [
+                1,
+                2
+              ]
+            },
+            "patch": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "expected": {
+            "output": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "observed": {
+            "output": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "base": {
+              "a": 1,
+              "b": 2
+            },
+            "patch": {
+              "a": null
+            }
+          },
+          "expected": {
+            "output": {
+              "b": 2
+            }
+          },
+          "observed": {
+            "output": {
+              "b": 2
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "zz": null
+            }
+          },
+          "expected": {
+            "output": {
+              "a": 1
+            }
+          },
+          "observed": {
+            "output": {
+              "a": 1
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "base": {
+              "b": 1,
+              "a": 1
+            },
+            "patch": {
+              "z": 1,
+              "c": 1
+            }
+          },
+          "expected": {
+            "output": {
+              "b": 1,
+              "a": 1,
+              "z": 1,
+              "c": 1
+            }
+          },
+          "observed": {
+            "output": {
+              "b": 1,
+              "a": 1,
+              "z": 1,
+              "c": 1
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "a": "one"
+            }
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "base": {
+              "a": true
+            },
+            "patch": {
+              "a": 1
+            }
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "base": [],
+            "patch": {}
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "a6e79c4280037f05ab59504f1da168480b3c009a7155ce4c49de91552e7eb16d",
+      "label": "private-final",
+      "duration_s": 0.017785332980565727
+    },
+    "files": {
+      "module.py": {
+        "sha256": "a6e79c4280037f05ab59504f1da168480b3c009a7155ce4c49de91552e7eb16d"
+      },
+      "test_cases.json": {
+        "sha256": "ea227dd30bb17728ab7986233ee1fd0430a9ea444a2aa863201142b2d8d24131"
+      },
+      "review.json": {
+        "sha256": "4a1009094a11d609d871ff5a22d28cb9bdd2c20a613cda2707aff6ebfff3d2de"
+      },
+      "manifest.json": {
+        "sha256": "d0a4282039e358d99888f3ab26a4c9e270a49f505ec38b7e3b8108260e1434d8"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:53:38.895605+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "a6e79c4280037f05ab59504f1da168480b3c009a7155ce4c49de91552e7eb16d"
+      },
+      "test_cases.json": {
+        "sha256": "ea227dd30bb17728ab7986233ee1fd0430a9ea444a2aa863201142b2d8d24131"
+      },
+      "review.json": {
+        "sha256": "4a1009094a11d609d871ff5a22d28cb9bdd2c20a613cda2707aff6ebfff3d2de"
+      },
+      "manifest.json": {
+        "sha256": "d0a4282039e358d99888f3ab26a4c9e270a49f505ec38b7e3b8108260e1434d8"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "implementer",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "module.py (sha256 a6e79c42...eb16d) implements solve(data) per the contract. Public tests pass 3/3 with no input mutation. The 'other' type for None or unknown values only matters for non-JSON input. list_receipts() currently returns no receipts, so there is no receipt bound to this version. The public run_tests result did not include a receipt_id, and I have not created or claimed one. The reviewer or Supervisor will need to issue a genuine receipt for this hash."
+      },
+      "transport_error": null,
+      "turns": 6,
+      "pid": 83777
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "tester",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "test_cases.json written with 12 distinct cases covering all required scenarios. run_tests passed: public 3/3, user tests 12/12, no input mutation. Receipt rcpt-6a077c1bdee3c7b5fc7ebdb5 (pass, issuer worker-02) is bound to module.py sha256 a6e79c42...eb16d and test_cases.json sha256 ea227dd3...24131, the current versions."
+      },
+      "transport_error": null,
+      "turns": 3,
+      "pid": 84657
+    },
+    {
+      "worker_id": "worker-03",
+      "role": "reviewer",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json written with verdict pass. Confirmed genuine receipt rcpt-6a077c1bdee3c7b5fc7ebdb5 (worker-02) via list_receipts, bound to candidate_hash a6e79c42... and tests_hash ea227dd3.... My own run_tests passed 3/3 public and 12/12 user tests, issuing receipt rcpt-78a5f9afb3e94573322ac6d1 (worker-03). No contract violations found in module.py."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 85379
+    },
+    {
+      "worker_id": "worker-04",
+      "role": "integrator",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "manifest.json written with candidate_hash a6e79c42...eb16d, tests_hash ea227dd3...24131, review_hash 4a100909...f3d2de. All three were checked against current file hashes from inspect before writing. Two genuine pass receipts (rcpt-6a077c1bdee3c7b5fc7ebdb5 from worker-02 and rcpt-78a5f9afb3e94573322ac6d1 from worker-03) are bound to these exact module.py and test_cases.json versions."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 86060
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "implementer",
+      "task": "Rewrite module.py implementing solve(data) per the user contract. Validate data is a dict with 'base' and 'patch' both dicts, else raise ValueError. Deep merge patch into base: patch value None removes key (no-op if absent); both dicts -> recurse; both lists -> patch list replaces; base key absent -> insert patch value as is (deepcopy); otherwise if JSON types differ raise ValueError (types: object, list, string, bool, number; bool and number are different; int/float same number type); same-type scalars -> patch value replaces. Key order: base keys in original order, then patch-only keys in patch order. Do not mutate inputs (deepcopy). Nested patches containing null inside a newly inserted dict are inserted as is. Python stdlib only, no I/O."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "spawn",
+      "role": "tester",
+      "task": "Write test_cases.json: a JSON list of at least six distinct cases, each with 'input' ({base, patch}) and exactly one of 'output' or 'error' (exception class name). Expectations must match the user contract. Cover: nested object merge; list replacement (no concatenation); null removes key and null for absent key is a no-op; patch-only key insertion with key order (base keys first in original order, then patch-only keys in patch order); type mismatch raising ValueError (e.g. string vs number, bool vs number, object vs list); non-object base or patch raising ValueError; a newly inserted dict containing null inserted as is; same-type scalar replacement."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "list_receipts"
+    },
+    {
+      "op": "spawn",
+      "role": "reviewer",
+      "task": "Write review.json: a JSON object with candidate_hash a6e79c4280037f05ab59504f1da168480b3c009a7155ce4c49de91552e7eb16d (module.py sha256), tests_hash ea227dd30bb17728ab7986233ee1fd0430a9ea444a2aa863201142b2d8d24131 (test_cases.json sha256), verdict, and notes (string). Review module.py against the user contract and test_cases.json for contract conformance. Genuine receipt rcpt-6a077c1bdee3c7b5fc7ebdb5 (pass, issuer worker-02) is bound to these exact versions; confirm it with list_receipts and run_tests yourself before giving a pass verdict. Use verdict fail if you find any contract violation."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "spawn",
+      "role": "integrator",
+      "task": "Write manifest.json: a JSON object with candidate_hash a6e79c4280037f05ab59504f1da168480b3c009a7155ce4c49de91552e7eb16d (module.py sha256), tests_hash ea227dd30bb17728ab7986233ee1fd0430a9ea444a2aa863201142b2d8d24131 (test_cases.json sha256), and review_hash 4a1009094a11d609d871ff5a22d28cb9bdd2c20a613cda2707aff6ebfff3d2de (review.json sha256). Verify these against the current file hashes via inspect before writing."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py, test_cases.json (12 cases), review.json (pass) and manifest.json. Hashes are consistent, genuine receipts rcpt-6a077c1bdee3c7b5fc7ebdb5 and rcpt-78a5f9afb3e94573322ac6d1 are bound to the delivered module.py and test_cases.json versions, and accept passed."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:53:38.956288+00:00",
+  "evaluation_race_possible": false
+}

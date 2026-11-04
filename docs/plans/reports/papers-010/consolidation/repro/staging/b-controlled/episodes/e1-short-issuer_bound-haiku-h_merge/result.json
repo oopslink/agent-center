@@ -1,0 +1,380 @@
+{
+  "id": "e1-short-issuer_bound-haiku-h_merge",
+  "row": {
+    "id": "e1-short-issuer_bound-haiku-h_merge",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "h_merge",
+    "family": "config_merge",
+    "split": "development",
+    "model": "claude-haiku-5-5",
+    "organization": "short",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "issuer_bound",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 9,
+  "worker_starts": 2,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivery complete. module.py (sha256 2369dba0...) implements solve(data) per the user contract. test_cases.json (sha256 4da9775f...) has 7 cases covering null removal, absent-key removal, recursive merge, list replacement, string/object and bool/number ValueError, and key ordering. The controller-issued run_tests receipt rcpt-38dbe036fcbc4c516321c1eb passed for these versions. review.json (sha256 3283af67...) has verdict pass and matches the candidate and tests hashes. manifest.json (sha256 664a8a7f...) references the candidate, tests and review hashes. accept() passed with no errors."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 4,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "base": {},
+            "patch": {}
+          },
+          "expected": {
+            "output": {}
+          },
+          "observed": {
+            "output": {}
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "b": 2
+            }
+          },
+          "expected": {
+            "output": {
+              "a": 1,
+              "b": 2
+            }
+          },
+          "observed": {
+            "output": {
+              "a": 1,
+              "b": 2
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "base": {
+              "a": {
+                "x": 1
+              }
+            },
+            "patch": {
+              "a": {
+                "y": 2
+              }
+            }
+          },
+          "expected": {
+            "output": {
+              "a": {
+                "x": 1,
+                "y": 2
+              }
+            }
+          },
+          "observed": {
+            "output": {
+              "a": {
+                "x": 1,
+                "y": 2
+              }
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "base": {
+              "a": [
+                1,
+                2
+              ]
+            },
+            "patch": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "expected": {
+            "output": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "observed": {
+            "output": {
+              "a": [
+                3
+              ]
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "base": {
+              "a": 1,
+              "b": 2
+            },
+            "patch": {
+              "a": null
+            }
+          },
+          "expected": {
+            "output": {
+              "b": 2
+            }
+          },
+          "observed": {
+            "output": {
+              "b": 2
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "zz": null
+            }
+          },
+          "expected": {
+            "output": {
+              "a": 1
+            }
+          },
+          "observed": {
+            "output": {
+              "a": 1
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "base": {
+              "b": 1,
+              "a": 1
+            },
+            "patch": {
+              "z": 1,
+              "c": 1
+            }
+          },
+          "expected": {
+            "output": {
+              "b": 1,
+              "a": 1,
+              "z": 1,
+              "c": 1
+            }
+          },
+          "observed": {
+            "output": {
+              "b": 1,
+              "a": 1,
+              "z": 1,
+              "c": 1
+            }
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "base": {
+              "a": 1
+            },
+            "patch": {
+              "a": "one"
+            }
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "base": {
+              "a": true
+            },
+            "patch": {
+              "a": 1
+            }
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "base": [],
+            "patch": {}
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "2369dba02548d31536fdfc0918253b7f4711c902d0c850bab6bde8847ed2928a",
+      "label": "private-final",
+      "duration_s": 0.028054041089490056
+    },
+    "files": {
+      "module.py": {
+        "sha256": "2369dba02548d31536fdfc0918253b7f4711c902d0c850bab6bde8847ed2928a"
+      },
+      "test_cases.json": {
+        "sha256": "4da9775f87f559296349d90e3b2bb908e644fae1bad3f0155d5435793922f81a"
+      },
+      "review.json": {
+        "sha256": "3283af675b905ef5c40aae42d4f6e56e1b5c10472890b983874421bb4321126f"
+      },
+      "manifest.json": {
+        "sha256": "664a8a7f0a69751298249eeacda277dda4874f53a341397d714d5fc55806c5e4"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:39:12.264462+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "2369dba02548d31536fdfc0918253b7f4711c902d0c850bab6bde8847ed2928a"
+      },
+      "test_cases.json": {
+        "sha256": "4da9775f87f559296349d90e3b2bb908e644fae1bad3f0155d5435793922f81a"
+      },
+      "review.json": {
+        "sha256": "3283af675b905ef5c40aae42d4f6e56e1b5c10472890b983874421bb4321126f"
+      },
+      "manifest.json": {
+        "sha256": "664a8a7f0a69751298249eeacda277dda4874f53a341397d714d5fc55806c5e4"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "builder",
+      "status": "budget_exhausted",
+      "last_report": null,
+      "transport_error": null,
+      "turns": 6,
+      "pid": 63740
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "verifier",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json and manifest.json are written. The controller-issued receipt rcpt-38dbe036fcbc4c516321c1eb (result pass, issuer controller) matches module.py 2369dba0... and test_cases.json 4da9775f.... review.json has review hash 3283af67..., and manifest.json references the candidate, tests and review hashes. module.py and test_cases.json were not modified."
+      },
+      "transport_error": null,
+      "turns": 6,
+      "pid": 65416
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "builder",
+      "task": "Rewrite module.py so it implements solve(data) per the user contract: data must be a dict with object keys 'base' and 'patch', else raise ValueError. Perform a recursive deep merge of patch into base without mutating inputs. For each patch key: null value removes the key (no-op if absent); if both base and patch values are objects, merge recursively; if both are lists, the patch list replaces the base list; if the base key is absent, insert the patch value as is; if the two values have different JSON types (object, list, string, boolean, number; booleans and numbers differ), raise ValueError. Result key order: base keys in original order, then patch-only keys in patch order. Use only Python standard library, no I/O or dynamic code execution. Also write test_cases.json: a JSON list of at least four distinct cases, each with input {base, patch} and exactly one of output or error (ValueError), covering null removal, absent-key removal, recursive merge, list replacement, type conflict error, bool/number conflict error, and key ordering. Expectations must match the contract."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "inspect"
+    },
+    null,
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "spawn",
+      "role": "verifier",
+      "task": "Write review.json and manifest.json for the current delivery. Read module.py and test_cases.json as they currently exist; do not modify them. review.json must be a JSON object with candidate_hash set to the sha256 of module.py (2369dba02548d31536fdfc0918253b7f4711c902d0c850bab6bde8847ed2928a), tests_hash set to the sha256 of test_cases.json (4da9775f87f559296349d90e3b2bb908e644fae1bad3f0155d5435793922f81a), verdict set to \"pass\", and notes set to a short string stating that the controller-issued run_tests receipt rcpt-38dbe036fcbc4c516321c1eb passed for these versions and that the implementation matches the user contract (null removal, absent-key no-op, recursive object merge, list replacement, type-conflict and bool/number ValueError, key ordering, no input mutation). manifest.json must be a JSON object with candidate_hash and tests_hash as above and review_hash set to the sha256 of the review.json you write. Verify each hash against the current file contents before writing. Use only the permitted files."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivery complete. module.py (sha256 2369dba0...) implements solve(data) per the user contract. test_cases.json (sha256 4da9775f...) has 7 cases covering null removal, absent-key removal, recursive merge, list replacement, string/object and bool/number ValueError, and key ordering. The controller-issued run_tests receipt rcpt-38dbe036fcbc4c516321c1eb passed for these versions. review.json (sha256 3283af67...) has verdict pass and matches the candidate and tests hashes. manifest.json (sha256 664a8a7f...) references the candidate, tests and review hashes. accept() passed with no errors."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:39:12.338451+00:00",
+  "evaluation_race_possible": false
+}

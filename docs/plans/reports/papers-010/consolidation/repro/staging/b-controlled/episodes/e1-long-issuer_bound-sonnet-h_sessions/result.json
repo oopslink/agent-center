@@ -1,0 +1,595 @@
+{
+  "id": "e1-long-issuer_bound-sonnet-h_sessions",
+  "row": {
+    "id": "e1-long-issuer_bound-sonnet-h_sessions",
+    "experiment": "coordination_cost",
+    "paper": "P2",
+    "task": "h_sessions",
+    "family": "session_windows",
+    "split": "development",
+    "model": "claude-sonnet-5-5",
+    "organization": "long",
+    "binding": "distributed",
+    "ledger": "off",
+    "identity": "separate",
+    "transport": "issuer_bound",
+    "decision_budget": 32,
+    "worker_start_budget": 12,
+    "run_version": "023-main"
+  },
+  "status": "reported_complete",
+  "controller_turns": 12,
+  "worker_starts": 4,
+  "final_action": {
+    "op": "finish",
+    "status": "complete",
+    "message": "Delivered module.py, test_cases.json, review.json and manifest.json. A controller-issued pass receipt (rcpt-098c3c94b21fd3176993917b) is bound to the delivered module.py and test_cases.json hashes. The review passed and accept() passed."
+  },
+  "independent_pass_at_stop": true,
+  "autonomous_delivery": true,
+  "premature_completion": false,
+  "active_worker_at_stop": false,
+  "artifacts_changed_after_stop": false,
+  "no_active_no_artifact_change_actions": 4,
+  "initial_recovery_budget": {
+    "decisions": 32,
+    "worker_starts": 12
+  },
+  "first_controller_check_failure_budget": null,
+  "final_acceptance": {
+    "passed": true,
+    "errors": [],
+    "implementation": {
+      "passed": true,
+      "passed_count": 10,
+      "total": 10,
+      "checks": [
+        {
+          "index": 0,
+          "input": {
+            "gap": 5,
+            "events": []
+          },
+          "expected": {
+            "output": []
+          },
+          "observed": {
+            "output": []
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 1,
+          "input": {
+            "gap": 5,
+            "events": [
+              {
+                "user": "a",
+                "t": 1
+              },
+              {
+                "user": "a",
+                "t": 3
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 3,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 3,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 2,
+          "input": {
+            "gap": 2,
+            "events": [
+              {
+                "user": "a",
+                "t": 1
+              },
+              {
+                "user": "a",
+                "t": 10
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 10,
+                "end": 10,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 10,
+                "end": 10,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 3,
+          "input": {
+            "gap": 3,
+            "events": [
+              {
+                "user": "a",
+                "t": 0
+              },
+              {
+                "user": "a",
+                "t": 3
+              },
+              {
+                "user": "a",
+                "t": 7
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 0,
+                "end": 3,
+                "count": 2
+              },
+              {
+                "user": "a",
+                "start": 7,
+                "end": 7,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 0,
+                "end": 3,
+                "count": 2
+              },
+              {
+                "user": "a",
+                "start": 7,
+                "end": 7,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 4,
+          "input": {
+            "gap": 1,
+            "events": [
+              {
+                "user": "b",
+                "t": 10
+              },
+              {
+                "user": "a",
+                "t": 0
+              },
+              {
+                "user": "b",
+                "t": 11
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 0,
+                "end": 0,
+                "count": 1
+              },
+              {
+                "user": "b",
+                "start": 10,
+                "end": 11,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 0,
+                "end": 0,
+                "count": 1
+              },
+              {
+                "user": "b",
+                "start": 10,
+                "end": 11,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 5,
+          "input": {
+            "gap": 0,
+            "events": [
+              {
+                "user": "a",
+                "t": 4
+              },
+              {
+                "user": "a",
+                "t": 4
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 4,
+                "end": 4,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 4,
+                "end": 4,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 6,
+          "input": {
+            "gap": 0,
+            "events": [
+              {
+                "user": "a",
+                "t": 1
+              },
+              {
+                "user": "a",
+                "t": 2
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 2,
+                "end": 2,
+                "count": 1
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 2,
+                "end": 2,
+                "count": 1
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 7,
+          "input": {
+            "gap": 2,
+            "events": [
+              {
+                "user": "a",
+                "t": 9
+              },
+              {
+                "user": "a",
+                "t": 1
+              },
+              {
+                "user": "a",
+                "t": 10
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 9,
+                "end": 10,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "a",
+                "start": 1,
+                "end": 1,
+                "count": 1
+              },
+              {
+                "user": "a",
+                "start": 9,
+                "end": 10,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 8,
+          "input": {
+            "gap": -1,
+            "events": []
+          },
+          "expected": {
+            "error": "ValueError"
+          },
+          "observed": {
+            "error": "ValueError"
+          },
+          "passed": true,
+          "input_mutated": false
+        },
+        {
+          "index": 9,
+          "input": {
+            "gap": 2,
+            "events": [
+              {
+                "user": "z",
+                "t": -5
+              },
+              {
+                "user": "z",
+                "t": -4
+              }
+            ]
+          },
+          "expected": {
+            "output": [
+              {
+                "user": "z",
+                "start": -5,
+                "end": -4,
+                "count": 2
+              }
+            ]
+          },
+          "observed": {
+            "output": [
+              {
+                "user": "z",
+                "start": -5,
+                "end": -4,
+                "count": 2
+              }
+            ]
+          },
+          "passed": true,
+          "input_mutated": false
+        }
+      ],
+      "candidate_hash": "5285cb56115abb212cb633fc114894bfb3aa0ff519c8783ab6831ae478400f56",
+      "label": "private-final",
+      "duration_s": 0.01843941700644791
+    },
+    "files": {
+      "module.py": {
+        "sha256": "5285cb56115abb212cb633fc114894bfb3aa0ff519c8783ab6831ae478400f56"
+      },
+      "test_cases.json": {
+        "sha256": "b3cbc4e5487d53b6df0963a4402aaf613afe07949ba0ac8c5729a9936a9612c7"
+      },
+      "review.json": {
+        "sha256": "47d34d9408a2c0c6bc8698ff337c829f3a23360df845c9d7deddb23f6f1c160a"
+      },
+      "manifest.json": {
+        "sha256": "8afcb4c336dff6df50dfb0985086d7f177576cc7b9907dbbd358ea41c4e8bb1e"
+      }
+    },
+    "private": true
+  },
+  "snapshot": {
+    "captured_utc": "2026-11-04T17:58:08.954243+00:00",
+    "files": {
+      "module.py": {
+        "sha256": "5285cb56115abb212cb633fc114894bfb3aa0ff519c8783ab6831ae478400f56"
+      },
+      "test_cases.json": {
+        "sha256": "b3cbc4e5487d53b6df0963a4402aaf613afe07949ba0ac8c5729a9936a9612c7"
+      },
+      "review.json": {
+        "sha256": "47d34d9408a2c0c6bc8698ff337c829f3a23360df845c9d7deddb23f6f1c160a"
+      },
+      "manifest.json": {
+        "sha256": "8afcb4c336dff6df50dfb0985086d7f177576cc7b9907dbbd358ea41c4e8bb1e"
+      }
+    }
+  },
+  "worker_summaries": [
+    {
+      "worker_id": "worker-01",
+      "role": "implementer",
+      "status": "reported_blocked",
+      "last_report": {
+        "op": "finish",
+        "status": "blocked",
+        "message": "module.py is implemented and passes all 3 public tests (hash 5285cb56...00f56). However, list_receipts shows no receipts at all, so there is no controller-issued receipt bound to this module.py. I cannot produce one myself, and a receipt from any other issuer would not satisfy the gate. A controller-issued test receipt is needed before release review."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 91219
+    },
+    {
+      "worker_id": "worker-02",
+      "role": "tester",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "test_cases.json written with 8 distinct cases: empty events, negative gap, gap equal, gap exceeded, unsorted input, multiple users, duplicates, and gap 0. All 8 user tests and 3 public tests pass against module.py (sha256 5285cb56...), and no input was mutated. Note: the receipt from this run (rcpt-5a23c9a22cf6576a72d25a3b) was issued by worker-02, not controller. Under the receipt terms it does not satisfy the release gate, so a controller-issued receipt is still needed."
+      },
+      "transport_error": null,
+      "turns": 3,
+      "pid": 91584
+    },
+    {
+      "worker_id": "worker-03",
+      "role": "reviewer",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "review.json written with verdict pass. Verified controller-issued receipt rcpt-098c3c94b21fd3176993917b (pass) is bound to module.py sha256 5285cb56... and test_cases.json sha256 b3cbc4e5.... module.py reviewed against the contract and conforms."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 92254
+    },
+    {
+      "worker_id": "worker-04",
+      "role": "integrator",
+      "status": "reported_complete",
+      "last_report": {
+        "op": "finish",
+        "status": "complete",
+        "message": "manifest.json written with candidate_hash 5285cb56115abb212cb633fc114894bfb3aa0ff519c8783ab6831ae478400f56, tests_hash b3cbc4e5487d53b6df0963a4402aaf613afe07949ba0ac8c5729a9936a9612c7, review_hash 47d34d9408a2c0c6bc8698ff337c829f3a23360df845c9d7deddb23f6f1c160a. Controller-issued pass receipt rcpt-098c3c94b21fd3176993917b is bound to these module.py and test_cases.json hashes, satisfying the release gate."
+      },
+      "transport_error": null,
+      "turns": 4,
+      "pid": 92826
+    }
+  ],
+  "controller_actions": [
+    {
+      "op": "spawn",
+      "role": "implementer",
+      "task": "Write module.py exposing solve(data) per the user contract: data={'gap':int,'events':[{'user':str,'t':int}]}. Negative gap raises ValueError. Group by user; within a user stable-sort by t ascending (input order for ties). A new session starts when t - previous t > gap (equal to gap stays in same session). Each session is {'user','start','end','count'} with count including duplicate t values. Return sessions sorted by user ascending then start ascending. Empty events returns []. Do not mutate input. Standard library only, no I/O."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "spawn",
+      "role": "tester",
+      "task": "Write test_cases.json: a JSON list of at least six distinct cases, each with 'input' ({'gap':int,'events':[{'user':str,'t':int}]}) and exactly one of 'output' or 'error' (exception class name). Expectations must follow the contract: negative gap -> error 'ValueError'; empty events -> []; a difference equal to gap stays in the same session, and strictly greater starts a new one; duplicate t values are counted; events are grouped per user and stable-sorted by t ascending; sessions are sorted by user ascending, then start ascending. Include cases for unsorted input, multiple users, the gap boundary (equal and greater than), duplicates, gap 0, negative gap, and empty events. Each session is {'user','start','end','count'}."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "run_tests"
+    },
+    {
+      "op": "list_receipts"
+    },
+    {
+      "op": "spawn",
+      "role": "reviewer",
+      "task": "Write review.json: JSON object with candidate_hash 5285cb56115abb212cb633fc114894bfb3aa0ff519c8783ab6831ae478400f56 (module.py sha256), tests_hash b3cbc4e5487d53b6df0963a4402aaf613afe07949ba0ac8c5729a9936a9612c7 (test_cases.json sha256), verdict 'pass', and notes string. Basis: controller-issued receipt rcpt-098c3c94b21fd3176993917b (result pass, bound to these exact hashes) from run_tests; 3 public and 8 user tests passed. Review module.py against the contract: negative gap raises ValueError, per-user grouping, ascending sort by t, strictly-greater-than-gap splits, duplicate counts, output sorted by user then start, empty returns [], input not mutated."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "spawn",
+      "role": "integrator",
+      "task": "Write manifest.json: JSON object with candidate_hash 5285cb56115abb212cb633fc114894bfb3aa0ff519c8783ab6831ae478400f56 (module.py sha256), tests_hash b3cbc4e5487d53b6df0963a4402aaf613afe07949ba0ac8c5729a9936a9612c7 (test_cases.json sha256), review_hash 47d34d9408a2c0c6bc8698ff337c829f3a23360df845c9d7deddb23f6f1c160a (review.json sha256)."
+    },
+    {
+      "op": "wait"
+    },
+    {
+      "op": "accept"
+    },
+    {
+      "op": "finish",
+      "status": "complete",
+      "message": "Delivered module.py, test_cases.json, review.json and manifest.json. A controller-issued pass receipt (rcpt-098c3c94b21fd3176993917b) is bound to the delivered module.py and test_cases.json hashes. The review passed and accept() passed."
+    }
+  ],
+  "finished_utc": "2026-11-04T17:58:09.015247+00:00",
+  "evaluation_race_possible": false
+}
