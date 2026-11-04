@@ -1,0 +1,14 @@
+{
+  "planned": 54,
+  "completed": 54,
+  "valid": 54,
+  "invalid_blocks": [],
+  "autonomous_delivery": 53,
+  "model_attempts": 696,
+  "reported_cost_usd": 6.3137138,
+  "model_names": [
+    "claude-haiku-5-5",
+    "claude-sonnet-5-5"
+  ],
+  "no_significance_tests": "Three researcher-constructed task families per paper, one episode per cell/model. Pairs repeat tasks; no independent population CI or p value."
+}

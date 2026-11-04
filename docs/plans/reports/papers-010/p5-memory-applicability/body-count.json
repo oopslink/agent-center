@@ -1,0 +1,14 @@
+{
+  "paper": "P5",
+  "previous_target": null,
+  "revision": "022-standalone-prose",
+  "count_rule": "Han characters plus English lexical tokens; URLs, HTML comments and fenced diagrams excluded; abstracts, references, evidence appendix and declarations excluded. Prose excludes headings/tables/captions/images.",
+  "prose_count": 6710,
+  "text_including_tables_captions_headings": 7771,
+  "figures": 3,
+  "tables": 4,
+  "method_supplement": "argument-methods-015.md",
+  "count_note": "Standalone statement of findings, mechanisms, design implications and limits; existing empirical results, not independently human-reviewed.",
+  "validity_supplement": "../research-validity-016/README.md",
+  "mechanism_revision": "../mechanisms-020/README.md"
+}

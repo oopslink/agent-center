@@ -1,0 +1,41 @@
+{
+  "scope": "Primary AI bounded review of final manuscripts plus mechanical source/receipt checks; no independent human review or scientific readiness certification",
+  "manuscripts": [
+    {
+      "paper": "P1",
+      "path": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p1-logical-agent-identity/paper.md",
+      "sha256": "a1a3de9b0590b5779854a6d7e0dd6217725632c07792fb4a1565aa73d4f854be",
+      "figures": 6,
+      "tables": 10,
+      "prior_citations_and_figures_unchanged": true,
+      "ieee_order_preserved": true
+    },
+    {
+      "paper": "P2",
+      "path": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p2-workflow-responsibility/paper.md",
+      "sha256": "3a3ee32db1e15b40378751c8527853eb80279c091ed222a7fe1867fea47e1af7",
+      "figures": 6,
+      "tables": 10,
+      "prior_citations_and_figures_unchanged": true,
+      "ieee_order_preserved": true
+    }
+  ],
+  "verified": [
+    "all 54 v2 conditions retained",
+    "entire v1 excluded, successful and unsuccessful kept",
+    "P1 zero effect and historical failure both stated",
+    "P2 same single negative affects both factors, not independent evidence",
+    "receipt case grounded in 4 actual prior matching receipts",
+    "9 format errors and 1 transport retry retained",
+    "methods do not prescribe recovery conclusion",
+    "all prior citations and figures retained"
+  ],
+  "remaining": [
+    "new unseen-task confirmation after H04 repair",
+    "only 3 families per paper, 1 per cell",
+    "no naturally failed new code candidates",
+    "no direct receipt-sharing intervention",
+    "no training manipulation or human coding"
+  ],
+  "publication_ready": false
+}

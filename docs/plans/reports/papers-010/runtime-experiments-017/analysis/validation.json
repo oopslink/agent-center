@@ -1,0 +1,26 @@
+{
+  "frozen_sources_unchanged": true,
+  "source_checks": {
+    "analyze.py": true,
+    "build_design.py": true,
+    "check_candidate.py": true,
+    "design.json": true,
+    "protocol.md": true,
+    "run_batch.py": true,
+    "runtime.py": true,
+    "tasks-private.json": true,
+    "tasks.py": true,
+    "test-plan.md": true,
+    "test_runtime.py": true,
+    "transport.py": true
+  },
+  "planned_episodes": 54,
+  "request_hashes_checked": 696,
+  "real_worker_processes": 99,
+  "pre_freeze_main_requests": [],
+  "failures": [],
+  "numeric_or_boolean_type_ambiguities": [],
+  "raw_files": 7663,
+  "raw_bytes": 25109802,
+  "scope": "Instrumentation/provenance checks, not independent human interpretation or general scientific validation."
+}

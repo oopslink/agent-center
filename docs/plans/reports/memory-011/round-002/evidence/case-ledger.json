@@ -1,0 +1,92 @@
+[
+  {
+    "id": "M01",
+    "title": "团队候选的整理、拆分与拒绝",
+    "disposition": "governance-positive",
+    "support": "20个早期提案中8个晋升、12个拒绝；11条拒绝说明指向canonical归并，1条认为DAG通则过早。",
+    "limit": "决定来自同一curator，不能以拒绝数估计错误知识率、节省token或交付提升。",
+    "message_ids": [
+      "01KZWXQ9JN8KHZBXH4ENCXG5QQ",
+      "01KZWVCFCHH17P4HW9HKJ51GEZ"
+    ],
+    "task_ids": []
+  },
+  {
+    "id": "M02",
+    "title": "main完成规则与中间验收合同冲突",
+    "disposition": "bounded-design-negative",
+    "support": "规则原文、任务书和两次原生blocked动作支持循环约束；一次只改图/改命名的恢复未消除冲突。",
+    "limit": "规则也被owner在对话强调，无法分离记忆渠道与当次context；没有完整模型输入，不归因为认知超载或读取失败。",
+    "message_ids": [
+      "01M0XFG3K9ASSGDBBZC3B0KCV3",
+      "01M0XFPQXEPNPQQECMYJPZ7004",
+      "01M0XFQ6BBYV4SCZ9D177KGJM6"
+    ],
+    "task_ids": [
+      "task-0179221b",
+      "task-0d32ed36"
+    ]
+  },
+  {
+    "id": "M03",
+    "title": "有条件的中间节点规则支持后续接力",
+    "disposition": "bounded-reuse-positive",
+    "support": "新规则有promotion与多agent回执；9月16日PD和tester明确引用，T2222/T2223存在原生completed转换。",
+    "limit": "PD提示、精确候选、验收证据和DAG补节点共同变化；不能估计记忆独立效应。前段executor重置和后段部署超时排除；整个Plan不算成功。",
+    "message_ids": [
+      "01M2MR2ZK8PQ35DBJRZD76G3KH",
+      "01M2MR466E1QKRSD2SJD0GDNM4"
+    ],
+    "task_ids": [
+      "task-5866c095",
+      "task-39dfd88f",
+      "task-2fdb1668",
+      "task-936b29d3"
+    ]
+  },
+  {
+    "id": "M04",
+    "title": "个人采用与Team晋升分离",
+    "disposition": "governance-gap-with-counterevidence",
+    "support": "analyst的3个新增提案在截止时未晋升；Sep9提案之后的Sep21回执仍读取原canonical规则。新格式在提案前的同一会话已经出现。",
+    "limit": "个人issue-memory的commit仅有消息自报，未恢复Git对象；当次context可解释输出。未晋升不等于模型没学会或团队交付失败。日报事实质量不在本轮评价。",
+    "message_ids": [
+      "01M22CDGT2C2PCM0T3ZDBQ32WF",
+      "01M22DEYN8YDDQ4BYCZG5SP6M9"
+    ],
+    "task_ids": []
+  },
+  {
+    "id": "M05",
+    "title": "旧项目与任务笔记保存验收边界",
+    "disposition": "artifact-positive-outcome-unidentified",
+    "support": "23份遗留文件保留项目、issue与task知识；T1032笔记与原生blocked理由均保留用户定稿要求。",
+    "limit": "缺Git时间线和读回执，只证明记录内容存在，不能证明共享或后续复用。executor空转及API未接线从设计负例排除。",
+    "message_ids": [],
+    "task_ids": [
+      "task-224b8f8a",
+      "task-d341b0d2"
+    ]
+  },
+  {
+    "id": "M06",
+    "title": "私人quickfix说明与并发工作区冲突",
+    "disposition": "excluded-from-design-outcomes",
+    "support": "消息自述曾沿用旧私人说明，PD提出用项目canonical文档替代复制操作步骤。",
+    "limit": "原私有文件/commit和输入缺失；并发工作区/操作配置可独立解释问题。不能证明私人记忆导致失败。",
+    "message_ids": [
+      "01KWHFR3ZXSRY4X5FJR22720K6",
+      "01KWHFVVT6YJ3828WWKCFERARX"
+    ],
+    "task_ids": []
+  },
+  {
+    "id": "M07",
+    "title": "存续私有仓库只有bootstrap骨架",
+    "disposition": "coverage-only",
+    "support": "两个agent home各2个bootstrap提交；worker启动日志记录2份文件、645 body bytes。",
+    "limit": "旧home缺失且初始化晚于主要案例；不能以2/16计算采用率或把空仓库解释成历史未写入。",
+    "message_ids": [],
+    "task_ids": []
+  }
+]

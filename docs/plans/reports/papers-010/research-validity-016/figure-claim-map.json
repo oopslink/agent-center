@@ -1,0 +1,194 @@
+[
+  {
+    "paper": "P1",
+    "figure": 1,
+    "type": "架构示意",
+    "claims": "A01/A14；系统背景",
+    "supports": "预期分工结构",
+    "does_not_support": "并发收益或模型正确理解"
+  },
+  {
+    "paper": "P1",
+    "figure": 2,
+    "type": "过程时序",
+    "claims": "P1-C1",
+    "supports": "纠正与状态／报告先后",
+    "does_not_support": "最终完成或因果耗时"
+  },
+  {
+    "paper": "P1",
+    "figure": 3,
+    "type": "记录覆盖",
+    "claims": "P1-C1",
+    "supports": "动作可观测范围",
+    "does_not_support": "架构失败率"
+  },
+  {
+    "paper": "P1",
+    "figure": 4,
+    "type": "短题对照",
+    "claims": "P1-C2",
+    "supports": "给定恢复责任下的表示敏感性",
+    "does_not_support": "长期责任维持或训练来源"
+  },
+  {
+    "paper": "P1",
+    "figure": 5,
+    "type": "纵向案例",
+    "claims": "P1-C1",
+    "supports": "多时点纠偏、正例与残留",
+    "does_not_support": "频率趋势或身份提醒的净效果"
+  },
+  {
+    "paper": "P2",
+    "figure": 1,
+    "type": "结构与案例",
+    "claims": "P2-C1",
+    "supports": "W01后续实际分配关系",
+    "does_not_support": "前态报告已独立核验"
+  },
+  {
+    "paper": "P2",
+    "figure": 2,
+    "type": "过程时序",
+    "claims": "P2-C1",
+    "supports": "人工指令与后续分配的先后",
+    "does_not_support": "干预净效果或停摆时长"
+  },
+  {
+    "paper": "P2",
+    "figure": 3,
+    "type": "窗口描述",
+    "claims": "P2-C1",
+    "supports": "两个完整区间内的消息构成",
+    "does_not_support": "全系统人工干预率"
+  },
+  {
+    "paper": "P2",
+    "figure": 4,
+    "type": "结构描述",
+    "claims": "P2-C1",
+    "supports": "26个有记录Plan的结构变化",
+    "does_not_support": "复杂度导致失败"
+  },
+  {
+    "paper": "P2",
+    "figure": 5,
+    "type": "短题对照",
+    "claims": "P2-C2",
+    "supports": "有效题的表示效应及原评分缺陷",
+    "does_not_support": "真实交接活性或消除人工依赖"
+  },
+  {
+    "paper": "P3",
+    "figure": 1,
+    "type": "概念与设计",
+    "claims": "P3-C1/P3-C2",
+    "supports": "已有机制与虚线设计建议的区分",
+    "does_not_support": "建议已经产生收益"
+  },
+  {
+    "paper": "P3",
+    "figure": 2,
+    "type": "访问描述",
+    "claims": "P3-C1",
+    "supports": "跨成员的版本化规则访问",
+    "does_not_support": "理解、采用或交付收益"
+  },
+  {
+    "paper": "P3",
+    "figure": 3,
+    "type": "访问重合",
+    "claims": "P3-C1",
+    "supports": "同角色与跨角色差对口径的敏感性",
+    "does_not_support": "角色最优或独立样本显著性"
+  },
+  {
+    "paper": "P3",
+    "figure": 4,
+    "type": "审计覆盖",
+    "claims": "P3-C1",
+    "supports": "context与角色配置覆盖",
+    "does_not_support": "真实历史输入完整性"
+  },
+  {
+    "paper": "P3",
+    "figure": 5,
+    "type": "选择器与短题",
+    "claims": "P3-C2/P3-C3",
+    "supports": "构造覆盖上限、标签敏感性",
+    "does_not_support": "无名字必要性或真实检索效率"
+  },
+  {
+    "paper": "P4",
+    "figure": 1,
+    "type": "结构盘点",
+    "claims": "P4-C2",
+    "supports": "有记录Plan代际与累计结构",
+    "does_not_support": "成功终局或无bug效果样本"
+  },
+  {
+    "paper": "P4",
+    "figure": 2,
+    "type": "改图与顺序",
+    "claims": "P4-C1",
+    "supports": "新增义务及修复报告早于改图",
+    "does_not_support": "改图独自修复代码"
+  },
+  {
+    "paper": "P4",
+    "figure": 3,
+    "type": "双谱系",
+    "claims": "P4-C1",
+    "supports": "图父链与Git关系的差异",
+    "does_not_support": "未核G8关系或净交付收益"
+  },
+  {
+    "paper": "P4",
+    "figure": 4,
+    "type": "结构变化",
+    "claims": "P4-C2",
+    "supports": "父节点保留与边变化",
+    "does_not_support": "有益或无用演化率"
+  },
+  {
+    "paper": "P4",
+    "figure": 5,
+    "type": "字段变化",
+    "claims": "P4-C2",
+    "supports": "拓扑不变不等于Task字段不变",
+    "does_not_support": "完整快照语义等价"
+  },
+  {
+    "paper": "P4",
+    "figure": 6,
+    "type": "短题对照",
+    "claims": "P4-C2",
+    "supports": "协议已明示的图视图选择",
+    "does_not_support": "静态/动态策略优势"
+  },
+  {
+    "paper": "P5",
+    "figure": 1,
+    "type": "实现结构",
+    "claims": "P5-C1",
+    "supports": "保存、发布、访问与采用的证据边界",
+    "does_not_support": "三层收益或完整生产轨迹"
+  },
+  {
+    "paper": "P5",
+    "figure": 2,
+    "type": "治理描述",
+    "claims": "P5-C1",
+    "supports": "提案结果与删失等待",
+    "does_not_support": "真值过滤准确率或审阅人时"
+  },
+  {
+    "paper": "P5",
+    "figure": 3,
+    "type": "读取描述",
+    "claims": "P5-C1",
+    "supports": "可见跨成员访问与审计间隔",
+    "does_not_support": "首次使用、正确复用或规则净效果"
+  }
+]

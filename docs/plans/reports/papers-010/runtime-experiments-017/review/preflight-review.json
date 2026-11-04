@@ -1,0 +1,182 @@
+{
+  "schema": "p12-runtime-preflight-review-v1",
+  "reviewed_at_utc": "2026-11-04T08:30:34.294862+00:00",
+  "reviewer": "methods_validity_audit_016",
+  "skill": "academic-paper/peer_reviewer_agent",
+  "criteria_binding": "unavailable",
+  "calibration_status": "NOT_CALIBRATED",
+  "review_scope": "Prospective protocol, prompts, task/score code and source-level runtime semantics; no new research directions",
+  "verdict": "conditional_ready_for_design_lock",
+  "verdict_explanation": "No unresolved must-fix method/code issue found in reviewed SHA-bound sources after the targeted fixes. Complete pilot-v2 instrumentation closeout and immutable lock before main outputs; no claim of completed study or scientific validation.",
+  "source_files": [
+    {
+      "relative_path": "protocol.md",
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/protocol.md",
+      "sha256": "dda3f0821262c10dab23b3c57193f17e8897c955b5a45b4df6b363130f9623df"
+    },
+    {
+      "relative_path": "test-plan.md",
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/test-plan.md",
+      "sha256": "259d3f8d05341577e9aa49152ba6c536492cba0fc69d2cd531c5203abb6f63af"
+    },
+    {
+      "relative_path": "runtime.py",
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/runtime.py",
+      "sha256": "2aa33a25c1cf8f1670d863b4cfd70d42afacf9606e07b73a746af38b404cbbcb"
+    },
+    {
+      "relative_path": "tasks.py",
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/tasks.py",
+      "sha256": "bc8446f01c1115ea36cfa278945ce29efc006c7ad39284ef0c013bcb8d1cfb38"
+    },
+    {
+      "relative_path": "check_candidate.py",
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/check_candidate.py",
+      "sha256": "3658abf8342223a4915f89345e127d81a8202d823053a3bcafee0aa8ebada4e6"
+    },
+    {
+      "relative_path": "transport.py",
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/transport.py",
+      "sha256": "c379ffa389fcb441550d82587c81f80e7d9bc0680a2a978d1eb14f9f8bcbf5ad"
+    },
+    {
+      "relative_path": "test_runtime.py",
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/test_runtime.py",
+      "sha256": "57f43dc70d6fdc14c23c8a0784852c591acf8b6ce46a07f8bb4fa05c5a4b09f8"
+    },
+    {
+      "relative_path": "build_design.py",
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/build_design.py",
+      "sha256": "7ca3fe86648112212994961530842927b4d9ee5ea707a53eb6ca9cdb7dc24d6b"
+    },
+    {
+      "relative_path": "run_batch.py",
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/run_batch.py",
+      "sha256": "126649b96d47a0873a0ac8f0ca7e3151932dafe166d779fc3ed3547c42dc4313"
+    },
+    {
+      "relative_path": "setup/preflight-tests-v2.txt",
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/setup/preflight-tests-v2.txt",
+      "sha256": "da1be6731273441d07b2a86c11d1352d676a9ae265d9589d0e6a43154db94c67"
+    }
+  ],
+  "closed_findings": [
+    {
+      "id": "C01",
+      "status": "resolved_in_reviewed_code",
+      "evidence": "runtime.py harvest_completed is called before each decision and before spawn; final boundary polls completed handles. Actual passed frozen artifacts are not rejected solely for an exiting worker."
+    },
+    {
+      "id": "C02",
+      "status": "resolved_in_reviewed_code",
+      "evidence": "epoch provides cross-process fcntl lock around writes, events, files_state, public+user check receipt, acceptance and terminal bundle copy; nested same-thread calls reuse lock."
+    },
+    {
+      "id": "C03",
+      "status": "resolved_in_reviewed_prompts",
+      "evidence": "Supervisor/executor words remain fixed; only shared logical-Agent affiliation versus separate collaborators changes in controller and worker prompts."
+    },
+    {
+      "id": "C04",
+      "status": "resolved_for_controlled_seeded_failure_scope",
+      "evidence": "seed_execution runs in its own subprocess as executor-00, writes the preseeded incorrect implementation, executes public checks, and hands prior_execution to controller; origin and model_generated=false are explicit. This is not natural LLM failure."
+    },
+    {
+      "id": "C05",
+      "status": "resolved_by_prespecified_intervention_scope",
+      "evidence": "Protocol identifies ledger as proactive current-state observability, including recency and saved inspect calls, not pure formatting."
+    },
+    {
+      "id": "C06",
+      "status": "resolved_by_measurement_name_and_separate_initial_budget",
+      "evidence": "initial_recovery_budget and first_controller_check_failure_budget are distinct; worker check failures can be derived from full events rather than attributed to this field."
+    },
+    {
+      "id": "P02",
+      "status": "resolved_in_protocol",
+      "evidence": "Research aggregate score is hidden; actual public and release-check feedback remains visible. Three public vectors are separate from at least five additional hidden terminal vectors."
+    },
+    {
+      "id": "PILOT-ARGS",
+      "status": "resolved_in_reviewed_code_pending_pilot_v2_closeout",
+      "evidence": "normalized_action supports equivalent flat/nested arguments, rejects conflicts; write with missing file reports missing_required_argument, not permission_denied. Prompt declares both forms; T03 tests these cases."
+    },
+    {
+      "id": "BUDGET-METRIC-CONTROL",
+      "status": "resolved_in_protocol",
+      "evidence": "40 dollars is a dispatch threshold, no-artifact-change actions are not stalls, and unavailable external-permission control is no longer claimed."
+    }
+  ],
+  "mandatory_new_code_or_protocol_fixes": [],
+  "freeze_conditions": [
+    {
+      "id": "F01",
+      "status": "pending_designer_closeout",
+      "requirement": "Finish and retain pilot-v2 instrumentation report under this source version, including any legitimate model failure. Do not require 100 percent task success to freeze, and do not tune using main-family outputs.",
+      "reason": "Reviewer has not inspected pilot model outputs; pilot-v2 was reported in progress."
+    },
+    {
+      "id": "F02",
+      "status": "pending_design_lock",
+      "requirement": "Before first main response, generate fixed 54-row design and design-lock.json binding protocol, task fixtures, prompts/runtime, checker, transport, runner, design and test evidence; store run order and source version.",
+      "reason": "At review time design-lock.json and episodes/ were absent."
+    },
+    {
+      "id": "F03",
+      "status": "ongoing_prespecified_reporting",
+      "requirement": "Preserve all main attempts, condition denominators and invalid task×model matched blocks; any instrument fix uses a new version/run ID and full affected-block rerun.",
+      "reason": "Necessary to keep prospective exclusions and all-condition comparisons interpretable."
+    }
+  ],
+  "acknowledged_limits": [
+    "P1 estimates affiliation framing and factual observability effects in fixed split topology after a researcher-seeded executor failure; it does not identify architecture net effect, training source, natural failure prevalence, or months-long responsibility continuity.",
+    "P2 short/long changes real sessions, permission partition and handoff cost for the same required artifacts; it is a joint organization intervention, not isolated psychological complexity. Six worker starts yield different repair slack; report remaining budget and actual costs.",
+    "Three task families per paper, two requested model IDs and one run per condition support bounded descriptive paired comparisons, not stable population rates or general equivalence from zero differences.",
+    "Private terminal tests are generated by the same research process and cover finite vectors; independent execution is not independent human content validation. Public test passing and hidden acceptance remain separate outcomes.",
+    "CLI conversation is reconstructed full role history, not historical production session replay; fixed seeded failures and scripted initial executor must stay distinct from natural model-generated failures.",
+    "No-active/no-file-change counts include useful information actions; observed responsibility externalization requires separate source-grounded exploratory coding, not automatic inference from this count or budget exhaustion.",
+    "No external-authorization requirement exists in main tasks; legal external-escalation sensitivity is not estimated. Forty-dollar dispatch threshold is not a hard total spending cap."
+  ],
+  "criterion_judgements": [
+    {
+      "dimension": "Originality",
+      "judgement": "NOT_ASSESSED",
+      "reason": "No novelty or venue decision requested."
+    },
+    {
+      "dimension": "Methodological Rigor",
+      "judgement": "MEETS",
+      "scope": "Bounded prospective runtime comparison, conditional on F01/F02/F03; not production architecture inference."
+    },
+    {
+      "dimension": "Evidence Sufficiency",
+      "judgement": "NOT_ASSESSED",
+      "reason": "No main results exist or were inspected."
+    },
+    {
+      "dimension": "Argument Coherence",
+      "judgement": "MEETS",
+      "reason": "Questions, manipulations and outcomes now distinguish identity framing, runtime organization, versioned delivery and explanatory coding."
+    },
+    {
+      "dimension": "Writing Quality",
+      "judgement": "MEETS",
+      "scope": "Operational protocol terms, corrected budget/feedback/control-test descriptions."
+    }
+  ],
+  "test_evidence": {
+    "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/setup/preflight-tests-v2.txt",
+    "sha256": "da1be6731273441d07b2a86c11d1352d676a9ae265d9589d0e6a43154db94c67",
+    "reported_tests": 12,
+    "reported_failures": 0,
+    "observed_by_reviewer": "Read saved raw test log and test code; did not execute model calls or rerun tests.",
+    "not_established": "Exhaustive race freedom, complete content validity, or architecture effectiveness."
+  },
+  "model_calls_by_reviewer": 0,
+  "main_model_outputs_inspected": false,
+  "pilot_model_outputs_inspected": false,
+  "pilot_issue_source": "Parent status message reports the v1 nested-args failure; reviewer inspected correction and tests, not raw pilot model outputs.",
+  "manuscripts_modified": false,
+  "design_lock_exists_at_review": false,
+  "episodes_directory_exists_at_review": false
+}

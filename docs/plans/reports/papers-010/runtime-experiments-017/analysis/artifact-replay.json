@@ -1,0 +1,330 @@
+{
+  "scope": "Mechanical repeat on saved final snapshots; not new independent episodes or models",
+  "episodes": [
+    {
+      "id": "v2-P1-p1_allocate-haiku-separate-off",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "b6dee459224b192aa0b6986167ab5554e8318b83e1f7b1726772ff7967121a55"
+    },
+    {
+      "id": "v2-P1-p1_allocate-haiku-separate-on",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "00ffb8c909889698c010b38f8ee14aa74d64a4717862c7be481c56c1d6cb1383"
+    },
+    {
+      "id": "v2-P1-p1_allocate-haiku-single",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "855cf6498e70383b219083bae7b6420a9042bcb750fa9184356bdf58b4657246"
+    },
+    {
+      "id": "v2-P1-p1_allocate-haiku-unified-off",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "d1a1f4da94d461db97b46954aa2bb8ec9893ae844836a8548399bc35eaaaaa5f"
+    },
+    {
+      "id": "v2-P1-p1_allocate-haiku-unified-on",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "2a6b430a5b80985b338cda2bced8b1d2cf6aca3111b6b1fe3d0d59dd31757771"
+    },
+    {
+      "id": "v2-P1-p1_allocate-sonnet-separate-off",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "0e54cec760f44d85b4603f52fa6704070c7202923a810c9cb0627993ccfb1274"
+    },
+    {
+      "id": "v2-P1-p1_allocate-sonnet-separate-on",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "a50cc8ddf7d319fd4ec3a5708ae777f72099094bf4468a79a7288278ff380b41"
+    },
+    {
+      "id": "v2-P1-p1_allocate-sonnet-single",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "3d66efbbdaadcae64ba92c9a093072d12dcecdefb44329091858645d96b8f5fd"
+    },
+    {
+      "id": "v2-P1-p1_allocate-sonnet-unified-off",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "4740a610106efcbf123bc121e243f299476b0e6db6d494532bbe7fbecbe20d75"
+    },
+    {
+      "id": "v2-P1-p1_allocate-sonnet-unified-on",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "68df95a1f520cd93ca032f95771cdfd7716108212933da02f10e21f1635039a0"
+    },
+    {
+      "id": "v2-P1-p1_intervals-haiku-separate-off",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "a0a41a88fa1d642e8e01ecf452f5f44c0d87a794b37943eec14af339032d9e29"
+    },
+    {
+      "id": "v2-P1-p1_intervals-haiku-separate-on",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "b3990b1af5e236fee266aef797187845d32e44d91f99d5fce502684bd6dbfb44"
+    },
+    {
+      "id": "v2-P1-p1_intervals-haiku-single",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "f9fe2206b373de53243b0a0a4581f64c05b921fde54111f182d3e5d6ed5694e8"
+    },
+    {
+      "id": "v2-P1-p1_intervals-haiku-unified-off",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "5633665213005af5f45290f9656ee94795f3e00efb45f4a15c1ebaf14c8aafed"
+    },
+    {
+      "id": "v2-P1-p1_intervals-haiku-unified-on",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "66f9594762ba16cabb5c1c5b519212d01328897c832c34f07cd593d74ae015e7"
+    },
+    {
+      "id": "v2-P1-p1_intervals-sonnet-separate-off",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "3eb22c469c8092bb112e06846ff187ce33534a6a3e597e442daed8d234ec80bb"
+    },
+    {
+      "id": "v2-P1-p1_intervals-sonnet-separate-on",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "d0f586a15500e80ba9cc182347bec1ec87ee9a363358e27c503fbd3e6cb9c218"
+    },
+    {
+      "id": "v2-P1-p1_intervals-sonnet-single",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "5613b62f0603234e9d034074a8953ddd52a7be4b18e18c695b96ae3c7c2d9731"
+    },
+    {
+      "id": "v2-P1-p1_intervals-sonnet-unified-off",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "5613b62f0603234e9d034074a8953ddd52a7be4b18e18c695b96ae3c7c2d9731"
+    },
+    {
+      "id": "v2-P1-p1_intervals-sonnet-unified-on",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "0232b30b8ddcb1ff038b5e74ccf820d95e322795871858b7f548c3e9137e3821"
+    },
+    {
+      "id": "v2-P1-p1_order-haiku-separate-off",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "cb250eb6527a141a457f77a4a9cc88647b577cd5040d116c8b95c4043395a70a"
+    },
+    {
+      "id": "v2-P1-p1_order-haiku-separate-on",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "94221ea84a4852225c798d4c3c8399a1fe12e0d3b95d98ba08050469609057b7"
+    },
+    {
+      "id": "v2-P1-p1_order-haiku-single",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "be5245eeaf6aa4ed377b7ccaa9cccb38a00e4800a46aae8f4e73fd7d785a6437"
+    },
+    {
+      "id": "v2-P1-p1_order-haiku-unified-off",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "7481db682c4acec35496c4092b91b8561d0cd4aad9da066e90a7d5e99c8ea73a"
+    },
+    {
+      "id": "v2-P1-p1_order-haiku-unified-on",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "a04aec58fb06d9f044ce5bed564c371f25b357273dfd8bf944d2f10759a24799"
+    },
+    {
+      "id": "v2-P1-p1_order-sonnet-separate-off",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "971428c7aabc10a51aafe9c929b8bd09fcaf66aa553e56a5008c49da7ac0c6e9"
+    },
+    {
+      "id": "v2-P1-p1_order-sonnet-separate-on",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "857996a2983fa6871949c54ce295325cc72b135c2f6ac7d62d7d46f5114938a2"
+    },
+    {
+      "id": "v2-P1-p1_order-sonnet-single",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "2adb740220795e42a1a7dda129282eb54723b730e1206ecede6b70c703e4e369"
+    },
+    {
+      "id": "v2-P1-p1_order-sonnet-unified-off",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "e0beb10a7c162d160e673c0ffd3965dfe9143a2dbf402a6b15cca39f7726ba02"
+    },
+    {
+      "id": "v2-P1-p1_order-sonnet-unified-on",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "2888053de3ad62bed498ce735511d1c36a3ebc6847e189cd0e0fe1cabef17094"
+    },
+    {
+      "id": "v2-P2-p2_expiry-haiku-long-distributed",
+      "agreement": true,
+      "pass": false,
+      "candidate_hash": "8b655fdcf07ea40298a94447149507466d43a49e99b7134a2427ce366f58280b"
+    },
+    {
+      "id": "v2-P2-p2_expiry-haiku-long-joined",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "f15a22d0639abb575254e2b86a76eaeadc28e89898d5b9c78bfbfa643d496adf"
+    },
+    {
+      "id": "v2-P2-p2_expiry-haiku-short-distributed",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "f0829e3396b4d7f0eb4fa94b04475befe0bc776520d603f37bb8221ba11e09b6"
+    },
+    {
+      "id": "v2-P2-p2_expiry-haiku-short-joined",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "078308a84fb6bbdc9a3fe1f2a0fdd66be3ae61edd53ba90ff39f52a834c0cc40"
+    },
+    {
+      "id": "v2-P2-p2_expiry-sonnet-long-distributed",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "8a99ed1a1240921282beb44dca6b8a05eb3e857972a3e07e02ce4e73e8cec093"
+    },
+    {
+      "id": "v2-P2-p2_expiry-sonnet-long-joined",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "c8a84b5b16a31e29c8dff6c14bbb4e4e7a8be62b92c94efdd09a3e67926cd75f"
+    },
+    {
+      "id": "v2-P2-p2_expiry-sonnet-short-distributed",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "332153738d6142cbafb247295cbbdf7c7ac123049be538752116d16cf286fd68"
+    },
+    {
+      "id": "v2-P2-p2_expiry-sonnet-short-joined",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "ba87e485c701bdad4b5aa39bacc3c145de147a4875285f8cb2e4e980e2eb0471"
+    },
+    {
+      "id": "v2-P2-p2_rank-haiku-long-distributed",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "81cb46979a6aeeee6faa5e4ebbccb32d9a3000beadaf04300b7d68890731a873"
+    },
+    {
+      "id": "v2-P2-p2_rank-haiku-long-joined",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "6e663cefe4c1407ad57c81583ee169c9d3dd2368e60931a2941b5c8ba998e527"
+    },
+    {
+      "id": "v2-P2-p2_rank-haiku-short-distributed",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "b7613f05870c3883d7c63b3c60a4310c30f5068f70e57c87f0b73591031fcd6e"
+    },
+    {
+      "id": "v2-P2-p2_rank-haiku-short-joined",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "6e663cefe4c1407ad57c81583ee169c9d3dd2368e60931a2941b5c8ba998e527"
+    },
+    {
+      "id": "v2-P2-p2_rank-sonnet-long-distributed",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "fa62e509ef75e7bcfce9f3aa78716e87cae594cf9359bcef1b569876fafcc2ab"
+    },
+    {
+      "id": "v2-P2-p2_rank-sonnet-long-joined",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "2a42dd3dd5ea63e2bf09dcb78bbd6147560cd6ef4d9352737f5d337802c11082"
+    },
+    {
+      "id": "v2-P2-p2_rank-sonnet-short-distributed",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "be6cff3d12a492b23e714e7e9d4422ff40d44cd46e727404882d85caa1e9cb45"
+    },
+    {
+      "id": "v2-P2-p2_rank-sonnet-short-joined",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "036e8fe43f80b3b4119a4c2b3956967307fe1f5298f25b31ba2734272c05b725"
+    },
+    {
+      "id": "v2-P2-p2_records-haiku-long-distributed",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "cee4dcc2e6a8979dc893e15279abf21ce71fd91bfd805e232e837255ac1e3642"
+    },
+    {
+      "id": "v2-P2-p2_records-haiku-long-joined",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "c3ad5a4a4b506663e6d942704d9441b6ec91c369d6bc64ea1f4c965d1f236718"
+    },
+    {
+      "id": "v2-P2-p2_records-haiku-short-distributed",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "da5e36acbeb331de59e8f3a2eb83ad0944d242ac8aa8e2febd25b26c7e86f012"
+    },
+    {
+      "id": "v2-P2-p2_records-haiku-short-joined",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "4779178f3a79327d6d8bae2306fad7a16e0a92b66c1e6443b364810cac3672e3"
+    },
+    {
+      "id": "v2-P2-p2_records-sonnet-long-distributed",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "f31fd441c93d6ffc75295b1ed00912c9b18c2680d7d3f60855170b68f355b47f"
+    },
+    {
+      "id": "v2-P2-p2_records-sonnet-long-joined",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "9dc4572e957361cf2ea79b7b8448f86a251e06f9b54fc12970fb70bd6263e393"
+    },
+    {
+      "id": "v2-P2-p2_records-sonnet-short-distributed",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "babe7ced922b7a539ad1bc09d7d2425c7a388c4d77942a94d61afb5dbd45a84d"
+    },
+    {
+      "id": "v2-P2-p2_records-sonnet-short-joined",
+      "agreement": true,
+      "pass": true,
+      "candidate_hash": "3646fe72c41d5e8a3788e72b47ed3ed229b0e170ae90e4ee1c9bfcf4014af4b3"
+    }
+  ],
+  "all_agree": true
+}

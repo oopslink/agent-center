@@ -1,0 +1,135 @@
+--- before/docs/plans/reports/papers-010/p5-memory-applicability/paper.md
++++ after/docs/plans/reports/papers-010/p5-memory-applicability/paper.md
+@@ -1,22 +1,22 @@
+-# 多智能体系统中的分层记忆管理与知识适用性
+-
+-*Layered Memory Management and Knowledge Applicability in a Multi-Agent System*
++# 多智能体共享记忆中的规则适用性：团队规范与任务合同的冲突
++
++*Rule Applicability in Multi-Agent Shared Memory: Conflicts between Team Norms and Task Contracts*
+ 
+ **作者：** oopslink
+ 
+ **作者主页：** [https://github.com/oopslink](https://github.com/oopslink)
+ 
+-**状态：**案例研究工作稿；AI辅助研究，尚未人工复核。外部文献比较与记忆对照实验尚未完成。
++**状态：**案例研究工作稿；AI辅助研究，尚未人工复核。已补充有范围的原始文献比较；记忆对照实验尚未执行。
+ 
+ ## 中文摘要
+ 
+-多智能体系统需要保存局部经验并将可复用知识提供给其它任务和成员，但知识被存储和读取并不保证它适用于当前决策。本文研究Agent Center中agent私有笔记、项目作用域与Team共享记忆的功能边界，以及共享知识为何仍可能阻碍任务推进。研究结合实现分析、Git与事件核对、读取审计和七组目的性案例，对写入、正式发布、正文访问、明确采用与局部结果分别取证。两个非空Team仓库的57个提交与30次提案、15次晋升、12次拒绝逐一对应；230条去重正文回执覆盖12名agent和10条规则，其中9条规则被多名agent访问。共享路径确实被使用，但一条无条件main门禁与中间候选的验收顺序冲突，改名和改图未解除约束；明确中间节点适用条件的新规则则在后续交接中被引用并伴随局部任务完成。结果表明，分层记忆的关键设计问题包括知识适用条件、正式发布边界与版本关系，而不只是持久化与检索。项目目录在所核实现中属于私有知识作用域，不能视为项目共享库；现有私有历史也不足以比较各层的交付收益。研究支持对条件化规则与可追溯治理的设计判断，尚未识别记忆相对其它同步干预的独立效果。
++多智能体系统需要保存局部经验并将可复用知识提供给其它任务和成员，但知识被存储和读取并不保证它适用于当前决策。本文研究Agent Center中已发布的Team规则如何因阶段条件不匹配而阻碍中间任务交接，私有笔记与项目作用域作为实现背景分析。研究结合实现分析、Git与事件核对、读取审计和七组目的性案例，对写入、正式发布、正文访问、明确采用与局部结果分别取证。两个非空Team仓库的57个提交与30次提案、15次晋升、12次拒绝逐一对应；230条去重正文回执覆盖12名agent和10条规则，其中9条规则被多名agent访问。共享路径确实被使用，但一条无条件main门禁与中间候选的验收顺序冲突，改名和改图未解除约束；明确中间节点适用条件的新规则则在后续交接中被引用并伴随局部任务完成。本地证据将既有记忆研究中的使用与更新问题具体落实为规则适用条件、正式发布边界和版本关系，未提出新的通用记忆机制。项目目录在所核实现中属于私有知识作用域，不能视为项目共享库；现有私有历史也不足以比较各层的交付收益。研究支持对条件化规则与可追溯治理的设计判断，尚未识别记忆相对其它同步干预的独立效果。
+ 
+ **关键词：**智能体记忆；知识治理；上下文共享；规则适用性；多智能体系统
+ 
+ ## Abstract
+ 
+-Multi-agent systems must preserve local experience and make reusable knowledge available across tasks and participants. Storage and retrieval, however, do not establish that the knowledge applies to a current decision. This case study examines agent-private notes, project scopes, and shared Team memory in Agent Center. Implementation analysis, Git–event reconciliation, read receipts, and seven purposively selected case groups distinguish persistence, canonical publication, body access, explicit adoption, and local outcomes. Two nonempty Team repositories contain 57 commits corresponding to 30 proposals, 15 promotions, and 12 rejections. The 230 deduplicated read receipts cover 12 agents and 10 rules; nine rules were accessed by multiple agents. The sharing path was used, yet an unconditional main-branch completion rule conflicted with the acceptance order for intermediate candidates. Renaming tasks and editing the graph did not resolve the constraint. A later rule specifying intermediate-node conditions was explicitly adopted in subsequent handoffs that reached local task completion. The findings identify knowledge applicability, publication status, and version relationships as central design concerns beyond persistence and retrieval. In the inspected implementation, project directories organize private knowledge rather than establish a project-wide shared store. Incomplete private histories prevent a comparison of delivery benefits across memory layers. The study supports conditional rules and traceable governance while leaving their independent effects on autonomous delivery unmeasured.
++Multi-agent systems must preserve local experience and make reusable knowledge available across tasks and participants. Storage and retrieval, however, do not establish that the knowledge applies to a current decision. This case study examines how published Team rules in Agent Center can obstruct intermediate handoffs when their conditions do not match the task stage; agent-private notes and project scopes provide implementation context. Implementation analysis, Git–event reconciliation, read receipts, and seven purposively selected case groups distinguish persistence, canonical publication, body access, explicit adoption, and local outcomes. Two nonempty Team repositories contain 57 commits corresponding to 30 proposals, 15 promotions, and 12 rejections. The 230 deduplicated read receipts cover 12 agents and 10 rules; nine rules were accessed by multiple agents. The sharing path was used, yet an unconditional main-branch completion rule conflicted with the acceptance order for intermediate candidates. Renaming tasks and editing the graph did not resolve the constraint. A later rule specifying intermediate-node conditions was explicitly adopted in subsequent handoffs that reached local task completion. The local evidence instantiates established concerns about memory use and updating as rule applicability, publication status, and version relationships; it does not establish a new general memory mechanism. In the inspected implementation, project directories organize private knowledge rather than establish a project-wide shared store. Incomplete private histories prevent a comparison of delivery benefits across memory layers. The study supports conditional rules and traceable governance while leaving their independent effects on autonomous delivery unmeasured.
+ 
+ **Keywords:** agent memory; knowledge governance; context sharing; rule applicability; multi-agent systems
+ 
+@@ -24,13 +24,25 @@
+ 
+ Agent Center的记忆管理希望同时满足两类需求：保留某个agent的局部工作经验，以及把可复用经验提供给团队后续任务。为此，系统使用带作用域的私有笔记，并通过提案、审核和版本化发布形成Team知识。项目、issue与task目录提供局部组织方式；Team规则提供跨成员访问路径。这些安排解决了知识放在哪里、由谁发布和如何读取的问题，但尚需判断读取后的规则是否适合当前任务。
+ 
+-本文的核心问题是：**agent、项目与Team记忆各自提供了什么能力，为什么成功存储和共享仍不足以保证正确复用？** “正确复用”在本文中要求知识与当前任务对象、阶段、权限和验收条件相容，并体现于可定位的决策或行动。仅有文件、Git提交或读取回执，分别只能证明保存、版本化或访问；最终交付则需要另外的验收证据。
+-
+-真实材料给出一个具有代表性的失败机制：防止候选分支被误报为最终交付的经验，被写成所有任务必须先合入main才能完成的通则。该规则遇到“先完成候选、再独立验收、最后合并”的流程时形成循环。知识没有丢失，共享通路也存在，问题在于最终交付的门槛被用于中间节点。后续条件化规则的采用提供了正面对照，但同时存在人工提示和工作组织调整，不能只归因于记忆。
++本文的核心问题是：**已发布且能够跨成员读取的Team规则，如何因任务阶段与验收顺序不匹配而阻碍中间交接，治理和版本记录能揭示什么？** “正确复用”在本文中要求知识与当前任务对象、阶段、权限和验收条件相容，并体现于可定位的决策或行动。仅有文件、Git提交或读取回执，分别只能证明保存、版本化或访问；最终交付则需要另外的验收证据。
++
++真实材料给出一个可追溯的失败机制：防止候选分支被误报为最终交付的经验，被写成所有任务必须先合入main才能完成的通则。该规则遇到“先完成候选、再独立验收、最后合并”的流程时形成循环。知识没有丢失，共享通路也存在，问题在于最终交付的门槛被用于中间节点。后续条件化规则的采用提供了正面对照，但同时存在人工提示和工作组织调整，不能只归因于记忆。
+ 
+ 本研究分别评价记忆的基础通路、治理行为和任务中的适用性。结论指向知识边界与发布状态的设计，而非以记忆条数、读取量或共享范围直接推断自动交付收益。五篇同源研究中，本篇关注持久知识如何成为行为约束；角色上下文、任务图及责任分工仅在解释记忆使用条件时引入。
+ 
+-## 2 记忆组成与分析概念
++分层存储、检索、反思和记忆更新已有研究基础。本文的局部问题是共享团队规则如何与任务阶段、发布权限和验收合同发生冲突或形成可用约束；不把“记忆需要有效使用”当作新的普遍发现。
++
++## 2 相关研究与分析框架
++
++### 2.1 从记忆机制到规则适用性的研究位置
++
++长期记忆的保存、选择和更新已有明确方案。Generative Agents以记忆流、相关性选择与反思支持情境行为；MemGPT通过上下文内外分层管理有限容量；A-Mem允许新经历链接并更新既有记忆。[1]<!--ref:park2023generative-->[2]<!--ref:packer2023memgpt-->[3]<!--ref:xu2025amem--> 这些机制不能被概括为只做静态存储。其社会模拟、长期对话或文档任务中的结果，也不能直接换算为软件团队规范的正确复用。
++
++共享经验和规范效力同样需要区分。G-Memory已组织多智能体交互、历史问题和经验层级，并按任务与角色筛选，利用成功或失败反馈更新。[4]<!--ref:zhang2025gmemory--> 因此，跨成员复用和角色相关过滤不是本文的新概念。本地问题在于：成员能访问经验，与该经验被授权发布为团队通则是两种状态；即使后者成立，最终交付条件仍可能不适用于中间任务。
++
++LongMemEval将索引、检索和阅读分开评价，并包含知识更新与拒答能力。[5]<!--ref:wu2025longmemeval--> 本文沿用访问与任务结果分开判断的原则，把评价对象落实到工程规则的版本、阶段条件与明确采用。现有研究为机制和评价分层提供依据；本地材料补充的是main门禁与候选验收顺序的具体冲突及其治理背景，不构成新记忆算法或优越性证明。
++
++### 2.2 系统组成与知识状态
+ 
+ **Agent私有记忆**保存局部观察、任务反馈和操作知识；**项目作用域**在所核实现中是该私有空间内的组织边界；**Team记忆**通过授权审核将候选知识发布为成员可访问的canonical规则或条目。三者是不同的所有权与传播机制，不能仅依据目录名称将其视为三个等价的共享层级。实现依据见[源码分析](../../agent-harness-memory-implementation-011.md)。
+ 
+@@ -59,6 +71,13 @@
+ 
+ Team 路径则有明确的提出、审核和 canonical 发布边界。编码团队配置 `curator_auto`，授权 PD；analyst 团队为 `proposal_only`。前者的 26 次审核由同一个 agent curator 完成，后者可见 1 次用户批准。审核主体和权限可追溯，但授权与独立复核是两件事：27 次已审核提案中有 16 次作者与审核者相同，不能描述为“全部经独立审查”。
+ 
++### 2.3 发布状态、可达性与适用性的分析框架
++
++本文以“知识状态—任务条件—行为结果”组织分析。知识状态包括私有保存、提案待审与正式发布；可达性是特定上下文取得指定版本的能力；适用性是规则前提、对象及阶段与当前任务相容；采用则要求决策或行动明确体现该规则。各层相邻但不蕴含下一层，读取回执不直接证明采用，局部任务完成也不直接证明最终交付。
++
++解释命题是：**当局部经验以无条件通则发布时，共享通路可以正常工作，却扩大规则与任务合同的不相容范围。** M02通过规则文本与原生阻塞理由检查这一机制；M03检验条件化规则的采用正例；M04以pending与会话采用并存，检验“发布等于采用”的替代解释。M05–M07界定私人保存的证据范围，不用于比较三层记忆的收益高低。
++
++这是一套从现有案例提炼的分析关系，没有以跨案例差异代替同任务干预。它把已有记忆研究中的访问、更新和使用问题具体落实到团队规范与软件验收合同，未声称提出一般性的记忆理论。
+ 
+ ## 3 研究方法
+ 
+@@ -89,6 +108,14 @@
+ 实现比较检查所有权、作用域、读写入口和发布权限。治理统计报告提案状态、审核主体和等待时间，并将集中整理、后续追加和pending分开；pending在数据库截止时点右删失。访问统计使用去重回执，检查跨agent覆盖、版本和规则可用性，不估计完整读取次数或token成本。
+ 
+ 机制分析重点比较宽main规则与任务合同的冲突，以及条件化规则在另一组任务中的采用；同时以“未发布但已在会话采用”和“已保存但缺后续读取证据”检验从存储状态直接推断复用的错误。两组任务并非同条件对照，人工提示、候选证据与改图均作为竞争解释。明显运行bug、未接线和部署故障排除于记忆设计效果；可分离的语义冲突保留。全部分析由AI完成，未进行独立人工编码或记忆干预实验。
++
++### 3.4 构念检查与可复现范围
++
++本稿没有记忆机制对照实验。M02与M03分别位于不同任务且伴随人工提示、证据和图变化，属于机制对读，不能计算条件化规则的干预效果。私有历史缺失使“agent／项目／Team哪层更有效”目前无法回答；读取回执也没有提供全部复用机会的分母。
++
++本文按软件工程案例研究区分情境解释与因果识别，[6]<!--ref:RV16_METHOD--> 案例为目的性选择，研究问题和分析框架经材料阅读后调整，未预注册，也未完成全库盲法编码。治理与访问统计可以复算，但案例的适用性解释尚未经过独立人工判定。取证、选择与解释同由AI完成，分工审阅不能替代这种判定。相互关联的案例、提案和回执不作为独立生产任务计算置信区间或显著性。
++
++逐项构念定义、排除理由、主张与反证以及未执行的判别研究见[效度审计](../research-validity-016/README.md)。正文图表分别承担实现结构、治理和访问描述，[图表—主张映射](../research-validity-016/figure-claim-map.md)列明其可支持的结论；图中计数不是机制的独立验证。
+ 
+ ## 4 研究发现
+ 
+@@ -185,19 +212,35 @@
+ 
+ 宽规则与条件化规则涉及不同任务，并伴随人工提示、证据和图变化，不能据此估计规则修订的独立效果。对话中的明确引用比纯访问更接近采用，但仍不等于完整模型输入或内部推理。没有可靠的人类耗时、必要事实真值或复用机会分母，因此不报告节省token、有效复用率或自动交付提升。
+ 
+-外部文献比较与受控记忆实验尚未完成，本稿不作新颖性、投稿就绪或因果验证声明。下一步可固定合同与候选比较无条件、条件化和显式替代规则，再研究跨会话与跨agent采用；这些均为后续工作，未被写作已完成结果。
++已有五项原始研究的叙述性比较，但未系统覆盖整个领域；受控记忆实验尚未执行，本稿不作首次发现、投稿就绪或因果验证声明。下一步可固定合同与候选比较无条件、条件化和显式替代规则，再研究跨会话与跨agent采用；这些均为后续工作，未被写作已完成结果。
+ 
+ ## 7 结论
+ 
+-**Agent Center的Team记忆已经实现可核验的发布与跨成员读取，但正确传递知识没有保证知识适用于当前任务。** 主要暴露的设计问题是把局部经验推广为缺少适用条件的团队通则：最终main门禁与中间候选合同冲突，任务改名和改图未解除它；条件化规则则被后续协调和验收明确采用，支持了局部交接。
++**Agent Center的Team记忆发布与跨成员访问可核验，但已发布规则仍可能不适用于当前任务。** 主要暴露的设计问题是把局部经验推广为缺少适用条件的团队通则：最终main门禁与中间候选合同冲突，任务改名和改图未解除它；条件化规则则被后续协调和验收明确采用，支持了局部交接。
+ 
+ 分层记忆的作用应按能力区分。私有笔记与项目作用域组织局部知识，Team机制控制共享知识发布；项目目录不自动提供项目共享，正式发布状态也不等同于当次采用。治理提供了可追溯的过滤，但授权审核不等于独立真值核查。
+ 
+ 因此，记忆设计应把适用条件、发布状态与版本关系作为一等信息，并将读取、采用和交付分开评价。当前材料支持这些实现与机制判断；私有历史及可比任务不足，尚不能判定哪一层记忆带来更高自动交付收益。
+ 
++**尚待执行的判别研究。**最小判别研究先在相同候选和合同上回放无条件规则、条件化规则、旧新并存与显式替代四种版本，验证约束是否一致；再用未见任务和跨会话执行比较实际采用。私人保存、pending与canonical发布的可达性另作固定权限比较。主要结果为合同相容的采用和独立验收，访问量只作中间指标；所有比较均尚待执行。
++
++## 参考文献
++
++[1] J. S. Park, J. C. O’Brien, C. J. Cai, M. R. Morris, P. Liang, and M. S. Bernstein, “Generative Agents: Interactive Simulacra of Human Behavior,” in *Proceedings of the 36th Annual ACM Symposium on User Interface Software and Technology*, 2023, doi: [10.1145/3586183.3606763](https://doi.org/10.1145/3586183.3606763).
++
++[2] C. Packer, S. Wooders, K. Lin, V. Fang, S. G. Patil, I. Stoica, and J. E. Gonzalez, “MemGPT: Towards LLMs as Operating Systems,” *arXiv preprint arXiv:2310.08560*, 2023, rev. v2, Feb. 12, 2024, doi: [10.48550/arXiv.2310.08560](https://doi.org/10.48550/arXiv.2310.08560).
++
++[3] W. Xu, Z. Liang, K. Mei, H. Gao, J. Tan, and Y. Zhang, “A-Mem: Agentic Memory for LLM Agents,” in *Advances in Neural Information Processing Systems*, vol. 38, 2025, doi: [10.52202/085713-0593](https://doi.org/10.52202/085713-0593).
++
++[4] G. Zhang, M. Fu, G. Wan, M. Yu, K. Wang, and S. Yan, “G-Memory: Tracing Hierarchical Memory for Multi-Agent Systems,” *arXiv preprint arXiv:2506.07398v2*, Jun. 16, 2025, doi: [10.48550/arXiv.2506.07398](https://doi.org/10.48550/arXiv.2506.07398).
++
++[5] D. Wu, H. Wang, W. Yu, Y. Zhang, K.-W. Chang, and D. Yu, “LongMemEval: Benchmarking Chat Assistants on Long-Term Interactive Memory,” in *International Conference on Learning Representations*, 2025. [正式 PDF](https://proceedings.iclr.cc/paper_files/paper/2025/file/d813d324dbf0598bbdc9c8e79740ed01-Paper-Conference.pdf).
++
++[6] P. Runeson and M. Höst, “Guidelines for conducting and reporting case study research in software engineering,” *Empirical Software Engineering*, vol. 14, pp. 131–164, 2009. doi: [10.1007/s10664-008-9102-8](https://doi.org/10.1007/s10664-008-9102-8).
++
+ ## 证据与复现入口
+ 
+-本稿的经验主张由自身数据支撑；未新增未经核验的外部引用。以下为研究资料入口，不作为已完成的相关研究综述。
++外部文献用于限定已有覆盖和本地研究位置，经验主张由以下原始资料支撑。有范围的叙述性文献比较及版本核验见[文献审计](../research-validity-016/literature/p5-synthesis.md)，不声称系统综述已经完成。
+ 
+ | 资料 | 支持范围 |
+ |---|---|
+@@ -222,3 +265,5 @@
+ **AI使用。** 原memory-011探索由AI进行取证、实现分析和统计；015通过分工AI作论证修订及交叉审阅，未运行新模型实验。全部研究尚未人工复核，AI审阅不构成独立重复验证。
+ 
+ **同源研究。** 本稿与其它四篇共享Agent Center部署和冻结数据库，规则读取、合同冲突与部分交接案例存在重合。原生记录不计为跨篇新增独立样本。
++
++**016修订与复核范围。** 本稿补充了主题式文献比较、事后分析框架与实验构念检查，未新增模型调用或生产样本。原始正反结果及图表保留；[逐篇修改记录](REVISION-016.md)、[共同效度审计](../research-validity-016/README.md)和[可执行研究缺口](../research-validity-016/next-studies.md)说明已修正文稿与仍缺实证支持的部分。AI交叉审阅不属于人工复核，稿件尚未定稿。

@@ -1,0 +1,163 @@
+--- before/docs/plans/reports/papers-010/p2-workflow-responsibility/paper.md
++++ after/docs/plans/reports/papers-010/p2-workflow-responsibility/paper.md
+@@ -8,13 +8,13 @@
+ 
+ ## 中文摘要
+ 
+-多智能体工作流通过角色分工、依赖和验收门槛组织交付，但这些规则为何仍不能让团队自主确定下一步？本文以Agent Center中的工作项推进片段为分析单位，比较行动要求、责任解释、人工补充及后续状态，并以结构统计和合成动作实验检验解释边界。案例显示，协调失效集中在职责到具体行动的转换：分配前提没有落实为协调者自己的动作，相同合并职责指向不同分支，局部验收完成也不能代表剩余交付义务消失。两个完整案例区间的28条消息中，12条来自用户，其中5条直接补充或质询责任、对象及操作顺序。独立验收、下游事实核查和合格NO-GO报告则提供了有用的质量边界。256次合成响应中，两道题存在状态矛盾或合同缺失；排除其全部条件后，事后字段诊断中两模型均96/96正确，严格格式得分分别为91/96和96/96。全部输入已明示自主准备与门槛解释规则，因此这些结果只说明协议给定后的短题表现，不能独立验证长期流程机制。部署中可见的缺口仍是行动关系需要人工补足。本文主张以可执行工作项和剩余义务交接组织流程，保留增加证据的检查，并以无提醒推进和交付质量评价简化效果。研究为单部署探索，尚未人工复核。
++多智能体工作流已有角色、依赖和验收门槛，为何仍会在交接处停下？本文结合Agent Center案例比较、结构统计、动作探针与24次真实多轮执行，区分行动关系缺失、有效质量检查和重复协调。历史案例显示，人工需要补足动作主体、对象、阶段及合同；两个完整区间28条消息中有12条用户消息，其中5条直接纠正或质询这些关系。新增对照保持相同四类工件，比较两／四worker职责及分表／联表表示。代码实现24/24通过独立终验，完整交付23/24。四角色在全部12对中增加总决策，Sonnet与Haiku平均分别多6.67与8.50次，未增加实现通过数。唯一未闭合案例中，控制者因未直接见到审查者回执而否定其存在，审查者则拒绝引用未收到原始记录的控制者回执；重复审查用尽启动预算，发布步骤未被执行。机制解释由原生回执与版本核对支持，但尚未通过共享凭据干预分离因果。结论是工作流需要同时绑定动作和证据认可关系；增加角色及复核次数本身不能保证更可靠交付。相同任务的其它条件完成，不支持四角色必然停摆或联表具有稳定收益。明显仪器缺陷影响的旧轮全量排除并保留；研究仍属小样本探索，尚未人工复核。
+ 
+ **关键词：**多 Agent 协作；责任闭合；工作流；独立验收；agent harness
+ 
+ ## Abstract
+ 
+-Multi-agent workflows organize delivery through roles, dependencies, and acceptance gates, yet these rules may leave the next action unresolved. This study asks why a team with defined responsibilities still requires human direction and which coordination boundaries remain useful. We analyze work-item transitions in Agent Center, comparing required actions, responsibility interpretations, human contributions, and subsequent records. Descriptive workflow measures and synthetic action-selection experiments examine the scope of the proposed explanation. The cases locate coordination failures at the transition from general duties to situated action: assignment requirements were not treated as the coordinator's own next step, shared merge duties referred to different branches, and local acceptance did not settle remaining delivery obligations. Two complete case windows contained 28 messages, including 12 human messages; five supplied or questioned responsibility, objects, or operation order. Independent testing, downstream fact checking, and valid NO-GO reports provided useful quality boundaries. Of 256 synthetic responses, two scenarios had contradictory states or missing contracts. After excluding all their conditions, a post-hoc field diagnostic found correct semantic choices in 96/96 responses per model, while strict-format scores were 91/96 and 96/96. All inputs explicitly prescribed autonomous preparation and gate interpretation. These results therefore concern compliance with a supplied protocol, not a test of long-running workflow mechanisms. The deployment cases still show action relations completed through human intervention. Workflow design should make actionable ownership and remaining obligations explicit, retain evidence-producing checks, and evaluate simplification by unprompted progress and delivery quality. This single-deployment study has not been human-verified.
++Why do multi-agent workflows stall at handoffs despite having roles, dependencies, and acceptance gates? This study combines Agent Center case comparisons, descriptive measures, action probes, and 24 actual multi-turn executions to distinguish incomplete action relations, useful verification, and repeated coordination. In historical cases, humans supplied missing actors, objects, stages, and contracts; two complete windows contained 28 messages, including 12 human messages, five of which corrected or questioned these relations. New controlled executions kept four required artifacts fixed while comparing two versus four worker functions and split versus joined relation views. All 24 implementations passed independent acceptance, while 23 achieved complete delivery. Four-role workflows required more total model decisions in all 12 matched pairs, averaging 6.67 additional decisions for Sonnet and 8.50 for Haiku, without increasing implementation passes. In the sole incomplete episode, the controller rejected genuine reviewer receipts absent from its own tool history, while reviewers declined to cite controller receipts whose original records they had not received. Repeated review consumed the worker-start budget before release integration. Receipt and version checks support this process explanation, but no shared-receipt intervention has isolated its causal contribution. Workflows therefore need explicit relations for both action and evidence acceptance; additional roles and reviews alone do not ensure reliable delivery. Other conditions on the same task completed, opposing claims of inevitable four-role failure or stable gains from a joined view. Instrument-affected prior outcomes were retained and excluded. This small-sample exploratory study has not been human-verified.
+ 
+ **Keywords:** multi-agent collaboration; accountability; workflow; independent review; agent harness
+ 
+@@ -24,7 +24,7 @@
+ 
+ 本文回答的问题是：**当角色职责和流程门槛已经定义时，哪些责任关系仍需要人工补充，才能把未完成目标转化为合法的下一步行动？** 研究对象是跨角色、跨任务的工作项推进，区别于单个Agent内部的Supervisor/executor身份关系。本文将“责任悬空”限定为：存在尚未满足的目标或前提，但当前协作解释未明确下一动作及其有权承担者。对象或合同指向错误也会使形式上已分配的动作无法服务于当前目标。这一定义不把所有等待、拒绝或状态不变都判为失败；有效的外部审批等待和独立验收必须保留。
+ 
+-“流程复杂”在本研究中有三个不同含义：任务图中的依赖和跨负责人连接，行动中需要同时确定的对象、阶段与合同关系，以及相同事实的呈现方式。前两者用于描述真实协作，第三者用于受控短题比较。消息多、节点多或角色多本身都不是失效判据；“扯皮”也只描述反复转交和解释的表面现象，不推断大语言模型（LLM）具有推诿动机。
++“流程复杂”在本研究中有三个不同含义：任务图中的依赖和跨负责人连接，行动中需要同时确定的对象、阶段与合同关系，以及相同事实的呈现方式。前两者用于描述真实协作，第三者用于短题比较；新增执行对照进一步改变实际角色与交接边界。消息多、节点多或角色多本身都不是失效判据；“扯皮”也只描述反复转交和解释的表面现象，不推断大语言模型（LLM）具有推诿动机。
+ 
+ 已有研究覆盖角色规范违背、重复步骤和协调错位。[1]<!--ref:R01--><!--anchor:section:4--> 本文的分析进一步区分“职责已经规定”与“当前行动关系已经闭合”：前者说明某角色通常做什么，后者还要说明此时由谁对哪个对象、依据何种合同采取什么动作。案例、反例与实验共同支持的结论是，**该部署需要人工补足的关键内容是具体行动关系，而独立检查仍有价值；现有证据不支持通过一概削减角色或门槛解决问题。**（B01–B09）
+ 
+@@ -52,7 +52,7 @@
+ 
+ ### 3.1 研究设计与分析单位
+ 
+-本研究采用单部署的解释性案例比较，并辅以描述统计和受控动作选择实验。案例分析回答责任如何在实际交接中变得不明确、人工补充了什么；结构统计描述协作关系的规模；实验检验在事实与权限已给定时，表示方式是否影响下一动作选择。三类材料回答不同问题，不合并为一个工作流成功率。
++本研究采用单部署的解释性案例比较，并辅以描述统计、动作选择探针与实际角色交接对照。案例分析回答责任如何在实际交接中变得不明确、人工补充了什么；结构统计描述协作关系的规模；早期探针检验表示方式对下一动作选择的影响，新增执行对照检验具体角色组织的交付与开销。这些材料回答不同问题，不合并为一个工作流成功率。
+ 
+ 案例的分析单位是一个**工作项推进片段**：从某个目标或前提尚未满足开始，包含参与者对下一步的解释、转交或等待，以及随后的纠正或继续记录。本文据既有材料将其组织为`〈目标，动作，主体，对象，合同，授权，前提〉`的分析关系；这不是对全库新完成的字段标注。判定责任关系是否清楚，需要同时确认下一动作服务于哪个未完成目标、由谁承担、针对哪个对象以及是否满足授权和合同。原生状态记录用于确认发生了何种变化，消息用于识别参与者如何理解责任，二者不互相替代。（B00–B09）
+ 
+@@ -87,6 +87,19 @@
+ 本文按软件工程案例研究区分情境解释与因果识别，[9]<!--ref:RV16_METHOD--> 案例为目的性选择，研究问题和分析框架经材料阅读后调整，未预注册，也未完成全库盲法编码。输入、评分和统计可复算，不等于题目具有充分内容效度；设计、答案与解释同由AI形成，现有分工审阅不能替代独立人工判定。模型响应是固定情境的交叉观测，不按独立生产任务计算置信区间或显著性。
+ 
+ 逐项构念定义、输入全量核查、排除理由、主张与反证以及未执行的判别研究见[效度审计](../research-validity-016/README.md)。正文图表分别承担结构描述、过程比较或局部行为检验，[图表—主张映射](../research-validity-016/figure-claim-map.md)列明其可支持的结论；图中计数不是机制的独立验证。
++
++### 3.6 实际角色交接与工件验收对照
++
++新增记录聚合、时效过滤和稳定排序三个可执行函数任务。每次均需交付实现、可执行测试、带版本的审查及发布manifest四项工件。短链由builder承担实现／测试、verifier承担审查／发布；长链拆为implementer、tester、reviewer、integrator四个独立角色。共同Supervisor不计入这里的两／四角色数。两组保留相同工件、依赖和验收门槛，但会话分区、交接数和角色上下文共同变化，因此研究的是这两种具体组织方案，不是抽离其它因素的角色数效应。
++
++另一因素将相同角色权限、工件合同及依赖作分表或联结显示；均不推荐下一动作、不自动交接。2组织×2视图×3任务×2模型共24次执行，每格一次。每次控制者最多18次决策和6次worker启动，每个worker最多6次决策；长链基础角色更多，剩余启动余量也更少，预算内差异包含这一组织成本。初始脚本executor提供固定失败实现，之后代码、测试、审查与manifest均由实际模型worker生成。测试回执须绑定当前工件且早于相应pass审查，终验不能倒补出有效审查。
++
++
++主要终点为预算内控制者报告完成且终止快照通过独立验收；产物合格与自主闭合另列，避免把预算内已写出正确代码但尚未完成交接算作同一种结果。每个任务前三个测试向量可在执行中运行，其余至少五个只在终止后检查，结果不反馈给模型。所有工件版本、工具事件与模型尝试保留；对同一任务、模型及另一因素水平作配对描述。每篇仅三个研究者构造的任务家族、每格一次，不作总体置信区间或显著性推断。
++
++实验使用隔离的JSON工具运行器：合法操作实际写文件、执行Python测试或启动独立worker进程，工具结果进入该角色后续输入。CLI safe-mode禁用本地旧上下文，每次调用重放同角色完整历史；这是真实执行而非动作答题，但不是Agent Center生产版本回放，也不是原生持久聊天会话。一次只运行一个worker，检验的是串行异步交接。模型固定为Sonnet 5.5与Haiku 5.5、low effort。研究者提示只给目标、合同、权限和工具语义，不含“executor失败必须由你修复”或“复杂流程有害”等待验证原则；模型自行产生的委派内容属于观察结果。
++
++正式v1轮发现测试器误拒绝合同允许的描述字段后，34次已执行结果与20个未启动项全部列账退出主分析。修复校验后保留原任务、条件、顺序与预算，54个条件全部使用新ID复验，v2代码再次冻结。此处报告v2，不将两轮拼成更优结果。由于已查看v1结果，这是仪器修复后的探索性复验，尚无新的未见任务确认。缺陷、原始正反结果、协议差分和复算脚本见[运行实验附录](../runtime-experiments-017/README.md)；仪器检查和AI审阅均不能代替人工内容效度复核。
+ 
+ ## 4 研究发现
+ 
+@@ -230,6 +243,49 @@
+ 
+ **图5。**上左为排除缺陷题后的全条件严格得分（每格12次）；上右保留原八情境分数，星号标记不能承担负面归因的W2/W8；下部为六情境的配对差（每模型每因素48对）及另行材料修复结果。格式问题与语义字段分开解释，非团队停摆率。原128次／模型底表、全部反例和修复输入差分见实验附录。
+ 
++### 4.8 增加真实交接带来稳定开销，但未增加实现通过数
++
++24次实际工作流中，代码实现24/24通过独立终验，完整工件与自主交付均为23/24。两角色为12/12完成，四角色为11/12；分表为11/12，联表为12/12。后一组差异与角色组差异由同一个Haiku时效过滤episode贡献，不能当作两次独立支持，更不能由此认定联表解决了交接问题。（表9、图6）
++
++四角色相对两角色在全部12个任务／模型／视图配对中增加总决策。Sonnet每对平均多6.67次［6–8］，Haiku多8.50次［4–19］；平均报告价分别增加0.17130和0.01202美元。代价来自增加独立会话、启动、等待和局部确认；在这些小函数上没有换来更多实现通过。这个结论针对本轮组织方案，包含角色上下文与启动预算余量的变化，不能推广为所有分工或独立检查没有收益。
++
++**表9。P2全部实际交接条件（每格3任务；两模型分列）**
++
++| 模型 | 条件 | 自主交付 | 实现／全工件通过 | 总决策均值［范围］ | 平均报告价（美元） |
++|---|---|---:|---:|---:|---:|
++| Sonnet | 四角色，分表 | 3/3 | 3/3；3/3 | 22.33［22–23］ | 0.49811 |
++| Sonnet | 四角色，联表 | 3/3 | 3/3；3/3 | 22.00［22–22］ | 0.45627 |
++| Sonnet | 两角色，分表 | 3/3 | 3/3；3/3 | 15.33［15–16］ | 0.29474 |
++| Sonnet | 两角色，联表 | 3/3 | 3/3；3/3 | 15.67［15–16］ | 0.31704 |
++| Haiku | 四角色，分表 | 2/3 | 3/3；2/3 | 27.67［24–34］ | 0.03687 |
++| Haiku | 四角色，联表 | 3/3 | 3/3；3/3 | 23.67［23–24］ | 0.02784 |
++| Haiku | 两角色，分表 | 3/3 | 3/3；3/3 | 16.00［15–17］ | 0.01810 |
++| Haiku | 两角色，联表 | 3/3 | 3/3；3/3 | 18.33［16–20］ | 0.02258 |
++
++总决策包含格式不合规响应，不含一次CLI超时后的额外传输重试。P2共7次格式错误，均在原episode内恢复；错误没有从底表删除。联表减分表的平均总决策差为Sonnet 0、Haiku −0.83次；Haiku的六对差值范围为−10到+4，正差3对、零差1对、负差2对。因此不能把平均值写成稳定的简化收益。
++
++![图6：P2全部交接结果与配对工作量](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/papers-010/p2-workflow-responsibility/figures/p2-fig6-runtime-workflow.png)
++
++**图6。**上部给出全部24个单元的终态和控制者／worker决策数，D为自主交付，B为报告阻塞；下部为两项因素各模型的全部6对总决策差。两／四角色不包含共同Supervisor。没有以成功子集计算开销，也没有删除极端返工值。三个任务家族、每格一次，只作描述性比较。[完整底表与原始轨迹](../runtime-experiments-017/README.md)。
++
++### 4.9 局部可见性被外推为证据不存在，审查返工挤掉了发布
++
++唯一未闭合的时效过滤任务并非代码失败：实现和6条自编测试正确，审查也有真实的先行通过回执。控制者却认为审查者引用的worker回执不在自己的工具结果中，因而要求只引用controller的回执。新的审查者没有接收到controller的原始工具历史，拒绝把指定时间戳当作已亲自验证的记录，重新运行测试并引用自己的有效回执。控制者再次把新回执判为不存在，形成了重复审查。（表10）
++
++**表10。回执争议中的可观察事实与边界**
++
++| 层次 | 实际记录 | 机制含义 |
++|---|---|---|
++| 共同产物 | module与tests哈希保持相同；实现终验8/8，自编测试6/6 | 返工没有修复新的代码或测试缺口 |
++| 可验证证据 | 共7张真实成功回执；4次审查引用各自先行、同版本回执 | 不是回执伪造、丢失或事后倒填 |
++| 控制者视图 | 收到worker报告和工件，未接收完整worker工具历史 | 将本会话未直接见到外推为全局不存在 |
++| 审查者视图 | 收到改写要求和文件，未收到controller原始回执对象 | 改用自己执行所得证据，与要求反复冲突 |
++| 剩余义务 | implementer、tester各1次，reviewer 4次，integrator 0次 | 6次启动预算耗尽；16次控制决策后报告阻塞，缺manifest |
++
++源码与原件核查确认，工具确实按协议返回报告和文件，未承诺共享全部历史；合同允许任一针对当前版本的真实成功回执，没有规定只能使用controller签发的回执。因此这不是已确认的运行器执行bug，而是**隔离证据视图与模型自行收紧认可条件的交互**。对该例的解释由四次真实回执核对支持，仍不是针对共享回执机制的因果实验。
++
++同任务、同Haiku的另外三个条件均完成，包括四角色联表；同模型四角色分表的另外两个任务也完成。它们反对“四角色必然停摆”的解释。联表仅整理角色／权限／依赖，并未共享回执对象，故这一成功对照也不能证明联表修复了上述机制。全部负例、预先规则选取的正例及精确时序保留在[案例审计](../runtime-experiments-017/review/receipt-boundary-case.json)，未对失败例追加提示后覆盖原结果。
++
+ ## 5 机制分析与设计启示
+ 
+ ### 5.1 角色职责与行动责任之间存在转换缺口
+@@ -254,7 +310,7 @@
+ 
+ 本文观察到的人工作用包括补主体、补对象与阶段、纠正操作顺序，以及催促继续；它们不是同一种干预。下一步应固定任务、事实、工具与权限，比较一般角色规则与完整工作项交接，测量无提醒推进、剩余义务丢失、重复动作和最终验收质量。用户消息减少或回复加快都不能单独证明改进：正确拒绝、必要升级与外部等待同样是合格结果。（B01、B03、B07–B09）
+ 
+-短题实验只覆盖事实完整后的表示变化，不能替代上述多步评价。有效情境没有语义错误，是反对简单“表示复杂度致错”解释的证据；实验材料自身的歧义则要求评分依据必须从模型实际可见的事实推出。两者都不能取消真实案例中人工补足行动关系的事实。表8汇总仍相互竞争的解释。
++短题实验只覆盖事实完整后的表示变化；新增实际对照显示了交接成本及一次证据认可争议，但没有实施一般角色规则与完整工作项的全部干预。有效情境没有语义错误，是反对简单“表示复杂度致错”解释的证据；实验材料自身的歧义则要求评分依据必须从模型实际可见的事实推出。两者都不能取消真实案例中人工补足行动关系的事实。表8汇总仍相互竞争的解释。
+ 
+ **表8。责任与复杂度的竞争解释**
+ 
+@@ -262,18 +318,26 @@
+ |---|---|---|
+ | 角色到动作的关系缺失 | W01/W02需补主体或对象；形式反例说明受限表示不足 | 恢复实际输入，比较完整工作项与角色规则 |
+ | 关系齐全但联结困难 | 短题排除材料缺陷后未见有效语义错误；不支持普遍困难 | 固定信息，增加合法对象数量与关联深度 |
+-| 局部完成掩盖剩余义务 | Graph及NO-GO案例区分局部与全局；合法拒绝是反证 | 真实多步交接，追踪义务是否丢失 |
++| 局部完成掩盖剩余义务 | Graph及NO-GO区分局部与全局；新增回执争议挤掉发布；其余23次交接完成 | 在新任务操纵证据共享，区分有效拒绝与重复索证 |
+ | 复杂表述增加负担 | Sonnet严格格式有差异，未形成语义错误证据 | 匹配长度，操纵必要推理深度与真实依赖 |
+ | 授权或事实不足 | 人工补充类型不同；缺生产证据时拒绝有用 | 分开干预授权、事实、催促，记录恢复路径 |
+ | 模型训练或协调动机 | 本轮未干预训练，也无动机测量 | 跨模型训练／提示干预；不能从reason倒推 |
+ 
++### 5.5 行动关系完整后，还需要跨会话的证据认可关系
++
++新实验中的角色、工件和允许动作均已定义，未闭合却发生在另一层：双方把“我直接观察到的工具结果”作为认可证据的隐含边界。审查者能生成有效证据，控制者也能组织继续工作，但新增的controller专属引用要求使这些局部正确行为反复冲突。原始合同允许任何当前版本的真实成功回执；同版本的新增测试并没有补足新质量缺口。因而这一例把剩余义务问题具体化为：认可条件是否在交接时被一致理解，是否能由可查凭据判断，而非反复让另一角色重述。
++
++候选改进是将回执标识、产物版本、合同和验证结果作为可查询的共享对象，并将其与说明性notes分开。程序化核对可避免把本地可见性直接当全局真实性，但其收益仍需新的实际对照验证；本轮联表只整理静态职责，没有实现共享回执。不得由一个负例推出普遍机制，也不能把控制者声称“没有回执”当作已核事实。更高交接成本与这条失效轨迹提供了具体改进目标，尚未提供普遍最优的角色数。
++
+ ## 6 局限
+ 
+ 本研究是单部署、目的性选例的探索。历史提示、授权与全部执行输入未恢复，用户后续要求也可能改变当时条件。因此，案例能够支持具体责任解释与人工补充的存在，不能估计其总体发生率、无人介入时的持续时间，或认定所有不推进都来自同一机制。W02早于后来的内部Supervisor/executor设计，只用于跨角色协作；Graph检查部分依赖历史报告，未重跑生产验收。（B00–B05）
+ 
+ 结构统计使用累计快照，未校准为认知负荷、沟通成本或实际并发量，也没有进行复杂度—失败因果比较。消息回应与修复成功是不同结果，多个用户消息可以共用同一次回复。跨论文复用的记录不是独立重复；全部分析尚未人工复核。过程研究只提供分析视角，不替代本系统的效果测量。[5]<!--ref:R05--><!--anchor:section:II-->
+ 
+-实验仅有八类固定英语短情境，两种呈现版本不构成独立随机重复。两模型、明确规范及部分直接提示动作的目标带来较强天花板；gate展开没有增加真实工作量，联表和分表长度也不同。实验没有测量长程交接、真实团队规模或训练机制。无缺陷情境中的语义正确不能证明一般流程可靠，格式失败也不能反推内部认知失效。
++早期动作实验仅有八类固定英语短情境，两种呈现版本不构成独立随机重复。两模型、明确规范及部分直接提示动作的目标带来较强天花板；gate展开没有增加真实工作量，联表和分表长度也不同。该动作探针没有测量真实交接或训练机制；新增§3.6检验有限长度的真实串行交接，仍未覆盖长期生产协作。无缺陷情境中的语义正确不能证明一般流程可靠，格式失败也不能反推内部认知失效。
++
++新增24次交接仍是三个研究者构造的英文函数任务，每条件一次；没有自然生成的错误候选，代码质量达到本题集天花板。两／四角色同时改变上下文分区、启动与等待次数和预算余量；分表／联表没有操纵跨会话回执的可达性。唯一未闭合episode不能提供稳定故障率或机制中介效应；同一负例同时进入两个因素比较。v2看过v1输出后修复仪器并重跑同一任务，缺新的未见任务确认，且没有人工提醒、并行分支或真实外部权限阻塞对照。
+ 
+ 明显系统bug继续排除设计归因；材料审计的缺陷、实施偏差和原分数均在附录保留。未知历史条件不会通过新的表述获得确定性，候选设计启示也不作为已验证干预结果。（B00、B07、B09）
+ 
+@@ -283,9 +347,9 @@
+ 
+ **应保留的流程是能够增加证据或维护合法边界的检查，应优先改进的是行动绑定与剩余义务交接。** 下游事实核查纠正了重复建分支的前提，独立验收扩展了产品行为覆盖，合格NO-GO报告保留了尚未达到发布条件的事实。这些结果不支持把所有往返视为扯皮，也不支持仅靠减少角色和验收步骤实现自治。（B03、B05、B07–B09）
+ 
+-**现有对照只支持对“表示复杂度致错”保持克制，不否定真实协调缺口。** 在事实与合同有效的短题中，两模型语义字段均96/96正确；原主要评分不匹配来自材料矛盾或缺信息，其余差异属于格式。下一阶段的关键检验是完整工作项能否在真实多步交接中减少人工补充、持续承接未完成义务，并保持最终验收质量，而不是进一步提高已接近天花板的单步答题准确率。
+-
+-**尚待执行的判别研究。**最小判别研究应增加真实异步交接和依赖步骤，而非仅把一个谓词拆成八个标签；在相同目标、信息、权限和质量门槛下，比较隐式交接与明确行动绑定。预先固定未见任务、恢复机会和停止标准，测无人工提示的推进与验收。若绑定关系后仍同样停摆，应转查执行能力、运行机制或任务本身，而非继续归责于职责措辞。
++**新增真实执行发现了交接成本和证据认可缺口。** 四角色在全部12对中增加总决策，未提高24个实现的终验通过数；23/24完成全部交付。唯一未闭合例中，正确实现与有效审查仍被回执引用争议阻断，重复审查挤占了发布预算。因此需要区分增加质量证据的复核与仅重复确认已成立事实的往返。该例不支持四角色必然停摆；联表条件成功也未单独识别表示的因果收益。
++
++**后续判别研究。**有限长度的真实交接已经执行，下一步应在新任务和重复运行中分别操纵角色边界、行动绑定和可查回执共享，保持相同验收质量与合法权限。若共享凭据仍不能减少重复索证，再区分额外认可规则、执行预算及模型行为的贡献。长期人工兜底与训练来源仍未测量，不以本轮的完成数替代生产可靠性。
+ 
+ ## 参考文献
+ 
+@@ -372,3 +436,5 @@
+ **同源与跨篇重合。** 五篇工作稿基于同一部署和冻结快照，存在目的性选例重合。本文的 Graph、Spark 与 I05 边界材料亦供其它篇目分析，但问题分别是责任闭合、监督或产物继承；同一消息保持原生标识，不累计为不同实验，不把跨篇一致性当独立重复验证。
+ 
+ **016修订与复核范围。** 本稿补充了主题式文献比较、事后分析框架与实验构念检查，未新增模型调用或生产样本。原始正反结果及图表保留；[逐篇修改记录](REVISION-016.md)、[共同效度审计](../research-validity-016/README.md)和[可执行研究缺口](../research-validity-016/next-studies.md)说明已修正文稿与仍缺实证支持的部分。AI交叉审阅不属于人工复核，稿件尚未定稿。
++
++**017新增执行与披露。** [多轮执行报告与全部数据](../runtime-experiments-017/README.md)、[本篇修改记录](REVISION-017.md)保留仪器缺陷、被排除旧轮、复验全条件、格式错误与成功反例。独立进程、全量SHA及副本验收属于仪器与来源核对；不等于人工复核或独立研究重复。稿件尚未定稿，作者与无资助声明不变。

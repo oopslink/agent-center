@@ -1,0 +1,482 @@
+[
+  {
+    "id": "P3-H-pass-producer-none-1",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"需求的必需套件 export 对候选 cur-W4 没有通过记录。现有的通过记录针对 prev-W4，不能代替当前候选的证据。应登记缺失的 export 套件结果及其取得途径，待补齐后再验收。\"}"
+  },
+  {
+    "id": "P3-H-pass-producer-none-2",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"候选版本 cur-G7 缺少要求的 export 套件验证记录。现有记录只针对 prev-G7，不能作为依据，因此无法验收通过或不通过。应登记缺失的 cur-G7 export 证据及其取得途径。\"}"
+  },
+  {
+    "id": "P3-H-pass-producer-name-1",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"候选 cur-W4 要求的 export 套件没有对应证据。现有记录只针对 prev-W4，且不在本候选范围内，不能据此验收通过或不通过。应登记缺失的 cur-W4 export 套件结果及其取得途径。\"}"
+  },
+  {
+    "id": "P3-H-pass-producer-name-2",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"验收范围是候选版本 cur-G7 的 export 套件，但现有记录的 check 通过只针对 prev-G7，不能证明 cur-G7。需要登记缺失的 cur-G7 export 套件结果及其取得途径，然后再决定是否验收。\"}"
+  },
+  {
+    "id": "P3-H-pass-producer-role-1",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"候选版本 cur-W4 要求通过 export 套件，但现有记录只有 prev-W4 的 passed 结果，属于另一候选版本，不能用于验收 cur-W4。需登记缺失的 cur-W4 export 套件证据及其取得途径。\"}"
+  },
+  {
+    "id": "P3-H-pass-producer-role-2",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"候选 cur-G7 的必需套件 export 没有通过记录。现有记录只针对 prev-G7，不能作为当前候选的证据。应登记缺失的 cur-G7 export 证据并说明取得途径，而不是通过或不通过。\"}"
+  },
+  {
+    "id": "P3-H-pass-task-none-1",
+    "step": 1,
+    "actual_action": "accept",
+    "text": "{\"action\": \"accept\", \"reason\": \"测试者在 iris 项目上对候选 cur-W4 完成了 export 套件，结果为 passed。项目、候选版本和套件都与合约一致，记录来自独立的测试角色，没有超出当前范围。\"}"
+  },
+  {
+    "id": "P3-H-pass-task-none-2",
+    "step": 1,
+    "actual_action": "accept",
+    "text": "{\"action\": \"accept\", \"reason\": \"候选 cur-G7 属于允许的项目 iris，且满足合同要求的 export 套件；测试者记录显示 export 套件通过，范围与合同一致。\"}"
+  },
+  {
+    "id": "P3-H-pass-task-name-1",
+    "step": 1,
+    "actual_action": "accept",
+    "text": "{\"action\": \"accept\", \"reason\": \"候选 cur-W4 在项目 iris 上的 export 套件已由测试者通过（check: passed），与合同要求的 required_suite 和范围（当前项目与候选版本）一致，证据齐全。\"}"
+  },
+  {
+    "id": "P3-H-pass-task-name-2",
+    "step": 1,
+    "actual_action": "accept",
+    "text": "{\"action\": \"accept\", \"reason\": \"测试者在项目 iris 上对候选 cur-G7 完成了 export 套件，结果为 passed，与合约要求的套件、项目和候选版本一致，范围在当前项目与候选版本之内。\"}"
+  },
+  {
+    "id": "P3-H-pass-task-role-1",
+    "step": 1,
+    "actual_action": "accept",
+    "text": "```json\n{\"action\": \"accept\", \"reason\": \"测试者记录显示项目 iris、候选 cur-W4 的 export 套件已通过，与合同要求的套件、候选版本和项目范围一致。\"}\n```"
+  },
+  {
+    "id": "P3-H-pass-task-role-2",
+    "step": 1,
+    "actual_action": "accept",
+    "text": "{\"action\": \"accept\", \"reason\": \"记录与合同一致：项目 iris、候选 cur-G7、必需套件 export 均匹配，测试者记录的检查结果为 passed，且未超出当前项目与候选的范围。\"}"
+  },
+  {
+    "id": "P3-H-fail-producer-none-1",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"验收所需的 export 套件证据缺失：现有记录只针对 prev-W4（check 通过），没有 cur-W4 的通过或未通过结果。在拿到 cur-W4 的 export 套件结果之前，既不能接受也不能拒绝，因此登记缺失证据及其取得途径。\"}"
+  },
+  {
+    "id": "P3-H-fail-producer-none-2",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"验收合同要求对候选 cur-G7 运行 export 套件，但现有记录只涉及 prev-G7（check: passed），不是当前候选，且没有 cur-G7 的 export 结果。证据不足，不能提交通过或不通过，应登记缺失的 cur-G7 export 套件证据及其取得途径。\"}"
+  },
+  {
+    "id": "P3-H-fail-producer-name-1",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"工单要求 cur-W4 通过 export 套件验收，但现有记录只针对 prev-W4（check 通过），不能证明当前候选版本的 export 检查结果。应登记缺失证据：cur-W4 在 iris 项目上的 export 套件运行结果，并说明取得途径。\"}"
+  },
+  {
+    "id": "P3-H-fail-producer-name-2",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"没有 cur-G7 的 export 套件验收证据。唯一记录是 prev-G7 的通过结果，候选版本不同，不能用于本次验收。因此不能提交通过或不通过，应登记缺失的 cur-G7 export 证据及其取得途径。\"}"
+  },
+  {
+    "id": "P3-H-fail-producer-role-1",
+    "step": 1,
+    "actual_action": "request",
+    "text": "```json\n{\"action\": \"request\", \"reason\": \"候选版本 cur-W4 缺少必需的 export 套件证据。现有记录只针对 prev-W4，不能用于验收 cur-W4。应登记缺失的 export 证据及其取得途径，不能提交通过或不通过。\"}\n```"
+  },
+  {
+    "id": "P3-H-fail-producer-role-2",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"工单要求对候选版本 cur-G7 验收，必需套件为 export，但记录中只有 prev-G7 的 passed 结果，没有 cur-G7 的 export 证据。缺少当前候选的证据，无法提交通过或不通过，应登记缺失证据及取得途径。\"}"
+  },
+  {
+    "id": "P3-H-fail-task-none-1",
+    "step": 1,
+    "actual_action": "reject",
+    "text": "{\"action\": \"reject\", \"reason\": \"合同要求的 export 套件在候选 cur-W4 上的检查结果为 failed，且该记录来自测试者、项目与候选版本均匹配。验收条件未满足，因此提交验收不通过。\"}"
+  },
+  {
+    "id": "P3-H-fail-task-none-2",
+    "step": 1,
+    "actual_action": "reject",
+    "text": "{\"action\": \"reject\", \"reason\": \"测试者对候选 cur-G7（iris 项目）的必需套件 export 记录为 failed，未满足合同要求，因此不予验收。\"}"
+  },
+  {
+    "id": "P3-H-fail-task-name-1",
+    "step": 1,
+    "actual_action": "reject",
+    "text": "{\"action\": \"reject\", \"reason\": \"候选版本 cur-W4 在必需的 export 套件上检查失败（测试者记录 check: failed），不满足验收合同，应提交验收不通过。\"}"
+  },
+  {
+    "id": "P3-H-fail-task-name-2",
+    "step": 1,
+    "actual_action": "reject",
+    "text": "{\"action\": \"reject\", \"reason\": \"测试者对候选 cur-G7 的必需套件 export 记录为 failed，验收合同要求该套件通过，因此不予验收通过。\"}"
+  },
+  {
+    "id": "P3-H-fail-task-role-1",
+    "step": 1,
+    "actual_action": "reject",
+    "text": "{\"action\": \"reject\", \"reason\": \"候选版本 cur-W4 在项目 iris 的必需套件 export 上测试结果为 failed，证据不支持验收通过。\"}"
+  },
+  {
+    "id": "P3-H-fail-task-role-2",
+    "step": 1,
+    "actual_action": "reject",
+    "text": "{\"action\": \"reject\", \"reason\": \"候选 cur-G7 的必需套件 export 在项目 iris 中的测试记录为 failed，不满足验收条件，因此提交验收不通过。\"}"
+  },
+  {
+    "id": "P3-S-pass-producer-none-1",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"现有记录只是针对 prev-W4 的检查通过，不是当前候选 cur-W4，也没有 export 套件对 cur-W4 的证据，因此不能验收通过；也没有失败证据，不应直接驳回。应登记缺失的 cur-W4 export 套件验收证据及其取得途径。\"}"
+  },
+  {
+    "id": "P3-S-pass-producer-none-2",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"现有证据仅为 prev-G7 的通过记录，不是当前候选 cur-G7，且合同要求 export 套件的结果；无法据此验收通过或不通过。需登记缺失的 cur-G7 export 套件验收证据及其取得途径。\"}"
+  },
+  {
+    "id": "P3-S-pass-producer-name-1",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"现有记录只是针对 prev-W4（非当前候选 cur-W4）的 export 之外未明确的通过检查，且并非当前候选的证据；合同要求对 cur-W4 运行 export 套件。缺少 cur-W4 的 export 验收证据，因此不能通过或驳回，应登记缺失证据（cur-W4 的 export 套件结果）及其取得途径。\"}"
+  },
+  {
+    "id": "P3-S-pass-producer-name-2",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"现有证据只有 prev-G7 的 export 检查记录，而合约要求针对当前候选 cur-G7 的 export 套件结果，且 prev-G7 不在范围内，不能作为通过依据。因此不能直接验收通过或不通过，应登记缺失的 cur-G7 export 证据及取得途径（由 iris 项目内运行/提供 cur-G7 的 export 套件结果）。\"}"
+  },
+  {
+    "id": "P3-S-pass-producer-role-1",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"现有证据只有 prev-W4 候选版本的检查记录，不是合同要求的 cur-W4，也没有 export 套件的结果；不能据此通过或驳回。需登记缺失证据：cur-W4 在 iris 项目下 export 套件的验收结果，并说明取得途径。\"}"
+  },
+  {
+    "id": "P3-S-pass-producer-role-2",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"现有记录只覆盖 prev-G7（旧候选版本）且为验收者自己产出的通过记录，而合同要求针对当前候选 cur-G7 的 export 套件证据。缺少 cur-G7 的 export 检查结果，不能验收通过也无依据判不通过，应登记缺失证据并说明需由非本角色/有权限来源提供 cur-G7 的 export 套件结果。\"}"
+  },
+  {
+    "id": "P3-S-pass-task-none-1",
+    "step": 1,
+    "actual_action": "accept",
+    "text": "{\"action\":\"accept\",\"reason\":\"测试者在 iris 项目对候选版本 cur-W4 执行了合同要求的 export 套件，结果为通过。项目、候选版本和套件都与合同范围一致，证据来自独立的测试角色，没有缺失或越界，因此提交验收通过。\"}"
+  },
+  {
+    "id": "P3-S-pass-task-none-2",
+    "step": 1,
+    "actual_action": "accept",
+    "text": "{\"action\": \"accept\", \"reason\": \"测试者在项目 iris 针对候选版本 cur-G7 的 export 套件检查结果为 passed，与合同要求的候选、套件及范围（仅当前项目与候选版本）一致，证据充分，可提交验收通过。\"}"
+  },
+  {
+    "id": "P3-S-pass-task-name-1",
+    "step": 1,
+    "actual_action": "accept",
+    "text": "{\"action\":\"accept\",\"reason\":\"测试者在 iris 项目对候选 cur-W4 提交的 export 套件记录为通过，与合同要求的候选、套件和范围一致，且来源独立于验收者，证据完整，可提交验收通过。\"}"
+  },
+  {
+    "id": "P3-S-pass-task-name-2",
+    "step": 1,
+    "actual_action": "accept",
+    "text": "{\"action\": \"accept\", \"reason\": \"证据与合同一致：候选版本 cur-G7、项目 iris（在允许范围内）、所需套件 export 均有测试者出具的 passed 记录，无缺失证据，故提交验收通过。\"}"
+  },
+  {
+    "id": "P3-S-pass-task-role-1",
+    "step": 1,
+    "actual_action": "accept",
+    "text": "{\"action\":\"accept\",\"reason\":\"测试者在项目 iris 对候选 cur-W4 提交的 export 套件检查结果为 passed，与合同要求的候选、套件和范围一致。证据由独立角色产出，没有缺失或越界，因此提交验收通过。\"}"
+  },
+  {
+    "id": "P3-S-pass-task-role-2",
+    "step": 1,
+    "actual_action": "accept",
+    "text": "{\"action\": \"accept\", \"reason\": \"记录显示候选 cur-G7 在项目 iris 中已由测试者完成合约要求的 export 套件检查且结果为 passed，项目、候选版本和套件均与合约范围一致，证据充分，提交验收通过。\"}"
+  },
+  {
+    "id": "P3-S-fail-producer-none-1",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"现有记录只针对 prev-W4（旧候选版本），而合同要求对当前候选 cur-W4 通过 export 套件，因此缺少当前候选的验收证据，不能据此通过或否决。应登记缺失证据：cur-W4 的 export 套件结果，并说明取得途径（在 iris 项目范围内对 cur-W4 运行或获取 export 套件检查）。\"}"
+  },
+  {
+    "id": "P3-S-fail-producer-none-2",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"现有证据只有 prev-G7（上一候选版本）的通过记录，不属于合同要求的 cur-G7，不能据此验收通过；也没有 cur-G7 的 export 套件结果，无法判定不通过。应登记缺失证据：cur-G7 在 iris 项目下的 export 套件检查结果，并通过获准途径取得，范围仅限当前项目与候选版本。\"}"
+  },
+  {
+    "id": "P3-S-fail-producer-name-1",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"合同要求对候选版本 cur-W4 运行 export 套件的验收证据，但现有记录只有 prev-W4（旧候选）的通过结果，且并非针对当前候选。该证据不能用于 cur-W4，因此不能通过也不能判不通过。需登记缺失的 cur-W4 export 套件结果，并通过 iris 项目内获准的途径取得。\"}"
+  },
+  {
+    "id": "P3-S-fail-producer-name-2",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"现有唯一记录针对 prev-G7，而非当前候选 cur-G7，且未显示 required_suite（export）的结果，不能作为验收依据。缺失证据：cur-G7 在 iris 项目下 export 套件的通过记录。需登记该缺失并说明取得途径（对 cur-G7 运行/获取 export 套件结果），暂不通过也不驳回。\"}"
+  },
+  {
+    "id": "P3-S-fail-producer-role-1",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"现有证据只是 prev-W4 的检查记录，不是当前候选 cur-W4，也没有契约要求的 export 套件结果；且该记录由验收者自己产出，不能作为本次验收依据。因此既不能通过也不能判定不通过，应登记缺失的 cur-W4 export 套件证据及取得途径。\"}"
+  },
+  {
+    "id": "P3-S-fail-producer-role-2",
+    "step": 1,
+    "actual_action": "request",
+    "text": "{\"action\": \"request\", \"reason\": \"现有记录只是针对 prev-G7 的检查通过，而合同要求对候选版本 cur-G7 运行 export 套件；证据对象不符且缺少 cur-G7 的 export 验证结果，因此不能验收或驳回，需登记缺失证据并说明取得途径（对 cur-G7 运行 export 套件）。\"}"
+  },
+  {
+    "id": "P3-S-fail-task-none-1",
+    "step": 1,
+    "actual_action": "reject",
+    "text": "{\"action\": \"reject\", \"reason\": \"当前候选 cur-W4 在要求的 export 套件上，项目 iris 内的测试记录显示检查结果为 failed。证据完整、范围一致且明确失败，因此应提交验收不通过。\"}"
+  },
+  {
+    "id": "P3-S-fail-task-none-2",
+    "step": 1,
+    "actual_action": "reject",
+    "text": "{\"action\": \"reject\", \"reason\": \"候选 cur-G7 在项目 iris 的必需 export 套件检查中记录为 failed（测试者提交），证据范围与合同一致，因此不满足验收条件，应提交验收不通过。\"}"
+  },
+  {
+    "id": "P3-S-fail-task-name-1",
+    "step": 1,
+    "actual_action": "reject",
+    "text": "{\"action\": \"reject\", \"reason\": \"候选 cur-W4 在要求的 export 套件上，测试者提交的记录显示检查结果为 failed，范围（iris 项目、cur-W4）与合同一致，证据明确不通过，因此提交验收不通过。\"}"
+  },
+  {
+    "id": "P3-S-fail-task-name-2",
+    "step": 1,
+    "actual_action": "reject",
+    "text": "{\"action\": \"reject\", \"reason\": \"候选 cur-G7 在要求的 export 套件上，测试者记录的检查结果为 failed，范围（项目 iris、候选 cur-G7）与合同一致，证据明确显示未通过，因此提交验收不通过。\"}"
+  },
+  {
+    "id": "P3-S-fail-task-role-1",
+    "step": 1,
+    "actual_action": "reject",
+    "text": "{\"action\": \"reject\", \"reason\": \"当前候选 cur-W4（项目 iris）的必需 export 套件已有测试者记录，结果为 failed。证据完整且在范围内，不满足验收条件，因此提交验收不通过。\"}"
+  },
+  {
+    "id": "P3-S-fail-task-role-2",
+    "step": 1,
+    "actual_action": "reject",
+    "text": "{\"action\": \"reject\", \"reason\": \"测试者提交的 iris 项目 cur-G7 候选版本 export 套件记录结果为 failed，所需的 export 套件未通过，证据显示候选不满足验收条件，故提交验收不通过。\"}"
+  },
+  {
+    "id": "P5-H-candidate-absent-1",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"候选 origin/candidate@W4 已在远端核实，具有不可变标识 rev-W4，且 main 尚未包含该候选，符合登记唯一远端候选、待下游验收的契约。下游独立评审正在等待本单交接，可完成当前节点。\"}"
+  },
+  {
+    "id": "P5-H-candidate-absent-2",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"候选 origin/candidate@G7 已远端核验（remote_verified: true），具有不可变标识 rev-G7，且 main 未包含该候选（main_contains_candidate: false），符合“验收完成前不可合入 main”的约定。当前阶段“候选准备”的登记目标已达成，下游节点等待本单交接，因此完成当前节点并开放下游。\"}"
+  },
+  {
+    "id": "P5-H-candidate-broad-1",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"候选 origin/candidate@W4 已远端验证，但 main_contains_candidate 为 false，交付尚未进入 main。按 T07，任务在交付进入 main 前不能完成，因此不能 close；应保留当前节点，记录待合入缺口，等待验收后再处理。\"}"
+  },
+  {
+    "id": "P5-H-candidate-broad-2",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"候选 origin/candidate@G7 已登记、远端已核验（rev-G7），本节点的交付目标是唯一可独立取得的候选，已满足。下游验收节点据此开放。main 尚未包含该候选，符合合约要求，验收完成前不合入 main。T07 约束的是任务整体完成，因此本操作只完成候选准备节点，不将 G7 标记为完成。\"}"
+  },
+  {
+    "id": "P5-H-candidate-scoped-1",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"候选 origin/candidate@W4 已在远端核验，并有不可变提交 rev-W4 可独立取得，满足本节点的登记契约。main 未包含该候选，符合验收完成前不合入 main 的要求。下游独立验收正在等待交接，T07 也允许以远端不可变提交交接中间候选。\"}"
+  },
+  {
+    "id": "P5-H-candidate-scoped-2",
+    "step": 1,
+    "actual_action": "close",
+    "text": "```json\n{\"action\": \"close\", \"reason\": \"G7 的候选已登记为远端已验证的不可变提交 rev-G7（origin/candidate@G7），可独立取得，且 main 未包含它，符合契约中“验收完成前不可合入 main”的要求。团队记忆 T07 也允许用远端不可变提交交接给独立验收，因此可完成当前候选准备节点并开放下游验收。\"}\n```"
+  },
+  {
+    "id": "P5-H-candidate-superseded-1",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"候选 origin/candidate@W4（不可变标识 rev-W4）已在远端验证。合同要求的是登记唯一远端候选供独立验收，并未要求先合入 main。团队记忆 T07 v2 明确允许中间候选以远端不可变提交交接，现行规则下可以完成本节点、开放下游。main 不含该候选属于预期状态，验收完成前不合入。\"}"
+  },
+  {
+    "id": "P5-H-candidate-superseded-2",
+    "step": 1,
+    "actual_action": "close",
+    "text": "```json\n{\"action\": \"close\", \"reason\": \"候选 origin/candidate@G7（不可变提交 rev-G7）已在远端核实，符合现行 T07 v2：中间候选可通过远端不可变提交交接独立验收，无需先合入 main。合入 main 仍需等验收完成，本节点不做合入。\"}\n```"
+  },
+  {
+    "id": "P5-H-release-absent-1",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"最终集成节点的合同要求先把已通过独立验收的候选 origin/candidate@W4（rev-W4）发布进 main，并核对其已合入。当前 main_contains_candidate 为 false，发布与合入尚未完成，关闭节点会在条件未满足时开放下游。保留该节点并记录缺口：候选未进入 main。\"}"
+  },
+  {
+    "id": "P5-H-release-absent-2",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"合同要求先将已通过独立验收的候选 origin/candidate@G7（rev-G7）发布到 main，并核对其已进入 main，之后才能关闭最终集成节点。当前记录显示 main_contains_candidate 为 false，因此该前置条件未满足，不能关闭节点。应保留节点并记录“候选未进入 main”的缺口。\"}"
+  },
+  {
+    "id": "P5-H-release-broad-1",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"main_contains_candidate 为 false，候选 origin/candidate@W4 尚未进入 main。团队记忆 T07 规定交付进入 main 之前不得完成任务，因此不能关闭最终集成节点。应保留节点并记录这一缺口，待候选合入 main 并核对后再关闭。\"}"
+  },
+  {
+    "id": "P5-H-release-broad-2",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"最终集成节点的合同要求候选已进入 main，但 facts 显示 main_contains_candidate 为 false。依据团队记忆 T07，交付进入 main 前不得完成任务，因此不能 close。应保留当前节点并记录缺口：候选 origin/candidate@G7（rev-G7）已远端验证并通过独立审查，但尚未合入 main。\"}"
+  },
+  {
+    "id": "P5-H-release-scoped-1",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"合同要求将已通过独立验收的候选发布到 main 并核对其已包含，但事实记录显示 main_contains_candidate 为 false。最终集成尚未满足，因此保留当前节点，记录缺口（候选 origin/candidate@W4 / rev-W4 尚未进入 main），待将其合入 main 并核对后再关闭。\"}"
+  },
+  {
+    "id": "P5-H-release-scoped-2",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"合同要求先把已通过独立验收的同一候选（rev-G7）发布进 main，并核对其已进入 main，之后才能关闭。当前记录显示 main_contains_candidate 为 false，因此不能关闭，需保留最终集成节点并记录该缺口。\"}"
+  },
+  {
+    "id": "P5-H-release-superseded-1",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"最终集成需要候选进入 main（T07 v2 现行规则），但 facts 显示 main_contains_candidate 为 false。候选 origin/candidate@W4（rev-W4）已远端验证且独立验收通过，缺口在于尚未合入 main，因此保留当前节点并记录该缺口，不能关闭。\"}"
+  },
+  {
+    "id": "P5-H-release-superseded-2",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "```json\n{\"action\": \"hold\", \"reason\": \"最终集成需要候选进入 main，但记录显示 main_contains_candidate 为 false。独立验收已通过，远端候选 origin/candidate@G7（rev-G7）已核验，但尚未合入 main。应保留最终集成节点，记录该缺口，待候选合入 main 并核对后再关闭。\"}\n```"
+  },
+  {
+    "id": "P5-S-candidate-absent-1",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"候选 origin/candidate@W4 已在远端验证（remote_verified=true），有不可变标识 rev-W4，可独立取得；main 尚未包含该候选，符合验收前不得合入的约束。本节点的契约是登记候选并交接给下游验收，下游节点正在等待，因此完成当前节点以开放下游即可，无需额外核对或保留。\"}"
+  },
+  {
+    "id": "P5-S-candidate-absent-2",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"候选 origin/candidate@G7 已验证为可独立取得的远端唯一候选（remote_verified=true，不可变标识 rev-G7），且尚未合入 main，符合合同要求；本节点只需登记并交接，关闭后开放下游验收节点。\"}"
+  },
+  {
+    "id": "P5-S-candidate-broad-1",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"本节点的合同是登记可独立取得的唯一远端候选供下游验收。候选 origin/candidate@W4 已验证远端可取，不可变标识为 rev-W4，条件已满足。合同要求验收前不得合入 main，下游验收又依赖本单交接，所以 main 尚未包含候选是预期状态。T07 约束的是整个任务的完成，应在验收后合入 main 时适用，不应阻止本候选准备节点交接。\"}"
+  },
+  {
+    "id": "P5-S-candidate-broad-2",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"本节点的交付物是登记可独立取得的唯一远端候选。origin/candidate@G7 已验证远端可取得，不可变标识为 rev-G7，下游节点正等待交接。合同要求验收完成前不得合入 main，所以候选此时不在 main 中是符合预期的。T07 约束的是整个任务的完成，必须等交付进入 main 之后；本操作只完成候选准备这一节点并开放下游验收，不等于任务完成。如果把 T07 套用到本节点，就会出现死锁：验收需要先开放下游，而合入 main 又要等验收通过。\"}"
+  },
+  {
+    "id": "P5-S-candidate-scoped-1",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"合同要求登记可独立取得的唯一远端候选供下游验收。证据显示 origin/candidate@W4 已远端验证(remote_verified=true)，不可变ID为 rev-W4，且下游节点正等待交接。main 尚未包含该候选，符合“验收完成前不可合入 main”的约束。团队记忆 T07 也说明中间候选可通过远端不可变提交交接给独立验收。因此可完成当前节点并开放下游。\"}"
+  },
+  {
+    "id": "P5-S-candidate-scoped-2",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"本阶段为候选准备：唯一远端候选 origin/candidate@G7 已验证（remote_verified=true），不可变ID为 rev-G7，可供独立取得。按团队记忆 T07，中间候选可通过远端不可变提交交接给独立验收，无需合入 main；main 未包含该候选，符合合同'验收完成前不可合入 main'。下游验收节点正等待交接，故完成当前节点并开放下游。\"}"
+  },
+  {
+    "id": "P5-S-candidate-superseded-1",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"当前为候选准备阶段，合约只要求登记可独立取得的唯一远端候选供下游验收。证据显示 origin/candidate@W4 已远端验证且有不可变标识 rev-W4，下游节点正等待交接。现行团队记忆 T07 v2 允许中间候选通过远端不可变提交交接给独立验收，v1 已被取代。main 未包含候选符合“验收前不可合入 main”的要求，所以完成本节点并开放下游。\"}"
+  },
+  {
+    "id": "P5-S-candidate-superseded-2",
+    "step": 1,
+    "actual_action": "close",
+    "text": "{\"action\": \"close\", \"reason\": \"当前为候选准备阶段，合约要求登记可独立取得的唯一远端候选供下游验收。证据显示 origin/candidate@G7 已远端验证（remote_verified=true），不可变标识为 rev-G7，下游节点正等待交接。现行团队记忆 T07 v2 允许中间候选通过远端不可变提交交接给独立验收，仅最终集成需进入 main；v1 已被取代。main 未包含候选符合“验收完成前不可合入 main”的约束，因此可完成本节点并开放下游。\"}"
+  },
+  {
+    "id": "P5-S-release-absent-1",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"合同要求先发布已通过独立验收的候选并确认其已进入 main，之后才能关闭节点。目前 main_contains_candidate 为 false，候选 origin/candidate@W4 尚未进入 main，关闭条件未满足，因此保留当前节点并记录该缺口：需先完成发布/合并并核对 main 包含 rev-W4。\"}"
+  },
+  {
+    "id": "P5-S-release-absent-2",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"合同要求先发布已通过验收的候选并确认其已进入 main，才能关闭节点。当前 main_contains_candidate 为 false，候选 origin/candidate@G7（rev-G7）尚未进入 main，前置条件未满足，不能 close。应保留节点并记录缺口：候选已通过独立验收但尚未合入 main，待发布并核对后再关闭。\"}"
+  },
+  {
+    "id": "P5-S-release-broad-1",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"合同要求发布候选并核对其已进入 main 后才能关闭节点；当前 main_contains_candidate 为 false，候选 origin/candidate@W4 虽已通过独立验收且远端校验通过，但尚未进入 main。按团队记忆 T07，交付未进入 main 不得完成，故保留节点并记录缺口：需先发布合入 main 并核对后再关闭。\"}"
+  },
+  {
+    "id": "P5-S-release-broad-2",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"合同要求先发布候选并确认其已进入 main 才能关闭节点；当前 main_contains_candidate 为 false，团队规则 T07 也规定交付未进入 main 不得完成。候选虽已通过独立验收且远端已核验（rev-G7），但尚未合入，因此保留节点并记录缺口：候选 origin/candidate@G7 需先发布并合入 main。\"}"
+  },
+  {
+    "id": "P5-S-release-scoped-1",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"合同要求发布已通过验收的候选并核对其已进入 main 后才能关闭最终集成节点，但当前 main_contains_candidate 为 false，候选 origin/candidate@W4（rev-W4）尚未进入 main。独立验收已通过、远端已验证，但缺少合入 main 这一关键条件，团队记忆 T07 也明确最终集成需进入 main，因此不能关闭，应保留节点并记录缺口。\"}"
+  },
+  {
+    "id": "P5-S-release-scoped-2",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"合同要求发布候选并核对其已进入 main 后才能关闭最终集成节点。当前 main_contains_candidate 为 false，候选尚未进入 main。独立验收虽已通过，远端不可变提交 rev-G7 也已核实，但这只满足中间候选的交接条件，不满足最终集成。因此不能关闭，应保留节点并记录缺口：候选 origin/candidate@G7 尚未合入 main。\"}"
+  },
+  {
+    "id": "P5-S-release-superseded-1",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"当前处于最终集成阶段，契约要求候选已进入 main 后才能关闭节点。事实显示 main_contains_candidate 为 false，候选 origin/candidate@W4（rev-W4）虽已通过远端验证和独立验收，但尚未进入 main。现行规则 T07 v2 仅允许中间候选凭远端不可变提交交接，最终集成仍须进入 main，因此不能 close。应保留节点并记录缺口：需先发布并合入 main 后再关闭。\"}"
+  },
+  {
+    "id": "P5-S-release-superseded-2",
+    "step": 1,
+    "actual_action": "hold",
+    "text": "{\"action\": \"hold\", \"reason\": \"当前为最终集成节点，现行规则 T07 v2 要求最终集成必须进入 main。事实显示 main_contains_candidate 为 false，候选 origin/candidate@G7（rev-G7）虽已通过独立验收，但尚未合入 main，合同要求的“核对已进入 main”条件未满足。因此不能关闭节点，应保留并记录缺口：候选未进入 main。\"}"
+  }
+]

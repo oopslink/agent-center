@@ -1,0 +1,202 @@
+{
+  "schema": "post-revision-targeted-method-review-v1",
+  "reviewed_at_utc": "2026-11-04T07:50:35.053419+00:00",
+  "reviewer": "methods_validity_audit_016",
+  "review_kind": "single targeted AI review, not independent human validation",
+  "manuscripts": [
+    {
+      "paper": "P1",
+      "path": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p1-logical-agent-identity/paper.md",
+      "sha256": "b9349ef2768e0001d7b1eb2f8f72f6e24b5b43cc42ff3150a3c4ebf7cfe10f97",
+      "lines": 433
+    },
+    {
+      "paper": "P2",
+      "path": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p2-workflow-responsibility/paper.md",
+      "sha256": "2672e02d8ca3db67550e95cb22c032b90dee00d74aea2c75b674cec122c858ed",
+      "lines": 374
+    },
+    {
+      "paper": "P3",
+      "path": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p3-role-shared-context/paper.md",
+      "sha256": "2a771d4667fa7d616c9af80e4f2064edfe394c74b6373d12ecdeea10f538855d",
+      "lines": 353
+    },
+    {
+      "paper": "P4",
+      "path": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p4-dag-evolution/paper.md",
+      "sha256": "79b5dda4058f93224a8bb7a989e6c05f508773c0cfecf8d1414a1666bd8ace24",
+      "lines": 353
+    },
+    {
+      "paper": "P5",
+      "path": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p5-memory-applicability/paper.md",
+      "sha256": "c3661ac643b7e6ab40053d90ca4d08667c24944080a743495c3a69e52dab5d88",
+      "lines": 269
+    }
+  ],
+  "overall_verdict": "No additional mandatory manuscript corrections found in SHA-bound versions. Major research gaps remain open; not scientific validation or submission approval.",
+  "mandatory_fixes": [],
+  "resolved_during_review": [
+    {
+      "id": "R16-P5-METHOD-BOILERPLATE",
+      "status": "resolved_in_sha_bound_version",
+      "location": "P5 §3.4 lines 114–118",
+      "resolution": "Experimental boilerplate replaced by observational governance/access reproducibility, AI interpretation and linked non-independent units; input-census/behavioral-test language removed.",
+      "sha256": "c3661ac643b7e6ab40053d90ca4d08667c24944080a743495c3a69e52dab5d88"
+    }
+  ],
+  "paper_reviews": [
+    {
+      "paper": "P1",
+      "evidence_level": [
+        "descriptive",
+        "local_process_mechanism",
+        "protocol_conditioned_behavior"
+      ],
+      "checked": [
+        "摘要11–17行、RQ/框架25–53行、方法94–100行、纵向发现104–122行、局限/结论320–340行",
+        "保留7月多主体纠偏、提示修订、后续正确承责与9月残留；未用短题全对否定真实失效",
+        "512主输入责任均明确，干净条件每模型64/64及身份差零仅是协议遵循；新Task早于第二条身份提醒、未知历史版本/机会分母均保留"
+      ],
+      "open": [
+        "多轮自主恢复、身份封装与训练先验净效应未识别",
+        "频率、维护负担及早期至后期的改善幅度未测量"
+      ]
+    },
+    {
+      "paper": "P2",
+      "evidence_level": [
+        "descriptive",
+        "local_process_mechanism",
+        "protocol_conditioned_behavior"
+      ],
+      "checked": [
+        "摘要11–17行、框架/方法43–89行、实验209–231行、局限/结论270–288行",
+        "全256输入明示协议；gate展开不增加真实工作量",
+        "W2/W8为2/8情境，其全部64输出保留；严格91/96和96/96与事后语义96/96分开；64修复复测仍是事后诊断",
+        "合法等待、独立验收、事实核查及NO-GO反证保留"
+      ],
+      "open": [
+        "真实异步交接、复杂度剂量效应未测试",
+        "材料修复无独立留出情境；目的性窗口不支持发生率"
+      ]
+    },
+    {
+      "paper": "P3",
+      "evidence_level": [
+        "descriptive",
+        "local_process_mechanism",
+        "protocol_conditioned_behavior",
+        "constructed_information_sufficiency"
+      ],
+      "checked": [
+        "摘要13–19行、框架63–69行、方法99–117行、实验217–236行、结论282–298行",
+        "摘要、方法、结论明确无无名条件；两套标签仅一次固定词汇比较",
+        "3/8、2/8、8/8、8/8是固定选择器充分性；bounded按目标字段而非角色筛选，不是实现检索器",
+        "230回执、34版本化规则和重复成员配对非独立试验；单人体验不当命名效应估计"
+      ],
+      "open": [
+        "命名必要性、多词汇泛化未检验",
+        "真实角色/任务检索器效益与人类团队体验待独立研究"
+      ]
+    },
+    {
+      "paper": "P4",
+      "evidence_level": [
+        "descriptive",
+        "local_process_mechanism",
+        "protocol_conditioned_behavior"
+      ],
+      "checked": [
+        "摘要13–19行、RQ/框架28–52行、方法90–104行、局限/结论275–293行",
+        "195快照、169转移、149/169父节点保留为结构量，不当交付收益",
+        "全256输入明示图/产物/验收分离；累计/活动视图不当动态图策略干预",
+        "D5/D8为2/8情境、64输出，六个有效情境每模型96/96与64事后修复分开；bug及未知重复建链不承担架构负效应"
+      ],
+      "open": [
+        "真实续修/局部改图/重规划策略对照及净成本收益未执行",
+        "材料修复仍缺独立留出验证"
+      ]
+    },
+    {
+      "paper": "P5",
+      "evidence_level": [
+        "implementation_description",
+        "observational_process_mechanism"
+      ],
+      "checked": [
+        "状态/摘要9–19行、框架74–80行、方法108–118行、局限/结论209–225行",
+        "没有记忆模型实验；§3.4已删除模型响应/题目内容效度等误用模板",
+        "M02/M03为不同任务且有人工作用/证据/图变化，不能当同任务干预",
+        "私有项目作用域不是项目共享层；发布/读取/采用/交付分离；16/27自审不称独立审查",
+        "终读第219行已从“正确传递”收窄为发布与跨成员访问，不把访问等同完整模型输入。"
+      ],
+      "open": [
+        "条件化规则净效应、跨记忆层收益未识别",
+        "私人历史、可比任务和必要复用机会分母缺失"
+      ]
+    }
+  ],
+  "unresolved_research_gaps": [
+    {
+      "id": "G1",
+      "scope": [
+        "P1",
+        "P2",
+        "P3",
+        "P4",
+        "P5"
+      ],
+      "issue": "单部署、目的性选例、事后框架、同源记录与未完成人工盲核验限制总体和机制判断；哈希可复算不建立内容效度。",
+      "status": "open_requires_new_research"
+    },
+    {
+      "id": "G2",
+      "scope": [
+        "P1",
+        "P2"
+      ],
+      "issue": "显式规则短题未覆盖长期自主责任维持和实际异步流程负担；多轮对照及训练先验识别仍未执行。",
+      "status": "open_requires_new_research"
+    },
+    {
+      "id": "G3",
+      "scope": [
+        "P3"
+      ],
+      "issue": "无无名条件/多词汇组/实现检索器/独立体验试验；固定覆盖和单人回顾不能补足。",
+      "status": "open_requires_new_research"
+    },
+    {
+      "id": "G4",
+      "scope": [
+        "P2",
+        "P4"
+      ],
+      "issue": "每篇2/8为缺陷情境比例，不是故障率；原分数留存与64事后修复不能替代独立留出。P4无执行策略净效果比较。",
+      "status": "open_requires_new_research"
+    },
+    {
+      "id": "G5",
+      "scope": [
+        "P5"
+      ],
+      "issue": "规则对读任务不同且联合干预，私人历史与复用机会缺失；发布访问不能替代规则因果效应和层级比较。",
+      "status": "open_requires_new_research"
+    }
+  ],
+  "architecture_causality_identified_in_any_paper": false,
+  "section_reference_check": "No obvious reviewed internal-reference error; P1 A14 §1–8/§11–12 refers to external design source.",
+  "shared_evidence": "P1/P2 supervision cases, P2/P4 graph snapshots, P3/P5 230 read receipts; not independent replications.",
+  "not_performed": [
+    "new model calls",
+    "score regrading",
+    "production intervention",
+    "human coding",
+    "bibliographic re-verification",
+    "figure rendering"
+  ],
+  "original_evidence_untouched": true,
+  "final_hash_recheck": "All five current manuscript SHA-256 values match bindings after final P5 conclusion read."
+}

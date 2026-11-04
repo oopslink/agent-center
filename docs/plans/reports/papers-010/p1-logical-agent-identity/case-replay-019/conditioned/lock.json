@@ -1,0 +1,11 @@
+{
+  "utc": "2026-11-04T13:29:44.468610+00:00",
+  "files": {
+    "conditioned.py": "25ad173c7660e43d981be468b4408835bf477903daa4a7057818e83bb716e57d",
+    "runtime.py": "0a50d7212e5c4915d5fecd28a5d7e77d391b90090cecbedb9af8099d75edbdf3",
+    "transport.py": "c379ffa389fcb441550d82587c81f80e7d9bc0680a2a978d1eb14f9f8bcbf5ad",
+    "conditioned/design.json": "047a1cf4844d38c84265e1e238872189092a4f965de334b72e22d1ee2b6ab822",
+    "conditioned/protocol.md": "739e04d166e0df4937e0437e5be6e3ae2cd0edb65b4646eadb63a18f9ac2aa60",
+    "protocol.md": "3a6606f061251d9834957f28090ca22e3236afe49871af771ce8d9477c0fbbef"
+  }
+}

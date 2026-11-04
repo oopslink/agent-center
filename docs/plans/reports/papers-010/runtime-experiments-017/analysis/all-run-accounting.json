@@ -1,0 +1,61 @@
+[
+  {
+    "folder": "pilot",
+    "completed": 2,
+    "attempts": 27,
+    "reported_cost_usd": 0.0171355,
+    "statuses": {
+      "reported_complete": 1,
+      "reported_blocked": 1
+    },
+    "recorded_autonomous_delivery": 1,
+    "primary": false
+  },
+  {
+    "folder": "pilot-v2",
+    "completed": 2,
+    "attempts": 32,
+    "reported_cost_usd": 0.024223400000000003,
+    "statuses": {
+      "reported_complete": 2
+    },
+    "recorded_autonomous_delivery": 2,
+    "primary": false
+  },
+  {
+    "folder": "pilot-v3",
+    "completed": 2,
+    "attempts": 31,
+    "reported_cost_usd": 0.022467400000000002,
+    "statuses": {
+      "reported_complete": 2
+    },
+    "recorded_autonomous_delivery": 2,
+    "primary": false
+  },
+  {
+    "folder": "episodes-v1",
+    "completed": 34,
+    "attempts": 458,
+    "reported_cost_usd": 3.3959537,
+    "statuses": {
+      "reported_complete": 32,
+      "requested_external": 1,
+      "budget_exhausted": 1
+    },
+    "recorded_autonomous_delivery": 32,
+    "primary": false
+  },
+  {
+    "folder": "episodes",
+    "completed": 54,
+    "attempts": 696,
+    "reported_cost_usd": 6.3137138,
+    "statuses": {
+      "reported_complete": 53,
+      "reported_blocked": 1
+    },
+    "recorded_autonomous_delivery": 53,
+    "primary": true
+  }
+]

@@ -1,0 +1,63 @@
+{
+  "role": "academic-paper revision citation_compliance; bounded AI evidence-interpretation check",
+  "reviewed_utc": "2026-11-04T06:43:51.926902+00:00",
+  "paper_sha256": "4f85c49660c53e969d3314951512eed6c778f9df87c8c60f38e2f03831eedfba",
+  "reviewed_file_sha256": {
+    "paper.md": "4f85c49660c53e969d3314951512eed6c778f9df87c8c60f38e2f03831eedfba",
+    "controlled-experiments.md": "7e8825c75fe4fe88ba3cb74a13f5eb12e4486a72639626d720d7a38d4b43d08a",
+    "mechanism-analysis.md": "3a2c48e692520cb5eaefa4baab299462b55de5aa451e3e655262f31cd7b258b2",
+    "longitudinal-analysis.md": "21ed98dc6dad8b486743c1b6cc0603baa32a0cdc988f0fad659ffade644692b0"
+  },
+  "critical": 0,
+  "major": 0,
+  "minor": 2,
+  "decision": "No Critical/Major issues found within this targeted scope; two local wording/provenance fixes recommended. Not independent scientific verification.",
+  "findings": [
+    {
+      "id": "R014-F01",
+      "severity": "Minor",
+      "file": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p1-logical-agent-identity/mechanism-analysis.md",
+      "line": 99,
+      "issue": "新增解释仍使用可以证明单句身份表示没有影响首步选择，强于未检出差异的统计和构念边界。",
+      "suggestion": "改为本次固定题集在充分显式说明下未检出单句身份表示对首步选择的差异；保持原结果不变。"
+    },
+    {
+      "id": "R014-F02",
+      "severity": "Minor",
+      "file": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p1-logical-agent-identity/longitudinal-analysis.md",
+      "line": 58,
+      "issue": "正文53.185624/1.614726基于领域事件时间；派生timeline.json的seconds_*基于Task.created_at，分别为53.184933/1.615417。表格列出两时钟但间隔正文未明确所用时钟。",
+      "suggestion": "明确以领域事件occurred_at计算这两个间隔；在底表保留两套字段并标明时间来源，使图和正文使用同一口径。顺序和实质结论不变。"
+    }
+  ],
+  "checks": {
+    "references_byte_identical_to_before": true,
+    "reference_section_sha256": "f665af649157de7fcc3088484569533243883edfba0e54bdbfe759f9a4aa7db3",
+    "body_reference_numbers": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "new_external_references": 0,
+    "A20_verbatim_operator_account_preserved": true,
+    "A21_source_locators_id_and_sha256_checked": 34,
+    "A22_original_design_sha256": "a7b90d4049b14ec87d0959acf02ca758d7d0476c844c3aef4950210cec91688c",
+    "A22_A_inputs": 512,
+    "A22_explicit_followup_inputs": 512,
+    "A22_S7_inputs": 64,
+    "A22_S7_explicit_repair_inputs": 64,
+    "all_547_original_calls_and_scores_retained_as_reported": true,
+    "september_creation_precedes_identity_reminder": true,
+    "success_not_inferred_from_corrective_task_creation": true,
+    "system_bugs_and_legitimate_escalation_retained": true,
+    "operator_frequency_account_not_converted_to_rate": true
+  },
+  "not_performed": [
+    "No new internet literature or retraction audit; prior citation verification remains date-bounded.",
+    "No rerun of historical agents, deployment or model experiments.",
+    "No human review or independent replication.",
+    "Figure/derived-package export completion left to parent; temporary missing export links not treated as manuscript defects."
+  ]
+}

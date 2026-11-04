@@ -1,0 +1,49 @@
+id,paper,model,target,view,variant,rep,outcome,expected_contract_action,matched,resolved_current_candidate,direct_first,steps,reason
+P3-H-pass-producer-none-1,P3,claude-haiku-5-5,pass,producer,none,1,request,request,1,0,request,1,需求的必需套件 export 对候选 cur-W4 没有通过记录。现有的通过记录针对 prev-W4，不能代替当前候选的证据。应登记缺失的 export 套件结果及其取得途径，待补齐后再验收。
+P3-H-pass-producer-none-2,P3,claude-haiku-5-5,pass,producer,none,2,request,request,1,0,request,1,候选版本 cur-G7 缺少要求的 export 套件验证记录。现有记录只针对 prev-G7，不能作为依据，因此无法验收通过或不通过。应登记缺失的 cur-G7 export 证据及其取得途径。
+P3-H-pass-producer-name-1,P3,claude-haiku-5-5,pass,producer,name,1,request,request,1,0,request,1,候选 cur-W4 要求的 export 套件没有对应证据。现有记录只针对 prev-W4，且不在本候选范围内，不能据此验收通过或不通过。应登记缺失的 cur-W4 export 套件结果及其取得途径。
+P3-H-pass-producer-name-2,P3,claude-haiku-5-5,pass,producer,name,2,request,request,1,0,request,1,验收范围是候选版本 cur-G7 的 export 套件，但现有记录的 check 通过只针对 prev-G7，不能证明 cur-G7。需要登记缺失的 cur-G7 export 套件结果及其取得途径，然后再决定是否验收。
+P3-H-pass-producer-role-1,P3,claude-haiku-5-5,pass,producer,role,1,request,request,1,0,request,1,候选版本 cur-W4 要求通过 export 套件，但现有记录只有 prev-W4 的 passed 结果，属于另一候选版本，不能用于验收 cur-W4。需登记缺失的 cur-W4 export 套件证据及其取得途径。
+P3-H-pass-producer-role-2,P3,claude-haiku-5-5,pass,producer,role,2,request,request,1,0,request,1,候选 cur-G7 的必需套件 export 没有通过记录。现有记录只针对 prev-G7，不能作为当前候选的证据。应登记缺失的 cur-G7 export 证据并说明取得途径，而不是通过或不通过。
+P3-H-pass-task-none-1,P3,claude-haiku-5-5,pass,task,none,1,accept,accept,1,1,accept,1,测试者在 iris 项目上对候选 cur-W4 完成了 export 套件，结果为 passed。项目、候选版本和套件都与合约一致，记录来自独立的测试角色，没有超出当前范围。
+P3-H-pass-task-none-2,P3,claude-haiku-5-5,pass,task,none,2,accept,accept,1,1,accept,1,候选 cur-G7 属于允许的项目 iris，且满足合同要求的 export 套件；测试者记录显示 export 套件通过，范围与合同一致。
+P3-H-pass-task-name-1,P3,claude-haiku-5-5,pass,task,name,1,accept,accept,1,1,accept,1,候选 cur-W4 在项目 iris 上的 export 套件已由测试者通过（check: passed），与合同要求的 required_suite 和范围（当前项目与候选版本）一致，证据齐全。
+P3-H-pass-task-name-2,P3,claude-haiku-5-5,pass,task,name,2,accept,accept,1,1,accept,1,测试者在项目 iris 上对候选 cur-G7 完成了 export 套件，结果为 passed，与合约要求的套件、项目和候选版本一致，范围在当前项目与候选版本之内。
+P3-H-pass-task-role-1,P3,claude-haiku-5-5,pass,task,role,1,accept,accept,1,1,accept,1,测试者记录显示项目 iris、候选 cur-W4 的 export 套件已通过，与合同要求的套件、候选版本和项目范围一致。
+P3-H-pass-task-role-2,P3,claude-haiku-5-5,pass,task,role,2,accept,accept,1,1,accept,1,记录与合同一致：项目 iris、候选 cur-G7、必需套件 export 均匹配，测试者记录的检查结果为 passed，且未超出当前项目与候选的范围。
+P3-H-fail-producer-none-1,P3,claude-haiku-5-5,fail,producer,none,1,request,request,1,0,request,1,验收所需的 export 套件证据缺失：现有记录只针对 prev-W4（check 通过），没有 cur-W4 的通过或未通过结果。在拿到 cur-W4 的 export 套件结果之前，既不能接受也不能拒绝，因此登记缺失证据及其取得途径。
+P3-H-fail-producer-none-2,P3,claude-haiku-5-5,fail,producer,none,2,request,request,1,0,request,1,验收合同要求对候选 cur-G7 运行 export 套件，但现有记录只涉及 prev-G7（check: passed），不是当前候选，且没有 cur-G7 的 export 结果。证据不足，不能提交通过或不通过，应登记缺失的 cur-G7 export 套件证据及其取得途径。
+P3-H-fail-producer-name-1,P3,claude-haiku-5-5,fail,producer,name,1,request,request,1,0,request,1,工单要求 cur-W4 通过 export 套件验收，但现有记录只针对 prev-W4（check 通过），不能证明当前候选版本的 export 检查结果。应登记缺失证据：cur-W4 在 iris 项目上的 export 套件运行结果，并说明取得途径。
+P3-H-fail-producer-name-2,P3,claude-haiku-5-5,fail,producer,name,2,request,request,1,0,request,1,没有 cur-G7 的 export 套件验收证据。唯一记录是 prev-G7 的通过结果，候选版本不同，不能用于本次验收。因此不能提交通过或不通过，应登记缺失的 cur-G7 export 证据及其取得途径。
+P3-H-fail-producer-role-1,P3,claude-haiku-5-5,fail,producer,role,1,request,request,1,0,request,1,候选版本 cur-W4 缺少必需的 export 套件证据。现有记录只针对 prev-W4，不能用于验收 cur-W4。应登记缺失的 export 证据及其取得途径，不能提交通过或不通过。
+P3-H-fail-producer-role-2,P3,claude-haiku-5-5,fail,producer,role,2,request,request,1,0,request,1,工单要求对候选版本 cur-G7 验收，必需套件为 export，但记录中只有 prev-G7 的 passed 结果，没有 cur-G7 的 export 证据。缺少当前候选的证据，无法提交通过或不通过，应登记缺失证据及取得途径。
+P3-H-fail-task-none-1,P3,claude-haiku-5-5,fail,task,none,1,reject,reject,1,1,reject,1,合同要求的 export 套件在候选 cur-W4 上的检查结果为 failed，且该记录来自测试者、项目与候选版本均匹配。验收条件未满足，因此提交验收不通过。
+P3-H-fail-task-none-2,P3,claude-haiku-5-5,fail,task,none,2,reject,reject,1,1,reject,1,测试者对候选 cur-G7（iris 项目）的必需套件 export 记录为 failed，未满足合同要求，因此不予验收。
+P3-H-fail-task-name-1,P3,claude-haiku-5-5,fail,task,name,1,reject,reject,1,1,reject,1,候选版本 cur-W4 在必需的 export 套件上检查失败（测试者记录 check: failed），不满足验收合同，应提交验收不通过。
+P3-H-fail-task-name-2,P3,claude-haiku-5-5,fail,task,name,2,reject,reject,1,1,reject,1,测试者对候选 cur-G7 的必需套件 export 记录为 failed，验收合同要求该套件通过，因此不予验收通过。
+P3-H-fail-task-role-1,P3,claude-haiku-5-5,fail,task,role,1,reject,reject,1,1,reject,1,候选版本 cur-W4 在项目 iris 的必需套件 export 上测试结果为 failed，证据不支持验收通过。
+P3-H-fail-task-role-2,P3,claude-haiku-5-5,fail,task,role,2,reject,reject,1,1,reject,1,候选 cur-G7 的必需套件 export 在项目 iris 中的测试记录为 failed，不满足验收条件，因此提交验收不通过。
+P3-S-pass-producer-none-1,P3,claude-sonnet-5-5,pass,producer,none,1,request,request,1,0,request,1,现有记录只是针对 prev-W4 的检查通过，不是当前候选 cur-W4，也没有 export 套件对 cur-W4 的证据，因此不能验收通过；也没有失败证据，不应直接驳回。应登记缺失的 cur-W4 export 套件验收证据及其取得途径。
+P3-S-pass-producer-none-2,P3,claude-sonnet-5-5,pass,producer,none,2,request,request,1,0,request,1,现有证据仅为 prev-G7 的通过记录，不是当前候选 cur-G7，且合同要求 export 套件的结果；无法据此验收通过或不通过。需登记缺失的 cur-G7 export 套件验收证据及其取得途径。
+P3-S-pass-producer-name-1,P3,claude-sonnet-5-5,pass,producer,name,1,request,request,1,0,request,1,现有记录只是针对 prev-W4（非当前候选 cur-W4）的 export 之外未明确的通过检查，且并非当前候选的证据；合同要求对 cur-W4 运行 export 套件。缺少 cur-W4 的 export 验收证据，因此不能通过或驳回，应登记缺失证据（cur-W4 的 export 套件结果）及其取得途径。
+P3-S-pass-producer-name-2,P3,claude-sonnet-5-5,pass,producer,name,2,request,request,1,0,request,1,现有证据只有 prev-G7 的 export 检查记录，而合约要求针对当前候选 cur-G7 的 export 套件结果，且 prev-G7 不在范围内，不能作为通过依据。因此不能直接验收通过或不通过，应登记缺失的 cur-G7 export 证据及取得途径（由 iris 项目内运行/提供 cur-G7 的 export 套件结果）。
+P3-S-pass-producer-role-1,P3,claude-sonnet-5-5,pass,producer,role,1,request,request,1,0,request,1,现有证据只有 prev-W4 候选版本的检查记录，不是合同要求的 cur-W4，也没有 export 套件的结果；不能据此通过或驳回。需登记缺失证据：cur-W4 在 iris 项目下 export 套件的验收结果，并说明取得途径。
+P3-S-pass-producer-role-2,P3,claude-sonnet-5-5,pass,producer,role,2,request,request,1,0,request,1,现有记录只覆盖 prev-G7（旧候选版本）且为验收者自己产出的通过记录，而合同要求针对当前候选 cur-G7 的 export 套件证据。缺少 cur-G7 的 export 检查结果，不能验收通过也无依据判不通过，应登记缺失证据并说明需由非本角色/有权限来源提供 cur-G7 的 export 套件结果。
+P3-S-pass-task-none-1,P3,claude-sonnet-5-5,pass,task,none,1,accept,accept,1,1,accept,1,测试者在 iris 项目对候选版本 cur-W4 执行了合同要求的 export 套件，结果为通过。项目、候选版本和套件都与合同范围一致，证据来自独立的测试角色，没有缺失或越界，因此提交验收通过。
+P3-S-pass-task-none-2,P3,claude-sonnet-5-5,pass,task,none,2,accept,accept,1,1,accept,1,测试者在项目 iris 针对候选版本 cur-G7 的 export 套件检查结果为 passed，与合同要求的候选、套件及范围（仅当前项目与候选版本）一致，证据充分，可提交验收通过。
+P3-S-pass-task-name-1,P3,claude-sonnet-5-5,pass,task,name,1,accept,accept,1,1,accept,1,测试者在 iris 项目对候选 cur-W4 提交的 export 套件记录为通过，与合同要求的候选、套件和范围一致，且来源独立于验收者，证据完整，可提交验收通过。
+P3-S-pass-task-name-2,P3,claude-sonnet-5-5,pass,task,name,2,accept,accept,1,1,accept,1,证据与合同一致：候选版本 cur-G7、项目 iris（在允许范围内）、所需套件 export 均有测试者出具的 passed 记录，无缺失证据，故提交验收通过。
+P3-S-pass-task-role-1,P3,claude-sonnet-5-5,pass,task,role,1,accept,accept,1,1,accept,1,测试者在项目 iris 对候选 cur-W4 提交的 export 套件检查结果为 passed，与合同要求的候选、套件和范围一致。证据由独立角色产出，没有缺失或越界，因此提交验收通过。
+P3-S-pass-task-role-2,P3,claude-sonnet-5-5,pass,task,role,2,accept,accept,1,1,accept,1,记录显示候选 cur-G7 在项目 iris 中已由测试者完成合约要求的 export 套件检查且结果为 passed，项目、候选版本和套件均与合约范围一致，证据充分，提交验收通过。
+P3-S-fail-producer-none-1,P3,claude-sonnet-5-5,fail,producer,none,1,request,request,1,0,request,1,现有记录只针对 prev-W4（旧候选版本），而合同要求对当前候选 cur-W4 通过 export 套件，因此缺少当前候选的验收证据，不能据此通过或否决。应登记缺失证据：cur-W4 的 export 套件结果，并说明取得途径（在 iris 项目范围内对 cur-W4 运行或获取 export 套件检查）。
+P3-S-fail-producer-none-2,P3,claude-sonnet-5-5,fail,producer,none,2,request,request,1,0,request,1,现有证据只有 prev-G7（上一候选版本）的通过记录，不属于合同要求的 cur-G7，不能据此验收通过；也没有 cur-G7 的 export 套件结果，无法判定不通过。应登记缺失证据：cur-G7 在 iris 项目下的 export 套件检查结果，并通过获准途径取得，范围仅限当前项目与候选版本。
+P3-S-fail-producer-name-1,P3,claude-sonnet-5-5,fail,producer,name,1,request,request,1,0,request,1,合同要求对候选版本 cur-W4 运行 export 套件的验收证据，但现有记录只有 prev-W4（旧候选）的通过结果，且并非针对当前候选。该证据不能用于 cur-W4，因此不能通过也不能判不通过。需登记缺失的 cur-W4 export 套件结果，并通过 iris 项目内获准的途径取得。
+P3-S-fail-producer-name-2,P3,claude-sonnet-5-5,fail,producer,name,2,request,request,1,0,request,1,现有唯一记录针对 prev-G7，而非当前候选 cur-G7，且未显示 required_suite（export）的结果，不能作为验收依据。缺失证据：cur-G7 在 iris 项目下 export 套件的通过记录。需登记该缺失并说明取得途径（对 cur-G7 运行/获取 export 套件结果），暂不通过也不驳回。
+P3-S-fail-producer-role-1,P3,claude-sonnet-5-5,fail,producer,role,1,request,request,1,0,request,1,现有证据只是 prev-W4 的检查记录，不是当前候选 cur-W4，也没有契约要求的 export 套件结果；且该记录由验收者自己产出，不能作为本次验收依据。因此既不能通过也不能判定不通过，应登记缺失的 cur-W4 export 套件证据及取得途径。
+P3-S-fail-producer-role-2,P3,claude-sonnet-5-5,fail,producer,role,2,request,request,1,0,request,1,现有记录只是针对 prev-G7 的检查通过，而合同要求对候选版本 cur-G7 运行 export 套件；证据对象不符且缺少 cur-G7 的 export 验证结果，因此不能验收或驳回，需登记缺失证据并说明取得途径（对 cur-G7 运行 export 套件）。
+P3-S-fail-task-none-1,P3,claude-sonnet-5-5,fail,task,none,1,reject,reject,1,1,reject,1,当前候选 cur-W4 在要求的 export 套件上，项目 iris 内的测试记录显示检查结果为 failed。证据完整、范围一致且明确失败，因此应提交验收不通过。
+P3-S-fail-task-none-2,P3,claude-sonnet-5-5,fail,task,none,2,reject,reject,1,1,reject,1,候选 cur-G7 在项目 iris 的必需 export 套件检查中记录为 failed（测试者提交），证据范围与合同一致，因此不满足验收条件，应提交验收不通过。
+P3-S-fail-task-name-1,P3,claude-sonnet-5-5,fail,task,name,1,reject,reject,1,1,reject,1,候选 cur-W4 在要求的 export 套件上，测试者提交的记录显示检查结果为 failed，范围（iris 项目、cur-W4）与合同一致，证据明确不通过，因此提交验收不通过。
+P3-S-fail-task-name-2,P3,claude-sonnet-5-5,fail,task,name,2,reject,reject,1,1,reject,1,候选 cur-G7 在要求的 export 套件上，测试者记录的检查结果为 failed，范围（项目 iris、候选 cur-G7）与合同一致，证据明确显示未通过，因此提交验收不通过。
+P3-S-fail-task-role-1,P3,claude-sonnet-5-5,fail,task,role,1,reject,reject,1,1,reject,1,当前候选 cur-W4（项目 iris）的必需 export 套件已有测试者记录，结果为 failed。证据完整且在范围内，不满足验收条件，因此提交验收不通过。
+P3-S-fail-task-role-2,P3,claude-sonnet-5-5,fail,task,role,2,reject,reject,1,1,reject,1,测试者提交的 iris 项目 cur-G7 候选版本 export 套件记录结果为 failed，所需的 export 套件未通过，证据显示候选不满足验收条件，故提交验收不通过。

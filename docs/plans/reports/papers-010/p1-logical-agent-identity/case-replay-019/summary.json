@@ -1,0 +1,92 @@
+{
+  "available": {
+    "prefix_actions": {
+      "dispatch": 10,
+      "invalid": 2
+    },
+    "arms": {
+      "N": {
+        "n": 12,
+        "accepted": 8,
+        "passed": 10,
+        "reasons": {
+          "accepted": 8,
+          "horizon": 2,
+          "escalate": 2
+        },
+        "steps": 34,
+        "dispatches_after_prefix": 12
+      },
+      "H": {
+        "n": 12,
+        "accepted": 9,
+        "passed": 10,
+        "reasons": {
+          "accepted": 9,
+          "horizon": 1,
+          "escalate": 2
+        },
+        "steps": 35,
+        "dispatches_after_prefix": 12
+      },
+      "R": {
+        "n": 12,
+        "accepted": 9,
+        "passed": 10,
+        "reasons": {
+          "accepted": 9,
+          "horizon": 1,
+          "escalate": 2
+        },
+        "steps": 33,
+        "dispatches_after_prefix": 12
+      }
+    }
+  },
+  "no_grant": {
+    "prefix_actions": {
+      "invalid": 2,
+      "escalate": 2
+    },
+    "arms": {
+      "N": {
+        "n": 4,
+        "accepted": 0,
+        "passed": 0,
+        "reasons": {
+          "escalate": 2,
+          "defer": 2
+        },
+        "steps": 4,
+        "dispatches_after_prefix": 0
+      },
+      "H": {
+        "n": 4,
+        "accepted": 0,
+        "passed": 0,
+        "reasons": {
+          "escalate": 2,
+          "defer": 2
+        },
+        "steps": 6,
+        "dispatches_after_prefix": 0
+      },
+      "R": {
+        "n": 4,
+        "accepted": 0,
+        "passed": 0,
+        "reasons": {
+          "escalate": 2,
+          "defer": 2
+        },
+        "steps": 4,
+        "dispatches_after_prefix": 0
+      }
+    }
+  },
+  "calls": 132,
+  "transport_failures": 0,
+  "actions": 132,
+  "format_violations": 17,
+  "reported_usd": 0.99349
+}

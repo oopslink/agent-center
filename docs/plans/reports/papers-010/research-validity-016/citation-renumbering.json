@@ -1,0 +1,197 @@
+{
+  "P1": [
+    {
+      "before_number": 1,
+      "after_number": 1,
+      "bib_key": "R01"
+    },
+    {
+      "before_number": 6,
+      "after_number": 2,
+      "bib_key": "RV16_AUTOGEN"
+    },
+    {
+      "before_number": 3,
+      "after_number": 3,
+      "bib_key": "R14"
+    },
+    {
+      "before_number": 2,
+      "after_number": 4,
+      "bib_key": "R03"
+    },
+    {
+      "before_number": 4,
+      "after_number": 5,
+      "bib_key": "R30"
+    },
+    {
+      "before_number": 5,
+      "after_number": 6,
+      "bib_key": "R31"
+    },
+    {
+      "before_number": 7,
+      "after_number": 7,
+      "bib_key": "RV16_METHOD"
+    }
+  ],
+  "P2": [
+    {
+      "before_number": 1,
+      "after_number": 1,
+      "bib_key": "R01"
+    },
+    {
+      "before_number": 7,
+      "after_number": 2,
+      "bib_key": "RV16_METAGPT"
+    },
+    {
+      "before_number": 8,
+      "after_number": 3,
+      "bib_key": "RV16_CHATDEV"
+    },
+    {
+      "before_number": 4,
+      "after_number": 4,
+      "bib_key": "R04"
+    },
+    {
+      "before_number": 2,
+      "after_number": 5,
+      "bib_key": "R05"
+    },
+    {
+      "before_number": 3,
+      "after_number": 6,
+      "bib_key": "R03"
+    },
+    {
+      "before_number": 5,
+      "after_number": 7,
+      "bib_key": "R29"
+    },
+    {
+      "before_number": 6,
+      "after_number": 8,
+      "bib_key": "R32"
+    },
+    {
+      "before_number": 9,
+      "after_number": 9,
+      "bib_key": "RV16_METHOD"
+    }
+  ],
+  "P3": [
+    {
+      "before_number": 1,
+      "after_number": 1,
+      "bib_key": "R15"
+    },
+    {
+      "before_number": 2,
+      "after_number": 2,
+      "bib_key": "R17"
+    },
+    {
+      "before_number": 3,
+      "after_number": 3,
+      "bib_key": "R14"
+    },
+    {
+      "before_number": 6,
+      "after_number": 4,
+      "bib_key": "RV16_CHATDEV"
+    },
+    {
+      "before_number": 4,
+      "after_number": 5,
+      "bib_key": "R08"
+    },
+    {
+      "before_number": 5,
+      "after_number": 6,
+      "bib_key": "R32"
+    },
+    {
+      "before_number": 7,
+      "after_number": 7,
+      "bib_key": "RV16_METHOD"
+    }
+  ],
+  "P4": [
+    {
+      "before_number": 1,
+      "after_number": 1,
+      "bib_key": "R11"
+    },
+    {
+      "before_number": 2,
+      "after_number": 2,
+      "bib_key": "R28"
+    },
+    {
+      "before_number": 3,
+      "after_number": 3,
+      "bib_key": "R29"
+    },
+    {
+      "before_number": 4,
+      "after_number": 4,
+      "bib_key": "R05"
+    },
+    {
+      "before_number": 5,
+      "after_number": 5,
+      "bib_key": "R26"
+    },
+    {
+      "before_number": 6,
+      "after_number": 6,
+      "bib_key": "R27"
+    },
+    {
+      "before_number": 7,
+      "after_number": 7,
+      "bib_key": "R32"
+    },
+    {
+      "before_number": 8,
+      "after_number": 8,
+      "bib_key": "RV16_METHOD"
+    }
+  ],
+  "P5": [
+    {
+      "before_number": 1,
+      "after_number": 1,
+      "bib_key": "park2023generative"
+    },
+    {
+      "before_number": 2,
+      "after_number": 2,
+      "bib_key": "packer2023memgpt"
+    },
+    {
+      "before_number": 3,
+      "after_number": 3,
+      "bib_key": "xu2025amem"
+    },
+    {
+      "before_number": 4,
+      "after_number": 4,
+      "bib_key": "zhang2025gmemory"
+    },
+    {
+      "before_number": 5,
+      "after_number": 5,
+      "bib_key": "wu2025longmemeval"
+    },
+    {
+      "before_number": 6,
+      "after_number": 6,
+      "bib_key": "RV16_METHOD"
+    }
+  ]
+}

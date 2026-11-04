@@ -1,0 +1,51 @@
+{
+  "N": {
+    "n": 8,
+    "first": {
+      "invalid": 2,
+      "dispatch": 6
+    },
+    "ever_dispatched": 8,
+    "accepted": 6,
+    "passed": 7,
+    "reasons": {
+      "horizon": 2,
+      "accepted": 6
+    },
+    "steps": 30
+  },
+  "H": {
+    "n": 8,
+    "first": {
+      "invalid": 2,
+      "dispatch": 6
+    },
+    "ever_dispatched": 8,
+    "accepted": 6,
+    "passed": 6,
+    "reasons": {
+      "horizon": 2,
+      "accepted": 6
+    },
+    "steps": 30
+  },
+  "R": {
+    "n": 8,
+    "first": {
+      "invalid": 4,
+      "dispatch": 4
+    },
+    "ever_dispatched": 8,
+    "accepted": 6,
+    "passed": 6,
+    "reasons": {
+      "horizon": 2,
+      "accepted": 6
+    },
+    "steps": 30
+  },
+  "calls": 90,
+  "transport_failures": 0,
+  "format_violations": 16,
+  "reported_usd": 0.58689
+}

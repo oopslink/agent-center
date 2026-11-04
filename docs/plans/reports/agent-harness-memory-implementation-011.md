@@ -2,6 +2,8 @@
 
 日期：2026-11-03（America/Los_Angeles）。配套[研究计划](agent-harness-memory-011.md)。本轮是源码核查和元数据覆盖审计，不是生产效果实验。以下“收益/代价”是实现性质或待检验机制；没有用它们推断总体成功率。尚未人工复核。
 
+后续增量：round-002 已补查记忆Git、部署产物、57条原生变更和230条规则读取回执，见[研究报告](agent-harness-memory-study-011.md)。下文保留首轮源码判断，M01–M08 是实现证据编号；后续案例同名编号属于独立的案例命名空间。新增版本核验覆盖9个文件、3个参考commit；不能消除dirty binary及历史激活时间缺失。
+
 ## 1. 版本边界
 
 固定研究基线完整SHA见[source-manifest.json](memory-011/source-manifest.json)。22份文件已在仓库外保存原文与哈希，并与主工作区`ddaeb887`比较：8项相同、7项不同、7项不存在。详见[source-version-comparison.json](memory-011/source-version-comparison.json)。Team proposal/promotion及rule index相关代码存在明显版本差异。旧架构文档还描述CLAUDE.md、7类scope和不同加载方式，不能直接当作本轮源码的运行事实。

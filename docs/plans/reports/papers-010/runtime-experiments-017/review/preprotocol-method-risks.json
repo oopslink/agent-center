@@ -1,0 +1,101 @@
+{
+  "schema": "preprotocol-method-review-v1",
+  "created_at_utc": "2026-11-04T08:13:16.461102+00:00",
+  "reviewer": "methods_validity_audit_016",
+  "scope": "prospective P1/P2 runtime experiment design, no outputs inspected",
+  "source": "parent-provided design sketch; frozen protocol not yet provided",
+  "source_document": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/review/preprotocol-method-risks.md",
+  "source_sha256": "a803ee4899404e333b853e2ae0596850fb93fb6a83a0b57af2b1fca7d889e1cd",
+  "calibration_status": "NOT_CALIBRATED",
+  "criteria_binding": "unavailable",
+  "risks": [
+    {
+      "id": "D01",
+      "risk": "只在自然worker失败后计算恢复率，失败机会本身受模型／处理影响，造成选择偏差",
+      "minimum_remedy": "建议主恢复试验从相同且已知可修复的失败候选或失败状态开始，在所有条件提供相同真实报告和操作空间；自然起步的完整交付另报。若保留自然失败设计，主结果使用所有分配运行的最终交付；条件于失败的恢复率明确仅为描述，另列无失败机会与未到达触发点。",
+      "status": "pending_protocol",
+      "severity": "major_if_unresolved_before_formal_run"
+    },
+    {
+      "id": "D02",
+      "risk": "为得到失败而悄悄改坏模型已经产出的候选，会伪造worker失败或破坏不可变性",
+      "minimum_remedy": "失败种子须在模型运行前冻结为任务输入，或作为预先声明的外生扰动单列；保留注入前后哈希，不把人工注入说成模型自然错误。独立验收真实运行缺陷产物。可修复性由无模型参考补丁及完整验收证明，参考补丁不进模型上下文。",
+      "status": "pending_protocol",
+      "severity": "major_if_unresolved_before_formal_run"
+    },
+    {
+      "id": "D03",
+      "risk": "为避免答案提示而不赋予目标或权限，导致合理等待被计为责任外置",
+      "minimum_remedy": "两种身份均明确同一用户交付目标、候选范围和可用权限。API说明只讲能力与状态，例如“dispatch创建子执行工作、返回job ID；可在无活动job时再次调用”，不讲失败后应选择哪个动作。共同任务委托可以要求完成交付，不能要求“executor失败仍由你修复”。每个失败状态必须存在至少一条获授权的有效恢复路径，且在两组相同。",
+      "status": "pending_protocol",
+      "severity": "major_if_unresolved_before_formal_run"
+    },
+    {
+      "id": "D04",
+      "risk": "台账通过自动计算next_action、owner或“待修复”把目标答案直接写入处理组",
+      "minimum_remedy": "台账只从事件机械投影目标、候选哈希、检查结果、活动job和已发生动作；不推断责任、不附建议。历史组能访问同样事实，台账组改变持续可见性和组织。记录上下文长度、追加／覆盖策略及每轮输入哈希；此操纵包含重复、近期性和结构，不能单独归因为记忆能力。",
+      "status": "pending_protocol",
+      "severity": "major_if_unresolved_before_formal_run"
+    },
+    {
+      "id": "D05",
+      "risk": "无进展、提前停止、预算耗尽与合法等待混为confusion",
+      "minimum_remedy": "固定运行终止与分析标签。等待有活动worker或确定未来事件时不算停摆。单列验收通过、合法外部阻塞、提前完成声明、无动作且无未来事件、预算删失、运行设施错误。预算终止只说明在预算内未完成；“责任外置”另需具体归属表述及可用恢复路径，不从超时自动推断。",
+      "status": "pending_protocol",
+      "severity": "major_if_unresolved_before_formal_run"
+    },
+    {
+      "id": "D06",
+      "risk": "自动追问或格式重试偷偷提供责任纠正，从而掩盖自主失败",
+      "minimum_remedy": "调度器只给真实API反馈、验收报告和异步完成事件。预先固定解析失败处理及最多重试，反馈不得包含正确动作或身份提醒。模型主动结束时如何处理必须固定；不要看到结束后才追加“继续处理失败”。任何人工/诊断提醒都在自主阶段终止之后另段保存，不计无提醒恢复。",
+      "status": "pending_protocol",
+      "severity": "major_if_unresolved_before_formal_run"
+    },
+    {
+      "id": "D07",
+      "risk": "P2长链多做审核却声称只有交接次数改变",
+      "minimum_remedy": "优先把同一组必要工作／测试在短链聚合执行、长链分段交接，逐项核对两组完成的工作和事实。若长链新增检查内容，明确估计的是流程包差异，同时报告新增证据收益和成本；不能归因于纯交接长度。总工具调用数与token开销不用强行相等，它们可作为处理成本；预算公平原则需提前定义。",
+      "status": "pending_protocol",
+      "severity": "major_if_unresolved_before_formal_run"
+    },
+    {
+      "id": "D08",
+      "risk": "显式动作绑定由harness替模型完成正确责任推断",
+      "minimum_remedy": "区分绑定格式与绑定算法：若研究格式，要求消息生产者自行填写接收者、对象、合同和请求，harness只检查结构，不自动补正确行动。若系统自动生成工作项，则该算法就是干预的一部分，应完整保存并作为有辅助信息的方案评价。两组目标、事实和权限相同，不在一组的模板中直接填写正确恢复答案。",
+      "status": "pending_protocol",
+      "severity": "major_if_unresolved_before_formal_run"
+    },
+    {
+      "id": "D09",
+      "risk": "异步worker和共享文件竞态、过期验收结果产生伪失效",
+      "minimum_remedy": "每个job以父候选哈希隔离工作区；产物冻结后再验收，验收绑定树哈希和合同版本。拒绝过期回执、worker不可修改验收器和已发布候选；独立验收重新读取冻结产物。保存进程开始/结束、事件序号、归属和哈希；调度延迟不能随研究条件隐含改变。",
+      "status": "pending_protocol",
+      "severity": "major_if_unresolved_before_formal_run"
+    },
+    {
+      "id": "D10",
+      "risk": "bug排除、任务调整与留出验证根据结果改变",
+      "minimum_remedy": "在输出前固定bug定义和裁定表；产品代码缺陷是任务，不是harnessbug。API/事件不符合冻结协议才是设施问题。受影响匹配块所有原始运行保留，修复版本重跑整块并并列报告；不能只重跑失败组。开发族可调协议，留出族及评分在读取任何留出输出前冻结，修改后留出性质失效。",
+      "status": "pending_protocol",
+      "severity": "major_if_unresolved_before_formal_run"
+    },
+    {
+      "id": "D11",
+      "risk": "把多个worker/轮次当独立样本、运行顺序或服务变化污染条件比较",
+      "minimum_remedy": "实验单位为完整独立运行；任务族、变体、模型、重复与条件明确分层。运行次序在匹配块内预先随机化／平衡，记录服务返回版本、CLI版本、预算与失败重试；同一条轨迹的转数/消息数不当独立n。两次调用都无可控随机种子时不能宣称是相同模型随机性。",
+      "status": "pending_protocol",
+      "severity": "major_if_unresolved_before_formal_run"
+    },
+    {
+      "id": "D12",
+      "risk": "真实工具环境仍被称为原生产架构复现",
+      "minimum_remedy": "明确这是合成任务上的受控运行试验。完整多轮历史、实际文件和测试能补旧短题缺口，但没有恢复历史Agent Center部署。隔离目录／Python子进程不等于安全容器；只声明已实现的隔离。结果用于检验候选机制，不能倒推历史失效全部由该因素导致。",
+      "status": "pending_protocol",
+      "severity": "major_if_unresolved_before_formal_run"
+    }
+  ],
+  "model_calls_executed": 0,
+  "manuscripts_modified": false,
+  "observation_results_created": false,
+  "status": "awaiting_protocol"
+}

@@ -1,0 +1,99 @@
+{
+  "selected": [
+    {
+      "case": "L01",
+      "label": "dev2: externalized recovery",
+      "time": "2026-07-22T07:21:37.894896Z",
+      "type": "correction"
+    },
+    {
+      "case": "L02",
+      "label": "integration: externalized delivery",
+      "time": "2026-07-22T16:53:41.282145Z",
+      "type": "correction"
+    },
+    {
+      "case": "L03",
+      "label": "Identity / review prompts revised",
+      "time": "2026-07-23T01:38:22Z",
+      "type": "source-change"
+    },
+    {
+      "case": "L04",
+      "label": "Startup actor corrected",
+      "time": "2026-08-06T01:45:22.745154Z",
+      "type": "correction"
+    },
+    {
+      "case": "L05",
+      "label": "Owns delivery; rejects weak evidence",
+      "time": "2026-08-07T07:31:07.844252Z",
+      "type": "positive"
+    },
+    {
+      "case": "L08",
+      "label": "tester3: owner vs reviewer",
+      "time": "2026-09-04T06:46:32.704428Z",
+      "type": "correction"
+    },
+    {
+      "case": "L09",
+      "label": "dev3: continuation requested",
+      "time": "2026-09-04T08:24:49.541359Z",
+      "type": "correction"
+    }
+  ],
+  "september": [
+    {
+      "label": "Failed task recorded",
+      "time": "2026-09-04T08:21:22.031764Z",
+      "type": "native",
+      "minutes_since_failed": 0.0
+    },
+    {
+      "label": "Human: create a task and continue",
+      "time": "2026-09-04T08:24:49.541359Z",
+      "type": "user",
+      "minutes_since_failed": 3.4584932499999996
+    },
+    {
+      "label": "Corrective task CREATED",
+      "time": "2026-09-04T08:25:42.726983Z",
+      "type": "native",
+      "minutes_since_failed": 4.344920316666667
+    },
+    {
+      "label": "Human: executor is part of you",
+      "time": "2026-09-04T08:25:44.341709Z",
+      "type": "user",
+      "minutes_since_failed": 4.371832416666667
+    },
+    {
+      "label": "Agent: rejection is not demand termination",
+      "time": "2026-09-04T08:26:00.500255Z",
+      "type": "message",
+      "minutes_since_failed": 4.641141516666666
+    },
+    {
+      "label": "Corrective task STARTED",
+      "time": "2026-09-04T08:26:03.681327Z",
+      "type": "native",
+      "minutes_since_failed": 4.694159383333333
+    },
+    {
+      "label": "Agent: no spectator separation",
+      "time": "2026-09-04T08:27:34.177741Z",
+      "type": "message",
+      "minutes_since_failed": 6.20243295
+    }
+  ],
+  "new_task_created_at": "2026-09-04T08:25:42.726292Z",
+  "seconds_action_instruction_to_task_creation": 53.184933,
+  "seconds_task_creation_before_identity_reminder": 1.615417,
+  "boundary": "Selected records, not incidence trend; source change is not activation; new task later failed at 11:05:05 for a different reported reason.",
+  "seconds_fields_clock": "pm_tasks.created_at",
+  "figure_and_prose_clock": "events.occurred_at",
+  "new_task_created_event_at": "2026-09-04T08:25:42.726983Z",
+  "seconds_action_instruction_to_created_event": 53.185624,
+  "seconds_created_event_before_identity_reminder": 1.614726
+}

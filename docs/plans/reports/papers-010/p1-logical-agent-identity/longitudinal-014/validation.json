@@ -1,0 +1,65 @@
+{
+  "checked_utc": "2026-11-04T06:46:38.466718+00:00",
+  "paper_sha256": "ce5f7c9b67975b90d3ac67ad7c7eb6be3209903a64279cbd1c583aa004b8f5c7",
+  "checks": {
+    "native_message_hashes_checked": 34,
+    "case_groups": 9,
+    "september_task_rows": 3,
+    "september_action_rows": 6,
+    "protected_original_experiment_files_unchanged": true,
+    "repository_experiment_artifacts_unchanged": true,
+    "original_figures_1_to_4_unchanged": true,
+    "references_byte_identical": true,
+    "both_native_clocks_preserve_counterevidence": true,
+    "figure_formats_valid": true,
+    "figure_visual_check": "Inspected rendered PNG after clock clarification: no clipping or legend overlap; selected records are not an incidence curve.",
+    "local_links_checked": 217,
+    "missing_local_links": [],
+    "git_diff_check": true,
+    "bounded_ai_review_closure": {
+      "role": "bounded AI closure check; not renewed full review",
+      "checked_utc": "2026-11-04T06:46:18.636466+00:00",
+      "prior_review_paper_sha256": "4f85c49660c53e969d3314951512eed6c778f9df87c8c60f38e2f03831eedfba",
+      "final_paper_sha256": "ce5f7c9b67975b90d3ac67ad7c7eb6be3209903a64279cbd1c583aa004b8f5c7",
+      "final_file_sha256": {
+        "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p1-logical-agent-identity/paper.md": "ce5f7c9b67975b90d3ac67ad7c7eb6be3209903a64279cbd1c583aa004b8f5c7",
+        "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p1-logical-agent-identity/controlled-experiments.md": "7e8825c75fe4fe88ba3cb74a13f5eb12e4486a72639626d720d7a38d4b43d08a",
+        "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p1-logical-agent-identity/mechanism-analysis.md": "446e83c23c42ad51e4801aa1d881b2f20a7241894126314f0bf965cb99347c97",
+        "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p1-logical-agent-identity/longitudinal-analysis.md": "dbaf13ad97f291d1e2d424d9bb7356c70d06b05e0eebf55a46eb50edf0f50271",
+        "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/014-p1-longitudinal/derived/timeline.json": "99cc0a34b85c67440aaf949fc862b388e2c6ef2fb1d1052e79e04661b9d5d7ab",
+        "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/014-p1-longitudinal/scripts/figure.py": "3af893153ddc2d07a31ce8b8953383a256b239d428e7cf51364d5c52ca511592",
+        "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/014-p1-longitudinal/review-final.json": "7d4411b8aa82cb509eb9a52e37e93c0dd2514e2b1279bfb0ffef85d6385d6a3f",
+        "/Users/oopslink/works/research/agent-harness-study/run-001/papers-010/revisions/014-p1-longitudinal/figures/p1-fig5-responsibility-continuity.svg": "f72c2be7bcc1d1b74c515b4bd5fec52bdfa99d9ea59077a010d194742129272d"
+      },
+      "findings_closed": [
+        {
+          "id": "R014-F01",
+          "status": "resolved",
+          "basis": "Negative-result wording now says no detected difference in the fixed explicit-information test set."
+        },
+        {
+          "id": "R014-F02",
+          "status": "resolved",
+          "basis": "Prose labels events.occurred_at; derived fields label both task and event clocks; figure footnote calculates event-clock values from data."
+        }
+      ],
+      "additional_check": {
+        "paper_only_added_table2_caption_and_renumbered_old_tables2to8_as3to9": true,
+        "table_headings_sequential_1_to_9": true,
+        "internal_table_references_updated": true,
+        "figure_svg_event_clock_caption_checked": true
+      },
+      "remaining_critical": 0,
+      "remaining_major": 0,
+      "remaining_minor": 0,
+      "scope": "Only two previously reported Minor items and final table numbering checked. Original review-final files preserved. No new web/retraction review, model execution or scientific replication."
+    }
+  },
+  "limitations": [
+    "Not a human review or independent replication.",
+    "No new literature or retraction search; prior verification remains date-bounded.",
+    "No product tests: documentation and research artifacts only, no commit in this turn.",
+    "Official skill ARS/acronym scripts unavailable; no such gate claimed.",
+    "Private full-text source records stay in local archive."
+  ]
+}

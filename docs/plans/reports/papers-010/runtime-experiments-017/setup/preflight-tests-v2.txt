@@ -1,0 +1,17 @@
+test_T01_all_seed_and_reference (test_runtime.RuntimeTests.test_T01_all_seed_and_reference) ... ok
+test_T02_same_relation_facts (test_runtime.RuntimeTests.test_T02_same_relation_facts) ... ok
+test_T03_nested_tool_args_are_equivalent (test_runtime.RuntimeTests.test_T03_nested_tool_args_are_equivalent) ... ok
+test_T03_permissions_and_immutable_versions (test_runtime.RuntimeTests.test_T03_permissions_and_immutable_versions) ... ok
+test_T04_real_worker_process_mock_model (test_runtime.RuntimeTests.test_T04_real_worker_process_mock_model) ... ok
+test_T05_bad_test_expectation (test_runtime.RuntimeTests.test_T05_bad_test_expectation) ... ok
+test_T05_retroactive_receipt_rejected (test_runtime.RuntimeTests.test_T05_retroactive_receipt_rejected) ... ok
+test_T05_stale_artifacts (test_runtime.RuntimeTests.test_T05_stale_artifacts) ... ok
+test_T05_valid_release (test_runtime.RuntimeTests.test_T05_valid_release) ... ok
+test_T06_transport_retry_and_format (test_runtime.RuntimeTests.test_T06_transport_retry_and_format) ... ok
+test_T07_early_finish_and_idle_actions (test_runtime.RuntimeTests.test_T07_early_finish_and_idle_actions) ... ok
+test_private_vectors_not_public_feedback (test_runtime.RuntimeTests.test_private_vectors_not_public_feedback) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 1.152s
+
+OK

@@ -1,0 +1,2064 @@
+[
+  {
+    "id": "v2-P1-p1_allocate-haiku-separate-off",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_allocate-haiku-separate-on",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_allocate-haiku-single",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "write_file"
+      },
+      {
+        "turn": 2,
+        "op": "run_tests"
+      },
+      {
+        "turn": 3,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_allocate-haiku-unified-off",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_allocate-haiku-unified-on",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_allocate-sonnet-separate-off",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_allocate-sonnet-separate-on",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_allocate-sonnet-single",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "write_file"
+      },
+      {
+        "turn": 2,
+        "op": "run_tests"
+      },
+      {
+        "turn": 3,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_allocate-sonnet-unified-off",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_allocate-sonnet-unified-on",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_intervals-haiku-separate-off",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_intervals-haiku-separate-on",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_intervals-haiku-single",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "write_file"
+      },
+      {
+        "turn": 2,
+        "op": "run_tests"
+      },
+      {
+        "turn": 3,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_intervals-haiku-unified-off",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [
+      {
+        "utc": "2026-11-04T09:24:56.457901+00:00",
+        "actor": "worker-01",
+        "kind": "tool_result",
+        "value": {
+          "ok": false,
+          "error": "invalid_json_object"
+        }
+      }
+    ],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_intervals-haiku-unified-on",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_intervals-sonnet-separate-off",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_intervals-sonnet-separate-on",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_intervals-sonnet-single",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "write_file"
+      },
+      {
+        "turn": 2,
+        "op": "run_tests"
+      },
+      {
+        "turn": 3,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_intervals-sonnet-unified-off",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_intervals-sonnet-unified-on",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_order-haiku-separate-off",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_order-haiku-separate-on",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "invalid"
+      },
+      {
+        "turn": 2,
+        "op": "spawn"
+      },
+      {
+        "turn": 3,
+        "op": "wait"
+      },
+      {
+        "turn": 4,
+        "op": "run_tests"
+      },
+      {
+        "turn": 5,
+        "op": "accept"
+      },
+      {
+        "turn": 6,
+        "op": "finish"
+      }
+    ],
+    "errors": [
+      {
+        "utc": "2026-11-04T09:29:44.239387+00:00",
+        "actor": "controller",
+        "kind": "tool_result",
+        "value": {
+          "ok": false,
+          "error": "invalid_json_or_unauthorized_operation"
+        }
+      }
+    ],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_order-haiku-single",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "write_file"
+      },
+      {
+        "turn": 2,
+        "op": "run_tests"
+      },
+      {
+        "turn": 3,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_order-haiku-unified-off",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_order-haiku-unified-on",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_order-sonnet-separate-off",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_order-sonnet-separate-on",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_order-sonnet-single",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "write_file"
+      },
+      {
+        "turn": 2,
+        "op": "run_tests"
+      },
+      {
+        "turn": 3,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_order-sonnet-unified-off",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P1-p1_order-sonnet-unified-on",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "accept"
+      },
+      {
+        "turn": 5,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_expiry-haiku-long-distributed",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "spawn"
+      },
+      {
+        "turn": 4,
+        "op": "wait"
+      },
+      {
+        "turn": 5,
+        "op": "run_tests"
+      },
+      {
+        "turn": 6,
+        "op": "spawn"
+      },
+      {
+        "turn": 7,
+        "op": "wait"
+      },
+      {
+        "turn": 8,
+        "op": "inspect"
+      },
+      {
+        "turn": 9,
+        "op": "spawn"
+      },
+      {
+        "turn": 10,
+        "op": "wait"
+      },
+      {
+        "turn": 11,
+        "op": "run_tests"
+      },
+      {
+        "turn": 12,
+        "op": "spawn"
+      },
+      {
+        "turn": 13,
+        "op": "wait"
+      },
+      {
+        "turn": 14,
+        "op": "spawn"
+      },
+      {
+        "turn": 15,
+        "op": "wait"
+      },
+      {
+        "turn": 16,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_blocked",
+    "final_errors": [
+      "manifest_missing_or_stale"
+    ]
+  },
+  {
+    "id": "v2-P2-p2_expiry-haiku-long-joined",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "inspect"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "run_tests"
+      },
+      {
+        "turn": 7,
+        "op": "spawn"
+      },
+      {
+        "turn": 8,
+        "op": "wait"
+      },
+      {
+        "turn": 9,
+        "op": "inspect"
+      },
+      {
+        "turn": 10,
+        "op": "spawn"
+      },
+      {
+        "turn": 11,
+        "op": "wait"
+      },
+      {
+        "turn": 12,
+        "op": "accept"
+      },
+      {
+        "turn": 13,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_expiry-haiku-short-distributed",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "accept"
+      },
+      {
+        "turn": 7,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_expiry-haiku-short-joined",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "inspect"
+      },
+      {
+        "turn": 7,
+        "op": "accept"
+      },
+      {
+        "turn": 8,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_expiry-sonnet-long-distributed",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "spawn"
+      },
+      {
+        "turn": 4,
+        "op": "wait"
+      },
+      {
+        "turn": 5,
+        "op": "run_tests"
+      },
+      {
+        "turn": 6,
+        "op": "spawn"
+      },
+      {
+        "turn": 7,
+        "op": "wait"
+      },
+      {
+        "turn": 8,
+        "op": "spawn"
+      },
+      {
+        "turn": 9,
+        "op": "wait"
+      },
+      {
+        "turn": 10,
+        "op": "accept"
+      },
+      {
+        "turn": 11,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_expiry-sonnet-long-joined",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "spawn"
+      },
+      {
+        "turn": 4,
+        "op": "wait"
+      },
+      {
+        "turn": 5,
+        "op": "run_tests"
+      },
+      {
+        "turn": 6,
+        "op": "spawn"
+      },
+      {
+        "turn": 7,
+        "op": "wait"
+      },
+      {
+        "turn": 8,
+        "op": "spawn"
+      },
+      {
+        "turn": 9,
+        "op": "wait"
+      },
+      {
+        "turn": 10,
+        "op": "accept"
+      },
+      {
+        "turn": 11,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_expiry-sonnet-short-distributed",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "accept"
+      },
+      {
+        "turn": 7,
+        "op": "finish"
+      }
+    ],
+    "errors": [
+      {
+        "utc": "2026-11-04T09:24:00.814055+00:00",
+        "actor": "worker-02",
+        "kind": "tool_result",
+        "value": {
+          "ok": false,
+          "error": "invalid_json_object"
+        }
+      }
+    ],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_expiry-sonnet-short-joined",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "accept"
+      },
+      {
+        "turn": 7,
+        "op": "finish"
+      }
+    ],
+    "errors": [
+      {
+        "utc": "2026-11-04T09:31:37.686740+00:00",
+        "actor": "worker-02",
+        "kind": "tool_result",
+        "value": {
+          "ok": false,
+          "error": "invalid_json_object"
+        }
+      }
+    ],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_rank-haiku-long-distributed",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "run_tests"
+      },
+      {
+        "turn": 7,
+        "op": "spawn"
+      },
+      {
+        "turn": 8,
+        "op": "wait"
+      },
+      {
+        "turn": 9,
+        "op": "spawn"
+      },
+      {
+        "turn": 10,
+        "op": "wait"
+      },
+      {
+        "turn": 11,
+        "op": "accept"
+      },
+      {
+        "turn": 12,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_rank-haiku-long-joined",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "spawn"
+      },
+      {
+        "turn": 4,
+        "op": "wait"
+      },
+      {
+        "turn": 5,
+        "op": "run_tests"
+      },
+      {
+        "turn": 6,
+        "op": "spawn"
+      },
+      {
+        "turn": 7,
+        "op": "wait"
+      },
+      {
+        "turn": 8,
+        "op": "spawn"
+      },
+      {
+        "turn": 9,
+        "op": "wait"
+      },
+      {
+        "turn": 10,
+        "op": "accept"
+      },
+      {
+        "turn": 11,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_rank-haiku-short-distributed",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "accept"
+      },
+      {
+        "turn": 7,
+        "op": "finish"
+      }
+    ],
+    "errors": [
+      {
+        "utc": "2026-11-04T09:24:13.455846+00:00",
+        "actor": "worker-01",
+        "kind": "tool_result",
+        "value": {
+          "ok": false,
+          "error": "invalid_json_object"
+        }
+      }
+    ],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_rank-haiku-short-joined",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "inspect"
+      },
+      {
+        "turn": 4,
+        "op": "invalid"
+      },
+      {
+        "turn": 5,
+        "op": "run_tests"
+      },
+      {
+        "turn": 6,
+        "op": "spawn"
+      },
+      {
+        "turn": 7,
+        "op": "wait"
+      },
+      {
+        "turn": 8,
+        "op": "inspect"
+      },
+      {
+        "turn": 9,
+        "op": "accept"
+      },
+      {
+        "turn": 10,
+        "op": "finish"
+      }
+    ],
+    "errors": [
+      {
+        "utc": "2026-11-04T09:22:13.744537+00:00",
+        "actor": "controller",
+        "kind": "tool_result",
+        "value": {
+          "ok": false,
+          "error": "invalid_json_or_unauthorized_operation"
+        }
+      }
+    ],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_rank-sonnet-long-distributed",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "spawn"
+      },
+      {
+        "turn": 4,
+        "op": "wait"
+      },
+      {
+        "turn": 5,
+        "op": "run_tests"
+      },
+      {
+        "turn": 6,
+        "op": "spawn"
+      },
+      {
+        "turn": 7,
+        "op": "wait"
+      },
+      {
+        "turn": 8,
+        "op": "spawn"
+      },
+      {
+        "turn": 9,
+        "op": "wait"
+      },
+      {
+        "turn": 10,
+        "op": "accept"
+      },
+      {
+        "turn": 11,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_rank-sonnet-long-joined",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "spawn"
+      },
+      {
+        "turn": 4,
+        "op": "wait"
+      },
+      {
+        "turn": 5,
+        "op": "run_tests"
+      },
+      {
+        "turn": 6,
+        "op": "spawn"
+      },
+      {
+        "turn": 7,
+        "op": "wait"
+      },
+      {
+        "turn": 8,
+        "op": "spawn"
+      },
+      {
+        "turn": 9,
+        "op": "wait"
+      },
+      {
+        "turn": 10,
+        "op": "accept"
+      },
+      {
+        "turn": 11,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_rank-sonnet-short-distributed",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "accept"
+      },
+      {
+        "turn": 7,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_rank-sonnet-short-joined",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "accept"
+      },
+      {
+        "turn": 7,
+        "op": "finish"
+      }
+    ],
+    "errors": [
+      {
+        "utc": "2026-11-04T09:36:00.279986+00:00",
+        "actor": "worker-02",
+        "kind": "tool_result",
+        "value": {
+          "ok": false,
+          "error": "invalid_json_object"
+        }
+      }
+    ],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_records-haiku-long-distributed",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "spawn"
+      },
+      {
+        "turn": 4,
+        "op": "wait"
+      },
+      {
+        "turn": 5,
+        "op": "run_tests"
+      },
+      {
+        "turn": 6,
+        "op": "spawn"
+      },
+      {
+        "turn": 7,
+        "op": "wait"
+      },
+      {
+        "turn": 8,
+        "op": "inspect"
+      },
+      {
+        "turn": 9,
+        "op": "spawn"
+      },
+      {
+        "turn": 10,
+        "op": "wait"
+      },
+      {
+        "turn": 11,
+        "op": "accept"
+      },
+      {
+        "turn": 12,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_records-haiku-long-joined",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "inspect"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "run_tests"
+      },
+      {
+        "turn": 7,
+        "op": "spawn"
+      },
+      {
+        "turn": 8,
+        "op": "wait"
+      },
+      {
+        "turn": 9,
+        "op": "spawn"
+      },
+      {
+        "turn": 10,
+        "op": "wait"
+      },
+      {
+        "turn": 11,
+        "op": "accept"
+      },
+      {
+        "turn": 12,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_records-haiku-short-distributed",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "accept"
+      },
+      {
+        "turn": 7,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_records-haiku-short-joined",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "spawn"
+      },
+      {
+        "turn": 7,
+        "op": "wait"
+      },
+      {
+        "turn": 8,
+        "op": "accept"
+      },
+      {
+        "turn": 9,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_records-sonnet-long-distributed",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "spawn"
+      },
+      {
+        "turn": 4,
+        "op": "wait"
+      },
+      {
+        "turn": 5,
+        "op": "run_tests"
+      },
+      {
+        "turn": 6,
+        "op": "spawn"
+      },
+      {
+        "turn": 7,
+        "op": "wait"
+      },
+      {
+        "turn": 8,
+        "op": "spawn"
+      },
+      {
+        "turn": 9,
+        "op": "wait"
+      },
+      {
+        "turn": 10,
+        "op": "accept"
+      },
+      {
+        "turn": 11,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_records-sonnet-long-joined",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "spawn"
+      },
+      {
+        "turn": 4,
+        "op": "wait"
+      },
+      {
+        "turn": 5,
+        "op": "run_tests"
+      },
+      {
+        "turn": 6,
+        "op": "spawn"
+      },
+      {
+        "turn": 7,
+        "op": "wait"
+      },
+      {
+        "turn": 8,
+        "op": "spawn"
+      },
+      {
+        "turn": 9,
+        "op": "wait"
+      },
+      {
+        "turn": 10,
+        "op": "accept"
+      },
+      {
+        "turn": 11,
+        "op": "finish"
+      }
+    ],
+    "errors": [],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_records-sonnet-short-distributed",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "accept"
+      },
+      {
+        "turn": 7,
+        "op": "finish"
+      }
+    ],
+    "errors": [
+      {
+        "utc": "2026-11-04T09:30:05.877320+00:00",
+        "actor": "worker-02",
+        "kind": "tool_result",
+        "value": {
+          "ok": false,
+          "error": "invalid_json_object"
+        }
+      }
+    ],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  },
+  {
+    "id": "v2-P2-p2_records-sonnet-short-joined",
+    "controller_actions": [
+      {
+        "turn": 1,
+        "op": "spawn"
+      },
+      {
+        "turn": 2,
+        "op": "wait"
+      },
+      {
+        "turn": 3,
+        "op": "run_tests"
+      },
+      {
+        "turn": 4,
+        "op": "spawn"
+      },
+      {
+        "turn": 5,
+        "op": "wait"
+      },
+      {
+        "turn": 6,
+        "op": "accept"
+      },
+      {
+        "turn": 7,
+        "op": "finish"
+      }
+    ],
+    "errors": [
+      {
+        "utc": "2026-11-04T09:34:39.313433+00:00",
+        "actor": "worker-02",
+        "kind": "tool_result",
+        "value": {
+          "ok": false,
+          "error": "invalid_json_object"
+        }
+      }
+    ],
+    "worker_failed_checks": [],
+    "status": "reported_complete",
+    "final_errors": []
+  }
+]

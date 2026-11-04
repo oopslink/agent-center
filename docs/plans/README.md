@@ -4,7 +4,7 @@
 
 论文工作稿：[四篇论文010](reports/agent-harness-papers-010.md)（Supervisor–Executor身份与责任、工作流协调、名字与context、DAG evolution；已完成007—013正文、机制/对照实验、图表、标题及作者信息修订，尚未人工复核）。
 
-新增方向：[P5记忆组织与知识共享011](reports/agent-harness-memory-011.md) · [实现初查](reports/agent-harness-memory-implementation-011.md)（agent、project、team记忆；已建立研究计划、源码版本证据与快照覆盖记录，尚未开展新效果实验）。
+第五篇：[P5研究计划](reports/agent-harness-memory-011.md) · [实现初查](reports/agent-harness-memory-implementation-011.md) · [Git历史、共享与复用研究](reports/agent-harness-memory-study-011.md) · [案例与排除](reports/agent-harness-memory-cases-011.md) · [数据与图表](reports/memory-011/round-002/README.md)（已核验57次Team变更、230条正文读取回执及7组定向材料；私有历史和精确部署映射仍有缺口，未进行记忆对照实验）。
 
 最新研究：[四重点综合取舍009](reports/agent-harness-synthesis-009.md) · [Supervisor与流程增量逐案记录](reports/agent-harness-review-increment-cases-009.md)（固定代码核对、检查覆盖与转述用途分开；单AI探索，尚未人工复核）。
 

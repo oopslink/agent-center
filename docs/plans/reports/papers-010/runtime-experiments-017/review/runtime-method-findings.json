@@ -1,0 +1,102 @@
+{
+  "schema": "prospective-code-method-findings-v1",
+  "reviewed_at_utc": "2026-11-04T08:23:16.380594+00:00",
+  "reviewer": "methods_validity_audit_016",
+  "bound_files": [
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/runtime.py",
+      "sha256": "46951d93b72c9659c2c40dfbf83daf517bb8e71bba3f25d453ec80cb2e95a807"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/tasks.py",
+      "sha256": "bc8446f01c1115ea36cfa278945ce29efc006c7ad39284ef0c013bcb8d1cfb38"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/check_candidate.py",
+      "sha256": "3658abf8342223a4915f89345e127d81a8202d823053a3bcafee0aa8ebada4e6"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/transport.py",
+      "sha256": "c379ffa389fcb441550d82587c81f80e7d9bc0680a2a978d1eb14f9f8bcbf5ad"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/protocol.md",
+      "sha256": "91ae05d7011232c4a554462a24be0f4c2456cb4bfe6d468f0299d057f851a175"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p12-runtime-003/test-plan.md",
+      "sha256": "259d3f8d05341577e9aa49152ba6c536492cba0fc69d2cd531c5203abb6f63af"
+    }
+  ],
+  "findings": [
+    {
+      "id": "C01",
+      "severity": "major",
+      "locations": [
+        "runtime.py:173-185",
+        "runtime.py:220-236"
+      ],
+      "issue": "active is an uncollected process handle, not a predicate that the process is running. Completed workers can be marked active_at_stop and cause premature completion despite finished valid artifacts.",
+      "remedy": "Poll actual process status at the stopping boundary; record completed-but-uncollected separately and do not make result collection an unstated success requirement.",
+      "status": "pending"
+    },
+    {
+      "id": "C02",
+      "severity": "major",
+      "locations": [
+        "runtime.py:52-88",
+        "runtime.py:90-116",
+        "runtime.py:220-230"
+      ],
+      "issue": "Public and user tests independently snapshot module.py, then a receipt binds only the latter hash. A concurrent writer can produce a receipt combining different code versions; test JSON reads and hash are likewise separated. Early-stop multi-file snapshot is not necessarily a single observed state.",
+      "remedy": "Execute checks against one atomic/frozen bundle or reject checks while writers are actually active using identical documented API rules. Treat early-stop race snapshot as uncertain auxiliary evidence, not exact state-at-stop.",
+      "status": "pending"
+    },
+    {
+      "id": "C03",
+      "severity": "major_construct",
+      "locations": [
+        "runtime.py:125-131"
+      ],
+      "issue": "P1 unified versus separate uses Supervisor/executors versus coordinator/workers, changing role vocabulary alongside identity affiliation.",
+      "remedy": "Hold Supervisor/executor terminology fixed and vary logical-identity relation only, or explicitly call the factor an identity-plus-label treatment.",
+      "status": "pending"
+    },
+    {
+      "id": "C04",
+      "severity": "major_construct",
+      "locations": [
+        "runtime.py:165-170"
+      ],
+      "issue": "A bootstrap initial implementation failure is not an executor failure handoff. If real model workers solve it once, the trajectory never tests post-executor-failure responsibility.",
+      "remedy": "Provide an explicitly researcher-seeded, traceable executor failure handoff with real subprocess artifact/check provenance, then model-driven recovery; alternatively narrow the RQ to delegated repair from an initial defect and keep natural executor-failure recovery descriptive. Do not fabricate a natural LLM failure.",
+      "status": "pending"
+    },
+    {
+      "id": "C05",
+      "severity": "reporting_or_operationalization",
+      "locations": [
+        "runtime.py:187-188"
+      ],
+      "issue": "Ledger freshly reads current artifact hashes each decision; history-only condition requires inspect to obtain changes. Treatment includes proactive state observation as well as persistence/format.",
+      "remedy": "Prespecify and report this intervention scope and token/action cost, or build both views from identical already-observed events if only persistence is intended.",
+      "status": "pending"
+    },
+    {
+      "id": "C06",
+      "severity": "measurement",
+      "locations": [
+        "runtime.py:171",
+        "runtime.py:208-213"
+      ],
+      "issue": "first_failure_budget ignores fixed initial failure and failed worker checks; it only captures the first failed controller run_tests/accept.",
+      "remedy": "Rename precisely and separately record initial opportunity plus worker-failure/rejection events and remaining budget.",
+      "status": "pending"
+    }
+  ],
+  "model_outputs_seen": false,
+  "model_calls_executed": 0,
+  "manuscripts_modified": false,
+  "status": "findings_sent_to_designer_pending_changes",
+  "note": "Line anchors identify the initial code read. Files may be under active development; final closeout must bind later hashes and check remediation."
+}

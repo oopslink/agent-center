@@ -1,0 +1,64 @@
+[
+  {
+    "paper": "P1",
+    "figure": 6,
+    "name": "p1-fig6-runtime-identity",
+    "width_mm": 180,
+    "height_mm": 176,
+    "png_dpi": 300,
+    "font": "DejaVu Sans",
+    "bounds_check": {
+      "all_visible_text_within_canvas": true,
+      "checked_text_objects": 109
+    },
+    "visual_inspection": "Primary AI inspected rendered PNG: legible labels, no clipping or overlapping panels, all 54 cells and zero differences retained. No independent human review.",
+    "outputs": [
+      {
+        "path": "figures/p1-fig6-runtime-identity.png",
+        "sha256": "7f708ba849c310f024d75f3e34deb374dee34a638005f52f96ba7c886880928e",
+        "bytes": 281220
+      },
+      {
+        "path": "figures/p1-fig6-runtime-identity.svg",
+        "sha256": "a9b0c558e4d853a8c7a54a5c3c16c004385aed5ee03e69fdc3a42c1ccacbf09b",
+        "bytes": 156128
+      },
+      {
+        "path": "figures/p1-fig6-runtime-identity.pdf",
+        "sha256": "405769095619e1f91419077ca3c6da77afd3d8f94f74320cf2f667156d4d05ac",
+        "bytes": 36138
+      }
+    ]
+  },
+  {
+    "paper": "P2",
+    "figure": 6,
+    "name": "p2-fig6-runtime-workflow",
+    "width_mm": 180,
+    "height_mm": 176,
+    "png_dpi": 300,
+    "font": "DejaVu Sans",
+    "bounds_check": {
+      "all_visible_text_within_canvas": true,
+      "checked_text_objects": 95
+    },
+    "visual_inspection": "Primary AI inspected rendered PNG: legible labels, no clipping or overlapping panels, all 54 cells and zero differences retained. No independent human review.",
+    "outputs": [
+      {
+        "path": "figures/p2-fig6-runtime-workflow.png",
+        "sha256": "6f97773f7fdf0e718de4f9f24401732e8d8880131d408c85d3699f96e5ca6d2e",
+        "bytes": 266211
+      },
+      {
+        "path": "figures/p2-fig6-runtime-workflow.svg",
+        "sha256": "0c86cc2704f9b2382c6d97d0eb9cf9d00e122f394a7ff687316f0ee315967a2a",
+        "bytes": 152607
+      },
+      {
+        "path": "figures/p2-fig6-runtime-workflow.pdf",
+        "sha256": "d3b1ff239d9d81834ede4f42727d5b7efc051c710cf67d0049954d6c351cb2d0",
+        "bytes": 37793
+      }
+    ]
+  }
+]

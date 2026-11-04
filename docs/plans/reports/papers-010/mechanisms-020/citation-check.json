@@ -1,0 +1,275 @@
+{
+  "P2": {
+    "doi": "10.1145/174666.174668",
+    "primary": "https://crowston.syr.edu/sites/default/files/acmcs94.pdf",
+    "use": "Coordination is the management of dependencies among activities; receipt recognition is a case-specific application.",
+    "utc": "2026-11-04T13:54:27.024151+00:00",
+    "crossref": {
+      "title": [
+        "The interdisciplinary study of coordination"
+      ],
+      "DOI": "10.1145/174666.174668",
+      "author": [
+        {
+          "given": "Thomas W.",
+          "family": "Malone",
+          "sequence": "first",
+          "affiliation": [
+            {
+              "name": "Massachusetts Institute of Technology, Cambridge"
+            }
+          ],
+          "role": [
+            {
+              "vocabulary": "crossref",
+              "role": "author"
+            }
+          ]
+        },
+        {
+          "given": "Kevin",
+          "family": "Crowston",
+          "sequence": "additional",
+          "affiliation": [
+            {
+              "name": "Univ. of Michigan, Ann Arbor"
+            }
+          ],
+          "role": [
+            {
+              "vocabulary": "crossref",
+              "role": "author"
+            }
+          ]
+        }
+      ],
+      "container-title": [
+        "ACM Computing Surveys"
+      ],
+      "volume": "26",
+      "issue": "1",
+      "page": "87-119",
+      "published": {
+        "date-parts": [
+          [
+            1994,
+            3
+          ]
+        ]
+      },
+      "relation": {},
+      "update-to": null,
+      "updated-by": null
+    },
+    "openalex": {
+      "doi": "https://doi.org/10.1145/174666.174668",
+      "display_name": "The interdisciplinary study of coordination",
+      "is_retracted": false
+    }
+  },
+  "P3": {
+    "doi": "10.1109/2.485845",
+    "primary": "https://csrc.nist.gov/csrc/media/projects/role-based-access-control/documents/sandhu96.pdf",
+    "use": "Users are assigned roles and roles carry permissions; this does not determine relevance of evidence or the value of a display name.",
+    "utc": "2026-11-04T13:54:27.024906+00:00",
+    "crossref": {
+      "title": [
+        "Role-based access control models"
+      ],
+      "DOI": "10.1109/2.485845",
+      "author": [
+        {
+          "given": "R.S.",
+          "family": "Sandhu",
+          "sequence": "first",
+          "affiliation": [],
+          "role": [
+            {
+              "vocabulary": "crossref",
+              "role": "author"
+            }
+          ]
+        },
+        {
+          "given": "E.J.",
+          "family": "Coyne",
+          "sequence": "additional",
+          "affiliation": [],
+          "role": [
+            {
+              "vocabulary": "crossref",
+              "role": "author"
+            }
+          ]
+        },
+        {
+          "given": "H.L.",
+          "family": "Feinstein",
+          "sequence": "additional",
+          "affiliation": [],
+          "role": [
+            {
+              "vocabulary": "crossref",
+              "role": "author"
+            }
+          ]
+        },
+        {
+          "given": "C.E.",
+          "family": "Youman",
+          "sequence": "additional",
+          "affiliation": [],
+          "role": [
+            {
+              "vocabulary": "crossref",
+              "role": "author"
+            }
+          ]
+        }
+      ],
+      "container-title": [
+        "Computer"
+      ],
+      "volume": "29",
+      "issue": "2",
+      "page": "38-47",
+      "published": {
+        "date-parts": [
+          [
+            1996
+          ]
+        ]
+      },
+      "relation": {},
+      "update-to": null,
+      "updated-by": null
+    },
+    "openalex": {
+      "doi": "https://doi.org/10.1109/2.485845",
+      "display_name": "Role-based access control models",
+      "is_retracted": false
+    }
+  },
+  "P4": {
+    "doi": "10.1016/0004-3702(92)90056-4",
+    "primary": "https://www.sciencedirect.com/science/article/pii/0004370292900564",
+    "use": "Plan modification revises a validation structure after inconsistencies; Git inheritance and human acceptance are our empirical analogues, not claims of the original paper.",
+    "utc": "2026-11-04T13:54:27.029191+00:00",
+    "crossref": {
+      "title": [
+        "A validation-structure-based theory of plan modification and reuse"
+      ],
+      "DOI": "10.1016/0004-3702(92)90056-4",
+      "author": [
+        {
+          "given": "Subbarao",
+          "family": "Kambhampati",
+          "sequence": "first",
+          "affiliation": [],
+          "role": [
+            {
+              "vocabulary": "crossref",
+              "role": "author"
+            }
+          ]
+        },
+        {
+          "given": "James A.",
+          "family": "Hendler",
+          "sequence": "additional",
+          "affiliation": [],
+          "role": [
+            {
+              "vocabulary": "crossref",
+              "role": "author"
+            }
+          ]
+        }
+      ],
+      "container-title": [
+        "Artificial Intelligence"
+      ],
+      "volume": "55",
+      "issue": "2-3",
+      "page": "193-258",
+      "published": {
+        "date-parts": [
+          [
+            1992,
+            6
+          ]
+        ]
+      },
+      "relation": {},
+      "update-to": null,
+      "updated-by": null
+    },
+    "openalex": {
+      "doi": "https://doi.org/10.1016/0004-3702(92)90056-4",
+      "display_name": "A validation-structure-based theory of plan modification and reuse",
+      "is_retracted": false
+    }
+  },
+  "P5": {
+    "doi": "10.5465/amr.1991.4278992",
+    "primary": "https://journals.aom.org/doi/10.5465/AMR.1991.4278992",
+    "use": "Acquisition, retention and retrieval as distinct organizational processes; contract-compatible use is an additional criterion in this case study.",
+    "utc": "2026-11-04T13:54:27.033131+00:00",
+    "crossref": {
+      "title": [
+        "Organizational Memory"
+      ],
+      "DOI": "10.2307/258607",
+      "author": [
+        {
+          "given": "James P.",
+          "family": "Walsh",
+          "sequence": "first",
+          "affiliation": [],
+          "role": [
+            {
+              "vocabulary": "crossref",
+              "role": "author"
+            }
+          ]
+        },
+        {
+          "given": "Gerardo Rivera",
+          "family": "Ungson",
+          "sequence": "additional",
+          "affiliation": [],
+          "role": [
+            {
+              "vocabulary": "crossref",
+              "role": "author"
+            }
+          ]
+        }
+      ],
+      "container-title": [
+        "The Academy of Management Review"
+      ],
+      "volume": "16",
+      "issue": "1",
+      "page": "57",
+      "published": {
+        "date-parts": [
+          [
+            1991,
+            1
+          ]
+        ]
+      },
+      "relation": {},
+      "update-to": null,
+      "updated-by": null
+    },
+    "openalex": {
+      "doi": "https://doi.org/10.5465/amr.1991.4278992",
+      "display_name": "ORGANIZATIONAL MEMORY",
+      "is_retracted": false
+    },
+    "identifier_note": "Publisher DOI 10.5465/amr.1991.4278992 resolves in Crossref to JSTOR record 10.2307/258607. Author names, article title, volume/issue and year agree; original printed page 57 specifies the full page range 57–91.",
+    "original_first_page": "https://skat.ihmc.us/rid%3D1255442505000_1811726224_21686/OrganizationalMemory-Walsh.pdf"
+  }
+}

@@ -1,0 +1,115 @@
+--- before/docs/plans/reports/papers-010/p4-dag-evolution/paper.md
++++ after/docs/plans/reports/papers-010/p4-dag-evolution/paper.md
+@@ -1,6 +1,6 @@
+-# 智能体任务图演化中的产物继承与验收语义
+-
+-*Artifact Inheritance and Acceptance Semantics in Evolving Agent Task Graphs*
++# 智能体任务图演化的交付语义：产物继承与验收范围
++
++*Delivery Semantics of Evolving Agent Task Graphs: Artifact Inheritance and Acceptance Scope*
+ 
+ **作者：** oopslink
+ 
+@@ -10,13 +10,13 @@
+ 
+ ## 中文摘要
+ 
+-任务失败或需求变化后，动态任务图可以重组工作，但新增代际容易与代码修复、成果继承和验收改善混为一谈。本文研究DAG演化实际解决什么问题，以及何时应改图、续修、补证或等待。采用单部署机制案例分析，结合Agent Center的195个非显式夹具generation快照、169个父子转移、产物与合同谱系及256次合成处置响应。案例表明，局部改图用于安排新增复验和交付义务，而既有任务也可以直接续修；一项修复报告甚至早于对应改图。图中保留历史节点不保证后继代码保留成果，不同提交也可能具有相同完整树；新合同下的通过不能追认已撤回的旧结论。结构统计中149/169次转移保留全部父节点，反映历史累积而非交付收益。受控实验的六个有效情境中，两模型均96/96正确，表明在当前事实充分且规则明确时，累计图与活动图、联表与分表都可支持正确处置。本文据此将DAG演化定位为工作组织的适应机制：改图应对应真实义务或依赖的变化，产物继承和验收有效性应分别核验。研究未估计动态策略的净收益，全部分析尚未人工复核。
++任务失败或需求变化后，动态任务图可以重组工作，但新增代际容易与代码修复、成果继承和验收改善混为一谈。本文研究哪些DAG演化对应新的工作义务，以及后续结果如何与代码修复、补证和验收范围变化区分。采用单部署机制案例分析，结合Agent Center的195个非显式夹具generation快照、169个父子转移、产物与合同谱系及256次合成处置响应。案例表明，局部改图用于安排新增复验和交付义务，而既有任务也可以直接续修；一项修复报告甚至早于对应改图。图中保留历史节点不保证后继代码保留成果，不同提交也可能具有相同完整树；新合同下的通过不能追认已撤回的旧结论。结构统计中149/169次转移保留全部父节点，反映历史累积而非交付收益。受控实验的六个有效情境中，两模型均96/96正确，但全部输入已明示图、产物与验收分离，结果只表明两种表示下均可遵循该协议，不能验证真实演化策略的效果。本文据此将DAG演化定位为工作组织的适应机制：改图应对应真实义务或依赖的变化，产物继承和验收有效性应分别核验。研究未估计动态策略的净收益，全部分析尚未人工复核。
+ 
+ **关键词：**DAG演化；Agent harness；产物继承；验收合同；过程重建
+ 
+ ## Abstract
+ 
+-After task failure or a change in requirements, dynamic task graphs can reorganize work, but new generations are easily conflated with code repair, artifact inheritance, and improved acceptance. This study asks what DAG evolution actually accomplishes and when to edit a graph, continue an existing task, add evidence, or wait. A single-deployment mechanism analysis combines 195 Agent Center generation snapshots after explicit fixture exclusion, 169 parent–child transitions, artifact and contract lineages, and 256 synthetic decision responses. Cases show local edits organizing additional validation and delivery obligations, while other defects are repaired within existing tasks; one repair report precedes its corresponding graph edit. Retained graph nodes do not guarantee retained code capabilities, different commits may have identical complete trees, and acceptance under a new contract does not reinstate a withdrawn earlier verdict. Of 169 transitions, 149 retain all parent nodes, describing historical accumulation rather than delivery benefit. In the six valid experimental scenarios, both models score 96/96 across cumulative versus active views and joined versus distributed relations. Under explicit rules and sufficient facts, either representation supports correct decisions. We therefore characterize DAG evolution as adaptation of work organization: graph changes should correspond to changed obligations or dependencies, while artifact inheritance and acceptance validity require separate checks. Net delivery gains from dynamic strategies remain unmeasured, and human verification is outstanding.
++After task failure or a change in requirements, dynamic task graphs can reorganize work, but new generations are easily conflated with code repair, artifact inheritance, and improved acceptance. This study asks which graph changes correspond to new work obligations and how subsequent outcomes can be distinguished from code repairs, added evidence, and changes in acceptance scope. A single-deployment mechanism analysis combines 195 Agent Center generation snapshots after explicit fixture exclusion, 169 parent–child transitions, artifact and contract lineages, and 256 synthetic decision responses. Cases show local edits organizing additional validation and delivery obligations, while other defects are repaired within existing tasks; one repair report precedes its corresponding graph edit. Retained graph nodes do not guarantee retained code capabilities, different commits may have identical complete trees, and acceptance under a new contract does not reinstate a withdrawn earlier verdict. Of 169 transitions, 149 retain all parent nodes, describing historical accumulation rather than delivery benefit. In the six valid experimental scenarios, both models score 96/96 across cumulative versus active views and joined versus distributed relations. All inputs already prescribed the separation of graphs, artifacts, and acceptance. Either representation supported compliance with that supplied protocol; actual evolution strategies were not compared. We therefore characterize DAG evolution as adaptation of work organization: graph changes should correspond to changed obligations or dependencies, while artifact inheritance and acceptance validity require separate checks. Net delivery gains from dynamic strategies remain unmeasured, and human verification is outstanding.
+ 
+ **Keywords:** DAG evolution; agent harness; artifact inheritance; acceptance contract; process reconstruction
+ 
+@@ -25,25 +25,31 @@
+ 
+ 开发任务的计划会被执行反馈改变：实现可能暴露缺陷，验收可能要求补证，用户也可能增加范围。Agent Center用有向无环图（DAG）组织任务，并以generation记录演化。这个机制为重新安排工作提供了载体，也带来一个评价困难：后继任务通过，究竟是改图发挥了作用，还是代码修复、人工补充信息或验收范围改变带来的结果？仅统计代际增长，无法区分这些变化。[008-M1](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/agent-harness-evolution-008.md)
+ 
+-本文的核心问题是：**任务失败或要求变化后，DAG演化实际解决了什么问题，何时应该改图、续修、补证或等待？** 分析对象是一次恢复或适应性处置，而不是一个generation编号。“组织用途”指图操作表达了新出现或已改变的工作义务及依赖；“产物恢复”指指定候选实际保留或补上所需能力；“交付完成”则要求该候选在适用合同和环境下获得有效验收。三种判断使用不同证据，不能由一种替代另一种。
++本文的核心问题是：**记录中哪些改图对应新的工作义务，哪些后续结果需要由代码修复、补充证据或验收范围变化解释？** 分析对象是一次恢复或适应性处置，而不是一个generation编号。“组织用途”指图操作表达了新出现或已改变的工作义务及依赖；“产物恢复”指指定候选实际保留或补上所需能力；“交付完成”则要求该候选在适用合同和环境下获得有效验收。三种判断使用不同证据，不能由一种替代另一种。
+ 
+ 成果继承揭示了这种区分的必要性。历史图可以保留已完成节点，后继代码却从缺少相应能力的基线构建；两个不同提交标识也可以对应相同文件树。相似地，新范围下的终验报告与旧范围下撤回的PASS可以同时成立。研究因此同时追踪任务图、候选产物、验收合同和环境，并比较局部改图、原任务续修和其它恢复形式。[008-GIT](/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/logs/source-checks.json)
+ 
+ 本文的主要发现是，**DAG演化的可见用途在于调整工作组织，而不是自行修复产物或证明交付完成。** 新的独立检查和变化义务可以由局部改图承载；已有局部缺陷、缺失回执和外部资源不足则分别需要续修、补证或等待。图与产物、合同之间的关联决定如何评价这项用途。结构盘点描述该部署怎样演化，机制案例解释具体处置，受控短题仅检验表示和证据关联；本文不将三者合并为动态图的平均效果估计。
+ 
+-## 2 相关研究与概念
+-
+-动态工作流已有不同的优化单位。AFlow以完整工作流为搜索节点，结合蒙特卡洛树搜索、代码修改与执行反馈优化可数值评价的任务流程；其数据集层面的搜索并不等于生产计划中一次改图。[1]<!--ref:R11--><!--anchor:section:4--> DyFlow通过designer与executor分层，根据历史计划、中间输出和反馈生成阶段子图，并用共享记忆缓冲区向后续操作提供输入。[2]<!--ref:R28--><!--anchor:section:3.1, 3.2--> AgentConductor在同一问题内根据执行反馈更新分层DAG，并随任务难度调节图密度，报告其竞赛代码基准中的准确率与token成本。[3]<!--ref:R29--><!--anchor:section:2.1.2, 3.2.2--> 这些工作反对“一切改图无用”的结论，也不允许把其收益直接换算成本系统的generation收益。
+-
+-过程分析提供另一种视角。Failure as a Process区分失败起点、演进与恢复，同样的可见错误可以来自不同机制。[4]<!--ref:R05--><!--anchor:section:II--> 对象中心过程挖掘指出，同一事件可能联系多个对象，按单一case ID展开会造成分离的视图；后续研究进一步把case表示为相关对象的事件图。[5]<!--ref:R26--><!--anchor:section:Abstract-->[6]<!--ref:R27--><!--anchor:section:IV--> 本文借鉴这种范围意识，但不复现其算法，也不把对象相连当成业务目标等价。
+-
+-本文区分四类状态。任务图描述组织关系；generation保存某次演化的记录及快照；候选产物由精确提交或文件内容标识；验收合同说明何种行为、范围和环境可以获准通过。累计快照可以包含完成或废弃节点，所以它不是某一时刻的活动图。结构资料中的父子关系完整、端点存在，仅支持结构引用成立，不证明任务能够运行或交付合格。[008-M2](/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/derived/delta-summary.json)
+-
+-因此，本文将“修复”保留给产物或行为的改变，把新增测试事实、用户改需求和图编辑分别记录。这个概念约束使后文能够讨论联合作用，同时避免把共同发生写成单一机制的因果链。
+-
+-三类工作流方法也提示，比较需要对齐干预单位。搜索完整程序、在同题推理中生成子图与持久开发任务的代际管理，虽然都涉及图，却承担不同的记忆、执行和评价职责。本文只把它们用于界定可比较的问题，不把一个基准中的有效结构搬成生产流程的普遍答案。相关文献在本稿中是事后比较材料，不被描述为早期系统设计的来源。[1]<!--ref:R11--><!--anchor:section:4-->[2]<!--ref:R28--><!--anchor:section:3.1, 3.2-->[3]<!--ref:R29--><!--anchor:section:2.1.2, 3.2.2-->
+-
+-图历史的呈现也可能影响当前证据的选取。Lost in the Middle的问答与检索实验说明，信息位置的效果随任务与模型而异，简单任务还可能出现天花板。本文因而将历史视图作为有界表示因素，不把短题表现外推为动态图长期收益或部署模型的注意力机制。[7]<!--ref:R32--><!--anchor:section:2.3, 3.2-->
++本文不以提出新DAG调度法或证明动态图优于静态图为目标。可回答的问题是，生产记录中哪些改图对应真实新工作，哪些产物与验收关系必须另行重建；其用途是界定演化评价中的对象与证据。
++
++## 2 相关研究与分析框架
++
++### 2.1 工作流优化与持续交付谱系的不同问题
++
++AFlow以任务及评价函数搜索代码表示的工作流，其附录也包含开放任务；DyFlow与AgentConductor分别研究动态组织和按反馈演化。[1]<!--ref:R11-->[2]<!--ref:R28-->[3]<!--ref:R29--> 因此，本文不能以“已有研究无法处理开放任务”建立空白。这里的区别是评价对象：优化任务评价函数中的流程，与重建持续生产交付中哪个目标、产物和验收版本仍然有效，并不是同一个问题。
++
++过程失败研究要求保留起点、演进与恢复；[4]<!--ref:R05--> 对象中心过程研究则说明，多个相互关联对象不总能由单一case标识充分表达。[5]<!--ref:R26-->[6]<!--ref:R27--> 这些已有思想为关联Plan、generation、Task、候选与合同提供分析依据。本文不提出新的过程挖掘算法，局部补充是说明仅按Plan或图代际判断，怎样误读成果继承与验收撤回。
++
++信息呈现仍可能影响处置，但长上下文研究的发现不能替代实际改图对照。[7]<!--ref:R32--> 本文保留图视图实验作为显式规则下的行为探针；对DAG用途的判断主要依靠改图、代码变化、补充证据及合同变化的分别重建，而不将短题准确率解释为演化收益。
++
++### 2.2 工作组织与交付状态的分析框架
++
++本文将一次交付状态分为工作图、候选产物、验收合同与环境。图定义工作及其依赖；产物记录实现内容；合同规定判断标准；环境决定检查适用范围。改图直接改变第一项，其它状态只有经相应操作和证据核验才随之改变。因此，新增generation、保留旧节点或后继PASS都不是独立的交付进展指标。
++
++过程命题是：**图演化只有在组织了变化后的工作义务时才提供明确的协调用途，成果继承和验收沿用则依赖另外的关系。** §4.1检查改图与代码修复的时间和功能差别，§4.2检查节点与Git产物是否共同继承，§4.3–4.4检查补证及合同改变。若既有候选仍有效且只缺回执，补证即可；若外部条件未满足，合法等待是反例，不能用新建节点代替。
++
++这一分析不是动态改图优于静态流程的理论证明。结构盘点描述图怎样变化，过程案例解释某次变化承担什么工作，单步图视图实验评价给定规则下的选择；三者的结果变量不合并。
+ 
+ ## 3 材料与方法
+ 
+@@ -88,6 +94,14 @@
+ 两个固定模型各接受8情境×8条件×2顺序版本，共128次响应，合计256次；使用Sonnet/Haiku 5.5、low effort及隔离调用环境。输入与评分在响应生成前固定，分别核对动作、候选和合同。模型没有实际改图、修改代码或执行验收，因此本实验检验表示下的处置选择，不是静态图与动态图的交付策略对照。
+ 
+ 输出后的有效性审计发现两题的材料与唯一动作答案存在歧义。两题全部条件从负面归因中排除，原分数保持；另固定其全部条件、顺序和模型开展64次事后材料修复复测，与主分母分开。四对同图而产物、合同、判定或环境不同的状态另作分析性反例，检验单凭图是否足以判断交付，不计为生产事故或模型错误。完整运行、偏差与答案审计见[实验附录](controlled-experiments.md)。
++
++### 3.5 构念检查与可复现范围
++
++全部256个主输入直接规定图历史、产物和验收范围分离，指定必要成果丢失时恢复基线，并声明关闭历史没有当前执行依赖。原实验据此测规则已明示后的选择，未检验这些原则能否被自主发现，也未操纵真实静态／动态图策略。D5/D8的动作分类重叠涉及2/8情境，全部64个输出保留为材料问题；修复后结果属于事后诊断而非独立确认。
++
++本文按软件工程案例研究区分情境解释与因果识别，[8]<!--ref:RV16_METHOD--> 案例为目的性选择，研究问题和分析框架经材料阅读后调整，未预注册，也未完成全库盲法编码。输入、评分和统计可复算，不等于题目具有充分内容效度；设计、答案与解释同由AI形成，现有分工审阅不能替代独立人工判定。模型响应是固定情境的交叉观测，不按独立生产任务计算置信区间或显著性。
++
++逐项构念定义、输入全量核查、排除理由、主张与反证以及未执行的判别研究见[效度审计](../research-validity-016/README.md)。正文图表分别承担结构描述、过程比较或局部行为检验，[图表—主张映射](../research-validity-016/figure-claim-map.md)列明其可支持的结论；图中计数不是机制的独立验证。
+ 
+ ## 4 研究发现
+ 
+@@ -274,7 +288,9 @@
+ 
+ **图的连续性、产物的连续性和验收的有效性必须分别成立。** 149/169次转移保留全部父节点，说明该系统大量保留组织历史，却不保证后继代码继承了成果；不同提交同完整树的反例又说明，仅看提交变化也会误判。验收还必须绑定当前候选、合同与环境，新合同的通过不能恢复旧合同下已撤回的结论。因此，评价一次演化应明确它新组织了什么、保留了什么成果，以及哪些检查仍然有效。
+ 
+-短题在充分事实与明确规则下支持正确处置，未检出累计／活动视图或关系呈现的差异。这项结果与真实案例共同界定了研究答案：DAG是一种有具体用途的组织机制，其可见作用体现在它所承载的新工作关系；代码修复、信息补充和范围变化的作用须另行归属。本文尚未比较长期策略的净交付收益或成本，也未将未知根因的重复建链定性为无用。
++短题在充分事实与明确规则下支持正确处置，未检出累计／活动视图或关系呈现的差异。这项结果仅说明显式规则的遵循，不能独立支持DAG用途的机制判断。真实案例支持的研究答案是：DAG是一种有具体用途的组织机制，其可见作用体现在它所承载的新工作关系；代码修复、信息补充和范围变化的作用须另行归属。本文尚未比较长期策略的净交付收益或成本，也未将未知根因的重复建链定性为无用。
++
++**尚待执行的判别研究。**最小判别研究应在相同初始产物、合同与外部条件下比较原任务续修、局部改图和重新规划，实际执行代码修改及独立验收；图策略不能同时改变可用证据和责任协议。任务家族及重复运行应预先确定，记录成果丢失、重复劳动、质量与成本。若局部改图没有组织额外义务却增加工作，其净效用才有可比较的负面证据。
+ 
+ <!-- BODY_END -->
+ 
+@@ -293,6 +309,8 @@
+ [6] J. N. Adams, D. Schuster, S. Schmitz, G. Schuh, and W. M. P. van der Aalst, “Defining Cases and Variants for Object-Centric Event Data,” arXiv:2208.03235v1, 2022. DOI: [10.48550/arXiv.2208.03235](https://doi.org/10.48550/arXiv.2208.03235). [核定版本](https://arxiv.org/abs/2208.03235v1).
+ 
+ [7] N. F. Liu et al., “Lost in the Middle: How Language Models Use Long Contexts,” *Transactions of the Association for Computational Linguistics*, vol. 12, pp. 157–173, 2024. DOI: [10.1162/tacl_a_00638](https://doi.org/10.1162/tacl_a_00638). [出版记录](https://aclanthology.org/2024.tacl-1.9/).
++
++[8] P. Runeson and M. Höst, “Guidelines for conducting and reporting case study research in software engineering,” *Empirical Software Engineering*, vol. 14, pp. 131–164, 2009. doi: [10.1007/s10664-008-9102-8](https://doi.org/10.1007/s10664-008-9102-8).
+ 
+ ## 研究声明
+ 
+@@ -331,3 +349,5 @@
+ | E06-07、08、10 | [原Task续修](/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E06-07.json)、[同Task通过](/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E06-08.json)、[唯一根快照](/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/evidence/E06-10.json) | 不增代修复的局部反例 |
+ | 008-M1、M2、M3、X | [总报告](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/agent-harness-evolution-008.md)、[结构聚合](/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/derived/delta-summary.json)、[阅读覆盖](/Users/oopslink/works/research/agent-harness-study/run-001/evolution-008/reading/coverage.json)、[排除台账](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/agent-harness-evolution-cases-008.md) | 方法、单位及排除边界 |
+ | 004-M、C | [方法与层级](/Users/oopslink/works/codes/oopslink/agent-center/docs/plans/reports/agent-harness-lineage-004.md)、[B1/B2比较](/Users/oopslink/works/research/agent-harness-study/run-001/lineage-004/derived/comparisons.json) | 结果补全、范围修正或不变，不是成功率提升 |
++
++**016修订与复核范围。** 本稿补充了主题式文献比较、事后分析框架与实验构念检查，未新增模型调用或生产样本。原始正反结果及图表保留；[逐篇修改记录](REVISION-016.md)、[共同效度审计](../research-validity-016/README.md)和[可执行研究缺口](../research-validity-016/next-studies.md)说明已修正文稿与仍缺实证支持的部分。AI交叉审阅不属于人工复核，稿件尚未定稿。

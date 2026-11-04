@@ -1,0 +1,66 @@
+[
+  {
+    "id": "D-S-W1",
+    "case": "D",
+    "model": "claude-sonnet-5-5",
+    "access": true,
+    "rep": 1,
+    "parent_case": "D"
+  },
+  {
+    "id": "D-S-W2",
+    "case": "D",
+    "model": "claude-sonnet-5-5",
+    "access": true,
+    "rep": 2,
+    "parent_case": "D"
+  },
+  {
+    "id": "D-H-W1",
+    "case": "D",
+    "model": "claude-haiku-5-5",
+    "access": true,
+    "rep": 1,
+    "parent_case": "D"
+  },
+  {
+    "id": "D-H-W2",
+    "case": "D",
+    "model": "claude-haiku-5-5",
+    "access": true,
+    "rep": 2,
+    "parent_case": "D"
+  },
+  {
+    "id": "I-S-W1",
+    "case": "I",
+    "model": "claude-sonnet-5-5",
+    "access": true,
+    "rep": 1,
+    "parent_case": "I"
+  },
+  {
+    "id": "I-S-W2",
+    "case": "I",
+    "model": "claude-sonnet-5-5",
+    "access": true,
+    "rep": 2,
+    "parent_case": "I"
+  },
+  {
+    "id": "I-H-W1",
+    "case": "I",
+    "model": "claude-haiku-5-5",
+    "access": true,
+    "rep": 1,
+    "parent_case": "I"
+  },
+  {
+    "id": "I-H-W2",
+    "case": "I",
+    "model": "claude-haiku-5-5",
+    "access": true,
+    "rep": 2,
+    "parent_case": "I"
+  }
+]

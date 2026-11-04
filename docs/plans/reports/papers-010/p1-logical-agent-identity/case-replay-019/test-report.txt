@@ -1,0 +1,8 @@
+test_contracts_and_boundary (test_instrument.Audit) ... ok
+test_fork_isolation (test_instrument.Audit) ... ok
+test_no_target_in_opening (test_instrument.Audit) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 1.344s
+
+OK

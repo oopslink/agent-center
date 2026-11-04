@@ -1,0 +1,140 @@
+{
+  "P3": {
+    "name/producer": {
+      "n": 8,
+      "matched": 8,
+      "resolved": 0,
+      "actions": {
+        "request": 8
+      },
+      "steps": 8
+    },
+    "name/task": {
+      "n": 8,
+      "matched": 8,
+      "resolved": 8,
+      "actions": {
+        "accept": 4,
+        "reject": 4
+      },
+      "steps": 8
+    },
+    "none/producer": {
+      "n": 8,
+      "matched": 8,
+      "resolved": 0,
+      "actions": {
+        "request": 8
+      },
+      "steps": 8
+    },
+    "none/task": {
+      "n": 8,
+      "matched": 8,
+      "resolved": 8,
+      "actions": {
+        "accept": 4,
+        "reject": 4
+      },
+      "steps": 8
+    },
+    "role/producer": {
+      "n": 8,
+      "matched": 8,
+      "resolved": 0,
+      "actions": {
+        "request": 8
+      },
+      "steps": 8
+    },
+    "role/task": {
+      "n": 8,
+      "matched": 8,
+      "resolved": 8,
+      "actions": {
+        "accept": 4,
+        "reject": 4
+      },
+      "steps": 8
+    }
+  },
+  "P5": {
+    "absent/candidate": {
+      "n": 4,
+      "matched": 4,
+      "resolved": 0,
+      "actions": {
+        "close": 4
+      },
+      "steps": 4
+    },
+    "absent/release": {
+      "n": 4,
+      "matched": 4,
+      "resolved": 0,
+      "actions": {
+        "hold": 4
+      },
+      "steps": 4
+    },
+    "broad/candidate": {
+      "n": 4,
+      "matched": 3,
+      "resolved": 0,
+      "actions": {
+        "hold": 1,
+        "close": 3
+      },
+      "steps": 4
+    },
+    "broad/release": {
+      "n": 4,
+      "matched": 4,
+      "resolved": 0,
+      "actions": {
+        "hold": 4
+      },
+      "steps": 4
+    },
+    "scoped/candidate": {
+      "n": 4,
+      "matched": 4,
+      "resolved": 0,
+      "actions": {
+        "close": 4
+      },
+      "steps": 4
+    },
+    "scoped/release": {
+      "n": 4,
+      "matched": 4,
+      "resolved": 0,
+      "actions": {
+        "hold": 4
+      },
+      "steps": 4
+    },
+    "superseded/candidate": {
+      "n": 4,
+      "matched": 4,
+      "resolved": 0,
+      "actions": {
+        "close": 4
+      },
+      "steps": 4
+    },
+    "superseded/release": {
+      "n": 4,
+      "matched": 4,
+      "resolved": 0,
+      "actions": {
+        "hold": 4
+      },
+      "steps": 4
+    }
+  },
+  "calls": 80,
+  "price": 0.2115597,
+  "transport_failures": 0,
+  "format_errors": 0
+}

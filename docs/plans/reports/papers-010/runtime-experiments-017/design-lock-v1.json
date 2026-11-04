@@ -1,0 +1,25 @@
+{
+  "version": "003-v1",
+  "frozen_utc": "2026-11-04T08:31:39.768653+00:00",
+  "date_local": "2026-11-04",
+  "main_output_count_at_freeze": 0,
+  "python": "3.14.6",
+  "platform": "macOS-26.1-arm64-arm-64bit-Mach-O",
+  "files": {
+    "analyze.py": "55ff463274bed7402dc5d0d2c3066c46faac24059ac1d9809fb511bc7d3efffe",
+    "build_design.py": "7ca3fe86648112212994961530842927b4d9ee5ea707a53eb6ca9cdb7dc24d6b",
+    "check_candidate.py": "3658abf8342223a4915f89345e127d81a8202d823053a3bcafee0aa8ebada4e6",
+    "design.json": "f43f117d7c91e8339954b3451c5e63b8427af767b32874b915bd3e050d3b9b6e",
+    "protocol.md": "dda3f0821262c10dab23b3c57193f17e8897c955b5a45b4df6b363130f9623df",
+    "run_batch.py": "126649b96d47a0873a0ac8f0ca7e3151932dafe166d779fc3ed3547c42dc4313",
+    "runtime.py": "2aa33a25c1cf8f1670d863b4cfd70d42afacf9606e07b73a746af38b404cbbcb",
+    "tasks-private.json": "e725395baad9f9da92a8d8e94e72b93f092027c6343831be0682fc38bddb9234",
+    "tasks.py": "bc8446f01c1115ea36cfa278945ce29efc006c7ad39284ef0c013bcb8d1cfb38",
+    "test-plan.md": "259d3f8d05341577e9aa49152ba6c536492cba0fc69d2cd531c5203abb6f63af",
+    "test_runtime.py": "57f43dc70d6fdc14c23c8a0784852c591acf8b6ce46a07f8bb4fa05c5a4b09f8",
+    "transport.py": "c379ffa389fcb441550d82587c81f80e7d9bc0680a2a978d1eb14f9f8bcbf5ad"
+  },
+  "review": "review/preflight-review.json",
+  "main_episodes": 54,
+  "note": "Primary outcomes not observed; pilot outputs excluded. Analysis code fixed before main collection."
+}

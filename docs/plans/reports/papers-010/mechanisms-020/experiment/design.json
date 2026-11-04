@@ -1,0 +1,722 @@
+[
+  {
+    "id": "P3-H-pass-producer-none-1",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "pass",
+    "view": "producer",
+    "variant": "none",
+    "rep": 1
+  },
+  {
+    "id": "P3-H-pass-producer-none-2",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "pass",
+    "view": "producer",
+    "variant": "none",
+    "rep": 2
+  },
+  {
+    "id": "P3-H-pass-producer-name-1",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "pass",
+    "view": "producer",
+    "variant": "name",
+    "rep": 1
+  },
+  {
+    "id": "P3-H-pass-producer-name-2",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "pass",
+    "view": "producer",
+    "variant": "name",
+    "rep": 2
+  },
+  {
+    "id": "P3-H-pass-producer-role-1",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "pass",
+    "view": "producer",
+    "variant": "role",
+    "rep": 1
+  },
+  {
+    "id": "P3-H-pass-producer-role-2",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "pass",
+    "view": "producer",
+    "variant": "role",
+    "rep": 2
+  },
+  {
+    "id": "P3-H-pass-task-none-1",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "pass",
+    "view": "task",
+    "variant": "none",
+    "rep": 1
+  },
+  {
+    "id": "P3-H-pass-task-none-2",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "pass",
+    "view": "task",
+    "variant": "none",
+    "rep": 2
+  },
+  {
+    "id": "P3-H-pass-task-name-1",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "pass",
+    "view": "task",
+    "variant": "name",
+    "rep": 1
+  },
+  {
+    "id": "P3-H-pass-task-name-2",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "pass",
+    "view": "task",
+    "variant": "name",
+    "rep": 2
+  },
+  {
+    "id": "P3-H-pass-task-role-1",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "pass",
+    "view": "task",
+    "variant": "role",
+    "rep": 1
+  },
+  {
+    "id": "P3-H-pass-task-role-2",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "pass",
+    "view": "task",
+    "variant": "role",
+    "rep": 2
+  },
+  {
+    "id": "P3-H-fail-producer-none-1",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "fail",
+    "view": "producer",
+    "variant": "none",
+    "rep": 1
+  },
+  {
+    "id": "P3-H-fail-producer-none-2",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "fail",
+    "view": "producer",
+    "variant": "none",
+    "rep": 2
+  },
+  {
+    "id": "P3-H-fail-producer-name-1",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "fail",
+    "view": "producer",
+    "variant": "name",
+    "rep": 1
+  },
+  {
+    "id": "P3-H-fail-producer-name-2",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "fail",
+    "view": "producer",
+    "variant": "name",
+    "rep": 2
+  },
+  {
+    "id": "P3-H-fail-producer-role-1",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "fail",
+    "view": "producer",
+    "variant": "role",
+    "rep": 1
+  },
+  {
+    "id": "P3-H-fail-producer-role-2",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "fail",
+    "view": "producer",
+    "variant": "role",
+    "rep": 2
+  },
+  {
+    "id": "P3-H-fail-task-none-1",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "fail",
+    "view": "task",
+    "variant": "none",
+    "rep": 1
+  },
+  {
+    "id": "P3-H-fail-task-none-2",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "fail",
+    "view": "task",
+    "variant": "none",
+    "rep": 2
+  },
+  {
+    "id": "P3-H-fail-task-name-1",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "fail",
+    "view": "task",
+    "variant": "name",
+    "rep": 1
+  },
+  {
+    "id": "P3-H-fail-task-name-2",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "fail",
+    "view": "task",
+    "variant": "name",
+    "rep": 2
+  },
+  {
+    "id": "P3-H-fail-task-role-1",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "fail",
+    "view": "task",
+    "variant": "role",
+    "rep": 1
+  },
+  {
+    "id": "P3-H-fail-task-role-2",
+    "paper": "P3",
+    "model": "claude-haiku-5-5",
+    "target": "fail",
+    "view": "task",
+    "variant": "role",
+    "rep": 2
+  },
+  {
+    "id": "P3-S-pass-producer-none-1",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "pass",
+    "view": "producer",
+    "variant": "none",
+    "rep": 1
+  },
+  {
+    "id": "P3-S-pass-producer-none-2",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "pass",
+    "view": "producer",
+    "variant": "none",
+    "rep": 2
+  },
+  {
+    "id": "P3-S-pass-producer-name-1",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "pass",
+    "view": "producer",
+    "variant": "name",
+    "rep": 1
+  },
+  {
+    "id": "P3-S-pass-producer-name-2",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "pass",
+    "view": "producer",
+    "variant": "name",
+    "rep": 2
+  },
+  {
+    "id": "P3-S-pass-producer-role-1",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "pass",
+    "view": "producer",
+    "variant": "role",
+    "rep": 1
+  },
+  {
+    "id": "P3-S-pass-producer-role-2",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "pass",
+    "view": "producer",
+    "variant": "role",
+    "rep": 2
+  },
+  {
+    "id": "P3-S-pass-task-none-1",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "pass",
+    "view": "task",
+    "variant": "none",
+    "rep": 1
+  },
+  {
+    "id": "P3-S-pass-task-none-2",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "pass",
+    "view": "task",
+    "variant": "none",
+    "rep": 2
+  },
+  {
+    "id": "P3-S-pass-task-name-1",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "pass",
+    "view": "task",
+    "variant": "name",
+    "rep": 1
+  },
+  {
+    "id": "P3-S-pass-task-name-2",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "pass",
+    "view": "task",
+    "variant": "name",
+    "rep": 2
+  },
+  {
+    "id": "P3-S-pass-task-role-1",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "pass",
+    "view": "task",
+    "variant": "role",
+    "rep": 1
+  },
+  {
+    "id": "P3-S-pass-task-role-2",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "pass",
+    "view": "task",
+    "variant": "role",
+    "rep": 2
+  },
+  {
+    "id": "P3-S-fail-producer-none-1",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "fail",
+    "view": "producer",
+    "variant": "none",
+    "rep": 1
+  },
+  {
+    "id": "P3-S-fail-producer-none-2",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "fail",
+    "view": "producer",
+    "variant": "none",
+    "rep": 2
+  },
+  {
+    "id": "P3-S-fail-producer-name-1",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "fail",
+    "view": "producer",
+    "variant": "name",
+    "rep": 1
+  },
+  {
+    "id": "P3-S-fail-producer-name-2",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "fail",
+    "view": "producer",
+    "variant": "name",
+    "rep": 2
+  },
+  {
+    "id": "P3-S-fail-producer-role-1",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "fail",
+    "view": "producer",
+    "variant": "role",
+    "rep": 1
+  },
+  {
+    "id": "P3-S-fail-producer-role-2",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "fail",
+    "view": "producer",
+    "variant": "role",
+    "rep": 2
+  },
+  {
+    "id": "P3-S-fail-task-none-1",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "fail",
+    "view": "task",
+    "variant": "none",
+    "rep": 1
+  },
+  {
+    "id": "P3-S-fail-task-none-2",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "fail",
+    "view": "task",
+    "variant": "none",
+    "rep": 2
+  },
+  {
+    "id": "P3-S-fail-task-name-1",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "fail",
+    "view": "task",
+    "variant": "name",
+    "rep": 1
+  },
+  {
+    "id": "P3-S-fail-task-name-2",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "fail",
+    "view": "task",
+    "variant": "name",
+    "rep": 2
+  },
+  {
+    "id": "P3-S-fail-task-role-1",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "fail",
+    "view": "task",
+    "variant": "role",
+    "rep": 1
+  },
+  {
+    "id": "P3-S-fail-task-role-2",
+    "paper": "P3",
+    "model": "claude-sonnet-5-5",
+    "target": "fail",
+    "view": "task",
+    "variant": "role",
+    "rep": 2
+  },
+  {
+    "id": "P5-H-candidate-absent-1",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "absent",
+    "rep": 1
+  },
+  {
+    "id": "P5-H-candidate-absent-2",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "absent",
+    "rep": 2
+  },
+  {
+    "id": "P5-H-candidate-broad-1",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "broad",
+    "rep": 1
+  },
+  {
+    "id": "P5-H-candidate-broad-2",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "broad",
+    "rep": 2
+  },
+  {
+    "id": "P5-H-candidate-scoped-1",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "scoped",
+    "rep": 1
+  },
+  {
+    "id": "P5-H-candidate-scoped-2",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "scoped",
+    "rep": 2
+  },
+  {
+    "id": "P5-H-candidate-superseded-1",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "superseded",
+    "rep": 1
+  },
+  {
+    "id": "P5-H-candidate-superseded-2",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "superseded",
+    "rep": 2
+  },
+  {
+    "id": "P5-H-release-absent-1",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "absent",
+    "rep": 1
+  },
+  {
+    "id": "P5-H-release-absent-2",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "absent",
+    "rep": 2
+  },
+  {
+    "id": "P5-H-release-broad-1",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "broad",
+    "rep": 1
+  },
+  {
+    "id": "P5-H-release-broad-2",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "broad",
+    "rep": 2
+  },
+  {
+    "id": "P5-H-release-scoped-1",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "scoped",
+    "rep": 1
+  },
+  {
+    "id": "P5-H-release-scoped-2",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "scoped",
+    "rep": 2
+  },
+  {
+    "id": "P5-H-release-superseded-1",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "superseded",
+    "rep": 1
+  },
+  {
+    "id": "P5-H-release-superseded-2",
+    "paper": "P5",
+    "model": "claude-haiku-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "superseded",
+    "rep": 2
+  },
+  {
+    "id": "P5-S-candidate-absent-1",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "absent",
+    "rep": 1
+  },
+  {
+    "id": "P5-S-candidate-absent-2",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "absent",
+    "rep": 2
+  },
+  {
+    "id": "P5-S-candidate-broad-1",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "broad",
+    "rep": 1
+  },
+  {
+    "id": "P5-S-candidate-broad-2",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "broad",
+    "rep": 2
+  },
+  {
+    "id": "P5-S-candidate-scoped-1",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "scoped",
+    "rep": 1
+  },
+  {
+    "id": "P5-S-candidate-scoped-2",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "scoped",
+    "rep": 2
+  },
+  {
+    "id": "P5-S-candidate-superseded-1",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "superseded",
+    "rep": 1
+  },
+  {
+    "id": "P5-S-candidate-superseded-2",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "candidate",
+    "view": "shared",
+    "variant": "superseded",
+    "rep": 2
+  },
+  {
+    "id": "P5-S-release-absent-1",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "absent",
+    "rep": 1
+  },
+  {
+    "id": "P5-S-release-absent-2",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "absent",
+    "rep": 2
+  },
+  {
+    "id": "P5-S-release-broad-1",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "broad",
+    "rep": 1
+  },
+  {
+    "id": "P5-S-release-broad-2",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "broad",
+    "rep": 2
+  },
+  {
+    "id": "P5-S-release-scoped-1",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "scoped",
+    "rep": 1
+  },
+  {
+    "id": "P5-S-release-scoped-2",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "scoped",
+    "rep": 2
+  },
+  {
+    "id": "P5-S-release-superseded-1",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "superseded",
+    "rep": 1
+  },
+  {
+    "id": "P5-S-release-superseded-2",
+    "paper": "P5",
+    "model": "claude-sonnet-5-5",
+    "target": "release",
+    "view": "shared",
+    "variant": "superseded",
+    "rep": 2
+  }
+]

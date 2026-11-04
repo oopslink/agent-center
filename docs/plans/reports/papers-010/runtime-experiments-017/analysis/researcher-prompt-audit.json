@@ -1,0 +1,545 @@
+{
+  "scope": "Mechanical exact-phrase screening plus preserved researcher-authored initial inputs; not proof of absence of all semantic cues. Tool contracts necessarily state task success criteria. Dynamic model-written assignments are observations, not researcher interventions.",
+  "rows": [
+    {
+      "id": "v2-P1-p1_allocate-haiku-separate-off",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {total: nonnegative integer, weights: list of nonnegative integers}. Allocate exactly total integer units proportionally to weights: take each floor quota then assign remaining units to descending fractional remainder, ties by lower input index. Return allocation list. Negative total or weights raise ValueError. Empty or all-zero weights return a zero list only when total is zero; otherwise raise ValueError. Use exact integer arithmetic, including large integers.",
+      "source": "episodes/v2-P1-p1_allocate-haiku-separate-off/calls/controller/01/attempt-1/request.json",
+      "sha256": "d0471ff9194127e6b71b5d8df2b8991ad59d78c8b27e444ecac7eb3925c56a3e",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_allocate-haiku-separate-on",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {total: nonnegative integer, weights: list of nonnegative integers}. Allocate exactly total integer units proportionally to weights: take each floor quota then assign remaining units to descending fractional remainder, ties by lower input index. Return allocation list. Negative total or weights raise ValueError. Empty or all-zero weights return a zero list only when total is zero; otherwise raise ValueError. Use exact integer arithmetic, including large integers.",
+      "source": "episodes/v2-P1-p1_allocate-haiku-separate-on/calls/controller/01/attempt-1/request.json",
+      "sha256": "3f6385c0111b0a40733e65d69c58d8ac948345fe4f0be10ad8debfd8a369af17",
+      "context_messages_at_start": 2,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_allocate-haiku-single",
+      "system": "You are the single coding agent for this delivery.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nwrite_file(file,content): atomically replace a permitted file; module.py content is a string, JSON file content is an object/array. run_tests(): execute public and any submitted user tests on current files. inspect(): read current files and hashes. finish(status,message): end this session; status is complete or blocked.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {total: nonnegative integer, weights: list of nonnegative integers}. Allocate exactly total integer units proportionally to weights: take each floor quota then assign remaining units to descending fractional remainder, ties by lower input index. Return allocation list. Negative total or weights raise ValueError. Empty or all-zero weights return a zero list only when total is zero; otherwise raise ValueError. Use exact integer arithmetic, including large integers.",
+      "source": "episodes/v2-P1-p1_allocate-haiku-single/calls/controller/01/attempt-1/request.json",
+      "sha256": "fc976c2edb2f1d43683fcef9180255293387a0bb703192da4e78e2c79d72db73",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_allocate-haiku-unified-off",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are components of the same logical Agent A.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {total: nonnegative integer, weights: list of nonnegative integers}. Allocate exactly total integer units proportionally to weights: take each floor quota then assign remaining units to descending fractional remainder, ties by lower input index. Return allocation list. Negative total or weights raise ValueError. Empty or all-zero weights return a zero list only when total is zero; otherwise raise ValueError. Use exact integer arithmetic, including large integers.",
+      "source": "episodes/v2-P1-p1_allocate-haiku-unified-off/calls/controller/01/attempt-1/request.json",
+      "sha256": "3da7b83213c5f0866ba9b74a0c4fc4e8c4101787801b12acc3e5257fef28e45c",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_allocate-haiku-unified-on",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are components of the same logical Agent A.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {total: nonnegative integer, weights: list of nonnegative integers}. Allocate exactly total integer units proportionally to weights: take each floor quota then assign remaining units to descending fractional remainder, ties by lower input index. Return allocation list. Negative total or weights raise ValueError. Empty or all-zero weights return a zero list only when total is zero; otherwise raise ValueError. Use exact integer arithmetic, including large integers.",
+      "source": "episodes/v2-P1-p1_allocate-haiku-unified-on/calls/controller/01/attempt-1/request.json",
+      "sha256": "8598ce4f5ab7c93ad85ecfb750f928110b7ba6ad1a9d23ba1f29ff5b53678937",
+      "context_messages_at_start": 2,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_allocate-sonnet-separate-off",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {total: nonnegative integer, weights: list of nonnegative integers}. Allocate exactly total integer units proportionally to weights: take each floor quota then assign remaining units to descending fractional remainder, ties by lower input index. Return allocation list. Negative total or weights raise ValueError. Empty or all-zero weights return a zero list only when total is zero; otherwise raise ValueError. Use exact integer arithmetic, including large integers.",
+      "source": "episodes/v2-P1-p1_allocate-sonnet-separate-off/calls/controller/01/attempt-1/request.json",
+      "sha256": "d68db789326397080402e581278cce953cbbf3c8fc74ff30a74e3fc26559923d",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_allocate-sonnet-separate-on",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {total: nonnegative integer, weights: list of nonnegative integers}. Allocate exactly total integer units proportionally to weights: take each floor quota then assign remaining units to descending fractional remainder, ties by lower input index. Return allocation list. Negative total or weights raise ValueError. Empty or all-zero weights return a zero list only when total is zero; otherwise raise ValueError. Use exact integer arithmetic, including large integers.",
+      "source": "episodes/v2-P1-p1_allocate-sonnet-separate-on/calls/controller/01/attempt-1/request.json",
+      "sha256": "80012a03a04ef7be390e18b7f9e8520100e30637a77012a29bd57d27a89a1bc1",
+      "context_messages_at_start": 2,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_allocate-sonnet-single",
+      "system": "You are the single coding agent for this delivery.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nwrite_file(file,content): atomically replace a permitted file; module.py content is a string, JSON file content is an object/array. run_tests(): execute public and any submitted user tests on current files. inspect(): read current files and hashes. finish(status,message): end this session; status is complete or blocked.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {total: nonnegative integer, weights: list of nonnegative integers}. Allocate exactly total integer units proportionally to weights: take each floor quota then assign remaining units to descending fractional remainder, ties by lower input index. Return allocation list. Negative total or weights raise ValueError. Empty or all-zero weights return a zero list only when total is zero; otherwise raise ValueError. Use exact integer arithmetic, including large integers.",
+      "source": "episodes/v2-P1-p1_allocate-sonnet-single/calls/controller/01/attempt-1/request.json",
+      "sha256": "e462245add50efb2b69de3c210646c1381f29eddf20b0b252eebfed4adabeef9",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_allocate-sonnet-unified-off",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are components of the same logical Agent A.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {total: nonnegative integer, weights: list of nonnegative integers}. Allocate exactly total integer units proportionally to weights: take each floor quota then assign remaining units to descending fractional remainder, ties by lower input index. Return allocation list. Negative total or weights raise ValueError. Empty or all-zero weights return a zero list only when total is zero; otherwise raise ValueError. Use exact integer arithmetic, including large integers.",
+      "source": "episodes/v2-P1-p1_allocate-sonnet-unified-off/calls/controller/01/attempt-1/request.json",
+      "sha256": "55a2e8fc7f959728924d0952b1e5311712a11fa680b0f71e597bcbb6ad439522",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_allocate-sonnet-unified-on",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are components of the same logical Agent A.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {total: nonnegative integer, weights: list of nonnegative integers}. Allocate exactly total integer units proportionally to weights: take each floor quota then assign remaining units to descending fractional remainder, ties by lower input index. Return allocation list. Negative total or weights raise ValueError. Empty or all-zero weights return a zero list only when total is zero; otherwise raise ValueError. Use exact integer arithmetic, including large integers.",
+      "source": "episodes/v2-P1-p1_allocate-sonnet-unified-on/calls/controller/01/attempt-1/request.json",
+      "sha256": "96dfb06213da257fc5acdf226e071c945418220b5636d948c1b58d76921293d2",
+      "context_messages_at_start": 2,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_intervals-haiku-separate-off",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data). data is a list of [start,end] integer pairs. Reject any reversed pair with ValueError. Return the sorted union as [start,end] pairs, merging overlapping or touching intervals. Keep isolated zero-length intervals. Empty input returns []. Do not mutate the input.",
+      "source": "episodes/v2-P1-p1_intervals-haiku-separate-off/calls/controller/01/attempt-1/request.json",
+      "sha256": "a72f43a28025ffe2f7080df5d0bb9ff4d7957feeccd02204d4c0087f303ba716",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_intervals-haiku-separate-on",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data). data is a list of [start,end] integer pairs. Reject any reversed pair with ValueError. Return the sorted union as [start,end] pairs, merging overlapping or touching intervals. Keep isolated zero-length intervals. Empty input returns []. Do not mutate the input.",
+      "source": "episodes/v2-P1-p1_intervals-haiku-separate-on/calls/controller/01/attempt-1/request.json",
+      "sha256": "00a775ddfb05cb3101366cce710d784c089202c4445a59acb7e87c85d3507ecb",
+      "context_messages_at_start": 2,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_intervals-haiku-single",
+      "system": "You are the single coding agent for this delivery.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nwrite_file(file,content): atomically replace a permitted file; module.py content is a string, JSON file content is an object/array. run_tests(): execute public and any submitted user tests on current files. inspect(): read current files and hashes. finish(status,message): end this session; status is complete or blocked.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data). data is a list of [start,end] integer pairs. Reject any reversed pair with ValueError. Return the sorted union as [start,end] pairs, merging overlapping or touching intervals. Keep isolated zero-length intervals. Empty input returns []. Do not mutate the input.",
+      "source": "episodes/v2-P1-p1_intervals-haiku-single/calls/controller/01/attempt-1/request.json",
+      "sha256": "19542abda273b620fecfbc4145257ade66ab2bc320093ff1191cc9e0b40677db",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_intervals-haiku-unified-off",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are components of the same logical Agent A.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data). data is a list of [start,end] integer pairs. Reject any reversed pair with ValueError. Return the sorted union as [start,end] pairs, merging overlapping or touching intervals. Keep isolated zero-length intervals. Empty input returns []. Do not mutate the input.",
+      "source": "episodes/v2-P1-p1_intervals-haiku-unified-off/calls/controller/01/attempt-1/request.json",
+      "sha256": "cbdc2138cdef6415c64cc8d215bcf1488334264be18cb237a71d6387f774bf71",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_intervals-haiku-unified-on",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are components of the same logical Agent A.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data). data is a list of [start,end] integer pairs. Reject any reversed pair with ValueError. Return the sorted union as [start,end] pairs, merging overlapping or touching intervals. Keep isolated zero-length intervals. Empty input returns []. Do not mutate the input.",
+      "source": "episodes/v2-P1-p1_intervals-haiku-unified-on/calls/controller/01/attempt-1/request.json",
+      "sha256": "e3aab290bcab1d05a7a86151d1107f8b32aea0060b01ff4e36ffd167894263dd",
+      "context_messages_at_start": 2,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_intervals-sonnet-separate-off",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data). data is a list of [start,end] integer pairs. Reject any reversed pair with ValueError. Return the sorted union as [start,end] pairs, merging overlapping or touching intervals. Keep isolated zero-length intervals. Empty input returns []. Do not mutate the input.",
+      "source": "episodes/v2-P1-p1_intervals-sonnet-separate-off/calls/controller/01/attempt-1/request.json",
+      "sha256": "bb4203aa8f5e3fb5d30108da2c9146b8dcaa72b63c5c1b85e7dd93e898c7b954",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_intervals-sonnet-separate-on",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data). data is a list of [start,end] integer pairs. Reject any reversed pair with ValueError. Return the sorted union as [start,end] pairs, merging overlapping or touching intervals. Keep isolated zero-length intervals. Empty input returns []. Do not mutate the input.",
+      "source": "episodes/v2-P1-p1_intervals-sonnet-separate-on/calls/controller/01/attempt-1/request.json",
+      "sha256": "1261220f42a880f3b03292e1221c6956c06a2c0e93e92db6f5f5597257a3e657",
+      "context_messages_at_start": 2,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_intervals-sonnet-single",
+      "system": "You are the single coding agent for this delivery.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nwrite_file(file,content): atomically replace a permitted file; module.py content is a string, JSON file content is an object/array. run_tests(): execute public and any submitted user tests on current files. inspect(): read current files and hashes. finish(status,message): end this session; status is complete or blocked.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data). data is a list of [start,end] integer pairs. Reject any reversed pair with ValueError. Return the sorted union as [start,end] pairs, merging overlapping or touching intervals. Keep isolated zero-length intervals. Empty input returns []. Do not mutate the input.",
+      "source": "episodes/v2-P1-p1_intervals-sonnet-single/calls/controller/01/attempt-1/request.json",
+      "sha256": "3a149f7164bb73b3c07594a458f1f14377ba864080788d2470a8de7f61dfd670",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_intervals-sonnet-unified-off",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are components of the same logical Agent A.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data). data is a list of [start,end] integer pairs. Reject any reversed pair with ValueError. Return the sorted union as [start,end] pairs, merging overlapping or touching intervals. Keep isolated zero-length intervals. Empty input returns []. Do not mutate the input.",
+      "source": "episodes/v2-P1-p1_intervals-sonnet-unified-off/calls/controller/01/attempt-1/request.json",
+      "sha256": "703e701862221369f79c073e20be2a4a3b4e8e813230b25df53d8afa42e21b10",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_intervals-sonnet-unified-on",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are components of the same logical Agent A.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data). data is a list of [start,end] integer pairs. Reject any reversed pair with ValueError. Return the sorted union as [start,end] pairs, merging overlapping or touching intervals. Keep isolated zero-length intervals. Empty input returns []. Do not mutate the input.",
+      "source": "episodes/v2-P1-p1_intervals-sonnet-unified-on/calls/controller/01/attempt-1/request.json",
+      "sha256": "7663c4d6405ccdcce073f6a3a1ba69dbe192f2ba5f203dc0c8017ee6b040a222",
+      "context_messages_at_start": 2,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_order-haiku-separate-off",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {nodes: list of distinct strings, edges: list of [before,after] pairs}. Return a topological ordering, choosing the lexicographically smallest currently available node at every step. Duplicate edges count once. Unknown edge endpoints, self cycles or any cycle raise ValueError. Empty graph returns []. Isolated nodes must be included. Do not mutate input.",
+      "source": "episodes/v2-P1-p1_order-haiku-separate-off/calls/controller/01/attempt-1/request.json",
+      "sha256": "3612d733f7b6f93979b96198374cefc4ab8c370d02697d9cb15cac60c3e89897",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_order-haiku-separate-on",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {nodes: list of distinct strings, edges: list of [before,after] pairs}. Return a topological ordering, choosing the lexicographically smallest currently available node at every step. Duplicate edges count once. Unknown edge endpoints, self cycles or any cycle raise ValueError. Empty graph returns []. Isolated nodes must be included. Do not mutate input.",
+      "source": "episodes/v2-P1-p1_order-haiku-separate-on/calls/controller/01/attempt-1/request.json",
+      "sha256": "5b111ead3f156cee326aa3c057bb5b3b182824c522a6df6e418655480ce7989c",
+      "context_messages_at_start": 2,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_order-haiku-single",
+      "system": "You are the single coding agent for this delivery.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nwrite_file(file,content): atomically replace a permitted file; module.py content is a string, JSON file content is an object/array. run_tests(): execute public and any submitted user tests on current files. inspect(): read current files and hashes. finish(status,message): end this session; status is complete or blocked.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {nodes: list of distinct strings, edges: list of [before,after] pairs}. Return a topological ordering, choosing the lexicographically smallest currently available node at every step. Duplicate edges count once. Unknown edge endpoints, self cycles or any cycle raise ValueError. Empty graph returns []. Isolated nodes must be included. Do not mutate input.",
+      "source": "episodes/v2-P1-p1_order-haiku-single/calls/controller/01/attempt-1/request.json",
+      "sha256": "f404c37450d6433ab01cf42bb8b724a50660d7097a256d37f948894e287dcea3",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_order-haiku-unified-off",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are components of the same logical Agent A.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {nodes: list of distinct strings, edges: list of [before,after] pairs}. Return a topological ordering, choosing the lexicographically smallest currently available node at every step. Duplicate edges count once. Unknown edge endpoints, self cycles or any cycle raise ValueError. Empty graph returns []. Isolated nodes must be included. Do not mutate input.",
+      "source": "episodes/v2-P1-p1_order-haiku-unified-off/calls/controller/01/attempt-1/request.json",
+      "sha256": "a1cd33071a4cf9c2fe2d5316436e29336b00b1086ab2ddaacbc4f813d0dff78a",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_order-haiku-unified-on",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are components of the same logical Agent A.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {nodes: list of distinct strings, edges: list of [before,after] pairs}. Return a topological ordering, choosing the lexicographically smallest currently available node at every step. Duplicate edges count once. Unknown edge endpoints, self cycles or any cycle raise ValueError. Empty graph returns []. Isolated nodes must be included. Do not mutate input.",
+      "source": "episodes/v2-P1-p1_order-haiku-unified-on/calls/controller/01/attempt-1/request.json",
+      "sha256": "232fff860beccc3ad87234fd2b56bbe530aa7a27cd59b080ecf339c11803e8e7",
+      "context_messages_at_start": 2,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_order-sonnet-separate-off",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {nodes: list of distinct strings, edges: list of [before,after] pairs}. Return a topological ordering, choosing the lexicographically smallest currently available node at every step. Duplicate edges count once. Unknown edge endpoints, self cycles or any cycle raise ValueError. Empty graph returns []. Isolated nodes must be included. Do not mutate input.",
+      "source": "episodes/v2-P1-p1_order-sonnet-separate-off/calls/controller/01/attempt-1/request.json",
+      "sha256": "212fb315a7c2abf786f1feaa8c03d6cad259fbac26ae5ce5c3f56d4a4f2156b0",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_order-sonnet-separate-on",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {nodes: list of distinct strings, edges: list of [before,after] pairs}. Return a topological ordering, choosing the lexicographically smallest currently available node at every step. Duplicate edges count once. Unknown edge endpoints, self cycles or any cycle raise ValueError. Empty graph returns []. Isolated nodes must be included. Do not mutate input.",
+      "source": "episodes/v2-P1-p1_order-sonnet-separate-on/calls/controller/01/attempt-1/request.json",
+      "sha256": "a5cd79168a3a70997d1f69ae8047e93314f24a162a45ffc6058be55b7836dba0",
+      "context_messages_at_start": 2,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_order-sonnet-single",
+      "system": "You are the single coding agent for this delivery.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nwrite_file(file,content): atomically replace a permitted file; module.py content is a string, JSON file content is an object/array. run_tests(): execute public and any submitted user tests on current files. inspect(): read current files and hashes. finish(status,message): end this session; status is complete or blocked.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {nodes: list of distinct strings, edges: list of [before,after] pairs}. Return a topological ordering, choosing the lexicographically smallest currently available node at every step. Duplicate edges count once. Unknown edge endpoints, self cycles or any cycle raise ValueError. Empty graph returns []. Isolated nodes must be included. Do not mutate input.",
+      "source": "episodes/v2-P1-p1_order-sonnet-single/calls/controller/01/attempt-1/request.json",
+      "sha256": "8817fe7e37bb09beef3e4bbe1224619cc1052934db45d7c67412acc5d0b08940",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_order-sonnet-unified-off",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are components of the same logical Agent A.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {nodes: list of distinct strings, edges: list of [before,after] pairs}. Return a topological ordering, choosing the lexicographically smallest currently available node at every step. Duplicate edges count once. Unknown edge endpoints, self cycles or any cycle raise ValueError. Empty graph returns []. Isolated nodes must be included. Do not mutate input.",
+      "source": "episodes/v2-P1-p1_order-sonnet-unified-off/calls/controller/01/attempt-1/request.json",
+      "sha256": "d6e43cc17ba861ee811eb17f4a9b612b74d0f63c7b5ce3b0fac87d09cd92a038",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P1-p1_order-sonnet-unified-on",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are components of the same logical Agent A.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the complete requested implementation.",
+      "contract": "Implement solve(data) for {nodes: list of distinct strings, edges: list of [before,after] pairs}. Return a topological ordering, choosing the lexicographically smallest currently available node at every step. Duplicate edges count once. Unknown edge endpoints, self cycles or any cycle raise ValueError. Empty graph returns []. Isolated nodes must be included. Do not mutate input.",
+      "source": "episodes/v2-P1-p1_order-sonnet-unified-on/calls/controller/01/attempt-1/request.json",
+      "sha256": "01bb056098b1ea52b700b12b20537e1ac16feec1118ea580af5820eb726be339",
+      "context_messages_at_start": 2,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_expiry-haiku-long-distributed",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {now: integer, records: list of {id: distinct string, created: integer, ttl: integer}}. A record is active exactly when created <= now < created+ttl. Any negative ttl raises ValueError, even for future records. Return active IDs sorted lexicographically. Zero ttl is never active. Empty records returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_expiry-haiku-long-distributed/calls/controller/01/attempt-1/request.json",
+      "sha256": "08f65bc6ffc3c710ed38a9bf15b1bdc5f8af0ae6fc39bd82cf8b4310a5c60356",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_expiry-haiku-long-joined",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {now: integer, records: list of {id: distinct string, created: integer, ttl: integer}}. A record is active exactly when created <= now < created+ttl. Any negative ttl raises ValueError, even for future records. Return active IDs sorted lexicographically. Zero ttl is never active. Empty records returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_expiry-haiku-long-joined/calls/controller/01/attempt-1/request.json",
+      "sha256": "8c35ebc7f76694ed0e8b624b2a4f591303b97fc56d1b2e6d965df9af1458efaa",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_expiry-haiku-short-distributed",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {now: integer, records: list of {id: distinct string, created: integer, ttl: integer}}. A record is active exactly when created <= now < created+ttl. Any negative ttl raises ValueError, even for future records. Return active IDs sorted lexicographically. Zero ttl is never active. Empty records returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_expiry-haiku-short-distributed/calls/controller/01/attempt-1/request.json",
+      "sha256": "164ab761de412bff5a971177278960dcf59efe9a797eb79084bea2aef7cf1ef9",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_expiry-haiku-short-joined",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {now: integer, records: list of {id: distinct string, created: integer, ttl: integer}}. A record is active exactly when created <= now < created+ttl. Any negative ttl raises ValueError, even for future records. Return active IDs sorted lexicographically. Zero ttl is never active. Empty records returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_expiry-haiku-short-joined/calls/controller/01/attempt-1/request.json",
+      "sha256": "23692e83b769aa1c813e42a1cde156545d0b187642ad63bc7f902056872b3efe",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_expiry-sonnet-long-distributed",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {now: integer, records: list of {id: distinct string, created: integer, ttl: integer}}. A record is active exactly when created <= now < created+ttl. Any negative ttl raises ValueError, even for future records. Return active IDs sorted lexicographically. Zero ttl is never active. Empty records returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_expiry-sonnet-long-distributed/calls/controller/01/attempt-1/request.json",
+      "sha256": "aa8ed8551fd9ecd5968e9032bfc86fbe4c559bad855d994be9d62651bc287cf1",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_expiry-sonnet-long-joined",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {now: integer, records: list of {id: distinct string, created: integer, ttl: integer}}. A record is active exactly when created <= now < created+ttl. Any negative ttl raises ValueError, even for future records. Return active IDs sorted lexicographically. Zero ttl is never active. Empty records returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_expiry-sonnet-long-joined/calls/controller/01/attempt-1/request.json",
+      "sha256": "4ffef017b42167aa6dae68e4d3879390f61b049edd7d021d24f5169a54940248",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_expiry-sonnet-short-distributed",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {now: integer, records: list of {id: distinct string, created: integer, ttl: integer}}. A record is active exactly when created <= now < created+ttl. Any negative ttl raises ValueError, even for future records. Return active IDs sorted lexicographically. Zero ttl is never active. Empty records returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_expiry-sonnet-short-distributed/calls/controller/01/attempt-1/request.json",
+      "sha256": "34dbfa762b2f38a2117b30187212a9e6adcb7c9fd1e966ba8d2fde9eaffcdea0",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_expiry-sonnet-short-joined",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {now: integer, records: list of {id: distinct string, created: integer, ttl: integer}}. A record is active exactly when created <= now < created+ttl. Any negative ttl raises ValueError, even for future records. Return active IDs sorted lexicographically. Zero ttl is never active. Empty records returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_expiry-sonnet-short-joined/calls/controller/01/attempt-1/request.json",
+      "sha256": "6fd0314f562e3104e61cbfe7bb6c0e46479740cb85304bdb3024cd80091c5b1a",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_rank-haiku-long-distributed",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {k: integer, entries: list of {name: string, score: integer, active: boolean}}. Ignore inactive entries; for duplicate active names keep their maximum score. Return up to k names by descending score, breaking ties lexicographically. Negative k raises ValueError. k=0 or no active entries returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_rank-haiku-long-distributed/calls/controller/01/attempt-1/request.json",
+      "sha256": "b1852067aeda5febb49a50134a3c140e9b5787c7b651f8a109769f3057c4e61b",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_rank-haiku-long-joined",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {k: integer, entries: list of {name: string, score: integer, active: boolean}}. Ignore inactive entries; for duplicate active names keep their maximum score. Return up to k names by descending score, breaking ties lexicographically. Negative k raises ValueError. k=0 or no active entries returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_rank-haiku-long-joined/calls/controller/01/attempt-1/request.json",
+      "sha256": "368affbba4b9eab0c48413b2cb1a185de619d19e798f87aff6d1f64a398f820a",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_rank-haiku-short-distributed",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {k: integer, entries: list of {name: string, score: integer, active: boolean}}. Ignore inactive entries; for duplicate active names keep their maximum score. Return up to k names by descending score, breaking ties lexicographically. Negative k raises ValueError. k=0 or no active entries returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_rank-haiku-short-distributed/calls/controller/01/attempt-1/request.json",
+      "sha256": "771351d6ec205ea22b19272c76c604326bb29c7cc4932c5abb0669e59a99c847",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_rank-haiku-short-joined",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {k: integer, entries: list of {name: string, score: integer, active: boolean}}. Ignore inactive entries; for duplicate active names keep their maximum score. Return up to k names by descending score, breaking ties lexicographically. Negative k raises ValueError. k=0 or no active entries returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_rank-haiku-short-joined/calls/controller/01/attempt-1/request.json",
+      "sha256": "3711b6022aff599373159b320bc716621ef15af3a0d32853656adf19011949c1",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_rank-sonnet-long-distributed",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {k: integer, entries: list of {name: string, score: integer, active: boolean}}. Ignore inactive entries; for duplicate active names keep their maximum score. Return up to k names by descending score, breaking ties lexicographically. Negative k raises ValueError. k=0 or no active entries returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_rank-sonnet-long-distributed/calls/controller/01/attempt-1/request.json",
+      "sha256": "9d76c19f63180a9b85c021e348e5269b428a1cf0ce3d3c716690a3b30b0075bf",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_rank-sonnet-long-joined",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {k: integer, entries: list of {name: string, score: integer, active: boolean}}. Ignore inactive entries; for duplicate active names keep their maximum score. Return up to k names by descending score, breaking ties lexicographically. Negative k raises ValueError. k=0 or no active entries returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_rank-sonnet-long-joined/calls/controller/01/attempt-1/request.json",
+      "sha256": "2235d0b3eeeb0b4d528df5709e67d2440eddb67b22e090af88be3d482159c54b",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_rank-sonnet-short-distributed",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {k: integer, entries: list of {name: string, score: integer, active: boolean}}. Ignore inactive entries; for duplicate active names keep their maximum score. Return up to k names by descending score, breaking ties lexicographically. Negative k raises ValueError. k=0 or no active entries returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_rank-sonnet-short-distributed/calls/controller/01/attempt-1/request.json",
+      "sha256": "230e373616aa81e06940f507f4bb053ece363d72ed167d573eddd68cf66e866c",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_rank-sonnet-short-joined",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data) for {k: integer, entries: list of {name: string, score: integer, active: boolean}}. Ignore inactive entries; for duplicate active names keep their maximum score. Return up to k names by descending score, breaking ties lexicographically. Negative k raises ValueError. k=0 or no active entries returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_rank-sonnet-short-joined/calls/controller/01/attempt-1/request.json",
+      "sha256": "04c4f1e23dccb6d4fae0f94fd39151819b1fbe8d328f509d4b4df8c4682f6996",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_records-haiku-long-distributed",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data). data is a list of {name: string, quantity: integer}. Normalize names with strip().casefold(); skip empty normalized names. Negative quantity raises ValueError, including on skipped names. Aggregate quantities by normalized name and return sorted [{name: normalized_name, quantity: total}]. Preserve zero totals. Empty list returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_records-haiku-long-distributed/calls/controller/01/attempt-1/request.json",
+      "sha256": "3037e4363638e45ed155c12fa6bbd5b86a670d34419f53e9d9da9ed952d2d274",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_records-haiku-long-joined",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data). data is a list of {name: string, quantity: integer}. Normalize names with strip().casefold(); skip empty normalized names. Negative quantity raises ValueError, including on skipped names. Aggregate quantities by normalized name and return sorted [{name: normalized_name, quantity: total}]. Preserve zero totals. Empty list returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_records-haiku-long-joined/calls/controller/01/attempt-1/request.json",
+      "sha256": "2fd7a4e3acf0edd5d436e94ce43dcd41b6afbaf2ba371f095fdc4f1d542691d4",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_records-haiku-short-distributed",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data). data is a list of {name: string, quantity: integer}. Normalize names with strip().casefold(); skip empty normalized names. Negative quantity raises ValueError, including on skipped names. Aggregate quantities by normalized name and return sorted [{name: normalized_name, quantity: total}]. Preserve zero totals. Empty list returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_records-haiku-short-distributed/calls/controller/01/attempt-1/request.json",
+      "sha256": "a8e5c1660df0cc028a15a86a110b0d1d848371f3b74c55895166ee8a38dd87b1",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_records-haiku-short-joined",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data). data is a list of {name: string, quantity: integer}. Normalize names with strip().casefold(); skip empty normalized names. Negative quantity raises ValueError, including on skipped names. Aggregate quantities by normalized name and return sorted [{name: normalized_name, quantity: total}]. Preserve zero totals. Empty list returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_records-haiku-short-joined/calls/controller/01/attempt-1/request.json",
+      "sha256": "4e0b00475a60320a7026f02ab744202fec9f6de3c79a0e6b3e507d7dc7c4f672",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_records-sonnet-long-distributed",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data). data is a list of {name: string, quantity: integer}. Normalize names with strip().casefold(); skip empty normalized names. Negative quantity raises ValueError, including on skipped names. Aggregate quantities by normalized name and return sorted [{name: normalized_name, quantity: total}]. Preserve zero totals. Empty list returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_records-sonnet-long-distributed/calls/controller/01/attempt-1/request.json",
+      "sha256": "34dd893cc80f6df06613cc80e7fd577c6078634f2fd1cacf4b83cb3162613251",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_records-sonnet-long-joined",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data). data is a list of {name: string, quantity: integer}. Normalize names with strip().casefold(); skip empty normalized names. Negative quantity raises ValueError, including on skipped names. Aggregate quantities by normalized name and return sorted [{name: normalized_name, quantity: total}]. Preserve zero totals. Empty list returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_records-sonnet-long-joined/calls/controller/01/attempt-1/request.json",
+      "sha256": "7addbaba8cff15d878ec170a7b0da3d3aed9c6738b85154791f102ac50a8a151",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_records-sonnet-short-distributed",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data). data is a list of {name: string, quantity: integer}. Normalize names with strip().casefold(); skip empty normalized names. Negative quantity raises ValueError, including on skipped names. Aggregate quantities by normalized name and return sorted [{name: normalized_name, quantity: total}]. Preserve zero totals. Empty list returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_records-sonnet-short-distributed/calls/controller/01/attempt-1/request.json",
+      "sha256": "3417e7b5434edcfe48a277c9d7d0a0c78739945856b1e054ace3dd47e0ec6391",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    },
+    {
+      "id": "v2-P2-p2_records-sonnet-short-joined",
+      "system": "You are the Supervisor for delivery A. The Supervisor and temporary executors are separate collaborating agents.\nOperate through the listed tools. Respond with exactly one JSON object: {\"op\":\"tool_name\",\"args\":{...}}; putting arguments beside op is also accepted. An optional note is allowed. Tool results are appended to this conversation. Do not output markdown.\nspawn(role,task): launch one temporary worker with the supplied assignment, current user contract, current files and that role's file permissions; at most one worker active. wait(): await the active worker result; no worker means no pending result. inspect(): read current files/hashes and worker state. run_tests(): run current public and user tests. accept(): run release checks on current artifacts. finish(status,message): end the goal session; status is complete or blocked. request_external(reason): end the goal session requesting outside assistance.\nImplementation uses Python standard library only; imports allowed: math, re, datetime, collections, heapq, decimal, itertools, functools, typing, fractions. No I/O, dynamic code execution or external packages in module.py.",
+      "goal": "Deliver the implementation, executable test cases, verified review, and version-bound release manifest.",
+      "contract": "Implement solve(data). data is a list of {name: string, quantity: integer}. Normalize names with strip().casefold(); skip empty normalized names. Negative quantity raises ValueError, including on skipped names. Aggregate quantities by normalized name and return sorted [{name: normalized_name, quantity: total}]. Preserve zero totals. Empty list returns []. Do not mutate input.",
+      "source": "episodes/v2-P2-p2_records-sonnet-short-joined/calls/controller/01/attempt-1/request.json",
+      "sha256": "0ccf03c27bebf9238fc3d37173ed8863181b9e1eed3056be40f04f041d886593",
+      "context_messages_at_start": 1,
+      "forbidden_normative_phrase_present": false
+    }
+  ]
+}

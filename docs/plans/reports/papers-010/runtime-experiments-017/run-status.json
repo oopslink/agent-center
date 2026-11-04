@@ -1,0 +1,14 @@
+{
+  "utc": "2026-11-04T09:36:50.133331+00:00",
+  "stage": "main",
+  "planned": 54,
+  "complete": 54,
+  "inflight": 0,
+  "started": 54,
+  "reported_cost_usd": 6.205147799999996,
+  "model_attempts": 694,
+  "autonomous_deliveries": 53,
+  "invalid": 0,
+  "finished_utc": "2026-11-04T09:36:50.133748+00:00",
+  "missing": 0
+}

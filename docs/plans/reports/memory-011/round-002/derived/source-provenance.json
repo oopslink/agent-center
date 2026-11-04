@@ -1,0 +1,218 @@
+[
+  {
+    "commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "path": "internal/admin/api/agent_tools_team.go",
+    "exists": true,
+    "sha256": "22eed143121a85881a9785c82264782c41234ba996fef300720cf74bcc1c2fe9",
+    "bytes": 47265,
+    "error": ""
+  },
+  {
+    "commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "path": "internal/cognition/ruleregistry/sqlite/audit_repo.go",
+    "exists": true,
+    "sha256": "554387faad38a6bd59d3ff50ab417562cba8f1df568dee47255e0c51742c4368",
+    "bytes": 5091,
+    "error": ""
+  },
+  {
+    "commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "path": "internal/persistence/migrations/0128_team_rule_load_audits.up.sql",
+    "exists": true,
+    "sha256": "e397e82446acd151901ae0f791c8de865271c8fa71bde3a3ca2516f59912156b",
+    "bytes": 1136,
+    "error": ""
+  },
+  {
+    "commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "path": "internal/mcphost/planning_rules.go",
+    "exists": true,
+    "sha256": "87cd1a09b2bd69c550ed5f059b50468a6b223d880342ea7d8c1f677015874f07",
+    "bytes": 3829,
+    "error": ""
+  },
+  {
+    "commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "path": "internal/cognition/memory/runtime.go",
+    "exists": true,
+    "sha256": "eda5321da361ac3b14543af43aee3b520a7b24db270732d4aabfde5ed991f728",
+    "bytes": 19870,
+    "error": ""
+  },
+  {
+    "commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "path": "internal/cognition/memory/skeleton.go",
+    "exists": true,
+    "sha256": "21b260c482952329db6cc1aba10308fbec29eea16d70d59a0497da9a160a825d",
+    "bytes": 6226,
+    "error": ""
+  },
+  {
+    "commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "path": "internal/agentruntime/memory_sync.go",
+    "exists": true,
+    "sha256": "a0d443a6fa5ec65487db59fb6bebfe8001011f5b34f60c8a050835d3ebc4238b",
+    "bytes": 1048,
+    "error": ""
+  },
+  {
+    "commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "path": "internal/cognition/memory/centergit/team_memory_repository.go",
+    "exists": true,
+    "sha256": "a025a5b3a8a418db6f9bc17a376eeee08c148fc6b3d645133908018491b37d68",
+    "bytes": 40077,
+    "error": ""
+  },
+  {
+    "commit": "9e09f2a2064e155c4b673b63a270f92130b543c1",
+    "path": "internal/cognition/memory/centergit/team_memory_service.go",
+    "exists": true,
+    "sha256": "bb2927a71afbd61475489bb492eb7178aaba418628274417d1f8eb116e38673b",
+    "bytes": 28714,
+    "error": ""
+  },
+  {
+    "commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "path": "internal/admin/api/agent_tools_team.go",
+    "exists": true,
+    "sha256": "22eed143121a85881a9785c82264782c41234ba996fef300720cf74bcc1c2fe9",
+    "bytes": 47265,
+    "error": ""
+  },
+  {
+    "commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "path": "internal/cognition/ruleregistry/sqlite/audit_repo.go",
+    "exists": true,
+    "sha256": "554387faad38a6bd59d3ff50ab417562cba8f1df568dee47255e0c51742c4368",
+    "bytes": 5091,
+    "error": ""
+  },
+  {
+    "commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "path": "internal/persistence/migrations/0128_team_rule_load_audits.up.sql",
+    "exists": true,
+    "sha256": "e397e82446acd151901ae0f791c8de865271c8fa71bde3a3ca2516f59912156b",
+    "bytes": 1136,
+    "error": ""
+  },
+  {
+    "commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "path": "internal/mcphost/planning_rules.go",
+    "exists": true,
+    "sha256": "87cd1a09b2bd69c550ed5f059b50468a6b223d880342ea7d8c1f677015874f07",
+    "bytes": 3829,
+    "error": ""
+  },
+  {
+    "commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "path": "internal/cognition/memory/runtime.go",
+    "exists": true,
+    "sha256": "eda5321da361ac3b14543af43aee3b520a7b24db270732d4aabfde5ed991f728",
+    "bytes": 19870,
+    "error": ""
+  },
+  {
+    "commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "path": "internal/cognition/memory/skeleton.go",
+    "exists": true,
+    "sha256": "21b260c482952329db6cc1aba10308fbec29eea16d70d59a0497da9a160a825d",
+    "bytes": 6226,
+    "error": ""
+  },
+  {
+    "commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "path": "internal/agentruntime/memory_sync.go",
+    "exists": true,
+    "sha256": "a0d443a6fa5ec65487db59fb6bebfe8001011f5b34f60c8a050835d3ebc4238b",
+    "bytes": 1048,
+    "error": ""
+  },
+  {
+    "commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "path": "internal/cognition/memory/centergit/team_memory_repository.go",
+    "exists": true,
+    "sha256": "a025a5b3a8a418db6f9bc17a376eeee08c148fc6b3d645133908018491b37d68",
+    "bytes": 40077,
+    "error": ""
+  },
+  {
+    "commit": "71cde362622df2a28c156e7abfa8d8906a0aeebb",
+    "path": "internal/cognition/memory/centergit/team_memory_service.go",
+    "exists": true,
+    "sha256": "bb2927a71afbd61475489bb492eb7178aaba418628274417d1f8eb116e38673b",
+    "bytes": 28714,
+    "error": ""
+  },
+  {
+    "commit": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/admin/api/agent_tools_team.go",
+    "exists": true,
+    "sha256": "22eed143121a85881a9785c82264782c41234ba996fef300720cf74bcc1c2fe9",
+    "bytes": 47265,
+    "error": ""
+  },
+  {
+    "commit": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/ruleregistry/sqlite/audit_repo.go",
+    "exists": true,
+    "sha256": "554387faad38a6bd59d3ff50ab417562cba8f1df568dee47255e0c51742c4368",
+    "bytes": 5091,
+    "error": ""
+  },
+  {
+    "commit": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/persistence/migrations/0128_team_rule_load_audits.up.sql",
+    "exists": true,
+    "sha256": "e397e82446acd151901ae0f791c8de865271c8fa71bde3a3ca2516f59912156b",
+    "bytes": 1136,
+    "error": ""
+  },
+  {
+    "commit": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/mcphost/planning_rules.go",
+    "exists": true,
+    "sha256": "87cd1a09b2bd69c550ed5f059b50468a6b223d880342ea7d8c1f677015874f07",
+    "bytes": 3829,
+    "error": ""
+  },
+  {
+    "commit": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/runtime.go",
+    "exists": true,
+    "sha256": "eda5321da361ac3b14543af43aee3b520a7b24db270732d4aabfde5ed991f728",
+    "bytes": 19870,
+    "error": ""
+  },
+  {
+    "commit": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/skeleton.go",
+    "exists": true,
+    "sha256": "21b260c482952329db6cc1aba10308fbec29eea16d70d59a0497da9a160a825d",
+    "bytes": 6226,
+    "error": ""
+  },
+  {
+    "commit": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/agentruntime/memory_sync.go",
+    "exists": true,
+    "sha256": "a0d443a6fa5ec65487db59fb6bebfe8001011f5b34f60c8a050835d3ebc4238b",
+    "bytes": 1048,
+    "error": ""
+  },
+  {
+    "commit": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/centergit/team_memory_repository.go",
+    "exists": true,
+    "sha256": "a025a5b3a8a418db6f9bc17a376eeee08c148fc6b3d645133908018491b37d68",
+    "bytes": 40077,
+    "error": ""
+  },
+  {
+    "commit": "48892d61efdf17c69e8c317b64c5bda2c5b18fc2",
+    "path": "internal/cognition/memory/centergit/team_memory_service.go",
+    "exists": true,
+    "sha256": "bb2927a71afbd61475489bb492eb7178aaba418628274417d1f8eb116e38673b",
+    "bytes": 28714,
+    "error": ""
+  }
+]

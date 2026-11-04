@@ -1,0 +1,192 @@
+{
+  "scope": "Frozen primary-input construct census; no new model calls or rescoring. Explicit rules are not evidence of training-data leakage.",
+  "sources": [
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p1-identity-001/design.json",
+      "sha256": "a7b90d4049b14ec87d0959acf02ca758d7d0476c844c3aef4950210cec91688c"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/design.json",
+      "sha256": "8f51b9cbdcc83c818eab298387a07f1726774c56720086ece8408848c5855e46"
+    },
+    {
+      "path": "/Users/oopslink/works/research/agent-harness-study/run-001/experiments/p234-mechanisms-002/design_lib.py",
+      "sha256": "c9b62da538140298bc53cdc21d4c170d0942515cc2b18d16aa1ad09e06634621"
+    }
+  ],
+  "input_census": {
+    "P1": {
+      "action_inputs": 512,
+      "unique_scenarios": 8,
+      "counts": {
+        "shared_repair_obligation": 512,
+        "prespecified_authorized_repair": 64
+      },
+      "phrases": {
+        "shared_repair_obligation": "In both descriptions, controller owns the final task decision and any follow-up repair or legitimate escalation;",
+        "prespecified_authorized_repair": "A precise repair is available and authorized; no worker or pending repair exists. Continue delivery."
+      }
+    },
+    "P2": {
+      "action_inputs": 256,
+      "unique_scenarios": 8,
+      "counts": {
+        "human_preparation_instruction": 256,
+        "gate_not_tool_step": 256,
+        "same_relation_instruction": 256
+      },
+      "phrases": {
+        "human_preparation_instruction": "Do not ask a human to do authorized preparation.",
+        "gate_not_tool_step": "gates are predicates, not mandatory tool calls.",
+        "same_relation_instruction": "Binding views and separate tables express the same relations."
+      }
+    },
+    "P3": {
+      "action_inputs": 256,
+      "unique_scenarios": 8,
+      "counts": {
+        "name_permission_separation": 256,
+        "explicit_disposition_rule": 256,
+        "current_scope_instruction": 256
+      },
+      "phrases": {
+        "name_permission_separation": "Display names identify agents but do not grant permission or change stable IDs.",
+        "explicit_disposition_rule": "A current failed check is enough to reject. If the check is unknown, request_context.",
+        "current_scope_instruction": "Records from other projects/contracts/versions are not evidence for the target."
+      }
+    },
+    "P4": {
+      "action_inputs": 256,
+      "unique_scenarios": 8,
+      "counts": {
+        "graph_artifact_scope_separation": 256,
+        "restore_rule": 256,
+        "history_dependency_declared_absent": 256,
+        "graph_does_not_repair_code": 256
+      },
+      "phrases": {
+        "graph_artifact_scope_separation": "graph history, artifact content and acceptance scope are separate.",
+        "restore_rule": "If a candidate lost a required retained feature, restore the retaining predecessor as repair base.",
+        "history_dependency_declared_absent": "Closed graph history has no current execution dependency.",
+        "graph_does_not_repair_code": "no operation repairs code merely by editing a graph."
+      }
+    }
+  },
+  "total_primary_action_inputs": 1280,
+  "all_prompt_hashes_verified": true,
+  "P3_constructed_coverage": {
+    "personal": {
+      "scenarios": 8,
+      "full_coverage": 2,
+      "sufficient": 3
+    },
+    "role": {
+      "scenarios": 8,
+      "full_coverage": 2,
+      "sufficient": 2
+    },
+    "all": {
+      "scenarios": 8,
+      "full_coverage": 8,
+      "sufficient": 8
+    },
+    "bounded": {
+      "scenarios": 8,
+      "full_coverage": 8,
+      "sufficient": 8
+    }
+  },
+  "original_csv_reconciliation": {
+    "P1": {
+      "rows": 512,
+      "models": {
+        "claude-haiku-5-5": {
+          "rows": 256,
+          "original_primary_match": 253,
+          "format_invalid": 0
+        },
+        "claude-sonnet-5-5": {
+          "rows": 256,
+          "original_primary_match": 256,
+          "format_invalid": 0
+        }
+      },
+      "path": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p1-logical-agent-identity/experiment-results.csv",
+      "sha256": "6d0bb21e801e8de87880128b45011b1bda0bc9ff75bf083204c0390d00bd527b"
+    },
+    "P2": {
+      "rows": 256,
+      "models": {
+        "claude-haiku-5-5": {
+          "rows": 128,
+          "original_primary_match": 102,
+          "format_invalid": 0
+        },
+        "claude-sonnet-5-5": {
+          "rows": 128,
+          "original_primary_match": 107,
+          "format_invalid": 5
+        }
+      },
+      "path": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p2-workflow-responsibility/experiment-results.csv",
+      "sha256": "3310ac37fbe8194d35622be1fefb5d23666d883cb80b0004bf9c6919441e7bfd"
+    },
+    "P3": {
+      "rows": 256,
+      "models": {
+        "claude-haiku-5-5": {
+          "rows": 128,
+          "original_primary_match": 126,
+          "format_invalid": 0
+        },
+        "claude-sonnet-5-5": {
+          "rows": 128,
+          "original_primary_match": 116,
+          "format_invalid": 8
+        }
+      },
+      "path": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p3-role-shared-context/experiment-results.csv",
+      "sha256": "3816dbfafc80fff63e7a9230f36850ffe5f6df63573f9ec8762dbabe480c5a2f"
+    },
+    "P4": {
+      "rows": 256,
+      "models": {
+        "claude-haiku-5-5": {
+          "rows": 128,
+          "original_primary_match": 96,
+          "format_invalid": 0
+        },
+        "claude-sonnet-5-5": {
+          "rows": 128,
+          "original_primary_match": 96,
+          "format_invalid": 0
+        }
+      },
+      "path": "/Users/oopslink/works/codes/oopslink/agent-center-research-papers/docs/plans/reports/papers-010/p4-dag-evolution/experiment-results.csv",
+      "sha256": "7e8b26111402d395b2ba87998a26450b1a56531a17532d42942dd1b1e9679125"
+    }
+  },
+  "posthoc_invalid_scenarios": {
+    "P2": {
+      "cases": [
+        "W2",
+        "W8"
+      ],
+      "scenario_denominator": 8,
+      "excluded_scenarios": 2,
+      "scenario_fraction": 0.25,
+      "all_condition_outputs": 64
+    },
+    "P4": {
+      "cases": [
+        "D5",
+        "D8"
+      ],
+      "scenario_denominator": 8,
+      "excluded_scenarios": 2,
+      "scenario_fraction": 0.25,
+      "all_condition_outputs": 64
+    }
+  },
+  "interpretation": "Protocols directly state several principles later discussed in conclusions. Results can measure adherence and local framing sensitivity conditional on those rules, not independently establish their operational necessity, architecture benefit, long-run liveness, or training origin. P3 coverage is constructed by deterministic selection, not learned retrieval performance."
+}

@@ -1,0 +1,23 @@
+{
+  "protocol_locks_match": true,
+  "contracts_and_branch_isolation_instrument_tests_passed": 3,
+  "terminal_snapshots_replayed": 72,
+  "historical_receipts_independently_checked": {
+    "episodes": 115,
+    "conditioned/episodes": 74
+  },
+  "raw_archive_all_members_verified": 4964,
+  "prefixes": 16,
+  "matched_main_branches": 48,
+  "fixed_waiting_blocks": 8,
+  "matched_supplemental_branches": 24,
+  "model_calls": 222,
+  "transport_failures": 0,
+  "format_errors_by_phase": [
+    17,
+    16
+  ],
+  "new_reference_primary_located": true,
+  "new_reference_openalex_is_retracted": false,
+  "human_review": false
+}

@@ -1,0 +1,1197 @@
+--- v1/build_design.py
++++ v2/build_design.py
+@@ -16,5 +16,8 @@
+             for org,binding in itertools.product(['short','long'],['distributed','joined']):
+                 rows.append({'id':f'P2-{task}-{m}-{org}-{binding}','paper':'P2','task':task,'family':t['family'],'model':model,'organization':org,'binding':binding,'ledger':'off','identity':'separate'})
+ random.Random(20261104).shuffle(rows)
++for row in rows:
++    row['id']='v2-'+row['id']
++    row['run_version']='003-v2'
+ (ROOT/'design.json').write_text(json.dumps({'seed':20261104,'models':MODELS,'runs':rows},ensure_ascii=False,indent=2)+'\n')
+ print(json.dumps({'episodes':len(rows),'P1':sum(x['paper']=='P1' for x in rows),'P2':sum(x['paper']=='P2' for x in rows)}))
+--- v1/design.json
++++ v2/design.json
+@@ -6,538 +6,592 @@
+   ],
+   "runs": [
+     {
+-      "id": "P2-p2_rank-sonnet-long-joined",
+-      "paper": "P2",
+-      "task": "p2_rank",
+-      "family": "stable_ranking",
+-      "model": "claude-sonnet-5-5",
+-      "organization": "long",
+-      "binding": "joined",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P1-p1_allocate-sonnet-unified-on",
+-      "paper": "P1",
+-      "task": "p1_allocate",
+-      "family": "integer_apportionment",
+-      "model": "claude-sonnet-5-5",
+-      "identity": "unified",
+-      "ledger": "on"
+-    },
+-    {
+-      "id": "P2-p2_rank-haiku-short-joined",
+-      "paper": "P2",
+-      "task": "p2_rank",
+-      "family": "stable_ranking",
+-      "model": "claude-haiku-5-5",
+-      "organization": "short",
+-      "binding": "joined",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P1-p1_allocate-sonnet-separate-off",
+-      "paper": "P1",
+-      "task": "p1_allocate",
+-      "family": "integer_apportionment",
+-      "model": "claude-sonnet-5-5",
+-      "identity": "separate",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P2-p2_expiry-haiku-short-joined",
+-      "paper": "P2",
+-      "task": "p2_expiry",
+-      "family": "time_window_filter",
+-      "model": "claude-haiku-5-5",
+-      "organization": "short",
+-      "binding": "joined",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P2-p2_records-haiku-short-joined",
+-      "paper": "P2",
+-      "task": "p2_records",
+-      "family": "record_aggregation",
+-      "model": "claude-haiku-5-5",
+-      "organization": "short",
+-      "binding": "joined",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P2-p2_expiry-sonnet-short-distributed",
+-      "paper": "P2",
+-      "task": "p2_expiry",
+-      "family": "time_window_filter",
+-      "model": "claude-sonnet-5-5",
+-      "organization": "short",
+-      "binding": "distributed",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P1-p1_allocate-haiku-single",
++      "id": "v2-P2-p2_rank-sonnet-long-joined",
++      "paper": "P2",
++      "task": "p2_rank",
++      "family": "stable_ranking",
++      "model": "claude-sonnet-5-5",
++      "organization": "long",
++      "binding": "joined",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_allocate-sonnet-unified-on",
++      "paper": "P1",
++      "task": "p1_allocate",
++      "family": "integer_apportionment",
++      "model": "claude-sonnet-5-5",
++      "identity": "unified",
++      "ledger": "on",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_rank-haiku-short-joined",
++      "paper": "P2",
++      "task": "p2_rank",
++      "family": "stable_ranking",
++      "model": "claude-haiku-5-5",
++      "organization": "short",
++      "binding": "joined",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_allocate-sonnet-separate-off",
++      "paper": "P1",
++      "task": "p1_allocate",
++      "family": "integer_apportionment",
++      "model": "claude-sonnet-5-5",
++      "identity": "separate",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_expiry-haiku-short-joined",
++      "paper": "P2",
++      "task": "p2_expiry",
++      "family": "time_window_filter",
++      "model": "claude-haiku-5-5",
++      "organization": "short",
++      "binding": "joined",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_records-haiku-short-joined",
++      "paper": "P2",
++      "task": "p2_records",
++      "family": "record_aggregation",
++      "model": "claude-haiku-5-5",
++      "organization": "short",
++      "binding": "joined",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_expiry-sonnet-short-distributed",
++      "paper": "P2",
++      "task": "p2_expiry",
++      "family": "time_window_filter",
++      "model": "claude-sonnet-5-5",
++      "organization": "short",
++      "binding": "distributed",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_allocate-haiku-single",
+       "paper": "P1",
+       "task": "p1_allocate",
+       "family": "integer_apportionment",
+       "model": "claude-haiku-5-5",
+       "identity": "single",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P2-p2_rank-haiku-short-distributed",
+-      "paper": "P2",
+-      "task": "p2_rank",
+-      "family": "stable_ranking",
+-      "model": "claude-haiku-5-5",
+-      "organization": "short",
+-      "binding": "distributed",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P2-p2_expiry-haiku-long-joined",
+-      "paper": "P2",
+-      "task": "p2_expiry",
+-      "family": "time_window_filter",
+-      "model": "claude-haiku-5-5",
+-      "organization": "long",
+-      "binding": "joined",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P1-p1_intervals-sonnet-separate-off",
+-      "paper": "P1",
+-      "task": "p1_intervals",
+-      "family": "interval_union",
+-      "model": "claude-sonnet-5-5",
+-      "identity": "separate",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P1-p1_intervals-haiku-unified-off",
+-      "paper": "P1",
+-      "task": "p1_intervals",
+-      "family": "interval_union",
+-      "model": "claude-haiku-5-5",
+-      "identity": "unified",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P1-p1_intervals-haiku-separate-off",
+-      "paper": "P1",
+-      "task": "p1_intervals",
+-      "family": "interval_union",
+-      "model": "claude-haiku-5-5",
+-      "identity": "separate",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P1-p1_intervals-haiku-separate-on",
+-      "paper": "P1",
+-      "task": "p1_intervals",
+-      "family": "interval_union",
+-      "model": "claude-haiku-5-5",
+-      "identity": "separate",
+-      "ledger": "on"
+-    },
+-    {
+-      "id": "P1-p1_order-sonnet-unified-on",
+-      "paper": "P1",
+-      "task": "p1_order",
+-      "family": "dependency_order",
+-      "model": "claude-sonnet-5-5",
+-      "identity": "unified",
+-      "ledger": "on"
+-    },
+-    {
+-      "id": "P1-p1_allocate-haiku-separate-on",
+-      "paper": "P1",
+-      "task": "p1_allocate",
+-      "family": "integer_apportionment",
+-      "model": "claude-haiku-5-5",
+-      "identity": "separate",
+-      "ledger": "on"
+-    },
+-    {
+-      "id": "P2-p2_rank-sonnet-long-distributed",
+-      "paper": "P2",
+-      "task": "p2_rank",
+-      "family": "stable_ranking",
+-      "model": "claude-sonnet-5-5",
+-      "organization": "long",
+-      "binding": "distributed",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P1-p1_allocate-haiku-unified-on",
+-      "paper": "P1",
+-      "task": "p1_allocate",
+-      "family": "integer_apportionment",
+-      "model": "claude-haiku-5-5",
+-      "identity": "unified",
+-      "ledger": "on"
+-    },
+-    {
+-      "id": "P1-p1_allocate-haiku-separate-off",
+-      "paper": "P1",
+-      "task": "p1_allocate",
+-      "family": "integer_apportionment",
+-      "model": "claude-haiku-5-5",
+-      "identity": "separate",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P2-p2_records-sonnet-long-joined",
+-      "paper": "P2",
+-      "task": "p2_records",
+-      "family": "record_aggregation",
+-      "model": "claude-sonnet-5-5",
+-      "organization": "long",
+-      "binding": "joined",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P2-p2_expiry-haiku-short-distributed",
+-      "paper": "P2",
+-      "task": "p2_expiry",
+-      "family": "time_window_filter",
+-      "model": "claude-haiku-5-5",
+-      "organization": "short",
+-      "binding": "distributed",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P1-p1_intervals-haiku-unified-on",
+-      "paper": "P1",
+-      "task": "p1_intervals",
+-      "family": "interval_union",
+-      "model": "claude-haiku-5-5",
+-      "identity": "unified",
+-      "ledger": "on"
+-    },
+-    {
+-      "id": "P1-p1_order-haiku-unified-off",
+-      "paper": "P1",
+-      "task": "p1_order",
+-      "family": "dependency_order",
+-      "model": "claude-haiku-5-5",
+-      "identity": "unified",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P1-p1_order-sonnet-separate-off",
+-      "paper": "P1",
+-      "task": "p1_order",
+-      "family": "dependency_order",
+-      "model": "claude-sonnet-5-5",
+-      "identity": "separate",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P1-p1_intervals-haiku-single",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_rank-haiku-short-distributed",
++      "paper": "P2",
++      "task": "p2_rank",
++      "family": "stable_ranking",
++      "model": "claude-haiku-5-5",
++      "organization": "short",
++      "binding": "distributed",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_expiry-haiku-long-joined",
++      "paper": "P2",
++      "task": "p2_expiry",
++      "family": "time_window_filter",
++      "model": "claude-haiku-5-5",
++      "organization": "long",
++      "binding": "joined",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_intervals-sonnet-separate-off",
++      "paper": "P1",
++      "task": "p1_intervals",
++      "family": "interval_union",
++      "model": "claude-sonnet-5-5",
++      "identity": "separate",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_intervals-haiku-unified-off",
++      "paper": "P1",
++      "task": "p1_intervals",
++      "family": "interval_union",
++      "model": "claude-haiku-5-5",
++      "identity": "unified",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_intervals-haiku-separate-off",
++      "paper": "P1",
++      "task": "p1_intervals",
++      "family": "interval_union",
++      "model": "claude-haiku-5-5",
++      "identity": "separate",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_intervals-haiku-separate-on",
++      "paper": "P1",
++      "task": "p1_intervals",
++      "family": "interval_union",
++      "model": "claude-haiku-5-5",
++      "identity": "separate",
++      "ledger": "on",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_order-sonnet-unified-on",
++      "paper": "P1",
++      "task": "p1_order",
++      "family": "dependency_order",
++      "model": "claude-sonnet-5-5",
++      "identity": "unified",
++      "ledger": "on",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_allocate-haiku-separate-on",
++      "paper": "P1",
++      "task": "p1_allocate",
++      "family": "integer_apportionment",
++      "model": "claude-haiku-5-5",
++      "identity": "separate",
++      "ledger": "on",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_rank-sonnet-long-distributed",
++      "paper": "P2",
++      "task": "p2_rank",
++      "family": "stable_ranking",
++      "model": "claude-sonnet-5-5",
++      "organization": "long",
++      "binding": "distributed",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_allocate-haiku-unified-on",
++      "paper": "P1",
++      "task": "p1_allocate",
++      "family": "integer_apportionment",
++      "model": "claude-haiku-5-5",
++      "identity": "unified",
++      "ledger": "on",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_allocate-haiku-separate-off",
++      "paper": "P1",
++      "task": "p1_allocate",
++      "family": "integer_apportionment",
++      "model": "claude-haiku-5-5",
++      "identity": "separate",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_records-sonnet-long-joined",
++      "paper": "P2",
++      "task": "p2_records",
++      "family": "record_aggregation",
++      "model": "claude-sonnet-5-5",
++      "organization": "long",
++      "binding": "joined",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_expiry-haiku-short-distributed",
++      "paper": "P2",
++      "task": "p2_expiry",
++      "family": "time_window_filter",
++      "model": "claude-haiku-5-5",
++      "organization": "short",
++      "binding": "distributed",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_intervals-haiku-unified-on",
++      "paper": "P1",
++      "task": "p1_intervals",
++      "family": "interval_union",
++      "model": "claude-haiku-5-5",
++      "identity": "unified",
++      "ledger": "on",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_order-haiku-unified-off",
++      "paper": "P1",
++      "task": "p1_order",
++      "family": "dependency_order",
++      "model": "claude-haiku-5-5",
++      "identity": "unified",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_order-sonnet-separate-off",
++      "paper": "P1",
++      "task": "p1_order",
++      "family": "dependency_order",
++      "model": "claude-sonnet-5-5",
++      "identity": "separate",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_intervals-haiku-single",
+       "paper": "P1",
+       "task": "p1_intervals",
+       "family": "interval_union",
+       "model": "claude-haiku-5-5",
+       "identity": "single",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P2-p2_records-haiku-long-distributed",
+-      "paper": "P2",
+-      "task": "p2_records",
+-      "family": "record_aggregation",
+-      "model": "claude-haiku-5-5",
+-      "organization": "long",
+-      "binding": "distributed",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P1-p1_intervals-sonnet-separate-on",
+-      "paper": "P1",
+-      "task": "p1_intervals",
+-      "family": "interval_union",
+-      "model": "claude-sonnet-5-5",
+-      "identity": "separate",
+-      "ledger": "on"
+-    },
+-    {
+-      "id": "P1-p1_order-haiku-separate-off",
+-      "paper": "P1",
+-      "task": "p1_order",
+-      "family": "dependency_order",
+-      "model": "claude-haiku-5-5",
+-      "identity": "separate",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P2-p2_rank-haiku-long-distributed",
+-      "paper": "P2",
+-      "task": "p2_rank",
+-      "family": "stable_ranking",
+-      "model": "claude-haiku-5-5",
+-      "organization": "long",
+-      "binding": "distributed",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P2-p2_records-sonnet-long-distributed",
+-      "paper": "P2",
+-      "task": "p2_records",
+-      "family": "record_aggregation",
+-      "model": "claude-sonnet-5-5",
+-      "organization": "long",
+-      "binding": "distributed",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P1-p1_order-haiku-unified-on",
+-      "paper": "P1",
+-      "task": "p1_order",
+-      "family": "dependency_order",
+-      "model": "claude-haiku-5-5",
+-      "identity": "unified",
+-      "ledger": "on"
+-    },
+-    {
+-      "id": "P1-p1_allocate-haiku-unified-off",
+-      "paper": "P1",
+-      "task": "p1_allocate",
+-      "family": "integer_apportionment",
+-      "model": "claude-haiku-5-5",
+-      "identity": "unified",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P2-p2_records-sonnet-short-distributed",
+-      "paper": "P2",
+-      "task": "p2_records",
+-      "family": "record_aggregation",
+-      "model": "claude-sonnet-5-5",
+-      "organization": "short",
+-      "binding": "distributed",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P1-p1_allocate-sonnet-unified-off",
+-      "paper": "P1",
+-      "task": "p1_allocate",
+-      "family": "integer_apportionment",
+-      "model": "claude-sonnet-5-5",
+-      "identity": "unified",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P1-p1_order-haiku-separate-on",
+-      "paper": "P1",
+-      "task": "p1_order",
+-      "family": "dependency_order",
+-      "model": "claude-haiku-5-5",
+-      "identity": "separate",
+-      "ledger": "on"
+-    },
+-    {
+-      "id": "P2-p2_rank-sonnet-short-distributed",
+-      "paper": "P2",
+-      "task": "p2_rank",
+-      "family": "stable_ranking",
+-      "model": "claude-sonnet-5-5",
+-      "organization": "short",
+-      "binding": "distributed",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P2-p2_expiry-haiku-long-distributed",
+-      "paper": "P2",
+-      "task": "p2_expiry",
+-      "family": "time_window_filter",
+-      "model": "claude-haiku-5-5",
+-      "organization": "long",
+-      "binding": "distributed",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P1-p1_order-haiku-single",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_records-haiku-long-distributed",
++      "paper": "P2",
++      "task": "p2_records",
++      "family": "record_aggregation",
++      "model": "claude-haiku-5-5",
++      "organization": "long",
++      "binding": "distributed",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_intervals-sonnet-separate-on",
++      "paper": "P1",
++      "task": "p1_intervals",
++      "family": "interval_union",
++      "model": "claude-sonnet-5-5",
++      "identity": "separate",
++      "ledger": "on",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_order-haiku-separate-off",
++      "paper": "P1",
++      "task": "p1_order",
++      "family": "dependency_order",
++      "model": "claude-haiku-5-5",
++      "identity": "separate",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_rank-haiku-long-distributed",
++      "paper": "P2",
++      "task": "p2_rank",
++      "family": "stable_ranking",
++      "model": "claude-haiku-5-5",
++      "organization": "long",
++      "binding": "distributed",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_records-sonnet-long-distributed",
++      "paper": "P2",
++      "task": "p2_records",
++      "family": "record_aggregation",
++      "model": "claude-sonnet-5-5",
++      "organization": "long",
++      "binding": "distributed",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_order-haiku-unified-on",
++      "paper": "P1",
++      "task": "p1_order",
++      "family": "dependency_order",
++      "model": "claude-haiku-5-5",
++      "identity": "unified",
++      "ledger": "on",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_allocate-haiku-unified-off",
++      "paper": "P1",
++      "task": "p1_allocate",
++      "family": "integer_apportionment",
++      "model": "claude-haiku-5-5",
++      "identity": "unified",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_records-sonnet-short-distributed",
++      "paper": "P2",
++      "task": "p2_records",
++      "family": "record_aggregation",
++      "model": "claude-sonnet-5-5",
++      "organization": "short",
++      "binding": "distributed",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_allocate-sonnet-unified-off",
++      "paper": "P1",
++      "task": "p1_allocate",
++      "family": "integer_apportionment",
++      "model": "claude-sonnet-5-5",
++      "identity": "unified",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_order-haiku-separate-on",
++      "paper": "P1",
++      "task": "p1_order",
++      "family": "dependency_order",
++      "model": "claude-haiku-5-5",
++      "identity": "separate",
++      "ledger": "on",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_rank-sonnet-short-distributed",
++      "paper": "P2",
++      "task": "p2_rank",
++      "family": "stable_ranking",
++      "model": "claude-sonnet-5-5",
++      "organization": "short",
++      "binding": "distributed",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_expiry-haiku-long-distributed",
++      "paper": "P2",
++      "task": "p2_expiry",
++      "family": "time_window_filter",
++      "model": "claude-haiku-5-5",
++      "organization": "long",
++      "binding": "distributed",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_order-haiku-single",
+       "paper": "P1",
+       "task": "p1_order",
+       "family": "dependency_order",
+       "model": "claude-haiku-5-5",
+       "identity": "single",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P1-p1_intervals-sonnet-single",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_intervals-sonnet-single",
+       "paper": "P1",
+       "task": "p1_intervals",
+       "family": "interval_union",
+       "model": "claude-sonnet-5-5",
+       "identity": "single",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P2-p2_expiry-sonnet-short-joined",
+-      "paper": "P2",
+-      "task": "p2_expiry",
+-      "family": "time_window_filter",
+-      "model": "claude-sonnet-5-5",
+-      "organization": "short",
+-      "binding": "joined",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P2-p2_rank-haiku-long-joined",
+-      "paper": "P2",
+-      "task": "p2_rank",
+-      "family": "stable_ranking",
+-      "model": "claude-haiku-5-5",
+-      "organization": "long",
+-      "binding": "joined",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P2-p2_records-haiku-short-distributed",
+-      "paper": "P2",
+-      "task": "p2_records",
+-      "family": "record_aggregation",
+-      "model": "claude-haiku-5-5",
+-      "organization": "short",
+-      "binding": "distributed",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P2-p2_expiry-sonnet-long-joined",
+-      "paper": "P2",
+-      "task": "p2_expiry",
+-      "family": "time_window_filter",
+-      "model": "claude-sonnet-5-5",
+-      "organization": "long",
+-      "binding": "joined",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P1-p1_intervals-sonnet-unified-off",
+-      "paper": "P1",
+-      "task": "p1_intervals",
+-      "family": "interval_union",
+-      "model": "claude-sonnet-5-5",
+-      "identity": "unified",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P1-p1_order-sonnet-single",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_expiry-sonnet-short-joined",
++      "paper": "P2",
++      "task": "p2_expiry",
++      "family": "time_window_filter",
++      "model": "claude-sonnet-5-5",
++      "organization": "short",
++      "binding": "joined",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_rank-haiku-long-joined",
++      "paper": "P2",
++      "task": "p2_rank",
++      "family": "stable_ranking",
++      "model": "claude-haiku-5-5",
++      "organization": "long",
++      "binding": "joined",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_records-haiku-short-distributed",
++      "paper": "P2",
++      "task": "p2_records",
++      "family": "record_aggregation",
++      "model": "claude-haiku-5-5",
++      "organization": "short",
++      "binding": "distributed",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_expiry-sonnet-long-joined",
++      "paper": "P2",
++      "task": "p2_expiry",
++      "family": "time_window_filter",
++      "model": "claude-sonnet-5-5",
++      "organization": "long",
++      "binding": "joined",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_intervals-sonnet-unified-off",
++      "paper": "P1",
++      "task": "p1_intervals",
++      "family": "interval_union",
++      "model": "claude-sonnet-5-5",
++      "identity": "unified",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_order-sonnet-single",
+       "paper": "P1",
+       "task": "p1_order",
+       "family": "dependency_order",
+       "model": "claude-sonnet-5-5",
+       "identity": "single",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P1-p1_allocate-sonnet-single",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_allocate-sonnet-single",
+       "paper": "P1",
+       "task": "p1_allocate",
+       "family": "integer_apportionment",
+       "model": "claude-sonnet-5-5",
+       "identity": "single",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P1-p1_intervals-sonnet-unified-on",
+-      "paper": "P1",
+-      "task": "p1_intervals",
+-      "family": "interval_union",
+-      "model": "claude-sonnet-5-5",
+-      "identity": "unified",
+-      "ledger": "on"
+-    },
+-    {
+-      "id": "P2-p2_records-haiku-long-joined",
+-      "paper": "P2",
+-      "task": "p2_records",
+-      "family": "record_aggregation",
+-      "model": "claude-haiku-5-5",
+-      "organization": "long",
+-      "binding": "joined",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P2-p2_records-sonnet-short-joined",
+-      "paper": "P2",
+-      "task": "p2_records",
+-      "family": "record_aggregation",
+-      "model": "claude-sonnet-5-5",
+-      "organization": "short",
+-      "binding": "joined",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P1-p1_order-sonnet-separate-on",
+-      "paper": "P1",
+-      "task": "p1_order",
+-      "family": "dependency_order",
+-      "model": "claude-sonnet-5-5",
+-      "identity": "separate",
+-      "ledger": "on"
+-    },
+-    {
+-      "id": "P1-p1_order-sonnet-unified-off",
+-      "paper": "P1",
+-      "task": "p1_order",
+-      "family": "dependency_order",
+-      "model": "claude-sonnet-5-5",
+-      "identity": "unified",
+-      "ledger": "off"
+-    },
+-    {
+-      "id": "P1-p1_allocate-sonnet-separate-on",
+-      "paper": "P1",
+-      "task": "p1_allocate",
+-      "family": "integer_apportionment",
+-      "model": "claude-sonnet-5-5",
+-      "identity": "separate",
+-      "ledger": "on"
+-    },
+-    {
+-      "id": "P2-p2_expiry-sonnet-long-distributed",
+-      "paper": "P2",
+-      "task": "p2_expiry",
+-      "family": "time_window_filter",
+-      "model": "claude-sonnet-5-5",
+-      "organization": "long",
+-      "binding": "distributed",
+-      "ledger": "off",
+-      "identity": "separate"
+-    },
+-    {
+-      "id": "P2-p2_rank-sonnet-short-joined",
+-      "paper": "P2",
+-      "task": "p2_rank",
+-      "family": "stable_ranking",
+-      "model": "claude-sonnet-5-5",
+-      "organization": "short",
+-      "binding": "joined",
+-      "ledger": "off",
+-      "identity": "separate"
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_intervals-sonnet-unified-on",
++      "paper": "P1",
++      "task": "p1_intervals",
++      "family": "interval_union",
++      "model": "claude-sonnet-5-5",
++      "identity": "unified",
++      "ledger": "on",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_records-haiku-long-joined",
++      "paper": "P2",
++      "task": "p2_records",
++      "family": "record_aggregation",
++      "model": "claude-haiku-5-5",
++      "organization": "long",
++      "binding": "joined",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_records-sonnet-short-joined",
++      "paper": "P2",
++      "task": "p2_records",
++      "family": "record_aggregation",
++      "model": "claude-sonnet-5-5",
++      "organization": "short",
++      "binding": "joined",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_order-sonnet-separate-on",
++      "paper": "P1",
++      "task": "p1_order",
++      "family": "dependency_order",
++      "model": "claude-sonnet-5-5",
++      "identity": "separate",
++      "ledger": "on",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_order-sonnet-unified-off",
++      "paper": "P1",
++      "task": "p1_order",
++      "family": "dependency_order",
++      "model": "claude-sonnet-5-5",
++      "identity": "unified",
++      "ledger": "off",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P1-p1_allocate-sonnet-separate-on",
++      "paper": "P1",
++      "task": "p1_allocate",
++      "family": "integer_apportionment",
++      "model": "claude-sonnet-5-5",
++      "identity": "separate",
++      "ledger": "on",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_expiry-sonnet-long-distributed",
++      "paper": "P2",
++      "task": "p2_expiry",
++      "family": "time_window_filter",
++      "model": "claude-sonnet-5-5",
++      "organization": "long",
++      "binding": "distributed",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
++    },
++    {
++      "id": "v2-P2-p2_rank-sonnet-short-joined",
++      "paper": "P2",
++      "task": "p2_rank",
++      "family": "stable_ranking",
++      "model": "claude-sonnet-5-5",
++      "organization": "short",
++      "binding": "joined",
++      "ledger": "off",
++      "identity": "separate",
++      "run_version": "003-v2"
+     }
+   ]
+ }
+--- v1/protocol.md
++++ v2/protocol.md
+@@ -41,3 +41,9 @@
+ ## 过程与预算
+ 
+ 先执行无模型状态/工具/评分契约测试及开发任务试点，再冻结主设计。每次CLI报告预算上限0.35美元、传输90秒；主批报告价达到40美元后停止派发新episode，已在运行的episode继续完成，因此这是派发阈值而非严格总额上限；四episode并行。报告价不是实际订阅扣费。若触及预算/服务中断，按缺失单列，不补造结果。完整原始档案留本地；仓库保存协议、脚本、派生数据、图表和复现入口，不写入凭据。
++
++## v2修订：H04仪器修复后的整轮复验
++
++v1在34个episode完成后停止；20个未启动。旧轮全部退出后才修改活动runtime，原始请求、输出、工件和冻结源码保存于episodes-v1、setup/main-frozen-source及design-lock-v1.json。H04：合同没有禁止测试用例带name，但评分器要求键集合恰好等于input/output或input/error，导致正确测试被误拒绝。v2接受描述性附加字段，仅核对input与唯一output/error；补充具体错误位置，全部条件使用同一工具说明。缺少字段、矛盾预期和不足四个不同输入仍拒绝。
++
++v1全部退出主要比较，不仅删除失败样本；54个原计划条件全部使用v2新ID重跑。任务、模型、顺序、因素、预算和主要分析代码不变。因研究者已见到v1结果，这轮属于观察旧结果后修复仪器的探索性复验，不能称未见主任务的独立确认。主分母仅计v2，不与v1累加；v1正反结果全部公开列账。主结果仍可能出现新仪器缺陷，按既定排除规则处理。Python相等比较的数值类型歧义额外作原始终验检查，不以检查通过宣称穷尽评分器正确性。
+--- v1/runtime.py
++++ v2/runtime.py
+@@ -32,7 +32,7 @@
+ DEPS={'module.py':[],'test_cases.json':['module.py'],'review.json':['module.py','test_cases.json'],'manifest.json':['module.py','test_cases.json','review.json']}
+ ARTIFACT_CONTRACT={
+  'module.py':'Python source exposing solve(data), implementing the user contract.',
+- 'test_cases.json':'JSON list of at least four distinct test cases. Each has input plus either output (the expected JSON result) or error (exception class name). Test expectations must match the user contract.',
++ 'test_cases.json':'JSON list of at least four distinct test inputs. Each case has input plus exactly one of output (the expected JSON result) or error (exception class name). Descriptive extra fields such as name or notes are allowed and ignored by execution. Test expectations must match the user contract.',
+  'review.json':'JSON object: candidate_hash (module.py sha256), tests_hash (test_cases.json sha256), verdict (pass or fail), notes (string). A pass review requires an actual successful run_tests receipt for these versions.',
+  'manifest.json':'JSON object: candidate_hash (module.py sha256), tests_hash (test_cases.json sha256), review_hash (review.json sha256). All refer to the delivered file versions.'}
+ 
+@@ -100,13 +100,17 @@
+     if not path.exists():return {'public':public,'user_tests':None,'files':files_state(ep)}
+     try:
+         cases=json.loads(path.read_text())
+-        assert isinstance(cases,list) and len(cases)>=4
+-        assert len({json.dumps(x['input'],sort_keys=True) for x in cases})>=4
+-        for c in cases:
+-            assert isinstance(c,dict) and set(c) in [{'input','output'},{'input','error'}]
+-            assert {k:v for k,v in c.items() if k!='input'}==expected(task_id,c['input'])
++        if not isinstance(cases,list) or len(cases)<4:
++            raise ValueError('Expected a list with at least four cases.')
++        for i,c in enumerate(cases):
++            if not isinstance(c,dict) or 'input' not in c or (('output' in c)==('error' in c)):
++                raise ValueError(f'Case {i}: input and exactly one of output/error are required.')
++            if {k:c[k] for k in ('output','error') if k in c}!=expected(task_id,c['input']):
++                raise ValueError(f'Case {i}: expected output/error conflicts with the user contract.')
++        if len({json.dumps(x['input'],sort_keys=True) for x in cases})<4:
++            raise ValueError('At least four distinct test inputs are required.')
+     except Exception as e:
+-        return {'public':public,'user_tests':{'passed':False,'error':'test_contract_invalid','detail':type(e).__name__},'files':files_state(ep)}
++        return {'public':public,'user_tests':{'passed':False,'error':'test_contract_invalid','detail':type(e).__name__,'message':str(e)},'files':files_state(ep)}
+     user=codecheck(ep,actor,task_id,cases,'user-tests');user['tests_hash']=sha(path)
+     receipt={'candidate_hash':user['candidate_hash'],'tests_hash':user['tests_hash'],'passed':public['passed'] and user['passed'],'actor':actor,'utc':now()}
+     if write_receipt:save(ep/'receipts'/f'{time.time_ns()}.json',receipt)
+--- v1/test-plan.md
++++ v2/test-plan.md
+@@ -12,6 +12,7 @@
+ | T06 | 传输失败/无效JSON/程序错误分别分类 | 可控替代调用，不计成同类错误 |
+ | T07 | no-active无状态变化与active等待分离 | 不把尚在运行的任务判停摆 |
+ | T08 | 开发任务端到端模型试点 | 保存全轨迹，主家族不使用 |
++| T10 | 元数据兼容且不削弱测试合同 | name/notes通过，缺input、双/无预期、错预期、少于四个不同输入拒绝 |
+ | T09 | 正式运行冻结、全部结果和模型版本可核 | 输入/代码哈希匹配，缺失不消失 |
+ 
+ 这些测试验证实验仪器，不证明被测架构好坏。报告将记录单元/状态检查、真实子进程检查、模型试点与正式实验，分别计数。外部实验仓库没有引入Go goroutine或产品代码修改；不把产品测试覆盖率或部署release声明套用到本次研究。
+--- v1/test_runtime.py
++++ v2/test_runtime.py
+@@ -74,6 +74,29 @@
+             out=transport.invoke('fake','system',[],self.ep/'retry')
+         self.assertTrue(out['transport_ok']);self.assertEqual(out['attempt'],2)
+         self.assertTrue((self.ep/'retry/attempt-1/metadata.json').exists())
++    def test_T10_metadata_allowed_without_weakening_expectation(self):
++        self.candidate('dev_reverse')
++        cases=[{**x,'name':f'case-{i}','notes':{'description':'optional metadata'}} for i,x in enumerate(vectors('dev_reverse'))]
++        rt.write(self.ep,'test-builder','builder','test_cases.json',cases)
++        result=rt.run_tests(self.ep,'tester','dev_reverse')
++        self.assertTrue(result['user_tests']['passed'])
++        self.assertEqual(json.loads((self.ep/'work/test_cases.json').read_text()),cases)
++        cases[0]['output']=[99]
++        rt.write(self.ep,'test-builder','builder','test_cases.json',cases)
++        self.assertEqual(rt.run_tests(self.ep,'tester','dev_reverse')['user_tests']['error'],'test_contract_invalid')
++    def test_T10_malformed_and_duplicate_cases_rejected(self):
++        self.candidate('dev_reverse')
++        for mutation in ['no_input','both','neither','duplicate','too_few']:
++            with self.subTest(mutation=mutation):
++                cases=vectors('dev_reverse')
++                if mutation=='no_input':cases[0].pop('input')
++                elif mutation=='both':cases[0]['error']='ValueError'
++                elif mutation=='neither':cases[0].pop('output',None);cases[0].pop('error',None)
++                elif mutation=='duplicate':cases=[cases[0]]*4
++                else:cases=cases[:3]
++                rt.write(self.ep,'test-builder','builder','test_cases.json',cases)
++                result=rt.run_tests(self.ep,'tester','dev_reverse')['user_tests']
++                self.assertEqual(result['error'],'test_contract_invalid');self.assertTrue(result['message'])
+     def test_T04_real_worker_process_mock_model(self):
+         self.candidate('dev_abs',False)
+         request={'worker_id':'worker-01','role':'executor','task':'Implement the contract.','row':{'model':'fake','task':'dev_abs','identity':'unified'}}
