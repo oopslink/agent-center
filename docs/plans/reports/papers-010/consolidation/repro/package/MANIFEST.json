@@ -13,6 +13,51 @@
    "bytes": 2579
   },
   {
+   "path": "a-field-study/blind-coding/agreement.py",
+   "sha256": "6ae16a12ea0c47ba4081b0859bc7d09dcc63f09a4dd128213aa41de01d95675c",
+   "bytes": 8132
+  },
+  {
+   "path": "a-field-study/blind-coding/codebook.md",
+   "sha256": "8b75b0dfaaf935b8bcf8207cc92a3ca716faa06c31fb660f7f69445fa875d9b4",
+   "bytes": 7717
+  },
+  {
+   "path": "a-field-study/blind-coding/revisions.md",
+   "sha256": "efe05b31ca3be15fdf909d366e42e849d13c2254857a6c3dfec0cb3c6a8a0fb0",
+   "bytes": 6218
+  },
+  {
+   "path": "a-field-study/blind-coding/round-1/ai-coding.json",
+   "sha256": "0b54f50ff5cfdab3d0f1ed54b36529e8a716cb79d63bd69673af1cece2a766e2",
+   "bytes": 4685
+  },
+  {
+   "path": "a-field-study/blind-coding/round-1/sample.json",
+   "sha256": "558feaeefe21a77c2b8c67febdddb1f878979fbf7817191e5ea26f8eac614266",
+   "bytes": 6473
+  },
+  {
+   "path": "a-field-study/blind-coding/round-1/sheet.md",
+   "sha256": "d316eeab8fb8cc26ea1cff46ff9d6c3f00cd7c6f0390fc6c60be60fbe0839292",
+   "bytes": 5244
+  },
+  {
+   "path": "a-field-study/blind-coding/round-2/ai-coding.json",
+   "sha256": "d782c4c5fe0b8c3113df91f101b80b45b8ad2c36021c69229fc6fc28c174b01e",
+   "bytes": 4838
+  },
+  {
+   "path": "a-field-study/blind-coding/round-2/sample.json",
+   "sha256": "069ea65cd6698d207413cc08f46aecccd772583ed0ab36a5a33c7401d512a49a",
+   "bytes": 4689
+  },
+  {
+   "path": "a-field-study/blind-coding/round-2/sheet.md",
+   "sha256": "34834322c49280670de9f5017cbf7d08d493657fbac9872e6a8642e864c4fc7c",
+   "bytes": 4023
+  },
+  {
    "path": "a-field-study/git-verification/git-replay.json",
    "sha256": "2c715f1be049c2ce8508dde9912f001473fede112a70c43d14f3362f39e7140f",
    "bytes": 3187
@@ -74,8 +119,8 @@
   },
   {
    "path": "a-field-study/verify.py",
-   "sha256": "3ac147fe88af36554a8cf98c74668ddb99f4cc014b1e50d1e2053ac2888b8786",
-   "bytes": 4008
+   "sha256": "2ac35edfa5d82f587bd9e6998d2e76fcddd09d72e4266be4423e6a4c310de18c",
+   "bytes": 5627
   },
   {
    "path": "b-controlled/analysis.json",

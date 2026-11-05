@@ -86,6 +86,26 @@ class TestAgreement(unittest.TestCase):
         self.assertAlmostEqual(rep["expected_agreement"], 0.8)
         self.assertAlmostEqual(rep["cohens_kappa"], 0.0)
 
+    def test_kappa_reports_a_confidence_interval(self):
+        # n 小的时候 κ 的点估计会被当成结论读。必须同时给出区间，
+        # SE = sqrt(po(1-po) / (n (1-pe)^2))。
+        # 这里 po=0.8、pe=0.8 → κ=0，SE = sqrt(0.16/(5*0.04)) = 0.894。
+        rows = [(i, f"A0{i}", "A", "x") for i in range(1, 5)] + [(5, "A05", "B", "x")]
+        s = sheet(rows)
+        a = ai({str(i): (f"A0{i}", "A") for i in range(1, 6)})
+        _proc, rep = run(s, a)
+        self.assertAlmostEqual(rep["kappa_se"], 0.8944271909999159, places=6)
+        lo, hi = rep["kappa_ci95"]
+        self.assertAlmostEqual(lo, 0.0 - 1.96 * 0.8944271909999159, places=6)
+        self.assertAlmostEqual(hi, 0.0 + 1.96 * 0.8944271909999159, places=6)
+
+    def test_kappa_interval_is_none_when_kappa_is(self):
+        s = sheet([(1, "A01", "D", "x"), (2, "A02", "D", "x")])
+        a = ai({"1": ("A01", "D"), "2": ("A02", "D")})
+        _proc, rep = run(s, a)
+        self.assertIsNone(rep["kappa_se"])
+        self.assertIsNone(rep["kappa_ci95"])
+
     def test_kappa_is_none_when_undefined(self):
         # 两侧都只用了一个类别：期望一致 = 1，κ 的分母为 0。
         s = sheet([(1, "A01", "D", ""), (2, "A02", "D", "")])

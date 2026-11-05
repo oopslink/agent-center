@@ -11,6 +11,7 @@
 import argparse
 import hashlib
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -75,6 +76,8 @@ def render(report):
         else "- 原始一致率：无可比对条目",
         f"- 期望一致（边缘分布）：{report['expected_agreement']:.3f}",
         f"- Cohen's κ：{report['cohens_kappa']:.3f}"
+        f"（SE {report['kappa_se']:.3f}，95% 区间 "
+        f"{report['kappa_ci95'][0]:.3f}–{report['kappa_ci95'][1]:.3f}）"
         if report["cohens_kappa"] is not None
         else f"- Cohen's κ：无定义（{report['kappa_note']}）",
         f"- 人工未填：{report['missing_human'] or '无'}",
@@ -157,6 +160,13 @@ def main():
             )
 
     k, po, pe, note = kappa(pairs, categories)
+    # n 小的时候点估计会被当成结论读。SE = sqrt(po(1-po) / (n (1-pe)^2))，
+    # 正态近似；n=15 时区间很宽，这正是必须印出来的信息。
+    if k is None:
+        se = ci = None
+    else:
+        se = math.sqrt(po * (1 - po) / (len(pairs) * (1 - pe) ** 2))
+        ci = [k - 1.96 * se, k + 1.96 * se]
     report = {
         "sheet": args.sheet,
         "ai": args.ai,
@@ -169,6 +179,8 @@ def main():
         "observed_agreement": po if pairs else None,
         "expected_agreement": pe,
         "cohens_kappa": k,
+        "kappa_se": se,
+        "kappa_ci95": ci,
         "kappa_note": note,
         "missing_human": [r for r in sorted(human, key=int) if human[r]["verdict"] not in categories],
         "missing_ai": [r for r in sorted(ai, key=int) if ai[r]["verdict"] not in categories],
