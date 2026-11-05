@@ -1,0 +1,139 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>用 Agent 开发 Agent Center：Vibe coding 最需要的不是更长的提示词</title><style>
+:root{--ink:#252b36;--muted:#687080;--blue:#3158d8;--paper:#faf7f2}
+*{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;line-height:1.9}
+header,main{max-width:980px;margin:auto;padding:32px}header{padding-top:64px}header small{letter-spacing:.15em;color:var(--blue)}h1{font-size:clamp(29px,4vw,44px);line-height:1.4;letter-spacing:-.02em}h2{font-size:27px;margin-top:64px}h3{font-size:22px;margin-top:38px}a{color:var(--blue);text-underline-offset:4px}nav{display:flex;flex-wrap:wrap;gap:12px 24px}nav a{text-decoration:none}p{margin:1.2em 0}img{width:100%;height:auto;display:block;border-radius:16px}figure{margin:36px 0 56px}figcaption,.caption{font-size:15px;color:var(--muted);line-height:1.8}figure .type{font-size:13px;color:var(--blue)}article{padding-bottom:64px;border-bottom:1px solid #ddd7ce}.article-start{padding-top:36px}.article-index{color:var(--blue);font-weight:600}table{border-collapse:collapse;width:100%;font-size:15px;display:block;overflow:auto;margin:28px 0}th,td{padding:12px 16px;border:1px solid #dfdbd5;text-align:left;vertical-align:top}th{background:#e9edf9}td{background:#fffdfa}code{background:#eeeae4;padding:2px 5px;border-radius:4px;font-size:.88em}pre{overflow:auto;background:#eeeae4;padding:22px;border-radius:12px;line-height:1.6}pre code{padding:0}blockquote{margin:28px 0;padding:4px 24px;border-left:4px solid #76bfa8;background:#edf4ed}details{padding:16px 20px;background:#eeebe6;border-radius:12px;margin:24px 0}summary{cursor:pointer;color:var(--muted)}.lede{color:var(--muted)}.entry{padding:22px 0;border-bottom:1px solid #ddd7ce}.entry a{font-size:22px;font-weight:600}.entry p{margin:8px 0}.toolbar{margin-bottom:32px;font-size:15px}@media(max-width:650px){header,main{padding:24px 18px}header{padding-top:40px}h2{font-size:24px}h3{font-size:21px}table{font-size:14px}th,td{min-width:120px}figure{margin:24px 0 36px}}@media print{nav,.toolbar{display:none}body{background:white}article{break-before:page}img{max-height:70vh;object-fit:contain}}
+</style></head><body><header><small>AGENT 协作手记</small><h1>用 Agent 开发 Agent Center：Vibe coding 最需要的不是更长的提示词</h1><p class="lede">第 8 篇 · 3 张配图</p></header><main><p class="toolbar"><a href="index.html">← 返回目录</a> · <a href="all-articles.html">连续阅读七篇</a></p><blockquote>
+<p>agent-center 是一个组织多个 AI Agent 协作完成软件开发任务的系统。Agent 在其中接收目标、调用工具，参与实现、检查与交付。《Agent 协作手记》以这个项目的开发和运行记录为线索，讨论各模块的设计选择、实现效果，以及实践中暴露的问题。</p>
+</blockquote>
+<p><em>Agent 协作手记 · 第 8 篇</em></p>
+<h2>一、需求动机</h2>
+<p>v2.0 发布时，一次本机部署检查发现：命令行工具、后台工作进程和服务器都在直接打开同一个数据库文件，服务器实际上没有承担预期的数据访问职责。项目规约保留了这次发现，也保留了随后一个被否决的建议：既然都在一台机器上，不如承认这就是单机架构，把文档改成与实现一致。<a href="https://github.com/oopslink/agent-center/blob/main/docs/rules/conventions.md">开发现场记录：项目规约 §0.4</a></p>
+<p>这里最值得停下来看的，是建议的方向。发现实现绕开了既定边界之后，讨论一度变成了怎样解释现状，而不是怎样恢复边界。用户否决了这个方向，要求先回到领域模型：业务状态应通过应用服务，也就是统一执行业务规则的服务入口来访问；同机部署可以改变通信方式，却不应该取消这道检查。</p>
+<p>这次弯路说明，编程 Agent 的问题不只会表现为语法错误或测试失败。它也可能给出一套连贯的解释，把一个方便实现的局部选择变成架构前提。<strong>如果人只审查“代码能不能运行”，而没有审查“这次修改把什么规则改掉了”，错误就可能被连同文档一起固定下来。</strong></p>
+<p>开发 agent-center 的过程中，我们让编程 Agent 参与设计讨论、修改代码、编写测试和整理文档。因此，这个项目同时提供了两个观察角度：怎样构建 Agent 系统，以及怎样与 Agent 一起构建软件。</p>
+<p>本文用 vibe coding 指一种通过自然语言描述意图、让编程 Agent 生成和修改代码，再根据运行结果不断调整的开发方式。这个词的使用范围很宽；这里讨论的是具体实践：人如何描述问题、审查方案、限制改动范围，并判断工作是否完成。</p>
+<p>以“任务一直没有开始”为例。用户看到的是一张停住的任务卡片，原因却可能出现在不同位置：任务尚不满足启动条件，通知没有送到，负责安排工作的 Agent 没有派出执行者，或者执行工具启动失败。只把症状交给编程 Agent，它可能迅速修改某个局部，并为自己的解释补上测试。但测试通过，并不能直接证明原来的用户路径已经恢复。</p>
+<p>这也是我们需要设计开发流程的原因。项目有大量适合委派的增量工作，人工逐行编写并不是唯一选择；与此同时，跨模块的责任划分、失败的解释和最终验收，不能在快速生成代码的过程中被略过。尤其当我们用 Agent 协作来开发 Agent 协作系统时，开发过程自身的交接问题还可能被带进产品设计。</p>
+<p>本篇围绕这些实际约束展开：哪些工作交给 Agent，人在哪些位置作出判断，代码、测试和现场证据怎样共同支撑一次修改。后面的任务模板是建议做法，仓库规约与故障材料则用于复盘实际开发中的取舍。</p>
+<h2>二、方案选择</h2>
+<p>如果把“修好调度”整件事一次委托出去，编写实现、定义完成和宣称通过的人可能使用同一个错误假设。把每行代码都留给人审核，又会把人的注意力耗在局部实现上。我们采用的分工以可验收的小改动为单位。Agent 可以提出设计和实现，人负责裁决跨模块边界，并用原始故障和交付物决定这一轮是否结束。下面的任务输入与测试矩阵把这条分工落实到一次修改。</p>
+<p><img alt="不同主张需要不同层级的验收证据" src="assets/08-evidence-levels.png" /></p>
+<p class="caption">图 1：工程方法示意。每层右侧的材料对应左侧主张所需的一类证据，具体检查见正文；底层检查通过，不能直接推导出最终交付成立。</p>
+<h3>一个真实的开发循环</h3>
+<p><img alt="从失败轨迹到人作裁决的开发过程" src="assets/08-development-loop.png" /></p>
+<p class="caption">图 2：依据项目规约归纳的开发循环。图中概括为现场问题、小步实现、运行验证和人作判断；正文进一步展开设计边界与证据复核，每轮实现都应返回最初的症状核对效果。</p>
+<p>第一步不是让 Agent “帮我实现这个功能”，而是给它一条能被证伪的问题。例如“任务被标记为可运行但 Executor 没有启动”，需要追查 Task 的可执行性、唤醒投递、Supervisor 决策、fork 入口和模型解析。只说“优化任务调度”，Agent 很容易做出局部看似漂亮、整体却破坏领域边界的修改。</p>
+<p>项目规约要求先使用领域驱动设计（DDD）的统一语言，即给业务概念建立一致的含义与名称，明确 任务（Task）、执行成员（Agent）、账户身份（Identity）、常驻控制者（Supervisor）与临时执行者（Executor）各属于哪里；跨模块业务边界的访问应经过 Application Service（应用服务入口），而不是直接读别人的表。这种约束不是为了让 Agent 写得更慢，而是为了在多人或多 Agent 并行修改时防止同一个词指向两种状态。<a href="https://github.com/oopslink/agent-center/blob/main/docs/rules/conventions.md">项目规约</a></p>
+<p>第二步是把分叉决策写成设计记录。比如 Executor Slot 与 Execution Run ID 的区分：前者服务稳定展示和并发资源分配，后者服务唯一审计和工作区隔离。只让 Agent 改 UI 标签，很容易得到一个重启后会跳号的假象；把 Context、Decision、Consequences 和 Alternatives 写清楚，才有机会在代码评审时发现这一点。<a href="https://github.com/oopslink/agent-center/blob/main/docs/design/decisions/0056-stable-executor-slots.md">ADR-0056</a></p>
+<p>第三步是让每个修改有明确的验收面。仓库要求提交前跑前后端测试；涉及 Go 的并发执行单元 goroutine 或共享状态，还需跑 race 检查，检测并发读写导致的数据竞争。测试能守住已知不变量，但它不是产品正确性的同义词。用于记录 Agent 承接过程的旧工作项模型 <code>AgentWorkItem</code> 被移除后，一些旧注释仍残留在代码中；若只读注释或旧设计文档，就可能写出已经过时的专栏文章。相反，应该从现行的服务入口、数据模型和运行链路反向核对文档。<a href="https://github.com/oopslink/agent-center/blob/main/docs/rules/testing.md">测试规约</a> · <a href="https://github.com/oopslink/agent-center/blob/main/internal/projectmanager/service/reads.go">当前 Task 读取面</a></p>
+<h3>把抽象目标改成可审查的任务输入</h3>
+<p>下面的输入容易产生大范围、难验收的修改：</p>
+<blockquote>
+<p>优化 Agent 调度，修好任务卡住的问题。</p>
+</blockquote>
+<p>我更希望任务包含可观测症状、守住的约束与验收证据。例如以下是基于现行链路整理的建议模板，不是伪装成原始聊天记录：</p>
+<pre><code class="language-text">症状：Task 已可运行，但没有对应的活跃 Executor。
+先定位：Task 门禁 → work_available → Supervisor 决策 → fork → 启动。
+约束：不能绕过 Application Service；不能把一次运行状态写成第二套 Task 生命周期。
+输出：失败发生在哪一步，最小修改是什么，怎样避免重复 fork。
+验收：给出原失败路径与修复后的对应轨迹；涉及共享状态时运行 race 检查。
+</code></pre>
+<p>这样的任务不会替 Agent 预写答案，但会限制它用含糊的“优化”扩大范围。它还让评审者知道该检查什么：有没有修真正的断点，有没有引入新的权威来源，证据能否对应原来的症状。</p>
+<p><img alt="一次可审查的开发任务输入" src="assets/08-review-packet.png" /></p>
+<p class="caption">图 3：建议模板，与正文的症状、约束、输出和验收要求对应；不是原始开发聊天截图。</p>
+<h3>一个测试矩阵，比一句“测试全绿”更有用</h3>
+<table>
+<thead>
+<tr>
+<th>变更类型</th>
+<th>最关键的风险</th>
+<th>应拿出的证据</th>
+<th>单凭什么还不够</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Task 门禁</td>
+<td>列表与启动语义不同</td>
+<td>同一任务在读取/启动两端的契约检查</td>
+<td>前端卡片显示 READY</td>
+</tr>
+<tr>
+<td>fork 与并发池</td>
+<td>重复创建、共享状态竞争、资源未释放</td>
+<td>重入/失败路径、race 与释放检查</td>
+<td>一次正常启动</td>
+</tr>
+<tr>
+<td>模型路由</td>
+<td>Judge 没启用却被当作智能选择</td>
+<td>路由来源、回退原因、所选 CLI/model</td>
+<td>最后确实用了某个模型</td>
+</tr>
+<tr>
+<td>Memory 规则</td>
+<td>已读但阶段不适用</td>
+<td>commit、phase、正文与实际动作</td>
+<td>文件已成功写入</td>
+</tr>
+<tr>
+<td>Plan 改图</td>
+<td>图合法但成果丢失</td>
+<td>拓扑版本 + 候选包含关系 + 验收</td>
+<td>无环检查通过</td>
+</tr>
+</tbody>
+</table>
+<p>仓库的覆盖率与 race 门禁是基础要求，不能因为业务层还需验证就削弱它们。但要避免反向误用：90% 行覆盖率不是“90% 任务能交付”，race 通过也不是“责任交接正确”。每项测试应对应具体风险，系统主张则需要系统层证据。我们在论文修订中也碰到相似问题：能复算输入与分数，不代表题目测到了真正关心的行为。</p>
+<p><strong>示例 · 如何审查一次“修好 fork”的提交。</strong> 我会先给出原故障的任务 ID 和预期行动者，让 Agent 定位最后一条有记录的动作。若它只修改唤醒逻辑，我还要看重复通知同一任务时是否会启动两个执行体，以及正常通知是否能抵达 Supervisor。最后在同一任务的时间线上查实际执行和候选回写。单测、并发检查和用户端验收各回答其中一个问题。</p>
+<h2>三、实现效果</h2>
+<p>这里能核验的是具体实践发现了什么、又漏掉了什么。开发规约提供了边界检查，复核时可以用它发现绕过 Application Service 的访问。下面两类材料给出了实际结果，一类是本机部署中发现的跨进程直读，另一类是研究运行器中发现的错误拒绝。现有材料没有记录同等任务在人工开发与 Agent 协作下的完整工时，因此本篇不估计效率增幅。</p>
+<h3>一个有据可查的弯路：本机部署成了绕过边界的理由</h3>
+<p>开头那次数据库直读问题，落实到实现就是三个进程各自调用 <code>persistence.Open(cfg.Server.SqlitePath)</code>。整改要恢复的是 Application Service 作为业务状态访问入口的地位。同机进程可以通过 Unix socket 通信，跨机器可以采用网络连接；这是 transport，也就是通信方式的选择，不应改变服务内部的业务检查职责。<a href="https://github.com/oopslink/agent-center/blob/main/docs/rules/conventions.md">项目规约 §0.4 的事件记录</a></p>
+<p>这个案例比“Agent 偶尔写错代码”更值得警惕。局部实现可以使用 SQLite WAL，测试也可以验证数据库能并发访问，但底层存储安全不等于聚合不变量得到保护。版本检查、事件发出、状态转换和授权逻辑如果只存在某个服务中，另一进程直读直写就绕开了它们。一个实现细节看起来省事，却改变了系统的权威来源。</p>
+<p>我从这个案例得到的实践是：给 Agent 的任务里要写明“哪些边界不能被改变”，并要求它在提议绕行时暴露影响。否则为了尽快通过测试，它可能选择最短的访问路径；随后又用文档把这条捷径合理化。人类评审最该看的正是这种跨层跳跃，而不是只检查代码风格。</p>
+<h3>文档、注释、实现冲突时，怎样决定相信谁</h3>
+<p>这轮专栏重写本身就是一个例子。旧稿依据 Agent 包头注释和早期设计谈 AgentWorkItem，但当前服务入口已经明确撤销它。另一处是稳定 Executor Slot：ADR 已接受，而当前并发池只看到 active map，没有找到 <code>slot_index</code> 分配与恢复字段。若把“写进设计”当作“上线功能”，文章就会替系统虚构能力。</p>
+<p>我采用的核对顺序是：先查生产装配入口，确认哪条实现真正被使用；再沿服务、领域模型和存储查看状态；随后看测试证明了哪些分支；最后用 ADR 解释为什么这么设计。注释和文档有助于导航，却不能独自证明当前行为。反过来，读到一个局部函数也不能立刻推断它已经接入生产。<strong>“实现存在”“生产已接入”“部署正在使用”应分别举证。</strong></p>
+<p>这也是写作和开发可以共用的一条原则：主张要带可复查入口。如果 Agent 告诉我“已经完成”，我更需要它给出入口、调用链和对应证据，而不是更长的一段完成说明。</p>
+<h3>从实现反馈走向研究，先检查测试器自己</h3>
+<p>P1/P2 共用的多轮运行器曾误拒合同允许的描述字段。那一批已有 34 次执行、另有 20 项未启动条件，整批被排除；修正运行器后重跑 54 个条件。不能只留下修正后漂亮的结果，因为研究者已经见过相同任务的部分输出，这轮属于探索性复验。<a href="https://github.com/oopslink/agent-center/blob/main/docs/plans/reports/papers-010/runtime-experiments-017/README.md">运行器与排除记录</a></p>
+<p>这个例子对 vibe coding 的启发非常直接：Agent 可以写实现、测试、评分器和报告，如果这几层共享同一个错误假设，它们会互相证明。真正有价值的分工应该增加独立检查来源，比如从合同反推测试、检查真实产物、保留失败轨迹，而不是让另一个 Agent 重复赞同已有报告。独立角色的价值来自发现不同的错，不来自签第二个名字。</p>
+<table>
+<thead>
+<tr>
+<th>交付时可能看到的信号</th>
+<th>还应追问哪件事</th>
+<th>本项目中能用来回答的证据</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>设计文档已经 Accepted</td>
+<td>当前运行路径是否使用这个设计</td>
+<td>稳定 Slot 的 ADR 与实际并发池字段可以逐项对照</td>
+</tr>
+<tr>
+<td>测试器拒绝了输出</td>
+<td>拒绝的是产品错误，还是合同允许的格式</td>
+<td>查看被误拒字段、契约与整批排除记录</td>
+</tr>
+<tr>
+<td>模型报告已经恢复</td>
+<td>任务是否交出了可独立验收的成果</td>
+<td>分别查任务动作、执行记录和候选版本</td>
+</tr>
+</tbody>
+</table>
+<p>这也是我对开发过程的评价。快速生成代码的收益很难从一次提交估算，但错误验收的代价已经发生过。运行器的合同读错一次，就需要整批重做。对高复用的工具和评分器，先让人用一个应接受、一个应拒绝的真实样本验证边界，往往比给每个下游任务再加一位审查者更有针对性。这个优先级来自错误可传播的范围。</p>
+<h2>四、总结反思</h2>
+<p>用现场失败定义修改范围、用原始产物复核 Agent 的报告，这两项实践值得继续。做错的是让实现、测试器和报告共享一个未经检查的前提。快速迭代需要给人留下可以拒绝错误设计、排除错误测量和重新验收的机会。</p>
+<h3>进度很快的时候，有些缺口容易被略过</h3>
+<p><strong>第一种是“实现了开关，就实现了效果”。</strong> 模型路由有 <code>judge_enabled</code>，并不表示默认启用，更不表示长期总成本一定下降。要比较的是判断调用成本、Executor 费用、失败重试、人工介入和最终交付质量。<a href="https://github.com/oopslink/agent-center/blob/main/internal/agentruntime/modelrouter/router.go">模型路由代码</a></p>
+<p><strong>第二种是“有责任角色，就有人负责到底”。</strong> Supervisor 在结构上负责判断和交付，但 Executor 失败之后，它可能把“执行结束”误读为“目标结束”。工具接口和系统提示能表达职责，却不能替实际恢复行为背书。项目 P1 工作稿保留了失败轨迹、人工纠偏和反例，也因此提醒我们不要用单个好例或坏例概括全部行为。<a href="https://github.com/oopslink/agent-center/blob/main/docs/plans/reports/papers-010/p1-logical-agent-identity/paper.md">P1 工作稿</a></p>
+<p><strong>第三种是“写进了记忆，团队就会吸收”。</strong> Agent 能保存文件，也能发布团队规则，但读到和适用是两个不同状态。开发过程中同样如此：把一段“以后都要这样做”写入规则，可能让另一个 Agent 在不合适的阶段机械执行。规则需要范围、例外和修订方式。<a href="https://github.com/oopslink/agent-center/blob/main/docs/plans/reports/papers-010/p5-memory-applicability/paper.md">P5 工作稿</a></p>
+<h3>继续把实现交给 Agent，把这些判断留在人手里</h3>
+<p>比较有效的做法是把任务切成有边界的小步，让 Agent 提交可审查的代码与证据；把有争议的架构选择写成 ADR；让失败轨迹而不是漂亮的 demo 驱动下一轮修改；对论文和专栏也采用同样的证据口径，区分现场观察、受控对照与推测。开发者的工作从逐行输入代码，转向定义边界、发现矛盾、选择取舍和核对最终结果。</p>
+<p>但这套流程仍有成本。规则会过时，文档会落后于代码，测试可能只覆盖预想路径，多个 Agent 生成的有效回执也可能互不被认可。不能把“加入更多角色和检查”当作默认修复。每增加一道交接，都应问它能否发现独立的新问题，以及它耗费了多少决策预算。</p>
+<p>我会继续让 Agent 承担大量实现工作，同时把人工注意力集中到三个地方：设计是否改变了权威来源，验收是否测到了原问题，最终产物是否真正进入交付。任何一步说不清楚，都应该缩小修改、补证据或推翻设计；不应靠增加提示词掩盖。</p>
+<p>回看这些修改，值得留下的不只是 Agent 很快写出了哪些代码，也包括哪些方案被否决、哪些结果重测了，以及我们凭什么改了主意。<strong>能及时发现并纠正错误，才是这种开发速度可以持续的条件。</strong> 这个专栏会继续把这些过程写下来：具体模块里怎样选择、哪里没有达到预期、下一次准备怎样改。相关论文则保留更完整的方法、数据和证据，供读者进一步核对。</p></main></body></html>

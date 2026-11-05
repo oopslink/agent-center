@@ -1,0 +1,49 @@
+{
+  "articles": [
+    {
+      "file": "02-identity-context.md",
+      "images": 3,
+      "characters": 6589,
+      "new_illustrations": 3
+    },
+    {
+      "file": "03-supervisor-executor.md",
+      "images": 4,
+      "characters": 7800,
+      "new_illustrations": 3
+    },
+    {
+      "file": "04-task-model.md",
+      "images": 6,
+      "characters": 12707,
+      "new_illustrations": 5
+    },
+    {
+      "file": "05-workflow.md",
+      "images": 5,
+      "characters": 6060,
+      "new_illustrations": 4
+    },
+    {
+      "file": "06-plan-dag.md",
+      "images": 6,
+      "characters": 6348,
+      "new_illustrations": 4
+    },
+    {
+      "file": "07-memory.md",
+      "images": 4,
+      "characters": 5468,
+      "new_illustrations": 4
+    },
+    {
+      "file": "08-vibe-coding.md",
+      "images": 3,
+      "characters": 7780,
+      "new_illustrations": 3
+    }
+  ],
+  "total_images": 31,
+  "new_illustrations": 26,
+  "portable_asset_count": 31
+}
