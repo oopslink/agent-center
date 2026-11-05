@@ -24,7 +24,10 @@ PAPER={  # A 篇正文所述值
  'r2_n':15,'r2_agreement':0.667,'r2_kappa':0.540,
  'r2_kappa_lo':0.211,'r2_kappa_hi':0.869,
  # 第二轮的 15 条由三名编码者各自独立编码：作者、AI 甲（Opus）、AI 乙（Codex）。
- 'r2_kappa_codex':0.458,'r2_kappa_ai_pair':0.909,'r2_fleiss':0.628,'r2_unanimous':9}
+ # 第二轮的 15 条由四名编码者各自独立编码：作者、外部人类编码者、AI 甲(Opus)、AI 乙(Codex)。
+ 'r2_kappa_codex':0.458,'r2_kappa_ai_pair':0.909,
+ 'r2_kappa_human_pair':0.449,'r2_kappa_human_opus':0.537,'r2_kappa_human_codex':0.464,
+ 'r2_fleiss4':0.554,'r2_unanimous4':7}
 
 ROW=re.compile(r'^\|\s*(\d+)\s*\|')
 
@@ -113,9 +116,13 @@ def computed():
     C5=('A','B','C','D','E')
     author=verdicts('round-2/sheet.md'); opus=verdicts('round-2/ai-coding.json')
     codex=verdicts('round-2/coder-c-codex.md')
+    human=verdicts('round-4-human/sheet.md')
     _po2,k_codex,_n2=pair_kappa(author,codex,C5)
     _po3,k_pair,_n3=pair_kappa(opus,codex,C5)
-    fk,unan=fleiss([author,opus,codex],C5)
+    _po4,k_hh,_n4=pair_kappa(author,human,C5)
+    _po5,k_ho,_n5=pair_kappa(human,opus,C5)
+    _po6,k_hc,_n6=pair_kappa(human,codex,C5)
+    fk,unan=fleiss([author,human,opus,codex],C5)
     return {
      'transitions':len(t),'topology_changed':len(ch),'topology_unchanged':len(un),
      'parent_retained':ret,
@@ -142,7 +149,9 @@ def computed():
      'r2_n':r2n,'r2_agreement':round(r2po,3),'r2_kappa':round(r2k,3),
      'r2_kappa_lo':round(r2k-1.96*r2se,3),'r2_kappa_hi':round(r2k+1.96*r2se,3),
      'r2_kappa_codex':round(k_codex,3),'r2_kappa_ai_pair':round(k_pair,3),
-     'r2_fleiss':round(fk,3),'r2_unanimous':unan}
+     'r2_kappa_human_pair':round(k_hh,3),'r2_kappa_human_opus':round(k_ho,3),
+     'r2_kappa_human_codex':round(k_hc,3),
+     'r2_fleiss4':round(fk,3),'r2_unanimous4':unan}
 
 def main():
     got=computed();bad=[]

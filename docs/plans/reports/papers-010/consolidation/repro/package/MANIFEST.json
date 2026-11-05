@@ -24,8 +24,8 @@
   },
   {
    "path": "a-field-study/blind-coding/revisions.md",
-   "sha256": "8b64594bd93ba69cc60b505ddc0a984f0e427b0faf3ca065329860d5ef3a02bd",
-   "bytes": 7739
+   "sha256": "0796e600eb03df7cc23aa2018f2c8cc8490464c98376ba97ed79de51464b64be",
+   "bytes": 10153
   },
   {
    "path": "a-field-study/blind-coding/round-1/ai-coding.json",
@@ -63,14 +63,19 @@
    "bytes": 4023
   },
   {
-   "path": "a-field-study/blind-coding/round-3-external-packet/README.md",
-   "sha256": "269781e4f182ff45c669bddc0035ee9f42adc1bd651f8ee8d99a94b3a25f60c5",
-   "bytes": 2554
+   "path": "a-field-study/blind-coding/round-4-human/README.md",
+   "sha256": "024529bdfaf64e10116a4e364c0c32397130534723b7834033d0f22896811e16",
+   "bytes": 3184
   },
   {
-   "path": "a-field-study/blind-coding/round-3-external-packet/codebook.md",
+   "path": "a-field-study/blind-coding/round-4-human/codebook.md",
    "sha256": "d9094824664508c37e75b8f416384dffd17ca6eeb47a0a0a057252b18db31adf",
    "bytes": 6908
+  },
+  {
+   "path": "a-field-study/blind-coding/round-4-human/sheet.md",
+   "sha256": "58e19b6b746a03665b7db81bfa22c19c021bce22b785e4cd712020f477e529b4",
+   "bytes": 1746
   },
   {
    "path": "a-field-study/git-verification/git-replay.json",
@@ -134,8 +139,8 @@
   },
   {
    "path": "a-field-study/verify.py",
-   "sha256": "b80d66249a652d903341593929765c2c698fbe5c29f288f71f95e77908633f59",
-   "bytes": 8080
+   "sha256": "7bf02dd7ff244cda871c4cb6e7ab9d3b6349a2e07cb41c2010d13e4b3d520ce5",
+   "bytes": 8606
   },
   {
    "path": "b-controlled/analysis.json",
