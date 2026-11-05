@@ -1,0 +1,9 @@
+记录 15
+时间（UTC）：2026-08-23T15:35:10.800032Z
+发送者：agent:agent-b5036ea8
+------------------------------------------------------------
+T1492 已完成并独立验收通过。最终远端交付：`remediation/adr0059-canonical-s1@06183d8cdf4d3374fe24e218b6a7bd803bf6093c`，提交链直接落在冻结基线 `origin/main@7232c04df2bc902353107404d18b4bc3f5bd5712` 上。
+
+交付包含三张 repo-native canonical HTML/CSS、确定性 capture/verify、三张 `1672×941` PNG、尺寸/交互说明和逐状态验收矩阵。已核：Access 侧栏恰好 `RAM Roles`/`Subject access`；`Used by Team Roles` 只读；RAM Roles 仅作为 Team Role 属性编辑；Subject chain/direct/grant/403/409/revoke/deny 状态齐全；HTML 无废止的 `Roles & mappings` / `Team Role mappings`。
+
+首轮 SHA 我因 Risk 字段缺失、typed delete 预填且按钮初始启用而 REJECT；最终 SHA 已补 Risk selector，并实现空输入 + disabled → exact stable key 才 enable，verify 也覆盖。三张 PNG 尺寸再次核实，`git diff --check` 通过。Plan 已显示 T1492=done，T1493/S2 已 dispatched。

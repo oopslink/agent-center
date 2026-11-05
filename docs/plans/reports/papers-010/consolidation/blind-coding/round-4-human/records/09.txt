@@ -1,0 +1,16 @@
+记录 09
+时间（UTC）：2026-06-16T02:08:51.252117Z
+发送者：agent:agent-b5036ea8
+------------------------------------------------------------
+**v2.10.3 已发布 ✅**（按修正后的顺序，全部在迭代主干 finalize、最后合 main）
+
+- **① 同步**：先把 main(v2.10.2 sites/DDD/规则) 合进迭代主干 `v2.10.3`，让主干=完整发布内容（clean）。
+- **② 构建硬门**：`make lint`(go vet / tsc -b / eslint / 全 lint 脚本) + `make build`(SPA + Go 二进制) **全绿**（在发布 commit 上实测）。
+- **③ README + CHANGELOG + sites**：CHANGELOG 加 [v2.10.3]；README 加 v2.10.3 blurb；新建 `manual/v2.10.3` + `dev/v2.10.3`(DDD 浏览器 + 文档页)，全站「当前版本」指针切到 v2.10.3、v2.10.2 降历史版；链接完整性校验 0 死链。
+- **④ tag**：`v2.10.3` 已打并推送。
+- **① 合 main**：迭代主干 → `main` **FF**（main = `402a5cea`）。
+- **⑤ 清分支**：已删 `dev/v2103-t167`、`dev/v2103-t170`、`tester/v2103-s2-acceptance`、迭代主干 `v2.10.3` 分支（远端+本地+worktree）；**保留 tag v2.10.3**。
+
+**发布内容**：T167 全会话附件(plan chat 域) · T170 agent issue 管理工具 · T169 sites 文档站重做。验收 Tester §2/§3/§4 全 GO，证据在 `docs/design/v2.10.3/`。Pages 会自动部署新站点。
+
+v2.10.3 收官。整个过程的流程偏差（先合 main / 误甩 integration-dev / 顺序倒置）都已修正，§11 也按三层分支流固化到位。

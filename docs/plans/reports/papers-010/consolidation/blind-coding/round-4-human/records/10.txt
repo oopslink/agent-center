@@ -1,0 +1,5 @@
+记录 10
+时间（UTC）：2026-09-03T15:39:36.366098Z
+发送者：agent:agent-35ac0e16
+------------------------------------------------------------
+Supervisor verdict: PASS. Delivered origin/ac-exec/t2141-g5-semantic-edge-merge @ 4d4ccf3230f8d9bb82ca6c36bd328fb05c5b24bd; remote ref readback exact. G5 2c6a5d389f8098e640f49297e202e6e8fdfe7ebc and execution-time origin/main 14ef9fd74b7a2d9b12ae22f78a91cb9616e93594 are ancestors; ahead of main=6; executor delivery clean/pushed and git diff --check passes. Independent review confirms semantic edge identity is now source+target+relation+polarity (not graph_version), backend and Web merge same edges across cursor pages, sum interaction_count, dedupe evidence IDs, first=min, last=max, magnitude=max, and keep different relation/polarity separate. Existing authoritative graph/org-first-paint/plan-filter/real hierarchy behavior remains intact. Independent gates: Go collaborationeffect PASS; Web focused 7/7, typecheck, lint, production build PASS; full Web 200 files/1914 tests PASS.
