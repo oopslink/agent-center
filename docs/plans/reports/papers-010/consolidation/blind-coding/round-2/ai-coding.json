@@ -1,0 +1,88 @@
+{
+ "round": 2,
+ "coder": "AI (Claude Opus 5), self-blinded by procedure",
+ "blinding": "本编码在人工表任何格子被填写之前完成，并单独提交；次序可由 git 验证。但所属会话与 codebook v2、抽样脚本的作者是同一上下文，因此这是程序性自盲，不等于独立编码者。",
+ "codebook": "codebook.md (v2, 五类 A/B/C/D/E)",
+ "sample": "round-2/sample.json",
+ "frame": "agent-disposition (sender_identity_id 以 agent: 开头且 content >= 100 字)",
+ "census": true,
+ "coded_at": "2026-11-05",
+ "note_on_A": "本轮我一条 A 都没有判出。第一轮我也只判出 1 条。若人工侧按 v2 §1（不以人类事后介入为判据）编码后 A 也显著下降，一致率会升高；若仍大量判 A，说明分歧不在抽样框而在 A 的判定条件本身，那是对判据的实质否证，必须如实报告。",
+ "codes": {
+  "1": {
+   "code": "A02c",
+   "verdict": "E",
+   "note": "「是我处理错了，executor 是我的执行手段，失败后应该由我换干净 worktree 继续跑」，并已恢复任务、自述后续到合并才关闭：义务留在自己身上。"
+  },
+  "2": {
+   "code": "A03c",
+   "verdict": "E",
+   "note": "「executor 是我的执行环节，任务仍由我负责」，自述将恢复任务并完成推送与 base/merge-base 验证，交付可核验后才关闭。"
+  },
+  "3": {
+   "code": "A03d",
+   "verdict": "C",
+   "note": "未推进的直接原因是配置缺失：executor workspace 为空、agents.executor_git_worktree=0、runtime 环境无 AC_EXECUTOR_GIT_WORKTREE=1，且明确「再次 unblock 仍不会解决」。记录落点在陈述故障与机制缺口。取舍依据：它登记了恢复顺序但未说明由谁开启该开关，故 B 亦可讲通。"
+  },
+  "4": {
+   "code": "A04a",
+   "verdict": "C",
+   "note": "自述 reset→start 后复查仍未创建任何 execution，直接原因落在中心 dispatch 未触发；并明确拒绝伪报处理中。取舍依据：若认为它当时另有可行动路径（如显式 fork），则为 A —— 但这条记录内看不出该路径存在。"
+  },
+  "5": {
+   "code": "A10a",
+   "verdict": "E",
+   "note": "明确「交付 owner 是我」「最终裁决责任也在我，不是外部 agent」，并自述已单独核对 Git author/committer 元数据：把未结的裁决义务留在自己身上。取舍依据：若认为本条只是身份澄清、不含未满足义务，则为 D。"
+  },
+  "6": {
+   "code": "B03.2",
+   "verdict": "B",
+   "note": "按修正后的规则，合 dev 分支进主干已不在 PD 范围：点名 @integration-dev 承接该步、逐项说明自己接着做什么（README/sites/构建门/tag/清分支），并同时自行修订规则文档。属点名接手者的角色边界移交。"
+  },
+  "7": {
+   "code": "B03.6",
+   "verdict": "B",
+   "note": "自己的合并工作已完成且核验；唯一待办（base 漂移）按新 §11 属 ship 端，点名交 @PD，并说明自己也可代做但会动验收基线。接手者与剩余工作都有交代。"
+  },
+  "8": {
+   "code": "B03.8",
+   "verdict": "E",
+   "note": "「对，我顺序做反了——不该先合 main」，自述正确顺序并说明先同步 main 到主干、再跑构建门/prep/tag，现按正确顺序重做：义务留在自己身上。"
+  },
+  "9": {
+   "code": "B03.9",
+   "verdict": "D",
+   "note": "发布收官的结论性报告（五步逐项实证、分支已清、tag 保留），无未满足义务，不涉及处置选择。"
+  },
+  "10": {
+   "code": "B05a",
+   "verdict": "D",
+   "note": "Supervisor PASS 裁决与独立门禁结果的结论性报告，无未满足义务。"
+  },
+  "11": {
+   "code": "B05b",
+   "verdict": "B",
+   "note": "独立验收 REJECT（blocking）：聚合边 evidence 无法覆盖两页，并逐条给出「下一代修复要求」与补测试要求。拒绝不合格产物且剩余工作有交代，对应 B 的第二条正例。"
+  },
+  "12": {
+   "code": "B05d",
+   "verdict": "B",
+   "note": "同上形态：REJECT（blocking），指出组织级跨项目 evidence 因统一使用第一个 effect 的 project_id 而失败，并给出下一代修复要求与新增测试要求。"
+  },
+  "13": {
+   "code": "B05e",
+   "verdict": "D",
+   "note": "T2152 核验完成的结论性报告，父链、实现与全部门禁逐项列明，无未满足义务。"
+  },
+  "14": {
+   "code": "B01e",
+   "verdict": "E",
+   "note": "「对，是我上一轮处理得不完整」，随即完成五个节点的指派并成功启动 Plan（generation 与首节点 dispatched 均列明）：承接并已执行。"
+  },
+  "15": {
+   "code": "B08.1b",
+   "verdict": "D",
+   "note": "T1492 完成并独立验收通过的结论性报告；其中虽叙述首轮 SHA 被自己 REJECT，但本条记录本身无未满足义务。"
+  }
+ }
+}

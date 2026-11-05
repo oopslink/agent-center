@@ -7,9 +7,15 @@
 输出的 sheet.md 只给定位信息（片段编号、原生 ID、UTC、原文路径）与空白判定列；
 台账的"断裂类别"和附录的"用途"描述都不进表，否则就不是盲编码。
 
+`--frame agent-disposition` 再加一层**机械**过滤：只留 agent 自述、正文达到长度下限
+的记录。第一轮抽样没有这层，25 条里有 10 条是用户发言或裸动作码——判据明文把它们
+归 D，于是一致率低在抽样框而不在判据边界。过滤条件必须可复算，不能逐条挑。
+
 用法：
   sample.py --ledger <台账> --appendix <附录|可重复> --sheet <输出> --manifest <输出>
             [--n 25] [--seed 20261104]
+            [--frame agent-disposition] [--record-root <目录>]
+            [--exclude <上一轮 manifest|可重复>] [--content-floor 100]
 """
 
 import argparse
@@ -148,6 +154,51 @@ def appendix_index(paths):
     return index
 
 
+def _find_record(obj, native_id):
+    """在原始 JSON 里按原生 ID 定位那一条记录。聚合文件里一个文件含多条。"""
+    if isinstance(obj, dict):
+        if obj.get("id") == native_id or str(obj.get("record_key", "")).endswith(native_id):
+            return obj
+        for value in obj.values():
+            hit = _find_record(value, native_id)
+            if hit is not None:
+                return hit
+    elif isinstance(obj, list):
+        for value in obj:
+            hit = _find_record(value, native_id)
+            if hit is not None:
+                return hit
+    return None
+
+
+def frame_verdict(meta, record_root, content_floor):
+    """返回 None 表示在框内，否则返回被排除的机械理由。"""
+    source = meta["source"]
+    path = Path(source)
+    if record_root is not None:
+        path = Path(record_root) / source.lstrip("/")
+    if not path.exists():
+        return "record_unreadable"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return "record_unreadable"
+    hit = _find_record(data, meta["native_id"])
+    if hit is None:
+        return "record_not_found"
+    record = hit.get("record", hit) if isinstance(hit, dict) else {}
+    if not isinstance(record, dict):
+        return "record_not_found"
+    content = str(record.get("content") or "")
+    if not content:
+        return "no_content"
+    if not str(record.get("sender_identity_id") or "").startswith("agent:"):
+        return "not_agent_authored"
+    if len(content) < content_floor:
+        return "content_below_floor"
+    return None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--ledger", required=True)
@@ -156,19 +207,55 @@ def main():
     ap.add_argument("--manifest", required=True)
     ap.add_argument("--n", type=int, default=25)
     ap.add_argument("--seed", type=int, default=20261104)
+    ap.add_argument("--frame", choices=("none", "agent-disposition"), default="none")
+    ap.add_argument("--record-root", default=None,
+                    help="原文路径的前缀；档案不在根目录时用它重定位（测试也用它）")
+    ap.add_argument("--content-floor", type=int, default=100)
+    ap.add_argument("--exclude", action="append", default=[],
+                    help="上一轮的 manifest；其中出现过的片段编号不再抽，保证跨轮不重叠")
     args = ap.parse_args()
 
     index = appendix_index(args.appendix)
     pool = [index[c] for c in eligible_codes(args.ledger) if c in index]
-    rng = random.Random(args.seed)
-    picked = rng.sample(pool, min(args.n, len(pool)))
+    resolvable = len(pool)
+
+    excluded_prior = []
+    if args.exclude:
+        used = set()
+        for path in args.exclude:
+            used |= {r["code"] for r in json.loads(Path(path).read_text(encoding="utf-8"))["sample"]}
+        excluded_prior = sorted(c for c in used if any(r["code"] == c for r in pool))
+        pool = [r for r in pool if r["code"] not in used]
+
+    frame_excluded = {}
+    if args.frame == "agent-disposition":
+        kept = []
+        for row in pool:
+            why = frame_verdict(row, args.record_root, args.content_floor)
+            if why is None:
+                kept.append(row)
+            else:
+                frame_excluded[row["code"]] = why
+        pool = kept
+
+    census = args.n >= len(pool)
+    if census:
+        picked = pool
+    else:
+        picked = random.Random(args.seed).sample(pool, args.n)
 
     manifest = {
         "ledger": args.ledger,
         "appendix": args.appendix,
-        "seed": args.seed,
+        "seed": None if census else args.seed,
         "requested_n": args.n,
+        "resolvable_records": resolvable,
+        "frame": args.frame,
+        "content_floor": args.content_floor,
+        "frame_excluded": frame_excluded,
+        "excluded_prior": excluded_prior,
         "pool_size": len(pool),
+        "census": census,
         "categories": list(CATEGORIES),
         "sample": picked,
     }
@@ -176,13 +263,19 @@ def main():
         json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8"
     )
 
+    if census:
+        scope = (f"覆盖：判据适用框内尚未编码的**全部** {len(picked)} 条"
+                 f"（框内共 {len(pool)} 条，无抽样，故无 seed）。")
+    else:
+        scope = (f"抽样：seed={args.seed}，请求 {args.n} 条，"
+                 f"可判定池 {len(pool)} 条，实际 {len(picked)} 条。")
     lines = [
         "# 盲编码表",
         "",
-        f"抽样：seed={args.seed}，请求 {args.n} 条，可判定池 {len(pool)} 条，实际 {len(picked)} 条。",
+        scope,
         "",
         "填写方式：打开「原文路径」读原始记录（必要时读相邻记录以获得上下文），",
-        "在「判定」列填 codebook.md 定义的四类之一，理由写在「备注」列。",
+        "在「判定」列填 codebook.md 定义的类别之一，理由写在「备注」列（**每条都要写**）。",
         "判据定义见 [codebook.md](codebook.md)。本表不含任何既有编码结果。",
         "",
         "| # | 片段编号 | 原生 ID | UTC | 原文路径 | 判定 | 备注 |",

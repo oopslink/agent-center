@@ -110,6 +110,30 @@ class TestAgreement(unittest.TestCase):
         self.assertEqual(proc.returncode, 1)
         self.assertEqual(rep["invalid_verdicts"], [{"row": "1", "side": "human", "verdict": "E"}])
 
+    def test_five_category_codebook_is_supported(self):
+        # v2 新增 E 自行承接：不传 --categories 时 E 必须被当成非法值挡下，
+        # 传了就要进混淆矩阵并参与 κ 的边缘分布。
+        s = sheet([(1, "A01", "E", ""), (2, "A02", "E", ""), (3, "A03", "A", "")])
+        a = ai({"1": ("A01", "E"), "2": ("A02", "D"), "3": ("A03", "A")})
+        proc, rep = run(s, a)
+        self.assertEqual(proc.returncode, 1)
+        self.assertTrue(any(v["verdict"] == "E" for v in rep["invalid_verdicts"]))
+
+        proc, rep = run(s, a, extra=("--categories", "A,B,C,D,E"))
+        self.assertEqual(proc.returncode, 0)
+        self.assertEqual(rep["invalid_verdicts"], [])
+        self.assertEqual(sorted(rep["confusion"]), ["A", "B", "C", "D", "E"])
+        self.assertEqual(rep["confusion"]["E"]["D"], 1)
+        self.assertAlmostEqual(rep["observed_agreement"], 2 / 3)
+
+    def test_empty_note_is_reported_as_protocol_violation(self):
+        # 备注必填是 codebook 的硬要求：备注为空的条目要点出来，
+        # 否则"没按判据填"会被一致率数字掩盖。
+        s = sheet([(1, "A01", "A", ""), (2, "A02", "B", "有理由")])
+        a = ai({"1": ("A01", "A"), "2": ("A02", "B")})
+        _proc, rep = run(s, a)
+        self.assertEqual(rep["human_rows_without_note"], ["1"])
+
     def test_confusion_matrix_covers_all_four_categories(self):
         s = sheet([(1, "A01", "A", ""), (2, "A02", "C", "")])
         a = ai({"1": ("A01", "B"), "2": ("A02", "C")})
