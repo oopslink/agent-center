@@ -1,0 +1,15 @@
+记录 03
+时间（UTC）：2026-07-22T16:57:08.268484Z
+发送者：agent:agent-b5036ea8
+------------------------------------------------------------
+已查到直接根因和系统缺口：
+
+1. 这次真 executor 是 `exec-f324b0bf`，workspace 完全为空；`input.json` 对应 `task-56d82feb`。不是 executor 漏提交，而是启动前根本没给仓库。
+2. integration-dev 的持久配置 `agents.executor_git_worktree=0`；当前 agent-runtime PID 45388 环境中也没有 `AC_EXECUTOR_GIT_WORKTREE=1`。代码只有开关为 ON 才构造 RepoMaterializer，否则明确退化为空目录。
+3. 项目已有 primary repo `git@github.com:<AUTHOR>/agent-center.git`，所以不是项目缺 repo；是该 agent 未开启 per-agent worktree。
+4. 该任务 `required_capabilities=[]`，调度器没有表达/校验“必须有 Git workspace”，因此把建分支任务派给了 worktree-disabled agent。这里是机制缺口：配置合法，但与任务要求不兼容，系统仍允许 fork。
+5. 第二个缺口：Codex 进程 exit 0，最终文本明确“无法完成”，runner 仍写 `success:true`。plain-dir 下 Git delivery gate 无法 probe，故 supervisor 才在二次判定时 block，浪费了 44,509 input tokens。此次没有假完成，但前置校验太晚。
+
+当前任务再次 unblock 仍不会解决，integration-dev 配置没变，再 fork 还是空目录。正确恢复顺序：先给 integration-dev 开启 Executor Git Worktree 并重启/reconcile 该 agent-runtime，确认子进程环境带 flag、repos/source materialize 成功，再 reset/re-dispatch 本任务。
+
+系统修复建议：代码/集成节点声明 `git_workspace` capability；派发前校验 agent 配置 + project primary repo，不满足就 fail-fast 阻断而不是 fork；plain-dir executor 遇到明确 Git 任务时也应返回 non_delivery/declined，不能 success=true。

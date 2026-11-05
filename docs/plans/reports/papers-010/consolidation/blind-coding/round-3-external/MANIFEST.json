@@ -1,0 +1,102 @@
+{
+ "source_note": "派生物的脱敏副本；原始协作对话不包含在内。",
+ "rules": [
+  "<ARCHIVE>",
+  "<ARCHIVE>",
+  "<HOST>",
+  "<AUTHOR>"
+ ],
+ "files": [
+  {
+   "path": "README.md",
+   "sha256": "269781e4f182ff45c669bddc0035ee9f42adc1bd651f8ee8d99a94b3a25f60c5",
+   "bytes": 2554
+  },
+  {
+   "path": "codebook.md",
+   "sha256": "d9094824664508c37e75b8f416384dffd17ca6eeb47a0a0a057252b18db31adf",
+   "bytes": 6908
+  },
+  {
+   "path": "records/01.txt",
+   "sha256": "55f552fdf5890f783e94c5c5921dbf14eed762307d12c0b78018e56336027848",
+   "bytes": 578
+  },
+  {
+   "path": "records/02.txt",
+   "sha256": "0008278cfc34b457093b6ed52a955f29c4dffe0d344c4ba551119bd571e2da25",
+   "bytes": 456
+  },
+  {
+   "path": "records/03.txt",
+   "sha256": "0ffd029c574b7ffa43a1e14f007d41884db1617ce101250035f8dcdb862aec41",
+   "bytes": 1891
+  },
+  {
+   "path": "records/04.txt",
+   "sha256": "c1b1dabe31f4b279b01c44039d5fe2be45ac5b94a9b16d72a387e9b47939e8d0",
+   "bytes": 542
+  },
+  {
+   "path": "records/05.txt",
+   "sha256": "f1beba57769e484ea41c3cfaea6067bfa87847a276c8d3f18e8c9e6bbaffbabc",
+   "bytes": 453
+  },
+  {
+   "path": "records/06.txt",
+   "sha256": "4df7d6e534f3d4656163b79439d2324530a4829a9e870b325f6f244e372f092a",
+   "bytes": 1368
+  },
+  {
+   "path": "records/07.txt",
+   "sha256": "3d35045ddb35ae0d6ac203910dd720af22a297c2a322e860d734c3d9343d8b20",
+   "bytes": 1810
+  },
+  {
+   "path": "records/08.txt",
+   "sha256": "9556da6d23b043f9edf149ef22db9c56af6f0cbf3acd8fe09c581542e37d9dd9",
+   "bytes": 950
+  },
+  {
+   "path": "records/09.txt",
+   "sha256": "4639de48e5613339a8b603623dd1f3af663aa616fc1472f524eaa5062ae7a185",
+   "bytes": 1503
+  },
+  {
+   "path": "records/10.txt",
+   "sha256": "f237d84232ce53580fff6d475ffd911c96415fc554d7272dd52572a9831743df",
+   "bytes": 1039
+  },
+  {
+   "path": "records/11.txt",
+   "sha256": "113de408e4186b482c17c5fc085f6a858bbbfff22c592bd0879a08d08b1e1a5b",
+   "bytes": 2328
+  },
+  {
+   "path": "records/12.txt",
+   "sha256": "ec42bcc45d873f202116a2f19130012ffd4933961680971ddba92d6faaefc4a2",
+   "bytes": 2345
+  },
+  {
+   "path": "records/13.txt",
+   "sha256": "dc2a4b1626f27f105aea67584cc0ab51beaa0b9d0ba52598236a747b763bbd8d",
+   "bytes": 1157
+  },
+  {
+   "path": "records/14.txt",
+   "sha256": "8cb7e8bf2d4c21b99365a7b8f4e5759f4bb08802fec00098f7beacdcd3e8cc53",
+   "bytes": 636
+  },
+  {
+   "path": "records/15.txt",
+   "sha256": "0d3e0cd0aad39f197536b0a971fed5ed25633f68ff20f0d4ab3b03b1f52852d4",
+   "bytes": 1119
+  },
+  {
+   "path": "sheet.md",
+   "sha256": "4a336474ac059a047647576c35daa7639601aee5b71ca37093b9d1a49ce835e0",
+   "bytes": 701
+  }
+ ],
+ "skipped_binary": []
+}

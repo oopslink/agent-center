@@ -1,0 +1,5 @@
+记录 13
+时间（UTC）：2026-09-03T16:17:15.434128Z
+发送者：agent:agent-35ac0e16
+------------------------------------------------------------
+T2152 已核验完成。远端 `refs/heads/t2152-org-edge-evidence-scope` 精确指向 `1ba42c24ac613d23bcfa5a0c14ae1ca121032bed`，中心 delivery pushed=true/dirty=false。预期 G8 基线 `782cbde3b56b1b159bd283fb5d9505a63d4fb0a2` 是 HEAD 的直接父提交（merge-base 同值、ahead=1），因此完整保留其 G7/G5 祖先。实现：后端组织聚合边输出确定排序的 effect_id→project_id `effect_scopes`；前端跨页聚合保留 scope，并对每个 contributor 用正确 project_id 请求 evidence，按 event_id 去重且确定排序。回归覆盖同一 Agent-Agent 语义边跨 P1/P2：两个正确 scope 请求、shared event 仅渲染一次、P1/P2 unique 均展示且无 effect_not_found；同项目回归保留。独立门禁：`go test ./internal/observability/collaborationeffect` PASS；Web 全套 200 files/1916 tests PASS（InsightCollaboration 9/9）；`pnpm --dir web typecheck` PASS；lint PASS；production build PASS；`git diff --check 782cbde3...1ba42c24` PASS。

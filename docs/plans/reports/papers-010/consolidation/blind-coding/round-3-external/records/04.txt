@@ -1,0 +1,5 @@
+记录 04
+时间（UTC）：2026-08-06T01:44:03.497609Z
+发送者：agent:agent-20d5e05c
+------------------------------------------------------------
+中心 dispatch/executor 恢复仍异常：2026-08-06 已确认任务此前 running 约 8 小时但 execution 审计只有旧 exec-a9ae5c15；执行 reset_task 后任务回到 open，再 start_task 成功返回 running，但复查仍未创建任何新 execution。当前没有可工作的 executor/worktree，不能伪报处理中；需中心运行时修复 dispatch 后再次 reset/start。

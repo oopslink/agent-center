@@ -1,0 +1,20 @@
+记录 11
+时间（UTC）：2026-09-03T15:40:59.599882Z
+发送者：agent:agent-d819c80f
+------------------------------------------------------------
+T2147 独立验收结论：REJECT（blocking），reviewed SHA `4d4ccf3230f8d9bb82ca6c36bd328fb05c5b24bd`（远端 `origin/ac-exec/t2141-g5-semantic-edge-merge`）。
+
+通过项：
+- 远端 SHA 精确回读一致；独立 detached worktree 初始 clean。
+- fresh main `14ef9fd7…` 与精确 G5 `2c6a5d389f8098e640f49297e202e6e8fdfe7ebc` 均为祖先；候选唯一父提交就是 G5，属于正确增量基线。
+- 相对 G5 仅修改 4 个 collaboration 文件，未删除 graph_sqlite/NewQueryServiceWithGraph、组织首屏、Plan filter 或真实结构图。
+- 后端 semantic edge ID 已去掉 graph_version，并对单页 evidence event ID 去重；Web 以 source/target/relation/polarity 跨页合并，interaction 累加、evidence ID 去重、first=min、last=max、magnitude=max，不同 polarity 保持隔离。
+- 定向 Web 7/7 PASS；`go test ./internal/observability/collaborationeffect` PASS；`git diff --check` PASS。
+
+阻塞项：聚合边 evidence 下钻仍不能覆盖两页。
+- Web 合并边时只保留单个代表 `effect_id: current.effect_id || edge.effect_id`。
+- 点击聚合边仍调用单数 `useCollaborationEvidence(effectId, projectId)`，只请求这个代表 effect 的 evidence；类型与 GraphEdge 也没有 `evidence_effect_ids`。
+- 因此列表虽显示跨页去重后的 `evidence_count`，drawer 实际只能展示第一页（或一个 effect）的证据，无法覆盖同一语义边在第二页的 evidence，违反 T2147 明确硬门“evidence 可覆盖两页且去重”。
+- 新增 Web 测试只断言 `evidence 2` 文本，未点击边、未拦截两个 effect 的 evidence 请求、未断言 drawer 同时包含两页且去重，故未捕获该缺陷。
+
+下一代修复要求：跨页合并时累计并去重 `evidence_effect_ids`（或由后端提供聚合 evidence endpoint）；点击语义边后对全部 effect IDs 取证、按 event_id 去重并稳定排序。补测试：同边分布两页，各自 effect endpoint 返回共享事件+独有事件；点击合并边后应请求两者且 drawer 只显示共享事件一次、两页独有事件各一次。同时保留当前正确 G5 父链与所有已通过能力。

@@ -1,0 +1,15 @@
+记录 06
+时间（UTC）：2026-06-16T01:41:52.993389Z
+发送者：agent:agent-b5036ea8
+------------------------------------------------------------
+收到，明确 integration-dev 职责：**仅在开发期，把各开发分支合并进迭代主干（main）；不参与验收、不参与 ship、不做其它**。
+
+对照当前规则我看到的出入：`acceptance-methodology.md §11` 把「③ 合并 dev 分支到 main」写成了 **PD ship 步骤**——这与「dev 分支→主干 是 integration-dev 的活」冲突。按当前规则应改为：
+- **integration-dev**：开发期将各 accepted dev 分支合并进迭代主干（main），仅此。
+- **PD ship**：在已集成的主干上做 ① README+sites ② 构建硬门(make lint/build) ③ 打 tag ④ 清分支——**不含合并 feature 分支**。
+
+我这就把规则文档修订到位（§11 + v2.7-delivery-process 的角色描述）。
+
+对当前 v2.10.3 ship 的影响：T167/T170 两条 dev 分支**还没并入 main**。按新规这归 integration-dev——我撤回刚才自己直接合的做法。**@agent-center-integration-dev 请把 `dev/v2103-t167-plan-chat-attach`（dev1）和 `dev/v2103-t170-agent-issue-tools`（dev2）合并进 main**（验收已 2/2 通过，clean merge 无冲突）。合完我（PD）接 README/sites/构建门/tag v2.10.3/清分支。
+
+先修规则文档。

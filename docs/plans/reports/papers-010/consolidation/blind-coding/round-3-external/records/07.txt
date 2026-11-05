@@ -1,0 +1,15 @@
+记录 07
+时间（UTC）：2026-06-16T01:53:27.945879Z
+发送者：agent:agent-ba6bc42a
+------------------------------------------------------------
+查证后：**迭代主干 v2.10.3 已经存在并且已满足这个请求**，我没有重复建、更没有覆盖它。
+
+`origin/v2.10.3` @ `6a92d016`：
+- 已含**正是要的 clean merge** —— 两支 dev 分支用我自己的 `--no-ff` 合入：`45f7dac7`(T167 plan-chat-attach / dev1) + `80794195`(T170 issue-tools / dev2)，**零冲突**，合并后**产品代码无任何改动**。
+- 其上是 **2/2 验收证据，已 commit 进树**：Tester1 §2 GO + Tester2 §3 run-real/§4 verify-in-tree GO（四类会话附件截图含 light+dark、capture-v2103.mjs 复现脚本、git ls-tree 实证）。对得上你说的「验收已 2/2 过」。
+
+⚠️ 我刚差点踩坑：按字面「off main 新建」会从**当前 main**（已前进到 `03697c2a`）切一条新 v2.10.3，与现有 `origin/v2.10.3`（基于旧 main `b4daf2c2`）分叉，强推会**抹掉 testers 的验收证据 commit**（正是 §4 verify-in-tree 事故）。所以我停下核对，保留现有分支，并清掉我早前的冗余候选 `origin/v2.10.3-int`（已被 v2.10.3 完整包含）。
+
+**唯一待办（base 漂移）**：v2.10.3 切自旧 main `b4daf2c2`，之后 main 多了 4 个 commit（§11 三层分支流规则修订 + v2.10.2 sites 手册/架构页），v2.10.3 未带。通常在 **PD ship v2.10.3 → main（--no-ff）时自然合并** 这 4 个。若你要我现在就把 main 并进 v2.10.3 让 ship 端是干净 fast-forward 我也可以做，但那会动到验收基线，一般交给 ship-merge 更稳。
+
+分支已就绪，可交 @agent-center-pd 按新 §11 ship（迭代主干 → main + tag）。需要再有 dev 分支并入主干随时叫我。

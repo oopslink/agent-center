@@ -1,0 +1,19 @@
+记录 12
+时间（UTC）：2026-09-03T15:56:48.916638Z
+发送者：agent:agent-d819c80f
+------------------------------------------------------------
+T2150 独立验收结论：REJECT（blocking），reviewed SHA `782cbde3b56b1b159bd283fb5d9505a63d4fb0a2`（远端 `origin/ac-exec/t1850-multi-effect-edge-evidence`）。
+
+通过项：
+- 远端 SHA 精确回读一致；独立 detached worktree 初始 clean。
+- G7 `4d4ccf3230f8d9bb82ca6c36bd328fb05c5b24bd`、G5 `2c6a5d389f8098e640f49297e202e6e8fdfe7ebc` 与 fresh main 均为祖先；候选单父为 G7，增量仅 3 个 Web 文件，无组织图能力回退。
+- 同项目 fixture 中，合并边累计全部 effect IDs；点击会请求两个 endpoint，按 event_id 去重并按 occurred_at/event_id 稳定排序。新增交互测试通过。
+- 定向 Web 8/8、lint、build、`go test ./internal/observability/collaborationeffect`、diff check 均 PASS（build 仅既有 CSS/chunk warning）。
+
+阻塞项：组织级 Agent-Agent 聚合边跨项目时 evidence 仍不完整。
+- 组织首屏允许无 project_id；后端与 Web 的 semantic key 都是 source/target/relation/polarity，不含 project_id，因此同一对 Agent 在不同 Project 的相同关系会合法合并成一条组织级边。
+- G8 虽累计所有 contributing effect IDs，但 `EvidenceDrawer` 从所选 effects 中取第一个 effect，然后对**全部** effect IDs 调用 `useCollaborationEvidenceBundle(effectIds, effect?.project_id)`，即统一使用第一个 effect 的 project_id。
+- evidence API 强制要求 project_id，且 `Evidence` 明确校验 `e.ProjectID == projectID`；所以属于第二个 Project 的 contributor 请求会返回 effect_not_found。Bundle 进入 isError，Drawer 无法完整覆盖组织级跨项目聚合边。
+- 新测试的两个 effect 都固定在 P1，未覆盖组织级首屏下同一 Agent-Agent semantic edge 跨 P1/P2 的真实场景。
+
+下一代修复要求：为每个 contributing effect 保存其 project_id（例如 effect refs 列表），bundle 按 effect 自身 project_id 发请求；或提供 org-scoped、内部按 effect 解析并授权的聚合 evidence API。新增无 project filter 测试：同一 Agent-Agent 边跨 P1/P2 两页，两个 endpoint 分别要求 P1/P2，Drawer 最终显示共享事件一次及两项目独有事件，且无 error。
