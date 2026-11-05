@@ -13,13 +13,16 @@ class TestVerifyCoversAgreement(unittest.TestCase):
                                 f"round-{r}/{f} 不在包内")
         self.assertTrue((PKG / "blind-coding" / "codebook.md").exists())
         self.assertTrue((PKG / "blind-coding" / "revisions.md").exists())
+        self.assertTrue((PKG / "blind-coding" / "round-2" / "coder-c-codex.md").exists(),
+                        "第三名编码者的表不在包内")
 
     def test_verify_asserts_the_kappa_values_in_the_paper(self):
         proc = subprocess.run([sys.executable, str(PKG / "verify.py")],
                               capture_output=True, text=True, cwd=str(PKG))
         self.assertEqual(proc.returncode, 0, proc.stdout[-2000:] + proc.stderr[-2000:])
         for key in ("r1_kappa", "r2_kappa", "r1_agreement", "r2_agreement",
-                    "r2_n", "r1_n_compared"):
+                    "r2_n", "r1_n_compared",
+                    "r2_kappa_codex", "r2_kappa_ai_pair", "r2_fleiss", "r2_unanimous"):
             self.assertIn(key, proc.stdout, f"verify.py 没有断言 {key}")
 
     def test_mutating_a_human_verdict_makes_verify_fail(self):

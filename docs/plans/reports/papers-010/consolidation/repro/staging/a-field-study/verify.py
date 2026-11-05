@@ -22,9 +22,53 @@ PAPER={  # A 篇正文所述值
  # §3.4 两轮盲编码。第一轮判据四类，第二轮判据五类、抽样框加机械过滤。
  'r1_n_compared':23,'r1_agreement':0.130,'r1_kappa':-0.100,
  'r2_n':15,'r2_agreement':0.667,'r2_kappa':0.540,
- 'r2_kappa_lo':0.211,'r2_kappa_hi':0.869}
+ 'r2_kappa_lo':0.211,'r2_kappa_hi':0.869,
+ # 第二轮的 15 条由三名编码者各自独立编码：作者、AI 甲（Opus）、AI 乙（Codex）。
+ 'r2_kappa_codex':0.458,'r2_kappa_ai_pair':0.909,'r2_fleiss':0.628,'r2_unanimous':9}
 
 ROW=re.compile(r'^\|\s*(\d+)\s*\|')
+
+def verdicts(path):
+    """读一份编码：.json 是 ai-coding，.md 是编码表（按表头找「判定」列）。"""
+    path=HERE/'blind-coding'/path
+    if path.suffix=='.json':
+        return {k:v['verdict'].upper() for k,v in
+                json.load(open(path,encoding='utf-8'))['codes'].items()}
+    lines=path.read_text(encoding='utf-8').splitlines()
+    vi=None
+    for line in lines:
+        if line.strip().startswith('|') and '判定' in line and not ROW.match(line):
+            cells=[c.strip() for c in line.strip().strip('|').split('|')]
+            vi=next(i for i,c in enumerate(cells) if '判定' in c); break
+    out={}
+    for line in lines:
+        if not ROW.match(line): continue
+        cells=[c.strip() for c in line.strip().strip('|').split('|')]
+        if vi is not None and len(cells)>vi: out[cells[0]]=cells[vi].upper()
+    return out
+
+def pair_kappa(a,b,categories):
+    pairs=[(a[r],b[r]) for r in sorted(set(a)&set(b),key=int)
+           if a[r] in categories and b[r] in categories]
+    n=len(pairs)
+    po=sum(1 for x,y in pairs if x==y)/n
+    pe=sum((sum(1 for x,_ in pairs if x==c)/n)*(sum(1 for _,y in pairs if y==c)/n)
+           for c in categories)
+    return po,(po-pe)/(1-pe),n
+
+def fleiss(codings,categories):
+    rows=sorted(set.intersection(*[set(c) for c in codings]),key=int)
+    rows=[r for r in rows if all(c[r] in categories for c in codings)]
+    m=len(codings); pbar=0.0; tot={c:0 for c in categories}
+    for r in rows:
+        cnt={c:0 for c in categories}
+        for c in codings: cnt[c[r]]+=1
+        for c in categories: tot[c]+=cnt[c]
+        pbar+=(sum(k*k for k in cnt.values())-m)/(m*(m-1))
+    pbar/=len(rows)
+    pe=sum((tot[c]/(len(rows)*m))**2 for c in categories)
+    unan=sum(1 for r in rows if len({c[r] for c in codings})==1)
+    return (pbar-pe)/(1-pe),unan
 
 def coding(round_no,categories):
     """读该轮的人工表与 AI 侧编码，返回 (po, kappa, n) —— 与 agreement.py 同一算法。"""
@@ -66,6 +110,12 @@ def computed():
     s=json.load(open(HERE/'rule-audit/summary.json',encoding='utf-8'))
     r1po,r1k,r1n,_r1se=coding(1,('A','B','C','D'))
     r2po,r2k,r2n,r2se=coding(2,('A','B','C','D','E'))
+    C5=('A','B','C','D','E')
+    author=verdicts('round-2/sheet.md'); opus=verdicts('round-2/ai-coding.json')
+    codex=verdicts('round-2/coder-c-codex.md')
+    _po2,k_codex,_n2=pair_kappa(author,codex,C5)
+    _po3,k_pair,_n3=pair_kappa(opus,codex,C5)
+    fk,unan=fleiss([author,opus,codex],C5)
     return {
      'transitions':len(t),'topology_changed':len(ch),'topology_unchanged':len(un),
      'parent_retained':ret,
@@ -90,7 +140,9 @@ def computed():
      'stale_commit_receipts':s['older_repo_commit_receipts'],
      'r1_n_compared':r1n,'r1_agreement':round(r1po,3),'r1_kappa':round(r1k,3),
      'r2_n':r2n,'r2_agreement':round(r2po,3),'r2_kappa':round(r2k,3),
-     'r2_kappa_lo':round(r2k-1.96*r2se,3),'r2_kappa_hi':round(r2k+1.96*r2se,3)}
+     'r2_kappa_lo':round(r2k-1.96*r2se,3),'r2_kappa_hi':round(r2k+1.96*r2se,3),
+     'r2_kappa_codex':round(k_codex,3),'r2_kappa_ai_pair':round(k_pair,3),
+     'r2_fleiss':round(fk,3),'r2_unanimous':unan}
 
 def main():
     got=computed();bad=[]

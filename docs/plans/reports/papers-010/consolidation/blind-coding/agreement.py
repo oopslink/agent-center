@@ -20,21 +20,85 @@ DEFAULT_CATEGORIES = ("A", "B", "C", "D")
 ROW = re.compile(r"^\|\s*(\d+)\s*\|")
 
 
+def _columns(lines):
+    """从表头按名字定位列下标。外部编码包的表只有四列，写死下标会读错列。"""
+    for line in lines:
+        if not line.strip().startswith("|") or ROW.match(line):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if not any("判定" in c for c in cells):
+            continue
+        idx = {
+            "verdict": next(i for i, c in enumerate(cells) if "判定" in c),
+            "note": next((i for i, c in enumerate(cells) if "备注" in c), None),
+            "code": next((i for i, c in enumerate(cells) if "片段编号" in c), None),
+        }
+        return idx
+    return None
+
+
 def read_sheet(path):
-    """返回 {行号: {"code":..., "verdict":..., "note":...}}；未填判定的 verdict 为 ""。"""
+    """返回 {行号: {"code":..., "verdict":..., "note":...}}；未填判定的 verdict 为 ""。
+
+    code 为 None 表示该表没有片段编号列（外部编码包只给记录序号），
+    此时跨表的片段编号一致性无从检查，由调用方跳过。
+    """
+    lines = Path(path).read_text(encoding="utf-8").splitlines()
+    idx = _columns(lines) or {"verdict": 5, "note": 6, "code": 1}
     out = {}
-    for line in Path(path).read_text(encoding="utf-8").splitlines():
+    for line in lines:
         if not ROW.match(line):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if len(cells) < 6:
+        if len(cells) <= idx["verdict"]:
             continue
+        note_i, code_i = idx["note"], idx["code"]
         out[cells[0]] = {
-            "code": cells[1].strip("`"),
-            "verdict": cells[5].strip().upper(),
-            "note": cells[6] if len(cells) > 6 else "",
+            "code": cells[code_i].strip("`") if code_i is not None and len(cells) > code_i else None,
+            "verdict": cells[idx["verdict"]].strip().upper(),
+            "note": cells[note_i].strip() if note_i is not None and len(cells) > note_i else "",
         }
     return out
+
+
+def read_coder(path):
+    """编码表或 ai-coding.json 都可以当一份编码读入。"""
+    return read_ai(path)[0] if str(path).endswith(".json") else read_sheet(path)
+
+
+def _clamped(k, se):
+    """κ 的定义域是 [-1, 1]。正态近似在 n 小时会越界，截断并由调用方标注，
+    而不是印出 1.081 这种不存在的值。"""
+    if se is None:
+        return None
+    return [max(-1.0, k - 1.96 * se), min(1.0, k + 1.96 * se)]
+
+
+def fleiss_kappa(assignments, categories):
+    """多编码者的 Fleiss κ。assignments: [{coder: verdict}]，每项都被全部编码者编过。
+
+    两两 κ 会掩盖"两人高度一致、第三人与两者都不一致"的结构，所以两个都报。
+    """
+    n_items = len(assignments)
+    if n_items == 0:
+        return None, None, None, "no items"
+    n_raters = len(next(iter(assignments)))
+    if n_raters < 2:
+        return None, None, None, "needs at least two coders"
+    p_bar = 0.0
+    totals = {c: 0 for c in categories}
+    for item in assignments:
+        counts = {c: 0 for c in categories}
+        for v in item.values():
+            counts[v] += 1
+        for c in categories:
+            totals[c] += counts[c]
+        p_bar += (sum(k * k for k in counts.values()) - n_raters) / (n_raters * (n_raters - 1))
+    p_bar /= n_items
+    pe = sum((totals[c] / (n_items * n_raters)) ** 2 for c in categories)
+    if abs(1.0 - pe) < 1e-12:
+        return None, p_bar, pe, "undefined: expected agreement is 1"
+    return (p_bar - pe) / (1.0 - pe), p_bar, pe, ""
 
 
 def read_ai(path):
@@ -113,16 +177,134 @@ def render(report):
     return "\n".join(lines)
 
 
+def multi(args, categories):
+    coders, order = {}, []
+    for spec in args.coder:
+        label, _, path = spec.partition("=")
+        order.append(label)
+        coders[label] = read_coder(path)
+
+    rows = sorted(set().union(*(set(c) for c in coders.values())), key=int)
+    complete, incomplete = [], []
+    for r in rows:
+        vs = {lab: coders[lab].get(r, {}).get("verdict", "") for lab in order}
+        (complete if all(v in categories for v in vs.values()) else incomplete).append(r)
+
+    assignments = [{lab: coders[lab][r]["verdict"] for lab in order} for r in complete]
+    pairwise = []
+    for i, a in enumerate(order):
+        for b in order[i + 1:]:
+            pairs = [(x[a], x[b]) for x in assignments]
+            k, po, pe, note = kappa(pairs, categories)
+            se = (math.sqrt(po * (1 - po) / (len(pairs) * (1 - pe) ** 2))
+                  if k is not None and pairs else None)
+            pairwise.append({
+                "pair": f"{a}×{b}",
+                "n": len(pairs),
+                "observed_agreement": po,
+                "expected_agreement": pe,
+                "cohens_kappa": k,
+                "kappa_se": se,
+                "kappa_ci95": _clamped(k, se),
+                "kappa_ci95_raw": [k - 1.96 * se, k + 1.96 * se] if se is not None else None,
+                "kappa_ci95_truncated": (se is not None
+                                         and (k + 1.96 * se > 1.0 or k - 1.96 * se < -1.0)),
+                "kappa_note": note,
+                "disagreements": [r for r, x in zip(complete, assignments) if x[a] != x[b]],
+            })
+    fk, pbar, fpe, fnote = fleiss_kappa(assignments, categories)
+
+    item_table = []
+    for r, x in zip(complete, assignments):
+        item_table.append({
+            "row": r,
+            "verdicts": x,
+            "unanimous": len(set(x.values())) == 1,
+            "notes": {lab: coders[lab][r]["note"] for lab in order},
+        })
+
+    report = {
+        "coders": order,
+        "sources": {lab: spec.partition("=")[2] for lab, spec in zip(order, args.coder)},
+        "categories": list(categories),
+        "n_items": len(complete),
+        "rows_not_coded_by_all": incomplete,
+        "pairwise": pairwise,
+        "fleiss_kappa": fk,
+        "fleiss_pbar": pbar,
+        "fleiss_pe": fpe,
+        "fleiss_note": fnote,
+        "unanimous_items": sum(1 for x in item_table if x["unanimous"]),
+        "distributions": {lab: {c: sum(1 for x in assignments if x[lab] == c) for c in categories}
+                          for lab in order},
+        "item_table": item_table,
+        "rows_without_note": {lab: [x["row"] for x in item_table if not x["notes"][lab]]
+                              for lab in order},
+    }
+    print(json.dumps(report, ensure_ascii=False, indent=1))
+    if args.out:
+        Path(args.out).write_text(render_multi(report), encoding="utf-8")
+    return 0
+
+
+def render_multi(report):
+    order = report["coders"]
+    cats = report["categories"]
+    lines = [
+        "# 多编码者一致率",
+        "",
+        f"- 编码者：{'、'.join(order)}",
+        f"- 全部编码者都编过的条目：{report['n_items']}"
+        f"（未被全部编码者编过：{report['rows_not_coded_by_all'] or '无'}）",
+        f"- 三者完全一致的条目：{report['unanimous_items']} / {report['n_items']}",
+        f"- Fleiss κ：{report['fleiss_kappa']:.3f}"
+        if report["fleiss_kappa"] is not None
+        else f"- Fleiss κ：无定义（{report['fleiss_note']}）",
+        "",
+        "## 两两比对",
+        "",
+        "| 配对 | 条目 | 一致率 | Cohen's κ | 95% 区间 |",
+        "|---|---:|---:|---:|---|",
+    ]
+    for p in report["pairwise"]:
+        ci = (f"{p['kappa_ci95'][0]:.3f}–{p['kappa_ci95'][1]:.3f}"
+              + ("（正态近似上界越界，已截断至 1）" if p["kappa_ci95_truncated"] else "")
+              if p["kappa_ci95"] else "—")
+        k = f"{p['cohens_kappa']:.3f}" if p["cohens_kappa"] is not None else "无定义"
+        lines.append(f"| {p['pair']} | {p['n']} | {p['observed_agreement']:.3f} | {k} | {ci} |")
+    lines += ["", "## 各编码者的类别分布", "",
+              "| 编码者 | " + " | ".join(cats) + " |", "|---|" + "---|" * len(cats)]
+    for lab in order:
+        lines.append(f"| {lab} | " + " | ".join(str(report["distributions"][lab][c])
+                                                for c in cats) + " |")
+    lines += ["", "## 逐条判定", "",
+              "| # | " + " | ".join(order) + " | 一致 |",
+              "|---:|" + "---|" * (len(order) + 1)]
+    for row in report["item_table"]:
+        mark = "是" if row["unanimous"] else "**否**"
+        lines.append(f"| {row['row']} | "
+                     + " | ".join(row["verdicts"][lab] for lab in order)
+                     + f" | {mark} |")
+    lines.append("")
+    return "\n".join(lines)
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--sheet", required=True)
-    ap.add_argument("--ai", required=True)
+    ap.add_argument("--sheet")
+    ap.add_argument("--ai")
+    ap.add_argument("--coder", action="append", default=[], metavar="标签=路径",
+                    help="多编码者模式；给两份以上，报两两 κ 与 Fleiss κ")
     ap.add_argument("--out")
     ap.add_argument("--categories", default=",".join(DEFAULT_CATEGORIES),
                     help="判据的类别集合；v2 的五类传 A,B,C,D,E")
     args = ap.parse_args()
 
     categories = tuple(c.strip().upper() for c in args.categories.split(",") if c.strip())
+
+    if args.coder:
+        return multi(args, categories)
+
     human = read_sheet(args.sheet)
     ai, ai_raw = read_ai(args.ai)
 
